@@ -1,0 +1,8 @@
+build/
+*.xcuserdata
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
