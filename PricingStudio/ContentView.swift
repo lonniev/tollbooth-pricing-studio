@@ -16,10 +16,13 @@ struct ContentView: View {
                     .font(.largeTitle)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 16) {
-                    Image(systemName: "dollarsign.gauge.chart.lefthalf.righthalf")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.tint)
+                VStack(spacing: 24) {
+                    Image("MiloGreeting")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 600)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .shadow(radius: 8)
                     Text("Hello, Pricing Studio")
                         .font(.largeTitle.bold())
                     Text("Select an item from the sidebar to begin.")
