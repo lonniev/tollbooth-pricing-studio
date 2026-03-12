@@ -1,47 +1,32 @@
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
-    private let sidebarItems = ["Tool Prices", "Constraints", "Models"]
-    @State private var selectedItem: String?
+    @State private var operatorVM = OperatorCollectionViewModel()
+    @State private var pricingVM = PricingViewModel()
 
     var body: some View {
         NavigationSplitView {
-            List(sidebarItems, id: \.self, selection: $selectedItem) { item in
-                Label(item, systemImage: iconName(for: item))
-            }
-            .navigationTitle("Pricing Studio")
+            OperatorSidebarView(viewModel: operatorVM)
         } detail: {
-            if let selected = selectedItem {
-                Text(selected)
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
+            if let op = operatorVM.selectedOperator {
+                PricingDetailView(op: op, viewModel: pricingVM)
             } else {
-                VStack(spacing: 24) {
-                    Image("MiloGreeting")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 600)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(radius: 8)
-                    Text("Hello, Pricing Studio")
-                        .font(.largeTitle.bold())
-                    Text("Select an item from the sidebar to begin.")
-                        .foregroundStyle(.secondary)
-                }
+                EmptyStateView()
             }
         }
-    }
-
-    private func iconName(for item: String) -> String {
-        switch item {
-        case "Tool Prices": return "tag"
-        case "Constraints": return "lock.shield"
-        case "Models": return "cube.transparent"
-        default: return "circle"
+        .sheet(isPresented: $operatorVM.showingAddSheet) {
+            AddOperatorSheet(viewModel: operatorVM)
+        }
+        .onChange(of: operatorVM.selectedOperator) { _, newOp in
+            if newOp == nil {
+                pricingVM.reset()
+            }
         }
     }
 }
 
 #Preview {
     ContentView()
+        .modelContainer(for: Operator.self, inMemory: true)
 }
