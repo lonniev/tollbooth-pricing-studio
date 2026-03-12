@@ -32,7 +32,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		AA000001000000000000004A /* = root = */ = {
+		AA000001000000000000004A = {
 			isa = PBXGroup;
 			children = (
 				AA000001000000000000004B /* PricingStudio */,
@@ -110,7 +110,7 @@
 				en,
 				Base,
 			);
-			mainGroup = AA000001000000000000004A /* = root = */;
+			mainGroup = AA000001000000000000004A;
 			productRefGroup = AA000001000000000000004C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -270,6 +270,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"PricingStudio/Preview Content\"";
+				DEVELOPMENT_TEAM = JHPQNMW73Z;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -299,6 +300,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"PricingStudio/Preview Content\"";
+				DEVELOPMENT_TEAM = JHPQNMW73Z;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -342,7 +344,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = AA000001000000000000006A /* Project object */;
 }
