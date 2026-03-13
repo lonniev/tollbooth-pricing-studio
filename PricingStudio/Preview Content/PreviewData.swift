@@ -69,6 +69,32 @@ enum PreviewData {
         pipeline: samplePipelineSteps
     )
 
+    static let sampleOperatorStats = OperatorStats(
+        registryRole: "operator",
+        registryStatus: "active",
+        registryDisplayName: "Personal Brain",
+        services: [
+            MemberService(name: "personal-brain", type: "mcp", url: "https://personal-brain.cloud.fastmcp.com/sse")
+        ],
+        totalToolCount: sampleToolPrices.count,
+        freeToolCount: sampleToolPrices.filter { $0.priceSats == 0 }.count,
+        paidToolCount: sampleToolPrices.filter { $0.priceSats > 0 }.count,
+        categorySummaries: {
+            let grouped = Dictionary(grouping: sampleToolPrices, by: \.category)
+            return ["free", "auth", "read", "write", "heavy"].compactMap { cat in
+                guard let tools = grouped[cat] else { return nil }
+                let prices = tools.map(\.priceSats)
+                return ToolCategorySummary(
+                    category: cat,
+                    count: tools.count,
+                    minPriceSats: prices.min() ?? 0,
+                    maxPriceSats: prices.max() ?? 0
+                )
+            }
+        }(),
+        fetchedAt: Date()
+    )
+
     static let emptyPricingModel = PricingModelResponse(
         status: "no_pricing_model",
         modelId: nil,

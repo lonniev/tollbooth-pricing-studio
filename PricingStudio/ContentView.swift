@@ -18,6 +18,17 @@ struct ContentView: View {
         .sheet(isPresented: $operatorVM.showingAddSheet) {
             AddOperatorSheet(viewModel: operatorVM)
         }
+        .sheet(isPresented: $operatorVM.showingEditSheet) {
+            if let op = operatorVM.operatorToEdit {
+                EditOperatorSheet(viewModel: operatorVM, operator_: op)
+            }
+        }
+        .sheet(item: $operatorVM.operatorForStats) { op in
+            OperatorStatsSheet(
+                operator_: op,
+                stats: PreviewData.sampleOperatorStats
+            )
+        }
         .onChange(of: operatorVM.selectedOperator) { _, newOp in
             if newOp == nil {
                 pricingVM.reset()

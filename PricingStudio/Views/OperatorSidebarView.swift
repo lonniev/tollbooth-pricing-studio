@@ -11,9 +11,27 @@ struct OperatorSidebarView: View {
             ForEach(operators) { op in
                 OperatorRow(op: op)
                     .tag(op)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
-                            viewModel.deleteOperator(op, context: modelContext)
+                            viewModel.requestDelete(op)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .contextMenu {
+                        Button {
+                            viewModel.requestEdit(op)
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Button {
+                            viewModel.requestStats(op)
+                        } label: {
+                            Label("View Details", systemImage: "info.circle")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            viewModel.requestDelete(op)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -38,6 +56,20 @@ struct OperatorSidebarView: View {
                     description: Text("Tap + to add an operator by npub.")
                 )
             }
+        }
+        .alert(
+            "Delete Operator",
+            isPresented: $viewModel.showingDeleteConfirmation,
+            presenting: viewModel.operatorToDelete
+        ) { op in
+            Button("Cancel", role: .cancel) {
+                viewModel.cancelDelete()
+            }
+            Button("Delete", role: .destructive) {
+                viewModel.confirmDelete(context: modelContext)
+            }
+        } message: { op in
+            Text("Delete \"\(op.displayName)\"? Any saved OAuth token for this operator will also be removed.")
         }
     }
 }

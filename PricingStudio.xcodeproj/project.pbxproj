@@ -30,6 +30,9 @@
 		AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F1 /* ConnectionStatusView.swift */; };
 		AA00000100000000000000C2 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F2 /* EmptyStateView.swift */; };
 		AA00000100000000000000C3 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F3 /* PreviewData.swift */; };
+		AA00000100000000000000C4 /* OperatorStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F4 /* OperatorStats.swift */; };
+		AA00000100000000000000C5 /* EditOperatorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F5 /* EditOperatorSheet.swift */; };
+		AA00000100000000000000C6 /* OperatorStatsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F6 /* OperatorStatsSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -57,6 +60,9 @@
 		AA00000100000000000000F1 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F3 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F4 /* OperatorStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStats.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F5 /* EditOperatorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditOperatorSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F6 /* OperatorStatsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStatsSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -116,6 +122,7 @@
 				AA00000100000000000000E1 /* Operator.swift */,
 				AA00000100000000000000E2 /* PricingModel.swift */,
 				AA00000100000000000000E3 /* MemberRecord.swift */,
+				AA00000100000000000000F4 /* OperatorStats.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -145,6 +152,8 @@
 			children = (
 				AA00000100000000000000EA /* OperatorSidebarView.swift */,
 				AA00000100000000000000EB /* AddOperatorSheet.swift */,
+				AA00000100000000000000F5 /* EditOperatorSheet.swift */,
+				AA00000100000000000000F6 /* OperatorStatsSheet.swift */,
 				AA00000100000000000000EC /* PricingDetailView.swift */,
 				AA00000100000000000000ED /* ToolPriceListView.swift */,
 				AA00000100000000000000EE /* ToolPriceRow.swift */,
@@ -253,6 +262,9 @@
 				AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */,
 				AA00000100000000000000C2 /* EmptyStateView.swift in Sources */,
 				AA00000100000000000000C3 /* PreviewData.swift in Sources */,
+				AA00000100000000000000C4 /* OperatorStats.swift in Sources */,
+				AA00000100000000000000C5 /* EditOperatorSheet.swift in Sources */,
+				AA00000100000000000000C6 /* OperatorStatsSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
