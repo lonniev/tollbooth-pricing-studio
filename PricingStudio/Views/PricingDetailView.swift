@@ -68,13 +68,29 @@ struct PricingDetailView: View {
                         MemberInfoButton(member: member)
                     }
                 }
-                if isActive {
-                    Label("Active", systemImage: "checkmark.circle.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(.green)
+                HStack(spacing: 12) {
+                    if isActive {
+                        Label("Active", systemImage: "checkmark.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.green)
+                    }
+                    if let age = viewModel.cacheAgeSecs {
+                        Text("\(age)s ago")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
                 }
             }
             Spacer()
+            Button {
+                viewModel.forceRefresh(for: target)
+            } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
     }
 

@@ -15,6 +15,8 @@ final class PricingViewModel {
     private(set) var state: State = .idle
     private(set) var currentOperatorNpub: String?
     private(set) var memberRecord: MemberRecord?
+    /// When the current result was fetched — nil if not from cache or not yet loaded.
+    private(set) var loadedAt: Date?
 
     /// Called when an operator lookup discovers an upstream authority.
     /// Parameters: (authorityNpub, displayName?, endpointURL?)
@@ -23,6 +25,22 @@ final class PricingViewModel {
     private let mcpService = MCPService()
     private let oauthService = OAuthService()
     private var loadingTask: Task<Void, Never>?
+
+    // MARK: - In-Memory Discovery Cache (5-minute TTL)
+
+    private struct CacheEntry {
+        let model: PricingModelResponse
+        let memberRecord: MemberRecord?
+        let cachedAt: Date
+
+        var isExpired: Bool {
+            Date().timeIntervalSince(cachedAt) > 300  // 5 minutes
+        }
+    }
+
+    private var cache: [String: CacheEntry] = [:]
+
+    // MARK: - Computed State
 
     var isLoading: Bool {
         if case .loading = state { return true }
@@ -44,15 +62,42 @@ final class PricingViewModel {
         return nil
     }
 
+    /// How many seconds ago the current result was fetched.
+    var cacheAgeSecs: Int? {
+        guard let loadedAt else { return nil }
+        return Int(Date().timeIntervalSince(loadedAt))
+    }
+
+    // MARK: - Loading
+
     func loadPricing(for target: any PricingTarget) async {
+        // Already showing this target and not in error? Skip.
         guard currentOperatorNpub != target.npub || errorMessage != nil else { return }
         currentOperatorNpub = target.npub
 
+        // Check cache first
+        if let entry = cache[target.npub], !entry.isExpired {
+            memberRecord = entry.memberRecord
+            loadedAt = entry.cachedAt
+            state = .loaded(entry.model)
+            return
+        }
+
+        await fetchPricing(for: target)
+    }
+
+    /// Bypass cache — always does a full network round-trip.
+    func forceRefresh(for target: any PricingTarget) {
+        cache.removeValue(forKey: target.npub)
+        currentOperatorNpub = nil  // allow loadPricing guard to pass
+        startLoading(for: target)
+    }
+
+    private func fetchPricing(for target: any PricingTarget) async {
         state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
 
         do {
             // Step 1: Resolve Oracle URL and authenticate
-            state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
             let oracleURL = try await mcpService.resolveOracleURL(forOperator: target.npub)
             let oracleHost = oracleURL.host ?? "oracle"
 
@@ -76,7 +121,6 @@ final class PricingViewModel {
             // Auto-discover upstream authority (Operator-specific)
             if let op = target as? Operator, let authNpub = member.upstreamAuthorityNpub {
                 op.authorityNpub = authNpub
-                // Look up the authority's display name and endpoint from registry
                 let authInfo = await resolveAuthorityInfo(npub: authNpub)
                 onAuthorityDiscovered?(authNpub, authInfo.displayName, authInfo.endpointURL)
             }
@@ -102,6 +146,9 @@ final class PricingViewModel {
                 }
             }
 
+            let now = Date()
+            cache[target.npub] = CacheEntry(model: model, memberRecord: member, cachedAt: now)
+            loadedAt = now
             state = .loaded(model)
 
         } catch is CancellationError {
@@ -117,6 +164,7 @@ final class PricingViewModel {
 
     func loadPreview(for target: any PricingTarget) {
         currentOperatorNpub = target.npub
+        loadedAt = Date()
         state = .loaded(PreviewData.samplePricingModel)
     }
 
@@ -133,6 +181,7 @@ final class PricingViewModel {
         state = .idle
         currentOperatorNpub = nil
         memberRecord = nil
+        loadedAt = nil
     }
 
     func retry(for target: any PricingTarget) {
@@ -146,6 +195,8 @@ final class PricingViewModel {
         state = .idle
         currentOperatorNpub = nil
         memberRecord = nil
+        loadedAt = nil
+        // NOTE: cache is intentionally NOT cleared — survives selection changes
     }
 
     // MARK: - Authority Discovery
