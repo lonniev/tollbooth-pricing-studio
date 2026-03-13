@@ -108,6 +108,11 @@ final class NostrRelayService: Sendable {
     private static func fetchFromRelay(
         _ relay: URL, reqString: String, subId: String, session: URLSession
     ) async -> [NostrEvent] {
+        let host = relay.host ?? relay.absoluteString
+        await MainActor.run {
+            TrafficLogger.shared.log(.outbound, label: "Relay Connect", detail: host)
+        }
+
         do {
             let ws = session.webSocketTask(with: relay)
             ws.resume()
@@ -152,9 +157,15 @@ final class NostrRelayService: Sendable {
                 try? await ws.send(.string(closeString))
             }
 
+            await MainActor.run {
+                TrafficLogger.shared.log(.inbound, label: "Relay \(host)", detail: "\(events.count) events")
+            }
             logger.info("Fetched \(events.count) events from \(relay.absoluteString)")
             return events
         } catch {
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "Relay \(host) Failed", detail: error.localizedDescription)
+            }
             logger.debug("Relay fetch \(relay.absoluteString) failed: \(error.localizedDescription)")
             return []
         }
@@ -164,6 +175,11 @@ final class NostrRelayService: Sendable {
     private static func publishToRelay(
         _ relay: URL, message: String, session: URLSession
     ) async -> (URL, Bool, String) {
+        let host = relay.host ?? relay.absoluteString
+        await MainActor.run {
+            TrafficLogger.shared.log(.outbound, label: "Relay Publish", detail: host)
+        }
+
         do {
             let ws = session.webSocketTask(with: relay)
             ws.resume()
@@ -179,12 +195,21 @@ final class NostrRelayService: Sendable {
             case .string(let text):
                 guard let data = text.data(using: .utf8),
                       let arr = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+                    await MainActor.run {
+                        TrafficLogger.shared.log(.inbound, label: "Relay Publish OK", detail: host)
+                    }
                     return (relay, true, text)
                 }
                 if let type = arr.first as? String, type == "OK",
                    arr.count >= 3, let ok = arr[2] as? Bool {
                     let detail = arr.count > 3 ? (arr[3] as? String ?? "") : ""
+                    await MainActor.run {
+                        TrafficLogger.shared.log(ok ? .inbound : .error, label: "Relay Publish \(ok ? "OK" : "Fail")", detail: "\(host): \(detail)")
+                    }
                     return (relay, ok, detail)
+                }
+                await MainActor.run {
+                    TrafficLogger.shared.log(.inbound, label: "Relay Publish OK", detail: host)
                 }
                 return (relay, true, text)
             case .data:
@@ -193,6 +218,9 @@ final class NostrRelayService: Sendable {
                 return (relay, true, "")
             }
         } catch {
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "Relay Publish Fail", detail: "\(host): \(error.localizedDescription)")
+            }
             logger.debug("Relay publish \(relay.absoluteString) failed: \(error.localizedDescription)")
             return (relay, false, error.localizedDescription)
         }

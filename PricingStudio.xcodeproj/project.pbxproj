@@ -66,6 +66,8 @@
 		AA0000010000000000000247 /* ComposeMessageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000257 /* ComposeMessageSheet.swift */; };
 		AA0000010000000000000248 /* ChatFontPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000258 /* ChatFontPicker.swift */; };
 		AA0000010000000000000249 /* NoNsecView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000259 /* NoNsecView.swift */; };
+		AA0000010000000000000311 /* PatronAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000301 /* PatronAccountViewModel.swift */; };
+		AA0000010000000000000312 /* PatronDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000302 /* PatronDetailView.swift */; };
 		AA0000010000000000000401 /* AssistantMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000411 /* AssistantMessage.swift */; };
 		AA0000010000000000000402 /* AnthropicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000412 /* AnthropicService.swift */; };
 		AA0000010000000000000403 /* AssistantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000413 /* AssistantViewModel.swift */; };
@@ -134,6 +136,8 @@
 		AA0000010000000000000257 /* ComposeMessageSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeMessageSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000258 /* ChatFontPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatFontPicker.swift; sourceTree = "<group>"; };
 		AA0000010000000000000259 /* NoNsecView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoNsecView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000301 /* PatronAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronAccountViewModel.swift; sourceTree = "<group>"; };
+		AA0000010000000000000302 /* PatronDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronDetailView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000411 /* AssistantMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantMessage.swift; sourceTree = "<group>"; };
 		AA0000010000000000000412 /* AnthropicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000413 /* AssistantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantViewModel.swift; sourceTree = "<group>"; };
@@ -245,6 +249,7 @@
 				AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */,
 				AA00000100000000000001A7 /* TopologyViewModel.swift */,
 				AA0000010000000000000233 /* ChatViewModel.swift */,
+				AA0000010000000000000301 /* PatronAccountViewModel.swift */,
 				AA0000010000000000000413 /* AssistantViewModel.swift */,
 			);
 			path = ViewModels;
@@ -272,6 +277,7 @@
 				AA00000100000000000001A4 /* EditAuthoritySheet.swift */,
 				AA00000100000000000001A6 /* AuthorityDetailView.swift */,
 				AA00000100000000000001A8 /* NetworkTopologyView.swift */,
+				AA0000010000000000000302 /* PatronDetailView.swift */,
 				AA0000010000000000000414 /* AssistantPanelView.swift */,
 				AA0000010000000000000415 /* AssistantAPIKeySheet.swift */,
 				AA0000010000000000000250 /* Chat */,
@@ -438,6 +444,8 @@
 				AA0000010000000000000247 /* ComposeMessageSheet.swift in Sources */,
 				AA0000010000000000000248 /* ChatFontPicker.swift in Sources */,
 				AA0000010000000000000249 /* NoNsecView.swift in Sources */,
+				AA0000010000000000000311 /* PatronAccountViewModel.swift in Sources */,
+				AA0000010000000000000312 /* PatronDetailView.swift in Sources */,
 				AA0000010000000000000401 /* AssistantMessage.swift in Sources */,
 				AA0000010000000000000402 /* AnthropicService.swift in Sources */,
 				AA0000010000000000000403 /* AssistantViewModel.swift in Sources */,

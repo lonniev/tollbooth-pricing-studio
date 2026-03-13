@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var patronVM = PatronCollectionViewModel()
     @State private var pricingVM = PricingViewModel()
     @State private var chatVM = ChatViewModel()
+    @State private var patronAccountVM = PatronAccountViewModel()
     @State private var assistantVM = AssistantViewModel()
     @State private var showingAssistant = false
     @State private var showingTrafficLog = false
@@ -34,8 +35,8 @@ struct ContentView: View {
                             PricingDetailView(target: op, viewModel: pricingVM)
                         }
                     } else if let patron = patronVM.selectedPatron {
-                        ChatContainerView(identity: ChatIdentity(from: patron), chatVM: chatVM) {
-                            PatronDetailCard(patron: patron)
+                        ChatContainerView(identity: ChatIdentity(from: patron), chatVM: chatVM, firstTabLabel: "Account") {
+                            PatronDetailView(patron: patron, accountVM: patronAccountVM)
                         }
                     } else {
                         NetworkTopologyView(onNodeSelected: { npub, tier in
@@ -126,8 +127,10 @@ struct ContentView: View {
                 authorityVM.selectedAuthority = nil
                 operatorVM.selectedOperator = nil
                 pricingVM.reset()
+                patronAccountVM.reset()
                 chatVM.switchIdentity(to: ChatIdentity(from: patron))
             } else {
+                patronAccountVM.reset()
                 chatVM.switchIdentity(to: nil)
             }
         }
@@ -511,44 +514,6 @@ private struct OperatorRowInline: View {
         let prefix = npub.prefix(12)
         let suffix = npub.suffix(4)
         return "\(prefix)...\(suffix)"
-    }
-}
-
-// MARK: - Patron Detail Card
-
-private struct PatronDetailCard: View {
-    let patron: Patron
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "person.badge.key.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(Color.accentColor)
-
-            Text(patron.displayName)
-                .font(.title.bold())
-
-            VStack(spacing: 8) {
-                Text(patron.npub)
-                    .font(.callout)
-                    .monospaced()
-                    .textSelection(.enabled)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-
-                Text("Added \(patron.addedAt.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-
-            if KeychainService.loadNsec(forNpub: patron.npub) != nil {
-                Label("nsec stored in Keychain", systemImage: "checkmark.shield.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(.green)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle(patron.displayName)
     }
 }
 
