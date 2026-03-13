@@ -76,7 +76,9 @@ final class PricingViewModel {
             // Auto-discover upstream authority (Operator-specific)
             if let op = target as? Operator, let authNpub = member.upstreamAuthorityNpub {
                 op.authorityNpub = authNpub
-                onAuthorityDiscovered?(authNpub, nil, nil)
+                // Look up the authority's display name and endpoint from registry
+                let authInfo = await resolveAuthorityInfo(npub: authNpub)
+                onAuthorityDiscovered?(authNpub, authInfo.displayName, authInfo.endpointURL)
             }
 
             guard let endpointString = target.mcpEndpointURL,
@@ -144,6 +146,22 @@ final class PricingViewModel {
         state = .idle
         currentOperatorNpub = nil
         memberRecord = nil
+    }
+
+    // MARK: - Authority Discovery
+
+    /// Look up an authority's display name and MCP endpoint from the registry.
+    private func resolveAuthorityInfo(npub: String) async -> (displayName: String?, endpointURL: String?) {
+        do {
+            let entries = try await RegistryService.fetchRegistry()
+            guard let entry = entries.first(where: { $0.npub == npub }) else {
+                return (nil, nil)
+            }
+            let endpointURL = entry.services?.first?.url
+            return (entry.display_name, endpointURL)
+        } catch {
+            return (nil, nil)
+        }
     }
 
     // MARK: - Token Resolution

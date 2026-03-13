@@ -21,7 +21,9 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 Group {
                     if let auth = authorityVM.selectedAuthority {
-                        AuthorityDetailView(authority: auth, pricingVM: pricingVM)
+                        AuthorityDetailView(authority: auth, pricingVM: pricingVM) { op in
+                            operatorVM.selectedOperator = op
+                        }
                     } else if let op = operatorVM.selectedOperator {
                         PricingDetailView(target: op, viewModel: pricingVM)
                     } else if let patron = patronVM.selectedPatron {
@@ -136,6 +138,12 @@ private struct SidebarView: View {
     @Bindable var patronVM: PatronCollectionViewModel
     @Binding var showingTrafficLog: Bool
 
+    private var hasSelection: Bool {
+        authorityVM.selectedAuthority != nil
+        || operatorVM.selectedOperator != nil
+        || patronVM.selectedPatron != nil
+    }
+
     var body: some View {
         List {
             authoritiesSection
@@ -166,15 +174,28 @@ private struct SidebarView: View {
                 }
             }
             ToolbarItem(placement: .bottomBar) {
-                Button {
-                    withAnimation { showingTrafficLog.toggle() }
-                } label: {
-                    Label(
-                        showingTrafficLog ? "Hide Traffic Log" : "Show Traffic Log",
-                        systemImage: showingTrafficLog
-                            ? "antenna.radiowaves.left.and.right.slash"
-                            : "antenna.radiowaves.left.and.right"
-                    )
+                HStack {
+                    Button {
+                        authorityVM.selectedAuthority = nil
+                        operatorVM.selectedOperator = nil
+                        patronVM.selectedPatron = nil
+                    } label: {
+                        Label("Network", systemImage: "point.3.connected.trianglepath.dotted")
+                    }
+                    .disabled(!hasSelection)
+
+                    Spacer()
+
+                    Button {
+                        withAnimation { showingTrafficLog.toggle() }
+                    } label: {
+                        Label(
+                            showingTrafficLog ? "Hide Traffic Log" : "Show Traffic Log",
+                            systemImage: showingTrafficLog
+                                ? "antenna.radiowaves.left.and.right.slash"
+                                : "antenna.radiowaves.left.and.right"
+                        )
+                    }
                 }
             }
         }

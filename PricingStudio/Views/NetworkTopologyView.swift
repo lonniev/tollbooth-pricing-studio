@@ -63,8 +63,7 @@ struct NetworkTopologyView: View {
     @ViewBuilder
     private var graphContent: some View {
         if topologyVM.isLoading {
-            ProgressView("Loading network…")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            loadingContent
         } else if topologyVM.roots.isEmpty {
             emptyContent
         } else {
@@ -76,12 +75,47 @@ struct NetworkTopologyView: View {
         }
     }
 
-    private var emptyContent: some View {
-        ContentUnavailableView {
-            Label("No Network Data", systemImage: "network.slash")
-        } description: {
-            Text("Add operators or authorities to see the network topology.")
+    private var loadingContent: some View {
+        VStack(spacing: 24) {
+            Image("MiloGreeting")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 400)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(radius: 8)
+
+            Text("Pricing Studio")
+                .font(.largeTitle.bold())
+
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Discovering network…")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyContent: some View {
+        VStack(spacing: 24) {
+            Image("MiloGreeting")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 400)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(radius: 8)
+
+            Text("Pricing Studio")
+                .font(.largeTitle.bold())
+
+            Text("Add operators or authorities to see the network topology.")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 400)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Canvas Rendering

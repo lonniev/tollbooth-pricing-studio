@@ -4,6 +4,7 @@ import SwiftData
 struct AuthorityDetailView: View {
     let authority: Authority
     @Bindable var pricingVM: PricingViewModel
+    var onOperatorSelected: ((Operator) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,7 +48,7 @@ struct AuthorityDetailView: View {
     // MARK: - Connected Operators
 
     private var connectedOperatorsSection: some View {
-        ConnectedOperatorsList(authorityNpub: authority.npub)
+        ConnectedOperatorsList(authorityNpub: authority.npub, onOperatorSelected: onOperatorSelected)
     }
 
     // MARK: - Pricing
@@ -73,10 +74,12 @@ struct AuthorityDetailView: View {
 /// Shows operators whose authorityNpub matches this authority.
 private struct ConnectedOperatorsList: View {
     let authorityNpub: String
+    var onOperatorSelected: ((Operator) -> Void)?
     @Query private var allOperators: [Operator]
 
-    init(authorityNpub: String) {
+    init(authorityNpub: String, onOperatorSelected: ((Operator) -> Void)? = nil) {
         self.authorityNpub = authorityNpub
+        self.onOperatorSelected = onOperatorSelected
         self._allOperators = Query(sort: \Operator.addedAt)
     }
 
@@ -101,15 +104,23 @@ private struct ConnectedOperatorsList: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(connectedOperators) { op in
-                            VStack(spacing: 4) {
-                                Image(systemName: "server.rack")
-                                    .font(.title3)
-                                    .foregroundStyle(.orange)
-                                Text(op.displayName)
-                                    .font(.caption2)
-                                    .lineLimit(1)
+                            Button {
+                                onOperatorSelected?(op)
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "server.rack")
+                                        .font(.title3)
+                                        .foregroundStyle(.orange)
+                                    Text(op.displayName)
+                                        .font(.caption2)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                }
+                                .frame(width: 80)
+                                .padding(.vertical, 6)
+                                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                             }
-                            .frame(width: 80)
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal)
