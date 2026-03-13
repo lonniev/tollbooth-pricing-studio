@@ -40,6 +40,27 @@ enum KeychainService {
         delete(service: tokenService, account: npub)
     }
 
+    // MARK: - Patron-Scoped Token Bundle Storage
+
+    private static let patronBundleService = "com.tollbooth.dpyc.PricingStudio.patron.bundle"
+
+    static func saveTokenBundle(_ bundle: TokenBundle, forPatron patronNpub: String, operator operatorHost: String) throws {
+        let key = "oauth-token-\(patronNpub)-\(operatorHost)"
+        let data = try JSONEncoder().encode(bundle)
+        try save(data: data, service: patronBundleService, account: key)
+    }
+
+    static func loadTokenBundle(forPatron patronNpub: String, operator operatorHost: String) -> TokenBundle? {
+        let key = "oauth-token-\(patronNpub)-\(operatorHost)"
+        guard let data = loadData(service: patronBundleService, account: key) else { return nil }
+        return try? JSONDecoder().decode(TokenBundle.self, from: data)
+    }
+
+    static func deleteTokenBundle(forPatron patronNpub: String, operator operatorHost: String) {
+        let key = "oauth-token-\(patronNpub)-\(operatorHost)"
+        delete(service: patronBundleService, account: key)
+    }
+
     // MARK: - nsec Storage
 
     static func saveNsec(_ nsec: String, forNpub npub: String) throws {
