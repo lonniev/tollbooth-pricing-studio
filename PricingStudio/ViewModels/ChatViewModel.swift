@@ -97,23 +97,50 @@ final class ChatViewModel {
         state = .loading
         let pubHex = identity.publicKeyHex
 
-        let dmsByCounterparty = await dmService.fetchConversations(
-            privateKeyHex: privHex,
-            publicKeyHex: pubHex
-        )
+        await MainActor.run {
+            TrafficLogger.shared.log(.outbound, label: "DM Fetch", detail: "Fetching conversations for \(identity.npub.prefix(12))…")
+        }
 
-        let convos = dmsByCounterparty.map { (counterparty, messages) in
-            DMConversation(counterpartyPubkeyHex: counterparty, messages: messages)
-        }.sorted { ($0.latestMessage?.createdAt ?? .distantPast) > ($1.latestMessage?.createdAt ?? .distantPast) }
+        do {
+            let dmsByCounterparty = try await withOverallTimeout(seconds: 20) {
+                await self.dmService.fetchConversations(
+                    privateKeyHex: privHex,
+                    publicKeyHex: pubHex
+                )
+            }
 
-        conversations = convos
-        conversationCache[identity.npub] = CachedConversations(
-            conversations: convos,
-            fetchedAt: Date()
-        )
-        state = .loaded
+            let convos = dmsByCounterparty.map { (counterparty, messages) in
+                DMConversation(counterpartyPubkeyHex: counterparty, messages: messages)
+            }.sorted { ($0.latestMessage?.createdAt ?? .distantPast) > ($1.latestMessage?.createdAt ?? .distantPast) }
 
-        logger.info("Loaded \(convos.count) conversations for \(identity.npub.prefix(12))")
+            let msgCount = convos.reduce(0) { $0 + $1.messages.count }
+            await MainActor.run {
+                TrafficLogger.shared.log(.inbound, label: "DM Fetch", detail: "\(convos.count) conversations, \(msgCount) messages")
+            }
+
+            conversations = convos
+            conversationCache[identity.npub] = CachedConversations(
+                conversations: convos,
+                fetchedAt: Date()
+            )
+            state = .loaded
+
+            logger.info("Loaded \(convos.count) conversations for \(identity.npub.prefix(12))")
+        } catch is ChatTimeoutError {
+            let msg = "Relay fetch timed out after 20 seconds. Check your network connection."
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg)
+            }
+            state = .error(msg)
+            logger.error("DM fetch timed out for \(identity.npub.prefix(12))")
+        } catch {
+            let msg = error.localizedDescription
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg)
+            }
+            state = .error(msg)
+            logger.error("DM fetch failed: \(msg)")
+        }
     }
 
     /// Force refresh — bypasses cache.
@@ -211,4 +238,27 @@ final class ChatViewModel {
 private struct CachedConversations {
     let conversations: [DMConversation]
     let fetchedAt: Date
+}
+
+// MARK: - Timeout
+
+private struct ChatTimeoutError: Error {}
+
+/// Race an async operation against a deadline. Throws ChatTimeoutError on timeout.
+private func withOverallTimeout<T: Sendable>(
+    seconds: TimeInterval,
+    operation: @Sendable @escaping () async -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { await operation() }
+        group.addTask {
+            try await Task.sleep(for: .seconds(seconds))
+            throw ChatTimeoutError()
+        }
+        guard let result = try await group.next() else {
+            throw ChatTimeoutError()
+        }
+        group.cancelAll()
+        return result
+    }
 }
