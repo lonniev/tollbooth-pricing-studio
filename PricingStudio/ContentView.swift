@@ -85,9 +85,9 @@ struct ContentView: View {
                 authorityVM.selectedAuthority = nil
                 patronVM.selectedPatron = nil
             }
-            if newOp == nil {
-                pricingVM.reset()
-            }
+            // Always reset pricing on selection change —
+            // cache survives reset() so re-selection is still instant.
+            pricingVM.reset()
         }
         .onChange(of: patronVM.selectedPatron) { _, newPatron in
             if newPatron != nil {
