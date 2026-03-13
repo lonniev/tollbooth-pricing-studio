@@ -1,12 +1,25 @@
 import SwiftUI
 
-/// Wraps the existing detail pane with a Pricing | Messages segmented control.
+/// Wraps the existing detail pane with a configurable | Messages segmented control.
 struct ChatContainerView<PricingContent: View>: View {
     let identity: ChatIdentity
     @Bindable var chatVM: ChatViewModel
+    let firstTabLabel: String
     @ViewBuilder let pricingContent: () -> PricingContent
 
     @State private var selectedTab: Tab = .pricing
+
+    init(
+        identity: ChatIdentity,
+        chatVM: ChatViewModel,
+        firstTabLabel: String = "Pricing",
+        @ViewBuilder pricingContent: @escaping () -> PricingContent
+    ) {
+        self.identity = identity
+        self.chatVM = chatVM
+        self.firstTabLabel = firstTabLabel
+        self.pricingContent = pricingContent
+    }
 
     enum Tab: String, CaseIterable {
         case pricing = "Pricing"
@@ -16,9 +29,8 @@ struct ChatContainerView<PricingContent: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             Picker("View", selection: $selectedTab) {
-                ForEach(Tab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
+                Text(firstTabLabel).tag(Tab.pricing)
+                Text("Messages").tag(Tab.messages)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)

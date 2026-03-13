@@ -120,6 +120,107 @@ actor MCPService {
         }
     }
 
+    // MARK: - Check Balance
+
+    /// Call check_balance on an operator's MCP endpoint.
+    func callCheckBalance(
+        endpointURL: URL,
+        bearerToken: String
+    ) async throws -> PatronAccountViewModel.BalanceResult {
+        await traffic(.outbound, label: "Balance Check", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let balanceTool = allTools.first(where: { $0.name.contains("check_balance") }) else {
+            await traffic(.error, label: "Balance Check", detail: "No check_balance tool found")
+            throw MCPError.toolCallFailed("No check_balance tool found")
+        }
+
+        let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: [:])
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Balance Check Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Balance Check", detail: String(text.prefix(300)))
+
+        return try parseBalanceResponse(data)
+    }
+
+    /// Parse the JSON response from check_balance into a BalanceResult.
+    private func parseBalanceResponse(_ data: Data) throws -> PatronAccountViewModel.BalanceResult {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw MCPError.invalidResponse
+        }
+
+        // Handle nested {"result": {...}} wrapper or direct response
+        let balanceDict: [String: Any]
+        if let result = json["result"] as? [String: Any] {
+            balanceDict = result
+        } else {
+            balanceDict = json
+        }
+
+        let balance = (balanceDict["balance_api_sats"] as? Int)
+            ?? (balanceDict["balanceApiSats"] as? Int)
+            ?? (balanceDict["balance"] as? Int)
+            ?? 0
+        let deposited = (balanceDict["total_deposited"] as? Int)
+            ?? (balanceDict["totalDeposited"] as? Int)
+            ?? 0
+        let consumed = (balanceDict["total_consumed"] as? Int)
+            ?? (balanceDict["totalConsumed"] as? Int)
+            ?? 0
+        let expired = (balanceDict["total_expired"] as? Int)
+            ?? (balanceDict["totalExpired"] as? Int)
+            ?? 0
+        let tranches = (balanceDict["active_tranches"] as? Int)
+            ?? (balanceDict["activeTranches"] as? Int)
+            ?? 0
+        let expiring24h = (balanceDict["expiring_within_24h"] as? Int)
+            ?? (balanceDict["expiringWithin24h"] as? Int)
+            ?? 0
+
+        var nextExpiration: Date? = nil
+        if let ts = balanceDict["next_expiration"] as? TimeInterval {
+            nextExpiration = Date(timeIntervalSince1970: ts)
+        } else if let isoStr = balanceDict["next_expiration"] as? String {
+            let formatter = ISO8601DateFormatter()
+            nextExpiration = formatter.date(from: isoStr)
+        }
+
+        return PatronAccountViewModel.BalanceResult(
+            balanceApiSats: balance,
+            totalDeposited: deposited,
+            totalConsumed: consumed,
+            totalExpired: expired,
+            activeTranches: tranches,
+            expiringWithin24h: expiring24h,
+            nextExpiration: nextExpiration
+        )
+    }
+
     // MARK: - Pricing Synthesis
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model
