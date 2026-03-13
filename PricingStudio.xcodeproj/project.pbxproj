@@ -47,6 +47,8 @@
 		AA00000100000000000001B4 /* EditAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A4 /* EditAuthoritySheet.swift */; };
 		AA00000100000000000001B5 /* PricingTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A5 /* PricingTarget.swift */; };
 		AA00000100000000000001B6 /* AuthorityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A6 /* AuthorityDetailView.swift */; };
+		AA00000100000000000001B7 /* TopologyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A7 /* TopologyViewModel.swift */; };
+		AA00000100000000000001B8 /* NetworkTopologyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A8 /* NetworkTopologyView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -91,6 +93,8 @@
 		AA00000100000000000001A4 /* EditAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditAuthoritySheet.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A5 /* PricingTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingTarget.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A6 /* AuthorityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorityDetailView.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A7 /* TopologyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopologyViewModel.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A8 /* NetworkTopologyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTopologyView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -178,6 +182,7 @@
 				AA00000100000000000000E9 /* PricingViewModel.swift */,
 				AA00000100000000000000F8 /* PatronCollectionViewModel.swift */,
 				AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */,
+				AA00000100000000000001A7 /* TopologyViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -203,6 +208,7 @@
 				AA00000100000000000001A3 /* AddAuthoritySheet.swift */,
 				AA00000100000000000001A4 /* EditAuthoritySheet.swift */,
 				AA00000100000000000001A6 /* AuthorityDetailView.swift */,
+				AA00000100000000000001A8 /* NetworkTopologyView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -331,6 +337,8 @@
 				AA00000100000000000001B4 /* EditAuthoritySheet.swift in Sources */,
 				AA00000100000000000001B5 /* PricingTarget.swift in Sources */,
 				AA00000100000000000001B6 /* AuthorityDetailView.swift in Sources */,
+				AA00000100000000000001B7 /* TopologyViewModel.swift in Sources */,
+				AA00000100000000000001B8 /* NetworkTopologyView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

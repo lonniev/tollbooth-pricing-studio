@@ -82,7 +82,7 @@ enum RegistryService {
         return try resolveOracleURLFallback(entries: entries)
     }
 
-    private static func fetchRegistry() async throws -> [RegistryEntry] {
+    static func fetchRegistry() async throws -> [RegistryEntry] {
         let urlString = registryURL.absoluteString
         await MainActor.run {
             TrafficLogger.shared.logHTTP(label: "Registry Fetch", method: "GET", url: urlString)

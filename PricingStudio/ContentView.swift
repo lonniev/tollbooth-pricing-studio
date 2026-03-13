@@ -27,7 +27,9 @@ struct ContentView: View {
                     } else if let patron = patronVM.selectedPatron {
                         PatronDetailCard(patron: patron)
                     } else {
-                        EmptyStateView()
+                        NetworkTopologyView(onNodeSelected: { npub, tier in
+                            selectEntity(npub: npub, tier: tier)
+                        })
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -100,6 +102,23 @@ struct ContentView: View {
                     endpointURL: endpointURL,
                     context: modelContext
                 )
+            }
+        }
+    }
+
+    // MARK: - Graph Node Selection
+
+    private func selectEntity(npub: String, tier: NetworkTier) {
+        switch tier {
+        case .primeAuthority, .authority:
+            let descriptor = FetchDescriptor<Authority>(predicate: #Predicate { $0.npub == npub })
+            if let auth = try? modelContext.fetch(descriptor).first {
+                authorityVM.selectedAuthority = auth
+            }
+        case .operator:
+            let descriptor = FetchDescriptor<Operator>(predicate: #Predicate { $0.npub == npub })
+            if let op = try? modelContext.fetch(descriptor).first {
+                operatorVM.selectedOperator = op
             }
         }
     }
