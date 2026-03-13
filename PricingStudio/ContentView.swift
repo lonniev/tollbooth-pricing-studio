@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
     @State private var authorityVM = AuthorityCollectionViewModel()
     @State private var operatorVM = OperatorCollectionViewModel()
     @State private var patronVM = PatronCollectionViewModel()
@@ -89,6 +90,16 @@ struct ContentView: View {
                 authorityVM.selectedAuthority = nil
                 operatorVM.selectedOperator = nil
                 pricingVM.reset()
+            }
+        }
+        .onAppear {
+            pricingVM.onAuthorityDiscovered = { npub, displayName, endpointURL in
+                authorityVM.ensureAuthority(
+                    npub: npub,
+                    displayName: displayName,
+                    endpointURL: endpointURL,
+                    context: modelContext
+                )
             }
         }
     }

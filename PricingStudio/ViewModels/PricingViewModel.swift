@@ -16,6 +16,10 @@ final class PricingViewModel {
     private(set) var currentOperatorNpub: String?
     private(set) var memberRecord: MemberRecord?
 
+    /// Called when an operator lookup discovers an upstream authority.
+    /// Parameters: (authorityNpub, displayName?, endpointURL?)
+    var onAuthorityDiscovered: ((String, String?, String?) -> Void)?
+
     private let mcpService = MCPService()
     private let oauthService = OAuthService()
     private var loadingTask: Task<Void, Never>?
@@ -67,6 +71,12 @@ final class PricingViewModel {
             // Update cached endpoint
             if let endpoint = member.mcpEndpointURL {
                 op.mcpEndpointURL = endpoint
+            }
+
+            // Auto-discover upstream authority
+            if let authNpub = member.upstreamAuthorityNpub {
+                op.authorityNpub = authNpub
+                onAuthorityDiscovered?(authNpub, nil, nil)
             }
 
             guard let endpointString = op.mcpEndpointURL,
