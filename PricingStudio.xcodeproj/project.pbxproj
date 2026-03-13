@@ -57,6 +57,15 @@
 		AA0000010000000000000221 /* ChatIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000231 /* ChatIdentity.swift */; };
 		AA0000010000000000000222 /* DMConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000232 /* DMConversation.swift */; };
 		AA0000010000000000000223 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000233 /* ChatViewModel.swift */; };
+		AA0000010000000000000241 /* ChatContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000251 /* ChatContainerView.swift */; };
+		AA0000010000000000000242 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000252 /* ChatView.swift */; };
+		AA0000010000000000000243 /* ConversationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000253 /* ConversationListView.swift */; };
+		AA0000010000000000000244 /* MessageThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000254 /* MessageThreadView.swift */; };
+		AA0000010000000000000245 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000255 /* MessageBubble.swift */; };
+		AA0000010000000000000246 /* ReplyComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000256 /* ReplyComposer.swift */; };
+		AA0000010000000000000247 /* ComposeMessageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000257 /* ComposeMessageSheet.swift */; };
+		AA0000010000000000000248 /* ChatFontPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000258 /* ChatFontPicker.swift */; };
+		AA0000010000000000000249 /* NoNsecView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000259 /* NoNsecView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -111,6 +120,15 @@
 		AA0000010000000000000231 /* ChatIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatIdentity.swift; sourceTree = "<group>"; };
 		AA0000010000000000000232 /* DMConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMConversation.swift; sourceTree = "<group>"; };
 		AA0000010000000000000233 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
+		AA0000010000000000000251 /* ChatContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatContainerView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000252 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000253 /* ConversationListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationListView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000254 /* MessageThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageThreadView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000255 /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
+		AA0000010000000000000256 /* ReplyComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyComposer.swift; sourceTree = "<group>"; };
+		AA0000010000000000000257 /* ComposeMessageSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeMessageSheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000258 /* ChatFontPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatFontPicker.swift; sourceTree = "<group>"; };
+		AA0000010000000000000259 /* NoNsecView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoNsecView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -241,6 +259,7 @@
 				AA00000100000000000001A4 /* EditAuthoritySheet.swift */,
 				AA00000100000000000001A6 /* AuthorityDetailView.swift */,
 				AA00000100000000000001A8 /* NetworkTopologyView.swift */,
+				AA0000010000000000000250 /* Chat */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -251,6 +270,22 @@
 				AA00000100000000000001A5 /* PricingTarget.swift */,
 			);
 			path = Protocols;
+			sourceTree = "<group>";
+		};
+		AA0000010000000000000250 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000010000000000000251 /* ChatContainerView.swift */,
+				AA0000010000000000000252 /* ChatView.swift */,
+				AA0000010000000000000253 /* ConversationListView.swift */,
+				AA0000010000000000000254 /* MessageThreadView.swift */,
+				AA0000010000000000000255 /* MessageBubble.swift */,
+				AA0000010000000000000256 /* ReplyComposer.swift */,
+				AA0000010000000000000257 /* ComposeMessageSheet.swift */,
+				AA0000010000000000000258 /* ChatFontPicker.swift */,
+				AA0000010000000000000259 /* NoNsecView.swift */,
+			);
+			path = Chat;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -379,6 +414,15 @@
 				AA0000010000000000000221 /* ChatIdentity.swift in Sources */,
 				AA0000010000000000000222 /* DMConversation.swift in Sources */,
 				AA0000010000000000000223 /* ChatViewModel.swift in Sources */,
+				AA0000010000000000000241 /* ChatContainerView.swift in Sources */,
+				AA0000010000000000000242 /* ChatView.swift in Sources */,
+				AA0000010000000000000243 /* ConversationListView.swift in Sources */,
+				AA0000010000000000000244 /* MessageThreadView.swift in Sources */,
+				AA0000010000000000000245 /* MessageBubble.swift in Sources */,
+				AA0000010000000000000246 /* ReplyComposer.swift in Sources */,
+				AA0000010000000000000247 /* ComposeMessageSheet.swift in Sources */,
+				AA0000010000000000000248 /* ChatFontPicker.swift in Sources */,
+				AA0000010000000000000249 /* NoNsecView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
