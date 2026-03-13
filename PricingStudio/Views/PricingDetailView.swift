@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PricingDetailView: View {
-    let op: Operator
+    let target: any PricingTarget
     @Bindable var viewModel: PricingViewModel
 
     var body: some View {
@@ -9,7 +9,7 @@ struct PricingDetailView: View {
             switch viewModel.state {
             case .idle:
                 ProgressView()
-                    .task { viewModel.startLoading(for: op) }
+                    .task { viewModel.startLoading(for: target) }
 
             case .loading(let step):
                 ConnectionStatusView(step: step, onCancel: { viewModel.cancel() })
@@ -21,9 +21,9 @@ struct PricingDetailView: View {
                 errorContent(message)
             }
         }
-        .navigationTitle(op.displayName)
-        .onChange(of: op) { _, newOp in
-            viewModel.startLoading(for: newOp)
+        .navigationTitle(target.displayName)
+        .onChange(of: target.npub) { _, _ in
+            viewModel.startLoading(for: target)
         }
     }
 
@@ -45,13 +45,13 @@ struct PricingDetailView: View {
                 .padding()
             }
             .refreshable {
-                viewModel.retry(for: op)
+                viewModel.retry(for: target)
             }
         } else {
             ContentUnavailableView(
                 "No Pricing Model",
                 systemImage: "tag.slash",
-                description: Text("This operator hasn't published a pricing model yet.")
+                description: Text("This entity hasn't published a pricing model yet.")
             )
         }
     }
@@ -65,7 +65,7 @@ struct PricingDetailView: View {
                         .font(.title2.bold())
 
                     if let member {
-                        OperatorInfoButton(member: member)
+                        MemberInfoButton(member: member)
                     }
                 }
                 if isActive {
@@ -85,16 +85,16 @@ struct PricingDetailView: View {
             Text(message)
         } actions: {
             Button("Retry") {
-                viewModel.retry(for: op)
+                viewModel.retry(for: target)
             }
             .buttonStyle(.borderedProminent)
         }
     }
 }
 
-// MARK: - Operator Info Popover
+// MARK: - Member Info Popover
 
-private struct OperatorInfoButton: View {
+private struct MemberInfoButton: View {
     let member: MemberRecord
     @State private var showingInfo = false
 
@@ -108,12 +108,12 @@ private struct OperatorInfoButton: View {
         }
         .buttonStyle(.plain)
         .popover(isPresented: $showingInfo) {
-            operatorInfoContent
+            memberInfoContent
                 .presentationCompactAdaptation(.popover)
         }
     }
 
-    private var operatorInfoContent: some View {
+    private var memberInfoContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(member.displayName)
                 .font(.headline)

@@ -21,9 +21,9 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 Group {
                     if let auth = authorityVM.selectedAuthority {
-                        AuthorityDetailCard(authority: auth)
+                        AuthorityDetailView(authority: auth, pricingVM: pricingVM)
                     } else if let op = operatorVM.selectedOperator {
-                        PricingDetailView(op: op, viewModel: pricingVM)
+                        PricingDetailView(target: op, viewModel: pricingVM)
                     } else if let patron = patronVM.selectedPatron {
                         PatronDetailCard(patron: patron)
                     } else {

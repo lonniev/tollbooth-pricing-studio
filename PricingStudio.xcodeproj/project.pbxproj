@@ -45,6 +45,8 @@
 		AA00000100000000000001B2 /* AuthorityCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */; };
 		AA00000100000000000001B3 /* AddAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A3 /* AddAuthoritySheet.swift */; };
 		AA00000100000000000001B4 /* EditAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A4 /* EditAuthoritySheet.swift */; };
+		AA00000100000000000001B5 /* PricingTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A5 /* PricingTarget.swift */; };
+		AA00000100000000000001B6 /* AuthorityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A6 /* AuthorityDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -87,6 +89,8 @@
 		AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorityCollectionViewModel.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A3 /* AddAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAuthoritySheet.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A4 /* EditAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditAuthoritySheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A5 /* PricingTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingTarget.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A6 /* AuthorityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorityDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -114,6 +118,7 @@
 				AA000001000000000000000A /* PricingStudioApp.swift */,
 				AA000001000000000000000B /* ContentView.swift */,
 				AA00000100000000000000D1 /* Models */,
+				AA00000100000000000001D5 /* Protocols */,
 				AA00000100000000000000D2 /* Services */,
 				AA00000100000000000000D3 /* ViewModels */,
 				AA00000100000000000000D4 /* Views */,
@@ -197,8 +202,17 @@
 				AA00000100000000000000FE /* TrafficLogView.swift */,
 				AA00000100000000000001A3 /* AddAuthoritySheet.swift */,
 				AA00000100000000000001A4 /* EditAuthoritySheet.swift */,
+				AA00000100000000000001A6 /* AuthorityDetailView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		AA00000100000000000001D5 /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000100000000000001A5 /* PricingTarget.swift */,
+			);
+			path = Protocols;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -315,6 +329,8 @@
 				AA00000100000000000001B2 /* AuthorityCollectionViewModel.swift in Sources */,
 				AA00000100000000000001B3 /* AddAuthoritySheet.swift in Sources */,
 				AA00000100000000000001B4 /* EditAuthoritySheet.swift in Sources */,
+				AA00000100000000000001B5 /* PricingTarget.swift in Sources */,
+				AA00000100000000000001B6 /* AuthorityDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

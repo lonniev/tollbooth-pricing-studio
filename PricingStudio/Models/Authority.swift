@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Authority {
+final class Authority: PricingTarget {
     @Attribute(.unique) var npub: String
     var displayName: String
     var mcpEndpointURL: String?

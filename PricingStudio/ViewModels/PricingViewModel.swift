@@ -44,23 +44,23 @@ final class PricingViewModel {
         return nil
     }
 
-    func loadPricing(for op: Operator) async {
-        guard currentOperatorNpub != op.npub || errorMessage != nil else { return }
-        currentOperatorNpub = op.npub
+    func loadPricing(for target: any PricingTarget) async {
+        guard currentOperatorNpub != target.npub || errorMessage != nil else { return }
+        currentOperatorNpub = target.npub
 
         state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
 
         do {
             // Step 1: Resolve Oracle URL and authenticate
             state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
-            let oracleURL = try await mcpService.resolveOracleURL(forOperator: op.npub)
+            let oracleURL = try await mcpService.resolveOracleURL(forOperator: target.npub)
             let oracleHost = oracleURL.host ?? "oracle"
 
             state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
             let oracleToken = try await resolveToken(for: oracleURL, host: oracleHost)
 
-            // Step 2: Lookup operator via Oracle
-            let member = try await mcpService.lookupOperator(npub: op.npub, bearerToken: oracleToken) { [weak self] step in
+            // Step 2: Lookup via Oracle
+            let member = try await mcpService.lookupOperator(npub: target.npub, bearerToken: oracleToken) { [weak self] step in
                 Task { @MainActor in
                     self?.state = .loading(step: step.rawValue)
                 }
@@ -70,30 +70,30 @@ final class PricingViewModel {
 
             // Update cached endpoint
             if let endpoint = member.mcpEndpointURL {
-                op.mcpEndpointURL = endpoint
+                target.mcpEndpointURL = endpoint
             }
 
-            // Auto-discover upstream authority
-            if let authNpub = member.upstreamAuthorityNpub {
+            // Auto-discover upstream authority (Operator-specific)
+            if let op = target as? Operator, let authNpub = member.upstreamAuthorityNpub {
                 op.authorityNpub = authNpub
                 onAuthorityDiscovered?(authNpub, nil, nil)
             }
 
-            guard let endpointString = op.mcpEndpointURL,
+            guard let endpointString = target.mcpEndpointURL,
                   let endpointURL = URL(string: endpointString) else {
-                state = .error("No MCP endpoint found for this operator")
+                state = .error("No MCP endpoint found for this entity")
                 return
             }
 
-            // Step 3: Get auth token for operator MCP (may share Horizon with Oracle)
+            // Step 3: Get auth token for MCP endpoint
             state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
-            let operatorHost = endpointURL.host ?? op.npub
-            let operatorToken = try await resolveToken(for: endpointURL, host: operatorHost)
+            let targetHost = endpointURL.host ?? target.npub
+            let targetToken = try await resolveToken(for: endpointURL, host: targetHost)
 
             // Step 4: Fetch pricing model
             let model = try await mcpService.fetchPricingModel(
                 endpointURL: endpointURL,
-                bearerToken: operatorToken
+                bearerToken: targetToken
             ) { [weak self] step in
                 Task { @MainActor in
                     self?.state = .loading(step: step.rawValue)
@@ -103,27 +103,25 @@ final class PricingViewModel {
             state = .loaded(model)
 
         } catch is CancellationError {
-            // Task cancelled by SwiftUI view lifecycle — not a real error
             return
         } catch let urlError as URLError where urlError.code == .cancelled {
-            // URLSession cancelled by task cancellation — not a real error
             return
         } catch {
             let detail = "\(error.localizedDescription)\n\nUnderlying: \(String(describing: error))"
-            TrafficLogger.shared.log(.error, label: "Load Failed: \(op.displayName)", detail: detail)
+            TrafficLogger.shared.log(.error, label: "Load Failed: \(target.displayName)", detail: detail)
             state = .error(error.localizedDescription)
         }
     }
 
-    func loadPreview(for op: Operator) {
-        currentOperatorNpub = op.npub
+    func loadPreview(for target: any PricingTarget) {
+        currentOperatorNpub = target.npub
         state = .loaded(PreviewData.samplePricingModel)
     }
 
-    func startLoading(for op: Operator) {
+    func startLoading(for target: any PricingTarget) {
         loadingTask?.cancel()
         loadingTask = Task {
-            await loadPricing(for: op)
+            await loadPricing(for: target)
         }
     }
 
@@ -135,9 +133,9 @@ final class PricingViewModel {
         memberRecord = nil
     }
 
-    func retry(for op: Operator) {
+    func retry(for target: any PricingTarget) {
         currentOperatorNpub = nil
-        startLoading(for: op)
+        startLoading(for: target)
     }
 
     func reset() {

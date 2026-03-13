@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Operator {
+final class Operator: PricingTarget {
     @Attribute(.unique) var npub: String
     var displayName: String
     var mcpEndpointURL: String?
