@@ -26,11 +26,18 @@ struct ChatView: View {
 
             case .loaded:
                 if chatVM.conversations.isEmpty {
-                    ContentUnavailableView(
-                        "No Conversations",
-                        systemImage: "bubble.left",
-                        description: Text("No DMs found. Tap + to compose a new message.")
-                    )
+                    ContentUnavailableView {
+                        Label("No Conversations", systemImage: "bubble.left")
+                    } description: {
+                        Text("No DMs found on the relays.")
+                    } actions: {
+                        Button {
+                            showingCompose = true
+                        } label: {
+                            Text("Start a Conversation")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     HStack(spacing: 0) {
                         ConversationListView(
@@ -57,11 +64,18 @@ struct ChatView: View {
                 }
 
             case .error(let message):
-                ContentUnavailableView(
-                    "Error",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(message)
-                )
+                ContentUnavailableView {
+                    Label("Connection Error", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button {
+                        Task { await chatVM.refreshConversations() }
+                    } label: {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
         }
         .toolbar {

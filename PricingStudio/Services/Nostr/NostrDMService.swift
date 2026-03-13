@@ -25,6 +25,7 @@ actor NostrDMService {
     ) async -> [String: [DecryptedDM]] {
         let events = await relay.fetchDMs(pubkeyHex: publicKeyHex, since: since)
         var dmsByCounterparty: [String: [DecryptedDM]] = [:]
+        var decryptedCount = 0
 
         for event in events {
             guard let dm = decryptEvent(
@@ -33,6 +34,7 @@ actor NostrDMService {
                 publicKeyHex: publicKeyHex
             ) else { continue }
 
+            decryptedCount += 1
             let counterparty = dm.isFromMe ? dm.recipientPubkeyHex : dm.senderPubkeyHex
             dmsByCounterparty[counterparty, default: []].append(dm)
         }
@@ -40,6 +42,10 @@ actor NostrDMService {
         // Sort each conversation by timestamp
         for key in dmsByCounterparty.keys {
             dmsByCounterparty[key]?.sort { $0.createdAt < $1.createdAt }
+        }
+
+        await MainActor.run {
+            TrafficLogger.shared.log(.inbound, label: "DM Decrypt", detail: "\(decryptedCount)/\(events.count) OK, \(dmsByCounterparty.count) counterparties")
         }
 
         return dmsByCounterparty
@@ -97,9 +103,15 @@ actor NostrDMService {
         }
 
         if !nip17OK && !nip04OK {
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "DM Send Failed", detail: errors.joined(separator: "; "))
+            }
             throw DMError.allSendsFailed(errors.joined(separator: "; "))
         }
 
+        await MainActor.run {
+            TrafficLogger.shared.log(.outbound, label: "DM Sent", detail: "NIP-17: \(nip17OK ? "OK" : "fail"), NIP-04: \(nip04OK ? "OK" : "fail")")
+        }
         logger.info("Sent DM (NIP-17: \(nip17OK), NIP-04: \(nip04OK))")
     }
 
