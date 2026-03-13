@@ -11,6 +11,49 @@
 		AA000001000000000000001B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000000B /* ContentView.swift */; };
 		AA000001000000000000001C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000000C /* Assets.xcassets */; };
 		AA000001000000000000001D /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000000D /* Preview Assets.xcassets */; };
+		AA00000100000000000000B1 /* Operator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E1 /* Operator.swift */; };
+		AA00000100000000000000B2 /* PricingModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E2 /* PricingModel.swift */; };
+		AA00000100000000000000B3 /* MemberRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E3 /* MemberRecord.swift */; };
+		AA00000100000000000000B4 /* MCPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E4 /* MCPService.swift */; };
+		AA00000100000000000000B5 /* OAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E5 /* OAuthService.swift */; };
+		AA00000100000000000000B6 /* RegistryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E6 /* RegistryService.swift */; };
+		AA00000100000000000000B7 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E7 /* KeychainService.swift */; };
+		AA00000100000000000000B8 /* OperatorCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */; };
+		AA00000100000000000000B9 /* PricingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E9 /* PricingViewModel.swift */; };
+		AA00000100000000000000BA /* OperatorSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EA /* OperatorSidebarView.swift */; };
+		AA00000100000000000000BB /* AddOperatorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EB /* AddOperatorSheet.swift */; };
+		AA00000100000000000000BC /* PricingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EC /* PricingDetailView.swift */; };
+		AA00000100000000000000BD /* ToolPriceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000ED /* ToolPriceListView.swift */; };
+		AA00000100000000000000BE /* ToolPriceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EE /* ToolPriceRow.swift */; };
+		AA00000100000000000000BF /* PipelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EF /* PipelineView.swift */; };
+		AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F0 /* PipelineStepCard.swift */; };
+		AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F1 /* ConnectionStatusView.swift */; };
+		AA00000100000000000000C2 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F2 /* EmptyStateView.swift */; };
+		AA00000100000000000000C3 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F3 /* PreviewData.swift */; };
+		AA00000100000000000000C4 /* OperatorStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F4 /* OperatorStats.swift */; };
+		AA00000100000000000000C5 /* EditOperatorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F5 /* EditOperatorSheet.swift */; };
+		AA00000100000000000000C6 /* OperatorStatsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F6 /* OperatorStatsSheet.swift */; };
+		AA00000100000000000000C7 /* Patron.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F7 /* Patron.swift */; };
+		AA00000100000000000000C8 /* PatronCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F8 /* PatronCollectionViewModel.swift */; };
+		AA00000100000000000000C9 /* PatronSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F9 /* PatronSidebarView.swift */; };
+		AA00000100000000000000CA /* AddPatronSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FA /* AddPatronSheet.swift */; };
+		AA00000100000000000000CB /* EditPatronSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FB /* EditPatronSheet.swift */; };
+		AA00000100000000000000CC /* NostrKeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FC /* NostrKeyService.swift */; };
+		AA00000100000000000000CD /* TrafficLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FD /* TrafficLogger.swift */; };
+		AA00000100000000000000CE /* TrafficLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FE /* TrafficLogView.swift */; };
+		AA00000100000000000001B1 /* Authority.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A1 /* Authority.swift */; };
+		AA00000100000000000001B2 /* AuthorityCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */; };
+		AA00000100000000000001B3 /* AddAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A3 /* AddAuthoritySheet.swift */; };
+		AA00000100000000000001B4 /* EditAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A4 /* EditAuthoritySheet.swift */; };
+		AA00000100000000000001B5 /* PricingTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A5 /* PricingTarget.swift */; };
+		AA00000100000000000001B6 /* AuthorityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A6 /* AuthorityDetailView.swift */; };
+		AA00000100000000000001B7 /* TopologyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A7 /* TopologyViewModel.swift */; };
+		AA00000100000000000001B8 /* NetworkTopologyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A8 /* NetworkTopologyView.swift */; };
+		AA0000010000000000000211 /* NostrEventService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000201 /* NostrEventService.swift */; };
+		AA0000010000000000000212 /* NIP04Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000202 /* NIP04Service.swift */; };
+		AA0000010000000000000213 /* NIP44Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000203 /* NIP44Service.swift */; };
+		AA0000010000000000000214 /* NostrRelayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000204 /* NostrRelayService.swift */; };
+		AA0000010000000000000215 /* NostrDMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000205 /* NostrDMService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +62,49 @@
 		AA000001000000000000000C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000001000000000000000D /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		AA00000100000000000000FF /* PricingStudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PricingStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA00000100000000000000E1 /* Operator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Operator.swift; sourceTree = "<group>"; };
+		AA00000100000000000000E2 /* PricingModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingModel.swift; sourceTree = "<group>"; };
+		AA00000100000000000000E3 /* MemberRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberRecord.swift; sourceTree = "<group>"; };
+		AA00000100000000000000E4 /* MCPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPService.swift; sourceTree = "<group>"; };
+		AA00000100000000000000E5 /* OAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthService.swift; sourceTree = "<group>"; };
+		AA00000100000000000000E6 /* RegistryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistryService.swift; sourceTree = "<group>"; };
+		AA00000100000000000000E7 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorCollectionViewModel.swift; sourceTree = "<group>"; };
+		AA00000100000000000000E9 /* PricingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingViewModel.swift; sourceTree = "<group>"; };
+		AA00000100000000000000EA /* OperatorSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorSidebarView.swift; sourceTree = "<group>"; };
+		AA00000100000000000000EB /* AddOperatorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddOperatorSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000EC /* PricingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingDetailView.swift; sourceTree = "<group>"; };
+		AA00000100000000000000ED /* ToolPriceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPriceListView.swift; sourceTree = "<group>"; };
+		AA00000100000000000000EE /* ToolPriceRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPriceRow.swift; sourceTree = "<group>"; };
+		AA00000100000000000000EF /* PipelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineView.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F0 /* PipelineStepCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStepCard.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F1 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F3 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F4 /* OperatorStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStats.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F5 /* EditOperatorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditOperatorSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F6 /* OperatorStatsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStatsSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F7 /* Patron.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patron.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F8 /* PatronCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronCollectionViewModel.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F9 /* PatronSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronSidebarView.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FA /* AddPatronSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddPatronSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FB /* EditPatronSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPatronSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FC /* NostrKeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrKeyService.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FD /* TrafficLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogger.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FE /* TrafficLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogView.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A1 /* Authority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Authority.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorityCollectionViewModel.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A3 /* AddAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAuthoritySheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A4 /* EditAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditAuthoritySheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A5 /* PricingTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingTarget.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A6 /* AuthorityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorityDetailView.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A7 /* TopologyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopologyViewModel.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A8 /* NetworkTopologyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTopologyView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000201 /* NostrEventService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrEventService.swift; sourceTree = "<group>"; };
+		AA0000010000000000000202 /* NIP04Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP04Service.swift; sourceTree = "<group>"; };
+		AA0000010000000000000203 /* NIP44Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP44Service.swift; sourceTree = "<group>"; };
+		AA0000010000000000000204 /* NostrRelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayService.swift; sourceTree = "<group>"; };
+		AA0000010000000000000205 /* NostrDMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrDMService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +131,11 @@
 			children = (
 				AA000001000000000000000A /* PricingStudioApp.swift */,
 				AA000001000000000000000B /* ContentView.swift */,
+				AA00000100000000000000D1 /* Models */,
+				AA00000100000000000001D5 /* Protocols */,
+				AA00000100000000000000D2 /* Services */,
+				AA00000100000000000000D3 /* ViewModels */,
+				AA00000100000000000000D4 /* Views */,
 				AA000001000000000000000C /* Assets.xcassets */,
 				AA000001000000000000004D /* Preview Content */,
 			);
@@ -63,8 +154,94 @@
 			isa = PBXGroup;
 			children = (
 				AA000001000000000000000D /* Preview Assets.xcassets */,
+				AA00000100000000000000F3 /* PreviewData.swift */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		AA00000100000000000000D1 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000100000000000000E1 /* Operator.swift */,
+				AA00000100000000000000E2 /* PricingModel.swift */,
+				AA00000100000000000000E3 /* MemberRecord.swift */,
+				AA00000100000000000000F4 /* OperatorStats.swift */,
+				AA00000100000000000000F7 /* Patron.swift */,
+				AA00000100000000000001A1 /* Authority.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		AA00000100000000000000D2 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000100000000000000E4 /* MCPService.swift */,
+				AA00000100000000000000E5 /* OAuthService.swift */,
+				AA00000100000000000000E6 /* RegistryService.swift */,
+				AA00000100000000000000E7 /* KeychainService.swift */,
+				AA00000100000000000000FC /* NostrKeyService.swift */,
+				AA00000100000000000000FD /* TrafficLogger.swift */,
+				AA0000010000000000000200 /* Nostr */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		AA0000010000000000000200 /* Nostr */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000010000000000000201 /* NostrEventService.swift */,
+				AA0000010000000000000202 /* NIP04Service.swift */,
+				AA0000010000000000000203 /* NIP44Service.swift */,
+				AA0000010000000000000204 /* NostrRelayService.swift */,
+				AA0000010000000000000205 /* NostrDMService.swift */,
+			);
+			path = Nostr;
+			sourceTree = "<group>";
+		};
+		AA00000100000000000000D3 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */,
+				AA00000100000000000000E9 /* PricingViewModel.swift */,
+				AA00000100000000000000F8 /* PatronCollectionViewModel.swift */,
+				AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */,
+				AA00000100000000000001A7 /* TopologyViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		AA00000100000000000000D4 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000100000000000000EA /* OperatorSidebarView.swift */,
+				AA00000100000000000000EB /* AddOperatorSheet.swift */,
+				AA00000100000000000000F5 /* EditOperatorSheet.swift */,
+				AA00000100000000000000F6 /* OperatorStatsSheet.swift */,
+				AA00000100000000000000EC /* PricingDetailView.swift */,
+				AA00000100000000000000ED /* ToolPriceListView.swift */,
+				AA00000100000000000000EE /* ToolPriceRow.swift */,
+				AA00000100000000000000EF /* PipelineView.swift */,
+				AA00000100000000000000F0 /* PipelineStepCard.swift */,
+				AA00000100000000000000F1 /* ConnectionStatusView.swift */,
+				AA00000100000000000000F2 /* EmptyStateView.swift */,
+				AA00000100000000000000F9 /* PatronSidebarView.swift */,
+				AA00000100000000000000FA /* AddPatronSheet.swift */,
+				AA00000100000000000000FB /* EditPatronSheet.swift */,
+				AA00000100000000000000FE /* TrafficLogView.swift */,
+				AA00000100000000000001A3 /* AddAuthoritySheet.swift */,
+				AA00000100000000000001A4 /* EditAuthoritySheet.swift */,
+				AA00000100000000000001A6 /* AuthorityDetailView.swift */,
+				AA00000100000000000001A8 /* NetworkTopologyView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		AA00000100000000000001D5 /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000100000000000001A5 /* PricingTarget.swift */,
+			);
+			path = Protocols;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -83,6 +260,10 @@
 			dependencies = (
 			);
 			name = PricingStudio;
+			packageProductDependencies = (
+				AA00000100000000000000A2 /* MCP */,
+				AA00000100000000000000A4 /* P256K */,
+			);
 			productName = PricingStudio;
 			productReference = AA00000100000000000000FF /* PricingStudio.app */;
 			productType = "com.apple.product-type.application";
@@ -111,6 +292,10 @@
 				Base,
 			);
 			mainGroup = AA000001000000000000004A;
+			packageReferences = (
+				AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */,
+				AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */,
+			);
 			productRefGroup = AA000001000000000000004C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -139,6 +324,49 @@
 			files = (
 				AA000001000000000000001B /* ContentView.swift in Sources */,
 				AA000001000000000000001A /* PricingStudioApp.swift in Sources */,
+				AA00000100000000000000B1 /* Operator.swift in Sources */,
+				AA00000100000000000000B2 /* PricingModel.swift in Sources */,
+				AA00000100000000000000B3 /* MemberRecord.swift in Sources */,
+				AA00000100000000000000B4 /* MCPService.swift in Sources */,
+				AA00000100000000000000B5 /* OAuthService.swift in Sources */,
+				AA00000100000000000000B6 /* RegistryService.swift in Sources */,
+				AA00000100000000000000B7 /* KeychainService.swift in Sources */,
+				AA00000100000000000000B8 /* OperatorCollectionViewModel.swift in Sources */,
+				AA00000100000000000000B9 /* PricingViewModel.swift in Sources */,
+				AA00000100000000000000BA /* OperatorSidebarView.swift in Sources */,
+				AA00000100000000000000BB /* AddOperatorSheet.swift in Sources */,
+				AA00000100000000000000BC /* PricingDetailView.swift in Sources */,
+				AA00000100000000000000BD /* ToolPriceListView.swift in Sources */,
+				AA00000100000000000000BE /* ToolPriceRow.swift in Sources */,
+				AA00000100000000000000BF /* PipelineView.swift in Sources */,
+				AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */,
+				AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */,
+				AA00000100000000000000C2 /* EmptyStateView.swift in Sources */,
+				AA00000100000000000000C3 /* PreviewData.swift in Sources */,
+				AA00000100000000000000C4 /* OperatorStats.swift in Sources */,
+				AA00000100000000000000C5 /* EditOperatorSheet.swift in Sources */,
+				AA00000100000000000000C6 /* OperatorStatsSheet.swift in Sources */,
+				AA00000100000000000000C7 /* Patron.swift in Sources */,
+				AA00000100000000000000C8 /* PatronCollectionViewModel.swift in Sources */,
+				AA00000100000000000000C9 /* PatronSidebarView.swift in Sources */,
+				AA00000100000000000000CA /* AddPatronSheet.swift in Sources */,
+				AA00000100000000000000CB /* EditPatronSheet.swift in Sources */,
+				AA00000100000000000000CC /* NostrKeyService.swift in Sources */,
+				AA00000100000000000000CD /* TrafficLogger.swift in Sources */,
+				AA00000100000000000000CE /* TrafficLogView.swift in Sources */,
+				AA00000100000000000001B1 /* Authority.swift in Sources */,
+				AA00000100000000000001B2 /* AuthorityCollectionViewModel.swift in Sources */,
+				AA00000100000000000001B3 /* AddAuthoritySheet.swift in Sources */,
+				AA00000100000000000001B4 /* EditAuthoritySheet.swift in Sources */,
+				AA00000100000000000001B5 /* PricingTarget.swift in Sources */,
+				AA00000100000000000001B6 /* AuthorityDetailView.swift in Sources */,
+				AA00000100000000000001B7 /* TopologyViewModel.swift in Sources */,
+				AA00000100000000000001B8 /* NetworkTopologyView.swift in Sources */,
+				AA0000010000000000000211 /* NostrEventService.swift in Sources */,
+				AA0000010000000000000212 /* NIP04Service.swift in Sources */,
+				AA0000010000000000000213 /* NIP44Service.swift in Sources */,
+				AA0000010000000000000214 /* NostrRelayService.swift in Sources */,
+				AA0000010000000000000215 /* NostrDMService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -276,6 +504,7 @@
 				DEVELOPMENT_ASSET_PATHS = "\"PricingStudio/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PricingStudio/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -290,7 +519,7 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 2;
 			};
 			name = Debug;
@@ -305,6 +534,7 @@
 				DEVELOPMENT_ASSET_PATHS = "\"PricingStudio/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PricingStudio/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -319,7 +549,7 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 2;
 			};
 			name = Release;
@@ -346,6 +576,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/modelcontextprotocol/swift-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.11.0;
+			};
+		};
+		AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/GigaBitcoin/secp256k1.swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.21.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA00000100000000000000A2 /* MCP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */;
+			productName = MCP;
+		};
+		AA00000100000000000000A4 /* P256K */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */;
+			productName = P256K;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AA000001000000000000006A /* Project object */;
 }
