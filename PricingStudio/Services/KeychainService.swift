@@ -75,6 +75,23 @@ enum KeychainService {
         delete(service: nsecService, account: npub)
     }
 
+    // MARK: - Anthropic API Key Storage
+
+    private static let anthropicService = "com.tollbooth.dpyc.PricingStudio.anthropic"
+    private static let anthropicAccount = "api-key"
+
+    static func saveAnthropicAPIKey(_ key: String) throws {
+        try save(data: Data(key.utf8), service: anthropicService, account: anthropicAccount)
+    }
+
+    static func loadAnthropicAPIKey() -> String? {
+        load(service: anthropicService, account: anthropicAccount)
+    }
+
+    static func deleteAnthropicAPIKey() {
+        delete(service: anthropicService, account: anthropicAccount)
+    }
+
     // MARK: - Generic Keychain Operations
 
     private static func save(data: Data, service: String, account: String) throws {
