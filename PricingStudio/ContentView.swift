@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var operatorVM = OperatorCollectionViewModel()
     @State private var patronVM = PatronCollectionViewModel()
     @State private var pricingVM = PricingViewModel()
+    @State private var chatVM = ChatViewModel()
     @State private var showingTrafficLog = false
 
     var body: some View {
@@ -21,13 +22,19 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 Group {
                     if let auth = authorityVM.selectedAuthority {
-                        AuthorityDetailView(authority: auth, pricingVM: pricingVM) { op in
-                            operatorVM.selectedOperator = op
+                        ChatContainerView(identity: ChatIdentity(from: auth), chatVM: chatVM) {
+                            AuthorityDetailView(authority: auth, pricingVM: pricingVM) { op in
+                                operatorVM.selectedOperator = op
+                            }
                         }
                     } else if let op = operatorVM.selectedOperator {
-                        PricingDetailView(target: op, viewModel: pricingVM)
+                        ChatContainerView(identity: ChatIdentity(from: op), chatVM: chatVM) {
+                            PricingDetailView(target: op, viewModel: pricingVM)
+                        }
                     } else if let patron = patronVM.selectedPatron {
-                        PatronDetailCard(patron: patron)
+                        ChatContainerView(identity: ChatIdentity(from: patron), chatVM: chatVM) {
+                            PatronDetailCard(patron: patron)
+                        }
                     } else {
                         NetworkTopologyView(onNodeSelected: { npub, tier in
                             selectEntity(npub: npub, tier: tier)
@@ -74,26 +81,33 @@ struct ContentView: View {
             }
         }
         .onChange(of: authorityVM.selectedAuthority) { _, newAuth in
-            if newAuth != nil {
+            if let auth = newAuth {
                 operatorVM.selectedOperator = nil
                 patronVM.selectedPatron = nil
                 pricingVM.reset()
+                chatVM.switchIdentity(to: ChatIdentity(from: auth))
+            } else {
+                chatVM.switchIdentity(to: nil)
             }
         }
         .onChange(of: operatorVM.selectedOperator) { _, newOp in
-            if newOp != nil {
+            if let op = newOp {
                 authorityVM.selectedAuthority = nil
                 patronVM.selectedPatron = nil
+                chatVM.switchIdentity(to: ChatIdentity(from: op))
+            } else {
+                chatVM.switchIdentity(to: nil)
             }
-            // Always reset pricing on selection change —
-            // cache survives reset() so re-selection is still instant.
             pricingVM.reset()
         }
         .onChange(of: patronVM.selectedPatron) { _, newPatron in
-            if newPatron != nil {
+            if let patron = newPatron {
                 authorityVM.selectedAuthority = nil
                 operatorVM.selectedOperator = nil
                 pricingVM.reset()
+                chatVM.switchIdentity(to: ChatIdentity(from: patron))
+            } else {
+                chatVM.switchIdentity(to: nil)
             }
         }
         .onAppear {
