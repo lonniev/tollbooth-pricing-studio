@@ -1,26 +1,27 @@
 import SwiftUI
 
-struct EditOperatorSheet: View {
+struct EditPatronSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    var viewModel: OperatorCollectionViewModel
-    let operator_: Operator
+    var viewModel: PatronCollectionViewModel
+    let patron: Patron
 
     @State private var displayName: String
     @State private var nsec: String = ""
     @State private var showNsec = false
     @State private var hasStoredNsec = false
+    @State private var keyError: String?
 
-    init(viewModel: OperatorCollectionViewModel, operator_: Operator) {
+    init(viewModel: PatronCollectionViewModel, patron: Patron) {
         self.viewModel = viewModel
-        self.operator_ = operator_
-        self._displayName = State(initialValue: operator_.displayName)
+        self.patron = patron
+        self._displayName = State(initialValue: patron.displayName)
     }
 
     private var hasChanges: Bool {
         let nameChanged = !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && displayName != operator_.displayName
-        let nsecChanged = !nsec.isEmpty
+            && displayName != patron.displayName
+        let nsecChanged = !nsec.isEmpty && keyError == nil
         return nameChanged || nsecChanged
     }
 
@@ -28,15 +29,15 @@ struct EditOperatorSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Text(operator_.npub)
+                    Text(patron.npub)
                         .font(.callout)
                         .monospaced()
                         .textSelection(.enabled)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Text("Operator npub")
+                    Text("Derived npub")
                 } footer: {
-                    Text("The npub cannot be changed.")
+                    Text("Derived from the stored nsec. Read-only.")
                 }
 
                 Section {
@@ -73,13 +74,18 @@ struct EditOperatorSheet: View {
                             .font(.caption)
                             .foregroundStyle(.green)
                     }
+                    if let error = keyError {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 } header: {
                     Text("Secret Key (nsec)")
                 } footer: {
-                    Text("Stored securely in the device Keychain. Leave blank to keep the existing key.")
+                    Text("Leave blank to keep the existing key. Changing the nsec will update the derived npub.")
                 }
             }
-            .navigationTitle("Edit Operator")
+            .navigationTitle("Edit Patron")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -88,25 +94,38 @@ struct EditOperatorSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmedName != operator_.displayName {
-                            viewModel.updateOperator(
-                                operator_,
-                                displayName: trimmedName,
-                                context: modelContext
-                            )
-                        }
                         let trimmedNsec = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmedNsec.isEmpty {
-                            try? KeychainService.saveNsec(trimmedNsec, forNpub: operator_.npub)
-                        }
+                        viewModel.updatePatron(
+                            patron,
+                            displayName: trimmedName,
+                            nsec: trimmedNsec.isEmpty ? nil : trimmedNsec,
+                            context: modelContext
+                        )
                         dismiss()
                     }
                     .disabled(!hasChanges)
                 }
             }
             .task {
-                hasStoredNsec = KeychainService.loadNsec(forNpub: operator_.npub) != nil
+                hasStoredNsec = KeychainService.loadNsec(forNpub: patron.npub) != nil
             }
+            .onChange(of: nsec) { _, newValue in
+                validateNsec(newValue)
+            }
+        }
+    }
+
+    private func validateNsec(_ nsec: String) {
+        let trimmed = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            keyError = nil
+            return
+        }
+        do {
+            _ = try NostrKeyService.npubFromNsec(trimmed)
+            keyError = nil
+        } catch {
+            keyError = error.localizedDescription
         }
     }
 }

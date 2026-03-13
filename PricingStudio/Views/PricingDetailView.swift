@@ -9,10 +9,10 @@ struct PricingDetailView: View {
             switch viewModel.state {
             case .idle:
                 ProgressView()
-                    .task { viewModel.loadPreview(for: op) }
+                    .task { viewModel.startLoading(for: op) }
 
             case .loading(let step):
-                ConnectionStatusView(step: step)
+                ConnectionStatusView(step: step, onCancel: { viewModel.cancel() })
 
             case .loaded(let model):
                 loadedContent(model)
@@ -23,7 +23,7 @@ struct PricingDetailView: View {
         }
         .navigationTitle(op.displayName)
         .onChange(of: op) { _, newOp in
-            viewModel.loadPreview(for: newOp)
+            viewModel.startLoading(for: newOp)
         }
     }
 
@@ -33,7 +33,7 @@ struct PricingDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     if let name = model.name {
-                        modelHeader(name: name, isActive: model.isActive ?? false)
+                        modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord)
                     }
 
                     ToolPriceListView(tools: tools)
@@ -45,7 +45,7 @@ struct PricingDetailView: View {
                 .padding()
             }
             .refreshable {
-                await viewModel.retry(for: op)
+                viewModel.retry(for: op)
             }
         } else {
             ContentUnavailableView(
@@ -56,11 +56,18 @@ struct PricingDetailView: View {
         }
     }
 
-    private func modelHeader(name: String, isActive: Bool) -> some View {
+    @ViewBuilder
+    private func modelHeader(name: String, isActive: Bool, member: MemberRecord?) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(name)
-                    .font(.title2.bold())
+                HStack(spacing: 6) {
+                    Text(name)
+                        .font(.title2.bold())
+
+                    if let member {
+                        OperatorInfoButton(member: member)
+                    }
+                }
                 if isActive {
                     Label("Active", systemImage: "checkmark.circle.fill")
                         .font(.subheadline)
@@ -78,9 +85,71 @@ struct PricingDetailView: View {
             Text(message)
         } actions: {
             Button("Retry") {
-                Task { await viewModel.retry(for: op) }
+                viewModel.retry(for: op)
             }
             .buttonStyle(.borderedProminent)
         }
+    }
+}
+
+// MARK: - Operator Info Popover
+
+private struct OperatorInfoButton: View {
+    let member: MemberRecord
+    @State private var showingInfo = false
+
+    var body: some View {
+        Button {
+            showingInfo.toggle()
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showingInfo) {
+            operatorInfoContent
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+
+    private var operatorInfoContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(member.displayName)
+                .font(.headline)
+
+            if let notes = member.notes, !notes.isEmpty {
+                Text(notes)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            if let service = member.services?.first {
+                Label(service.name, systemImage: "server.rack")
+                    .font(.caption)
+                if let desc = service.description, !desc.isEmpty {
+                    Text(desc)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let since = member.memberSince {
+                Label("Member since \(since)", systemImage: "calendar")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 12) {
+                Label(member.role.capitalized, systemImage: "person.fill")
+                Label(member.status.capitalized, systemImage: "circle.fill")
+                    .foregroundStyle(member.status == "active" ? .green : .secondary)
+            }
+            .font(.caption)
+        }
+        .padding()
+        .frame(idealWidth: 300)
     }
 }

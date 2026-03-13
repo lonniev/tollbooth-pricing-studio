@@ -14,9 +14,11 @@ final class PricingViewModel {
 
     private(set) var state: State = .idle
     private(set) var currentOperatorNpub: String?
+    private(set) var memberRecord: MemberRecord?
 
     private let mcpService = MCPService()
     private let oauthService = OAuthService()
+    private var loadingTask: Task<Void, Never>?
 
     var isLoading: Bool {
         if case .loading = state { return true }
@@ -45,12 +47,22 @@ final class PricingViewModel {
         state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
 
         do {
-            // Step 1: Lookup operator via Oracle
-            let member = try await mcpService.lookupOperator(npub: op.npub) { [weak self] step in
+            // Step 1: Resolve Oracle URL and authenticate
+            state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
+            let oracleURL = try await mcpService.resolveOracleURL(forOperator: op.npub)
+            let oracleHost = oracleURL.host ?? "oracle"
+
+            state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
+            let oracleToken = try await resolveToken(for: oracleURL, host: oracleHost)
+
+            // Step 2: Lookup operator via Oracle
+            let member = try await mcpService.lookupOperator(npub: op.npub, bearerToken: oracleToken) { [weak self] step in
                 Task { @MainActor in
                     self?.state = .loading(step: step.rawValue)
                 }
             }
+
+            memberRecord = member
 
             // Update cached endpoint
             if let endpoint = member.mcpEndpointURL {
@@ -63,20 +75,15 @@ final class PricingViewModel {
                 return
             }
 
-            // Step 2: Get auth token (from keychain or fresh OAuth)
+            // Step 3: Get auth token for operator MCP (may share Horizon with Oracle)
             state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
-            let token: String
-            if let cached = KeychainService.loadToken(forOperator: op.npub) {
-                token = cached
-            } else {
-                token = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-                try KeychainService.saveToken(token, forOperator: op.npub)
-            }
+            let operatorHost = endpointURL.host ?? op.npub
+            let operatorToken = try await resolveToken(for: endpointURL, host: operatorHost)
 
-            // Step 3: Fetch pricing model
+            // Step 4: Fetch pricing model
             let model = try await mcpService.fetchPricingModel(
                 endpointURL: endpointURL,
-                bearerToken: token
+                bearerToken: operatorToken
             ) { [weak self] step in
                 Task { @MainActor in
                     self?.state = .loading(step: step.rawValue)
@@ -85,7 +92,15 @@ final class PricingViewModel {
 
             state = .loaded(model)
 
+        } catch is CancellationError {
+            // Task cancelled by SwiftUI view lifecycle — not a real error
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // URLSession cancelled by task cancellation — not a real error
+            return
         } catch {
+            let detail = "\(error.localizedDescription)\n\nUnderlying: \(String(describing: error))"
+            TrafficLogger.shared.log(.error, label: "Load Failed: \(op.displayName)", detail: detail)
             state = .error(error.localizedDescription)
         }
     }
@@ -95,13 +110,62 @@ final class PricingViewModel {
         state = .loaded(PreviewData.samplePricingModel)
     }
 
-    func retry(for op: Operator) async {
+    func startLoading(for op: Operator) {
+        loadingTask?.cancel()
+        loadingTask = Task {
+            await loadPricing(for: op)
+        }
+    }
+
+    func cancel() {
+        loadingTask?.cancel()
+        loadingTask = nil
+        state = .idle
         currentOperatorNpub = nil
-        await loadPricing(for: op)
+        memberRecord = nil
+    }
+
+    func retry(for op: Operator) {
+        currentOperatorNpub = nil
+        startLoading(for: op)
     }
 
     func reset() {
+        loadingTask?.cancel()
+        loadingTask = nil
         state = .idle
         currentOperatorNpub = nil
+        memberRecord = nil
+    }
+
+    // MARK: - Token Resolution
+
+    /// Resolve a valid access token: cached bundle → refresh → full re-auth.
+    private func resolveToken(for endpoint: URL, host: String) async throws -> String {
+        // 1. Check for a cached bundle
+        if let bundle = KeychainService.loadTokenBundle(forOperator: host) {
+            if !bundle.isExpired {
+                return bundle.accessToken
+            }
+
+            // 2. Token expired — try refresh
+            if bundle.refreshToken != nil {
+                do {
+                    let refreshed = try await oauthService.refresh(bundle: bundle)
+                    try KeychainService.saveTokenBundle(refreshed, forOperator: host)
+                    return refreshed.accessToken
+                } catch {
+                    TrafficLogger.shared.log(.error, label: "Token Refresh Failed", detail: "\(host): \(error.localizedDescription) — falling back to re-auth")
+                }
+            }
+
+            // Refresh failed or unavailable — clear stale bundle
+            KeychainService.deleteTokenBundle(forOperator: host)
+        }
+
+        // 3. No valid cached token — full OAuth dance
+        let bundle = try await oauthService.authenticate(mcpEndpoint: endpoint)
+        try KeychainService.saveTokenBundle(bundle, forOperator: host)
+        return bundle.accessToken
     }
 }

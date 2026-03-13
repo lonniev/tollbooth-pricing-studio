@@ -104,7 +104,7 @@ struct OperatorStatsSheet: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                     HStack(spacing: 6) {
-                        Text(service.type.uppercased())
+                        Text("MCP")
                             .font(.caption2)
                             .fontWeight(.semibold)
                             .padding(.horizontal, 6)

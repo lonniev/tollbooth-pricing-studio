@@ -1,5 +1,5 @@
 {
-  "originHash" : "0bf417fd79d33a52ec3432f171c6a1f84ce5ef86d96adf4b24a60858943a49f6",
+  "originHash" : "502fa5ccfb91596bfa914b28db9ff337746fa7638610608a624cf0bcc225064f",
   "pins" : [
     {
       "identity" : "eventsource",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "a3a85a85214caf642abaa96ae664e4c772a59f6e",
         "version" : "1.4.1"
+      }
+    },
+    {
+      "identity" : "secp256k1.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/GigaBitcoin/secp256k1.swift.git",
+      "state" : {
+        "revision" : "8c62aba8a3011c9bcea232e5ee007fb0b34a15e2",
+        "version" : "0.21.1"
       }
     },
     {

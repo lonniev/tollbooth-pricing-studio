@@ -10,8 +10,11 @@ enum PreviewData {
         status: "active",
         displayName: "Personal Brain",
         services: [
-            MemberService(name: "personal-brain", type: "mcp", url: "https://personal-brain.cloud.fastmcp.com/sse")
-        ]
+            MemberService(name: "personal-brain", url: "https://personal-brain.fastmcp.app/mcp", description: "TheBrain knowledge graph access via MCP")
+        ],
+        upstreamAuthorityNpub: nil,
+        memberSince: nil,
+        notes: nil
     )
 
     static let sampleToolPrices: [ToolPrice] = [
@@ -74,7 +77,7 @@ enum PreviewData {
         registryStatus: "active",
         registryDisplayName: "Personal Brain",
         services: [
-            MemberService(name: "personal-brain", type: "mcp", url: "https://personal-brain.cloud.fastmcp.com/sse")
+            MemberService(name: "personal-brain", url: "https://personal-brain.fastmcp.app/mcp", description: "TheBrain knowledge graph access via MCP")
         ],
         totalToolCount: sampleToolPrices.count,
         freeToolCount: sampleToolPrices.filter { $0.priceSats == 0 }.count,

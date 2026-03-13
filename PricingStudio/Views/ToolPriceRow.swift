@@ -2,15 +2,29 @@ import SwiftUI
 
 struct ToolPriceRow: View {
     let tool: ToolPrice
+    @State private var showingInfo = false
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(tool.toolName)
-                    .font(.subheadline.monospaced())
-                Text(tool.intent)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Text(tool.toolName)
+                .font(.subheadline.monospaced())
+
+            if !tool.intent.isEmpty {
+                Button {
+                    showingInfo.toggle()
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingInfo) {
+                    Text(tool.intent)
+                        .font(.callout)
+                        .padding()
+                        .frame(idealWidth: 260)
+                        .presentationCompactAdaptation(.popover)
+                }
             }
 
             Spacer()

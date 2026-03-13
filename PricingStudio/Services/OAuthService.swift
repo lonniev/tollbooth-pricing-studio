@@ -2,6 +2,22 @@ import Foundation
 import AuthenticationServices
 import CryptoKit
 
+/// Persisted token bundle with refresh capability.
+struct TokenBundle: Codable, Sendable {
+    let accessToken: String
+    let refreshToken: String?
+    let expiresAt: Date?
+    let tokenEndpoint: String
+    let clientId: String
+    let clientSecret: String?
+
+    /// Returns true if the token has expired (with a 60-second safety margin).
+    var isExpired: Bool {
+        guard let expiresAt else { return false }
+        return Date() >= expiresAt.addingTimeInterval(-60)
+    }
+}
+
 @MainActor
 final class OAuthService: NSObject, Sendable {
 
@@ -26,7 +42,7 @@ final class OAuthService: NSObject, Sendable {
         let refresh_token: String?
     }
 
-    func authenticate(mcpEndpoint: URL) async throws -> String {
+    func authenticate(mcpEndpoint: URL) async throws -> TokenBundle {
         let metadata = try await discoverMetadata(for: mcpEndpoint)
         let registration = try await registerClient(metadata: metadata, endpoint: mcpEndpoint)
         let (codeVerifier, codeChallenge) = generatePKCE()
@@ -42,7 +58,77 @@ final class OAuthService: NSObject, Sendable {
             clientSecret: registration.client_secret,
             codeVerifier: codeVerifier
         )
-        return tokenResponse.access_token
+        return TokenBundle(
+            accessToken: tokenResponse.access_token,
+            refreshToken: tokenResponse.refresh_token,
+            expiresAt: tokenResponse.expires_in.map { Date().addingTimeInterval(TimeInterval($0)) },
+            tokenEndpoint: metadata.token_endpoint,
+            clientId: registration.client_id,
+            clientSecret: registration.client_secret
+        )
+    }
+
+    /// Attempt to refresh an expired token using the stored refresh_token.
+    func refresh(bundle: TokenBundle) async throws -> TokenBundle {
+        guard let refreshToken = bundle.refreshToken else {
+            throw OAuthError.noRefreshToken
+        }
+        guard let tokenURL = URL(string: bundle.tokenEndpoint) else {
+            throw OAuthError.invalidEndpoint
+        }
+
+        var request = URLRequest(url: tokenURL)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        var params = [
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken,
+            "client_id": bundle.clientId,
+        ]
+        if let secret = bundle.clientSecret {
+            params["client_secret"] = secret
+        }
+        let body = params.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
+            .joined(separator: "&")
+        request.httpBody = Data(body.utf8)
+
+        let urlString = tokenURL.absoluteString
+        TrafficLogger.shared.logHTTP(
+            label: "OAuth Token Refresh", method: "POST", url: urlString,
+            requestHeaders: request.allHTTPHeaderFields ?? [:], requestBody: "grant_type=refresh_token&client_id=\(bundle.clientId)"
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let httpResponse = response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? 0
+        let respHeaders = (httpResponse?.allHeaderFields as? [String: String]) ?? [:]
+        let bodyText = String(data: data.prefix(2000), encoding: .utf8) ?? "<\(data.count) bytes>"
+
+        guard statusCode == 200 else {
+            TrafficLogger.shared.logHTTP(
+                label: "OAuth Token Refresh Failed", method: "POST", url: urlString,
+                statusCode: statusCode, responseHeaders: respHeaders, responseBody: bodyText,
+                error: "HTTP \(statusCode)"
+            )
+            throw OAuthError.refreshFailed
+        }
+
+        let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
+        TrafficLogger.shared.logHTTP(
+            label: "OAuth Token Refreshed", method: "POST", url: urlString,
+            statusCode: 200, responseHeaders: respHeaders,
+            responseBody: "token_type: \(tokenResponse.token_type), expires_in: \(tokenResponse.expires_in ?? -1)"
+        )
+
+        return TokenBundle(
+            accessToken: tokenResponse.access_token,
+            refreshToken: tokenResponse.refresh_token ?? bundle.refreshToken,
+            expiresAt: tokenResponse.expires_in.map { Date().addingTimeInterval(TimeInterval($0)) },
+            tokenEndpoint: bundle.tokenEndpoint,
+            clientId: bundle.clientId,
+            clientSecret: bundle.clientSecret
+        )
     }
 
     private func discoverMetadata(for endpoint: URL) async throws -> OAuthMetadata {
@@ -50,12 +136,27 @@ final class OAuthService: NSObject, Sendable {
             throw OAuthError.invalidEndpoint
         }
         let metadataURL = URL(string: "\(scheme)://\(host)/.well-known/oauth-authorization-server")!
+        let urlString = metadataURL.absoluteString
+        TrafficLogger.shared.logHTTP(label: "OAuth Discovery", method: "GET", url: urlString)
         let (data, response) = try await URLSession.shared.data(from: metadataURL)
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let httpResponse = response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? 0
+        let respHeaders = (httpResponse?.allHeaderFields as? [String: String]) ?? [:]
+        let bodyText = String(data: data.prefix(2000), encoding: .utf8) ?? "<\(data.count) bytes>"
+        guard statusCode == 200 else {
+            TrafficLogger.shared.logHTTP(
+                label: "OAuth Discovery Failed", method: "GET", url: urlString,
+                statusCode: statusCode, responseHeaders: respHeaders, responseBody: bodyText,
+                error: "HTTP \(statusCode)"
+            )
             throw OAuthError.metadataFetchFailed
         }
-        return try JSONDecoder().decode(OAuthMetadata.self, from: data)
+        let metadata = try JSONDecoder().decode(OAuthMetadata.self, from: data)
+        TrafficLogger.shared.logHTTP(
+            label: "OAuth Metadata", method: "GET", url: urlString,
+            statusCode: 200, responseHeaders: respHeaders, responseBody: bodyText
+        )
+        return metadata
     }
 
     private func registerClient(metadata: OAuthMetadata, endpoint: URL) async throws -> ClientRegistration {
@@ -69,17 +170,40 @@ final class OAuthService: NSObject, Sendable {
         let body: [String: Any] = [
             "client_name": "Pricing Studio",
             "redirect_uris": [Self.callbackURL],
-            "grant_types": ["authorization_code"],
+            "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
             "token_endpoint_auth_method": "client_secret_post"
         ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let reqBody = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = reqBody
+        let urlString = url.absoluteString
+        let reqHeaders = request.allHTTPHeaderFields ?? [:]
+        let reqBodyText = String(data: reqBody, encoding: .utf8) ?? ""
+        TrafficLogger.shared.logHTTP(
+            label: "OAuth Register Client", method: "POST", url: urlString,
+            requestHeaders: reqHeaders, requestBody: reqBodyText
+        )
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 201 || httpResponse.statusCode == 200 else {
+        let httpResponse = response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? 0
+        let respHeaders = (httpResponse?.allHeaderFields as? [String: String]) ?? [:]
+        let bodyText = String(data: data.prefix(2000), encoding: .utf8) ?? "<\(data.count) bytes>"
+        guard statusCode == 201 || statusCode == 200 else {
+            TrafficLogger.shared.logHTTP(
+                label: "OAuth Registration Failed", method: "POST", url: urlString,
+                requestHeaders: reqHeaders, requestBody: reqBodyText,
+                statusCode: statusCode, responseHeaders: respHeaders, responseBody: bodyText,
+                error: "HTTP \(statusCode)"
+            )
             throw OAuthError.registrationFailed
         }
-        return try JSONDecoder().decode(ClientRegistration.self, from: data)
+        let registration = try JSONDecoder().decode(ClientRegistration.self, from: data)
+        TrafficLogger.shared.logHTTP(
+            label: "OAuth Client Registered", method: "POST", url: urlString,
+            requestHeaders: reqHeaders, requestBody: reqBodyText,
+            statusCode: statusCode, responseHeaders: respHeaders, responseBody: bodyText
+        )
+        return registration
     }
 
     private func generatePKCE() -> (verifier: String, challenge: String) {
@@ -114,6 +238,7 @@ final class OAuthService: NSObject, Sendable {
             URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
         let authURL = components.url!
+        TrafficLogger.shared.log(.outbound, label: "OAuth Browser Opening", detail: "Presenting auth session → \(authURL.absoluteString)")
         return try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: authURL,
@@ -163,18 +288,47 @@ final class OAuthService: NSObject, Sendable {
         let body = params.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
             .joined(separator: "&")
         request.httpBody = Data(body.utf8)
+        let urlString = tokenURL.absoluteString
+        let reqHeaders = request.allHTTPHeaderFields ?? [:]
+        // Redact code_verifier from logged body
+        let safeBody = body.replacingOccurrences(of: codeVerifier, with: "<redacted>")
+        TrafficLogger.shared.logHTTP(
+            label: "OAuth Token Exchange", method: "POST", url: urlString,
+            requestHeaders: reqHeaders, requestBody: safeBody
+        )
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let httpResponse = response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? 0
+        let respHeaders = (httpResponse?.allHeaderFields as? [String: String]) ?? [:]
+        let bodyText = String(data: data.prefix(2000), encoding: .utf8) ?? "<\(data.count) bytes>"
+        guard statusCode == 200 else {
+            TrafficLogger.shared.logHTTP(
+                label: "OAuth Token Exchange Failed", method: "POST", url: urlString,
+                requestHeaders: reqHeaders, requestBody: safeBody,
+                statusCode: statusCode, responseHeaders: respHeaders, responseBody: bodyText,
+                error: "HTTP \(statusCode) — \(bodyText)"
+            )
             throw OAuthError.tokenExchangeFailed
         }
-        return try JSONDecoder().decode(TokenResponse.self, from: data)
+        let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
+        // Don't log the actual access_token
+        TrafficLogger.shared.logHTTP(
+            label: "OAuth Token Received", method: "POST", url: urlString,
+            requestHeaders: reqHeaders,
+            statusCode: 200, responseHeaders: respHeaders,
+            responseBody: "token_type: \(tokenResponse.token_type), expires_in: \(tokenResponse.expires_in ?? -1)"
+        )
+        return tokenResponse
     }
 }
 
 extension OAuthService: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        ASPresentationAnchor()
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }
+            ?? ASPresentationAnchor()
     }
 }
 
@@ -186,6 +340,8 @@ enum OAuthError: LocalizedError {
     case authSessionFailed(Error)
     case noAuthCode
     case tokenExchangeFailed
+    case noRefreshToken
+    case refreshFailed
 
     var errorDescription: String? {
         switch self {
@@ -196,6 +352,8 @@ enum OAuthError: LocalizedError {
         case .authSessionFailed(let error): return "Authentication failed: \(error.localizedDescription)"
         case .noAuthCode: return "No authorization code received"
         case .tokenExchangeFailed: return "Failed to exchange authorization code for token"
+        case .noRefreshToken: return "No refresh token available"
+        case .refreshFailed: return "Token refresh failed"
         }
     }
 }

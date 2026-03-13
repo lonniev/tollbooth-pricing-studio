@@ -33,6 +33,14 @@
 		AA00000100000000000000C4 /* OperatorStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F4 /* OperatorStats.swift */; };
 		AA00000100000000000000C5 /* EditOperatorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F5 /* EditOperatorSheet.swift */; };
 		AA00000100000000000000C6 /* OperatorStatsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F6 /* OperatorStatsSheet.swift */; };
+		AA00000100000000000000C7 /* Patron.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F7 /* Patron.swift */; };
+		AA00000100000000000000C8 /* PatronCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F8 /* PatronCollectionViewModel.swift */; };
+		AA00000100000000000000C9 /* PatronSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F9 /* PatronSidebarView.swift */; };
+		AA00000100000000000000CA /* AddPatronSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FA /* AddPatronSheet.swift */; };
+		AA00000100000000000000CB /* EditPatronSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FB /* EditPatronSheet.swift */; };
+		AA00000100000000000000CC /* NostrKeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FC /* NostrKeyService.swift */; };
+		AA00000100000000000000CD /* TrafficLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FD /* TrafficLogger.swift */; };
+		AA00000100000000000000CE /* TrafficLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FE /* TrafficLogView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +71,14 @@
 		AA00000100000000000000F4 /* OperatorStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStats.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F5 /* EditOperatorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditOperatorSheet.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F6 /* OperatorStatsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStatsSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F7 /* Patron.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patron.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F8 /* PatronCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronCollectionViewModel.swift; sourceTree = "<group>"; };
+		AA00000100000000000000F9 /* PatronSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronSidebarView.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FA /* AddPatronSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddPatronSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FB /* EditPatronSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPatronSheet.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FC /* NostrKeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrKeyService.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FD /* TrafficLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogger.swift; sourceTree = "<group>"; };
+		AA00000100000000000000FE /* TrafficLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +139,7 @@
 				AA00000100000000000000E2 /* PricingModel.swift */,
 				AA00000100000000000000E3 /* MemberRecord.swift */,
 				AA00000100000000000000F4 /* OperatorStats.swift */,
+				AA00000100000000000000F7 /* Patron.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -134,6 +151,8 @@
 				AA00000100000000000000E5 /* OAuthService.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
 				AA00000100000000000000E7 /* KeychainService.swift */,
+				AA00000100000000000000FC /* NostrKeyService.swift */,
+				AA00000100000000000000FD /* TrafficLogger.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -143,6 +162,7 @@
 			children = (
 				AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */,
 				AA00000100000000000000E9 /* PricingViewModel.swift */,
+				AA00000100000000000000F8 /* PatronCollectionViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -161,6 +181,10 @@
 				AA00000100000000000000F0 /* PipelineStepCard.swift */,
 				AA00000100000000000000F1 /* ConnectionStatusView.swift */,
 				AA00000100000000000000F2 /* EmptyStateView.swift */,
+				AA00000100000000000000F9 /* PatronSidebarView.swift */,
+				AA00000100000000000000FA /* AddPatronSheet.swift */,
+				AA00000100000000000000FB /* EditPatronSheet.swift */,
+				AA00000100000000000000FE /* TrafficLogView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -183,6 +207,7 @@
 			name = PricingStudio;
 			packageProductDependencies = (
 				AA00000100000000000000A2 /* MCP */,
+				AA00000100000000000000A4 /* P256K */,
 			);
 			productName = PricingStudio;
 			productReference = AA00000100000000000000FF /* PricingStudio.app */;
@@ -214,6 +239,7 @@
 			mainGroup = AA000001000000000000004A;
 			packageReferences = (
 				AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */,
+				AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */,
 			);
 			productRefGroup = AA000001000000000000004C /* Products */;
 			projectDirPath = "";
@@ -265,6 +291,14 @@
 				AA00000100000000000000C4 /* OperatorStats.swift in Sources */,
 				AA00000100000000000000C5 /* EditOperatorSheet.swift in Sources */,
 				AA00000100000000000000C6 /* OperatorStatsSheet.swift in Sources */,
+				AA00000100000000000000C7 /* Patron.swift in Sources */,
+				AA00000100000000000000C8 /* PatronCollectionViewModel.swift in Sources */,
+				AA00000100000000000000C9 /* PatronSidebarView.swift in Sources */,
+				AA00000100000000000000CA /* AddPatronSheet.swift in Sources */,
+				AA00000100000000000000CB /* EditPatronSheet.swift in Sources */,
+				AA00000100000000000000CC /* NostrKeyService.swift in Sources */,
+				AA00000100000000000000CD /* TrafficLogger.swift in Sources */,
+				AA00000100000000000000CE /* TrafficLogView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -484,6 +518,14 @@
 				minimumVersion = 0.11.0;
 			};
 		};
+		AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/GigaBitcoin/secp256k1.swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.21.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -491,6 +533,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */;
 			productName = MCP;
+		};
+		AA00000100000000000000A4 /* P256K */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */;
+			productName = P256K;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
