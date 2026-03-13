@@ -73,6 +73,7 @@
 		AA0000010000000000000403 /* AssistantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000413 /* AssistantViewModel.swift */; };
 		AA0000010000000000000404 /* AssistantPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000414 /* AssistantPanelView.swift */; };
 		AA0000010000000000000405 /* AssistantAPIKeySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000415 /* AssistantAPIKeySheet.swift */; };
+		AA0000010000000000000511 /* Contact.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000501 /* Contact.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -143,6 +144,7 @@
 		AA0000010000000000000413 /* AssistantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantViewModel.swift; sourceTree = "<group>"; };
 		AA0000010000000000000414 /* AssistantPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantPanelView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000415 /* AssistantAPIKeySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantAPIKeySheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000501 /* Contact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Contact.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -209,6 +211,7 @@
 				AA0000010000000000000231 /* ChatIdentity.swift */,
 				AA0000010000000000000232 /* DMConversation.swift */,
 				AA0000010000000000000411 /* AssistantMessage.swift */,
+				AA0000010000000000000501 /* Contact.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -451,6 +454,7 @@
 				AA0000010000000000000403 /* AssistantViewModel.swift in Sources */,
 				AA0000010000000000000404 /* AssistantPanelView.swift in Sources */,
 				AA0000010000000000000405 /* AssistantAPIKeySheet.swift in Sources */,
+				AA0000010000000000000511 /* Contact.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

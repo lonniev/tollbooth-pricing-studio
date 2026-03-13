@@ -8,7 +8,9 @@ struct PatronSidebarView: View {
 
     var body: some View {
         ForEach(patrons) { patron in
-            PatronRow(patron: patron)
+            PatronRow(patron: patron, isSelected: viewModel.selectedPatron?.npub == patron.npub)
+                .contentShape(Rectangle())
+                .onTapGesture { viewModel.selectedPatron = patron }
                 .tag(patron)
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
@@ -36,6 +38,7 @@ struct PatronSidebarView: View {
 
 private struct PatronRow: View {
     let patron: Patron
+    let isSelected: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -47,6 +50,7 @@ private struct PatronRow: View {
                 .monospaced()
         }
         .padding(.vertical, 2)
+        .listRowBackground(isSelected ? Color.accentColor.opacity(0.15) : nil)
     }
 
     private func truncatedNpub(_ npub: String) -> String {

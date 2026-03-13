@@ -519,5 +519,5 @@ private struct OperatorRowInline: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [Operator.self, Patron.self, Authority.self], inMemory: true)
+        .modelContainer(for: [Operator.self, Patron.self, Authority.self, Contact.self], inMemory: true)
 }

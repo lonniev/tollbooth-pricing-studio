@@ -7,6 +7,6 @@ struct PricingStudioApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: [Operator.self, Patron.self, Authority.self])
+        .modelContainer(for: [Operator.self, Patron.self, Authority.self, Contact.self])
     }
 }

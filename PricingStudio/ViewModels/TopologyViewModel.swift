@@ -134,12 +134,12 @@ final class TopologyViewModel {
         }
 
         // Unattached operators (no authorityNpub or authority not known)
-        let attachedOpNpubs = Set(operators.filter { op in
+        let attachedNpubs = Set(operators.filter { op in
             guard let authNpub = op.authorityNpub else { return false }
             return authorityNodes[authNpub] != nil
         }.map(\.npub))
         let unattachedOps = operators
-            .filter { !attachedOpNpubs.contains($0.npub) }
+            .filter { !attachedNpubs.contains($0.npub) }
             .compactMap { operatorNodes[$0.npub] }
 
         // Build Prime node(s)
@@ -180,7 +180,6 @@ final class TopologyViewModel {
             return TopologyNode(id: auth.npub, displayName: auth.displayName, tier: .authority, children: children)
         }
 
-        let attachedOpNpubs = Set(operators.compactMap(\.authorityNpub))
         let unattachedOps = operators
             .filter { $0.authorityNpub == nil || !authorities.contains(where: { $0.npub == $0.npub }) }
             .map { TopologyNode(id: $0.npub, displayName: $0.displayName, tier: .operator, children: []) }
