@@ -2,6 +2,8 @@ import Foundation
 
 enum PreviewData {
 
+    static let sampleAuthorityNpub = "npub1d999638gqpn8c594teklxtxva0uvxdng80q3ycyqvldjdl457c7qcrq64z"
+
     static let sampleOperatorNpub = "npub1y20qa7d3ddmh6730hdr0u0r08zys4p7pyk30uhur9edx4d88q4zqnr3q2h"
 
     static let sampleMemberRecord = MemberRecord(
