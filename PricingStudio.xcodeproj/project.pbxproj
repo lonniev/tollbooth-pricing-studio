@@ -54,6 +54,9 @@
 		AA0000010000000000000213 /* NIP44Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000203 /* NIP44Service.swift */; };
 		AA0000010000000000000214 /* NostrRelayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000204 /* NostrRelayService.swift */; };
 		AA0000010000000000000215 /* NostrDMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000205 /* NostrDMService.swift */; };
+		AA0000010000000000000221 /* ChatIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000231 /* ChatIdentity.swift */; };
+		AA0000010000000000000222 /* DMConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000232 /* DMConversation.swift */; };
+		AA0000010000000000000223 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000233 /* ChatViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -105,6 +108,9 @@
 		AA0000010000000000000203 /* NIP44Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP44Service.swift; sourceTree = "<group>"; };
 		AA0000010000000000000204 /* NostrRelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000205 /* NostrDMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrDMService.swift; sourceTree = "<group>"; };
+		AA0000010000000000000231 /* ChatIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatIdentity.swift; sourceTree = "<group>"; };
+		AA0000010000000000000232 /* DMConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMConversation.swift; sourceTree = "<group>"; };
+		AA0000010000000000000233 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -168,6 +174,8 @@
 				AA00000100000000000000F4 /* OperatorStats.swift */,
 				AA00000100000000000000F7 /* Patron.swift */,
 				AA00000100000000000001A1 /* Authority.swift */,
+				AA0000010000000000000231 /* ChatIdentity.swift */,
+				AA0000010000000000000232 /* DMConversation.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -206,6 +214,7 @@
 				AA00000100000000000000F8 /* PatronCollectionViewModel.swift */,
 				AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */,
 				AA00000100000000000001A7 /* TopologyViewModel.swift */,
+				AA0000010000000000000233 /* ChatViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -367,6 +376,9 @@
 				AA0000010000000000000213 /* NIP44Service.swift in Sources */,
 				AA0000010000000000000214 /* NostrRelayService.swift in Sources */,
 				AA0000010000000000000215 /* NostrDMService.swift in Sources */,
+				AA0000010000000000000221 /* ChatIdentity.swift in Sources */,
+				AA0000010000000000000222 /* DMConversation.swift in Sources */,
+				AA0000010000000000000223 /* ChatViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
