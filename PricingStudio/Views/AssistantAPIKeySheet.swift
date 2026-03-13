@@ -16,7 +16,11 @@ struct AssistantAPIKeySheet: View {
                 } header: {
                     Text("Anthropic API Key")
                 } footer: {
-                    Text("Your API key is stored securely in the device Keychain. It is never sent anywhere except api.anthropic.com.")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your API key is stored securely in the device Keychain. It is never sent anywhere except api.anthropic.com.")
+                        Link("Get an API key at console.anthropic.com",
+                             destination: URL(string: "https://console.anthropic.com/settings/keys")!)
+                    }
                 }
 
                 if isSaved {
