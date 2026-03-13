@@ -1,0 +1,214 @@
+import Foundation
+import OSLog
+
+private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "Chat")
+
+/// View model for the DM chat interface.
+///
+/// Manages conversations, identity switching, and relay communication.
+/// Uses a 2-minute in-memory cache to avoid redundant relay fetches.
+@MainActor
+@Observable
+final class ChatViewModel {
+
+    // MARK: - State
+
+    enum State: Sendable {
+        case idle
+        case loading
+        case loaded
+        case error(String)
+    }
+
+    private(set) var state: State = .idle
+    var conversations: [DMConversation] = []
+    var selectedConversationId: String?
+
+    /// Font customization persisted in UserDefaults.
+    var messageFontName: String {
+        didSet { UserDefaults.standard.set(messageFontName, forKey: "chat.fontName") }
+    }
+    var messageFontSize: CGFloat {
+        didSet { UserDefaults.standard.set(messageFontSize, forKey: "chat.fontSize") }
+    }
+
+    // MARK: - Identity
+
+    private(set) var currentIdentity: ChatIdentity?
+
+    // MARK: - Private
+
+    private let dmService = NostrDMService()
+    private var conversationCache: [String: CachedConversations] = [:]  // keyed by npub
+    private static let cacheDuration: TimeInterval = 120  // 2 minutes
+
+    // MARK: - Init
+
+    init() {
+        self.messageFontName = UserDefaults.standard.string(forKey: "chat.fontName") ?? "SF Mono"
+        let savedSize = UserDefaults.standard.double(forKey: "chat.fontSize")
+        self.messageFontSize = savedSize > 0 ? savedSize : 14
+    }
+
+    // MARK: - Identity Switching
+
+    /// Switch the chat identity. Cancels pending work and resets state.
+    /// Auto-loads conversations if the identity has an nsec and cache is fresh.
+    func switchIdentity(to identity: ChatIdentity?) {
+        guard identity?.npub != currentIdentity?.npub else { return }
+        currentIdentity = identity
+        conversations = []
+        selectedConversationId = nil
+
+        guard let identity, identity.hasNsec else {
+            state = .idle
+            return
+        }
+
+        // Check cache
+        if let cached = conversationCache[identity.npub],
+           Date().timeIntervalSince(cached.fetchedAt) < Self.cacheDuration {
+            conversations = cached.conversations
+            state = .loaded
+            return
+        }
+
+        Task { await loadConversations() }
+    }
+
+    // MARK: - Load Conversations
+
+    /// Fetch and decrypt conversations from relays.
+    func loadConversations() async {
+        guard let identity = currentIdentity,
+              let privHex = identity.privateKeyHex else {
+            state = .idle
+            return
+        }
+
+        // Check cache first
+        if let cached = conversationCache[identity.npub],
+           Date().timeIntervalSince(cached.fetchedAt) < Self.cacheDuration {
+            conversations = cached.conversations
+            state = .loaded
+            return
+        }
+
+        state = .loading
+        let pubHex = identity.publicKeyHex
+
+        let dmsByCounterparty = await dmService.fetchConversations(
+            privateKeyHex: privHex,
+            publicKeyHex: pubHex
+        )
+
+        let convos = dmsByCounterparty.map { (counterparty, messages) in
+            DMConversation(counterpartyPubkeyHex: counterparty, messages: messages)
+        }.sorted { ($0.latestMessage?.createdAt ?? .distantPast) > ($1.latestMessage?.createdAt ?? .distantPast) }
+
+        conversations = convos
+        conversationCache[identity.npub] = CachedConversations(
+            conversations: convos,
+            fetchedAt: Date()
+        )
+        state = .loaded
+
+        logger.info("Loaded \(convos.count) conversations for \(identity.npub.prefix(12))")
+    }
+
+    /// Force refresh — bypasses cache.
+    func refreshConversations() async {
+        if let npub = currentIdentity?.npub {
+            conversationCache.removeValue(forKey: npub)
+        }
+        await loadConversations()
+    }
+
+    // MARK: - Send Message
+
+    /// Send a DM to the given counterparty via dual protocol.
+    func sendMessage(to counterpartyPubkeyHex: String, content: String) async {
+        guard let identity = currentIdentity,
+              let privHex = identity.privateKeyHex else { return }
+
+        do {
+            try await dmService.sendDM(
+                privateKeyHex: privHex,
+                publicKeyHex: identity.publicKeyHex,
+                recipientPubkeyHex: counterpartyPubkeyHex,
+                message: content
+            )
+
+            // Append optimistic local message
+            let dm = DecryptedDM(
+                rawEventId: UUID().uuidString,
+                senderPubkeyHex: identity.publicKeyHex,
+                recipientPubkeyHex: counterpartyPubkeyHex,
+                content: content,
+                createdAt: Date(),
+                encryption: .nip04,
+                isFromMe: true
+            )
+
+            if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyPubkeyHex }) {
+                conversations[idx].messages.append(dm)
+            } else {
+                conversations.insert(
+                    DMConversation(counterpartyPubkeyHex: counterpartyPubkeyHex, messages: [dm]),
+                    at: 0
+                )
+            }
+
+            // Invalidate cache so next load fetches fresh
+            if let npub = currentIdentity?.npub {
+                conversationCache.removeValue(forKey: npub)
+            }
+        } catch {
+            state = .error(error.localizedDescription)
+            logger.error("Send failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Delete Messages (NIP-09)
+
+    /// Request deletion of specific events from relays.
+    func requestDeletion(eventIds: [String]) async {
+        guard let identity = currentIdentity,
+              let privHex = identity.privateKeyHex else { return }
+
+        await dmService.requestDeletion(
+            privateKeyHex: privHex,
+            publicKeyHex: identity.publicKeyHex,
+            eventIds: eventIds
+        )
+
+        // Remove from local state
+        for i in conversations.indices {
+            conversations[i].messages.removeAll { eventIds.contains($0.rawEventId) }
+        }
+        conversations.removeAll { $0.messages.isEmpty }
+    }
+
+    /// Delete all messages in the selected conversation from relays.
+    func clearAllMessages() async {
+        guard let convId = selectedConversationId,
+              let convo = conversations.first(where: { $0.id == convId }) else { return }
+
+        let eventIds = convo.messages.map(\.rawEventId)
+        await requestDeletion(eventIds: eventIds)
+    }
+
+    // MARK: - Selected Conversation
+
+    var selectedConversation: DMConversation? {
+        guard let id = selectedConversationId else { return nil }
+        return conversations.first { $0.id == id }
+    }
+}
+
+// MARK: - Cache
+
+private struct CachedConversations {
+    let conversations: [DMConversation]
+    let fetchedAt: Date
+}
