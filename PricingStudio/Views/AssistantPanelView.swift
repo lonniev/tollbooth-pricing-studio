@@ -169,7 +169,7 @@ struct AssistantPanelView: View {
     @ViewBuilder
     private func markdownView(for text: String) -> some View {
         let segments = parseMarkdownSegments(text)
-        let hasBlocks = segments.contains(where: { $0.isCodeBlock }) || containsListItems(text)
+        let hasBlocks = segments.contains(where: { $0.isCodeBlock }) || containsBlockMarkdown(text)
         if hasBlocks {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
@@ -185,10 +185,14 @@ struct AssistantPanelView: View {
         }
     }
 
-    private func containsListItems(_ text: String) -> Bool {
+    private func containsBlockMarkdown(_ text: String) -> Bool {
         text.components(separatedBy: "\n").contains { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             return trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ")
+                || trimmed.hasPrefix("# ")
+                || trimmed.hasPrefix("## ")
+                || trimmed.hasPrefix("### ")
+                || trimmed == "---" || trimmed == "***" || trimmed == "___"
                 || trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) != nil
         }
     }
@@ -199,7 +203,14 @@ struct AssistantPanelView: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                if trimmed == "---" || trimmed == "***" || trimmed == "___" {
+                    Divider()
+                        .padding(.vertical, 4)
+                } else if let heading = parseHeading(trimmed) {
+                    Text(markdownAttributed(heading.text))
+                        .font(heading.font)
+                        .padding(.top, heading.level == 1 ? 8 : 4)
+                } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
                     HStack(alignment: .top, spacing: 6) {
                         Text("\u{2022}")
                             .font(.body)
@@ -218,6 +229,30 @@ struct AssistantPanelView: View {
                 }
             }
         }
+    }
+
+    private struct HeadingInfo {
+        let level: Int
+        let text: String
+        var font: Font {
+            switch level {
+            case 1: return .title2.bold()
+            case 2: return .title3.bold()
+            case 3: return .headline
+            default: return .subheadline.bold()
+            }
+        }
+    }
+
+    private func parseHeading(_ line: String) -> HeadingInfo? {
+        if line.hasPrefix("### ") {
+            return HeadingInfo(level: 3, text: String(line.dropFirst(4)))
+        } else if line.hasPrefix("## ") {
+            return HeadingInfo(level: 2, text: String(line.dropFirst(3)))
+        } else if line.hasPrefix("# ") {
+            return HeadingInfo(level: 1, text: String(line.dropFirst(2)))
+        }
+        return nil
     }
 
     private func markdownAttributed(_ text: String) -> AttributedString {
