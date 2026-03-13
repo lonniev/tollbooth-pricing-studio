@@ -40,6 +40,15 @@ final class PatronAccountViewModel {
         let activeTranches: Int
         let expiringWithin24h: Int
         let nextExpiration: Date?
+        var tranches: [TrancheDetail] = []
+    }
+
+    struct TrancheDetail: Identifiable {
+        let id: String
+        let amountSats: Int
+        let remainingSats: Int
+        let expiresAt: Date?
+        let createdAt: Date?
     }
 
     // MARK: - Cache
@@ -107,6 +116,32 @@ final class PatronAccountViewModel {
             fetchedAt: Date()
         )
         state = .loaded
+    }
+
+    func forceRefresh(for patron: Patron, operators: [Operator]) async {
+        balanceCache.removeValue(forKey: patron.npub)
+        await loadBalances(for: patron, operators: operators)
+    }
+
+    func purchaseCredits(
+        patronNpub: String,
+        operatorEndpoint: String,
+        amountSats: Int
+    ) async throws -> MCPService.PurchaseResult {
+        guard let endpointURL = URL(string: operatorEndpoint) else {
+            throw MCPError.connectionFailed("Invalid endpoint URL")
+        }
+        let host = endpointURL.host ?? operatorEndpoint
+        let token = try await resolvePatronToken(
+            patronNpub: patronNpub,
+            operatorHost: host,
+            endpointURL: endpointURL
+        )
+        return try await mcpService.callPurchaseCredits(
+            endpointURL: endpointURL,
+            bearerToken: token,
+            amountSats: amountSats
+        )
     }
 
     func reset() {

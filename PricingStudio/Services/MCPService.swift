@@ -210,6 +210,35 @@ actor MCPService {
             nextExpiration = formatter.date(from: isoStr)
         }
 
+        var trancheDetails: [PatronAccountViewModel.TrancheDetail] = []
+        if let trancheArray = balanceDict["tranches"] as? [[String: Any]] {
+            let isoFormatter = ISO8601DateFormatter()
+            for (index, t) in trancheArray.enumerated() {
+                let amount = (t["amount_sats"] as? Int) ?? (t["amountSats"] as? Int) ?? 0
+                let remaining = (t["remaining_sats"] as? Int) ?? (t["remainingSats"] as? Int) ?? amount
+                var expiresAt: Date?
+                if let ts = t["expires_at"] as? TimeInterval {
+                    expiresAt = Date(timeIntervalSince1970: ts)
+                } else if let str = t["expires_at"] as? String {
+                    expiresAt = isoFormatter.date(from: str)
+                }
+                var createdAt: Date?
+                if let ts = t["created_at"] as? TimeInterval {
+                    createdAt = Date(timeIntervalSince1970: ts)
+                } else if let str = t["created_at"] as? String {
+                    createdAt = isoFormatter.date(from: str)
+                }
+                let id = (t["id"] as? String) ?? "\(index)"
+                trancheDetails.append(PatronAccountViewModel.TrancheDetail(
+                    id: id,
+                    amountSats: amount,
+                    remainingSats: remaining,
+                    expiresAt: expiresAt,
+                    createdAt: createdAt
+                ))
+            }
+        }
+
         return PatronAccountViewModel.BalanceResult(
             balanceApiSats: balance,
             totalDeposited: deposited,
@@ -217,7 +246,91 @@ actor MCPService {
             totalExpired: expired,
             activeTranches: tranches,
             expiringWithin24h: expiring24h,
-            nextExpiration: nextExpiration
+            nextExpiration: nextExpiration,
+            tranches: trancheDetails
+        )
+    }
+
+    // MARK: - Purchase Credits
+
+    struct PurchaseResult: Sendable {
+        let invoiceId: String
+        let checkoutLink: String
+        let lightningInvoice: String?
+        let amountSats: Int
+    }
+
+    func callPurchaseCredits(
+        endpointURL: URL,
+        bearerToken: String,
+        amountSats: Int
+    ) async throws -> PurchaseResult {
+        await traffic(.outbound, label: "Purchase Credits", detail: "SSE → \(endpointURL.absoluteString) amount=\(amountSats)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let purchaseTool = allTools.first(where: { $0.name.contains("purchase_credits") }) else {
+            await traffic(.error, label: "Purchase Credits", detail: "No purchase_credits tool found")
+            throw MCPError.toolCallFailed("No purchase_credits tool found")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: purchaseTool.name,
+            arguments: ["amount_sats": .int(amountSats)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Purchase Credits Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Purchase Credits", detail: String(text.prefix(500)))
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw MCPError.invalidResponse
+        }
+
+        let responseDict: [String: Any]
+        if let result = json["result"] as? [String: Any] {
+            responseDict = result
+        } else {
+            responseDict = json
+        }
+
+        let invoiceId = (responseDict["invoice_id"] as? String)
+            ?? (responseDict["invoiceId"] as? String)
+            ?? ""
+        let checkoutLink = (responseDict["checkout_link"] as? String)
+            ?? (responseDict["checkoutLink"] as? String)
+            ?? ""
+        let bolt11 = (responseDict["lightning_invoice"] as? String)
+            ?? (responseDict["lightningInvoice"] as? String)
+
+        return PurchaseResult(
+            invoiceId: invoiceId,
+            checkoutLink: checkoutLink,
+            lightningInvoice: bolt11,
+            amountSats: amountSats
         )
     }
 

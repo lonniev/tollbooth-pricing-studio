@@ -76,8 +76,8 @@ struct ComposeMessageSheet: View {
                     }
                 }
 
-                if !filteredSuggestions.isEmpty && !recipientNpub.isEmpty {
-                    Section("Suggestions") {
+                if !filteredSuggestions.isEmpty {
+                    Section(recipientNpub.trimmingCharacters(in: .whitespaces).isEmpty ? "Known Entities" : "Suggestions") {
                         ForEach(filteredSuggestions) { suggestion in
                             Button {
                                 recipientNpub = suggestion.npub

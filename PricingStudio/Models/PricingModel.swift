@@ -1,11 +1,42 @@
 import Foundation
 
+enum PriceType: String, Codable, Sendable, CaseIterable {
+    case flat
+    case percent
+    case formula
+}
+
 struct ToolPrice: Codable, Identifiable, Sendable {
     var id: String { toolName }
     let toolName: String
-    let priceSats: Int
+    var priceSats: Int
+    var priceType: PriceType
+    var priceFormula: String?
     let category: String
     let intent: String
+
+    init(toolName: String, priceSats: Int, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String) {
+        self.toolName = toolName
+        self.priceSats = priceSats
+        self.priceType = priceType
+        self.priceFormula = priceFormula
+        self.category = category
+        self.intent = intent
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case toolName, priceSats, priceType, priceFormula, category, intent
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        toolName = try container.decode(String.self, forKey: .toolName)
+        priceSats = try container.decode(Int.self, forKey: .priceSats)
+        priceType = try container.decodeIfPresent(PriceType.self, forKey: .priceType) ?? .flat
+        priceFormula = try container.decodeIfPresent(String.self, forKey: .priceFormula)
+        category = try container.decode(String.self, forKey: .category)
+        intent = try container.decode(String.self, forKey: .intent)
+    }
 }
 
 struct PipelineStep: Codable, Identifiable, Sendable {

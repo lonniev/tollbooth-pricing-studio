@@ -10,6 +10,7 @@ final class PricingViewModel {
         case loading(step: String)
         case loaded(PricingModelResponse)
         case error(String)
+        case cancelled
     }
 
     private(set) var state: State = .idle
@@ -25,6 +26,35 @@ final class PricingViewModel {
     private let mcpService = MCPService()
     private let oauthService = OAuthService()
     private var loadingTask: Task<Void, Never>?
+
+    // MARK: - Local Edits
+
+    var localEdits: [String: ToolPrice] = [:]
+
+    func editedTool(for toolName: String) -> ToolPrice? {
+        localEdits[toolName]
+    }
+
+    func applyEdit(toolName: String, priceSats: Int, priceType: PriceType, priceFormula: String?) {
+        guard let model = pricingModel, let tools = model.tools,
+              var tool = tools.first(where: { $0.toolName == toolName }) else { return }
+        tool.priceSats = priceSats
+        tool.priceType = priceType
+        tool.priceFormula = priceFormula
+        localEdits[toolName] = tool
+    }
+
+    func resetEdit(toolName: String) {
+        localEdits.removeValue(forKey: toolName)
+    }
+
+    func resetAllEdits() {
+        localEdits.removeAll()
+    }
+
+    var hasEdits: Bool {
+        !localEdits.isEmpty
+    }
 
     // MARK: - In-Memory Discovery Cache (5-minute TTL)
 
@@ -178,7 +208,7 @@ final class PricingViewModel {
     func cancel() {
         loadingTask?.cancel()
         loadingTask = nil
-        state = .idle
+        state = .cancelled
         currentOperatorNpub = nil
         memberRecord = nil
         loadedAt = nil
