@@ -8,6 +8,8 @@ struct ContentView: View {
     @State private var patronVM = PatronCollectionViewModel()
     @State private var pricingVM = PricingViewModel()
     @State private var chatVM = ChatViewModel()
+    @State private var assistantVM = AssistantViewModel()
+    @State private var showingAssistant = false
     @State private var showingTrafficLog = false
 
     var body: some View {
@@ -48,6 +50,25 @@ struct ContentView: View {
                     TrafficLogView(logger: TrafficLogger.shared)
                         .frame(height: 260)
                 }
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        withAnimation { showingAssistant.toggle() }
+                    } label: {
+                        Label(
+                            showingAssistant ? "Hide Assistant" : "AI Assistant",
+                            systemImage: "sparkles"
+                        )
+                    }
+                }
+            }
+            .inspector(isPresented: $showingAssistant) {
+                AssistantPanelView(
+                    assistantVM: assistantVM,
+                    context: buildAppContext()
+                )
+                .inspectorColumnWidth(min: 300, ideal: 360, max: 480)
             }
         }
         .sheet(isPresented: $authorityVM.showingAddSheet) {
@@ -120,6 +141,38 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    // MARK: - App Context for AI Assistant
+
+    private func buildAppContext() -> AppContext {
+        var ctx = AppContext()
+
+        if let auth = authorityVM.selectedAuthority {
+            ctx.selectedEntityType = "Authority"
+            ctx.selectedDisplayName = auth.displayName
+            ctx.selectedNpub = auth.npub
+        } else if let op = operatorVM.selectedOperator {
+            ctx.selectedEntityType = "Operator"
+            ctx.selectedDisplayName = op.displayName
+            ctx.selectedNpub = op.npub
+        } else if let patron = patronVM.selectedPatron {
+            ctx.selectedEntityType = "Patron"
+            ctx.selectedDisplayName = patron.displayName
+            ctx.selectedNpub = patron.npub
+        }
+
+        if let model = pricingVM.pricingModel, let tools = model.tools {
+            ctx.toolCount = tools.count
+            let categories = Set(tools.map(\.category))
+            ctx.categoryCount = categories.count
+            let summary = tools.prefix(20).map { "\($0.toolName): \($0.priceSats)s (\($0.category))" }.joined(separator: "\n")
+            ctx.toolSummary = summary
+        }
+
+        ctx.conversationCount = chatVM.conversations.count
+
+        return ctx
     }
 
     // MARK: - Graph Node Selection

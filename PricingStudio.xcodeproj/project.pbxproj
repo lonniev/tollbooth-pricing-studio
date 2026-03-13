@@ -66,6 +66,11 @@
 		AA0000010000000000000247 /* ComposeMessageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000257 /* ComposeMessageSheet.swift */; };
 		AA0000010000000000000248 /* ChatFontPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000258 /* ChatFontPicker.swift */; };
 		AA0000010000000000000249 /* NoNsecView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000259 /* NoNsecView.swift */; };
+		AA0000010000000000000401 /* AssistantMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000411 /* AssistantMessage.swift */; };
+		AA0000010000000000000402 /* AnthropicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000412 /* AnthropicService.swift */; };
+		AA0000010000000000000403 /* AssistantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000413 /* AssistantViewModel.swift */; };
+		AA0000010000000000000404 /* AssistantPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000414 /* AssistantPanelView.swift */; };
+		AA0000010000000000000405 /* AssistantAPIKeySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000415 /* AssistantAPIKeySheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -129,6 +134,11 @@
 		AA0000010000000000000257 /* ComposeMessageSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeMessageSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000258 /* ChatFontPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatFontPicker.swift; sourceTree = "<group>"; };
 		AA0000010000000000000259 /* NoNsecView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoNsecView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000411 /* AssistantMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantMessage.swift; sourceTree = "<group>"; };
+		AA0000010000000000000412 /* AnthropicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicService.swift; sourceTree = "<group>"; };
+		AA0000010000000000000413 /* AssistantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantViewModel.swift; sourceTree = "<group>"; };
+		AA0000010000000000000414 /* AssistantPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantPanelView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000415 /* AssistantAPIKeySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantAPIKeySheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,6 +204,7 @@
 				AA00000100000000000001A1 /* Authority.swift */,
 				AA0000010000000000000231 /* ChatIdentity.swift */,
 				AA0000010000000000000232 /* DMConversation.swift */,
+				AA0000010000000000000411 /* AssistantMessage.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -207,6 +218,7 @@
 				AA00000100000000000000E7 /* KeychainService.swift */,
 				AA00000100000000000000FC /* NostrKeyService.swift */,
 				AA00000100000000000000FD /* TrafficLogger.swift */,
+				AA0000010000000000000412 /* AnthropicService.swift */,
 				AA0000010000000000000200 /* Nostr */,
 			);
 			path = Services;
@@ -233,6 +245,7 @@
 				AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */,
 				AA00000100000000000001A7 /* TopologyViewModel.swift */,
 				AA0000010000000000000233 /* ChatViewModel.swift */,
+				AA0000010000000000000413 /* AssistantViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -259,6 +272,8 @@
 				AA00000100000000000001A4 /* EditAuthoritySheet.swift */,
 				AA00000100000000000001A6 /* AuthorityDetailView.swift */,
 				AA00000100000000000001A8 /* NetworkTopologyView.swift */,
+				AA0000010000000000000414 /* AssistantPanelView.swift */,
+				AA0000010000000000000415 /* AssistantAPIKeySheet.swift */,
 				AA0000010000000000000250 /* Chat */,
 			);
 			path = Views;
@@ -423,6 +438,11 @@
 				AA0000010000000000000247 /* ComposeMessageSheet.swift in Sources */,
 				AA0000010000000000000248 /* ChatFontPicker.swift in Sources */,
 				AA0000010000000000000249 /* NoNsecView.swift in Sources */,
+				AA0000010000000000000401 /* AssistantMessage.swift in Sources */,
+				AA0000010000000000000402 /* AnthropicService.swift in Sources */,
+				AA0000010000000000000403 /* AssistantViewModel.swift in Sources */,
+				AA0000010000000000000404 /* AssistantPanelView.swift in Sources */,
+				AA0000010000000000000405 /* AssistantAPIKeySheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
