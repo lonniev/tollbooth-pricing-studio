@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ToolPriceListView: View {
     let tools: [ToolPrice]
+    var viewModel: PricingViewModel?
 
     private var groupedTools: [(String, [ToolPrice])] {
         let groups = Dictionary(grouping: tools) { $0.category }
@@ -14,8 +15,27 @@ struct ToolPriceListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Tool Prices")
-                .font(.title3.bold())
+            HStack {
+                Text("Tool Prices")
+                    .font(.title3.bold())
+
+                Spacer()
+
+                if let viewModel, viewModel.hasEdits {
+                    HStack(spacing: 6) {
+                        Text("\(viewModel.localEdits.count) edit\(viewModel.localEdits.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+
+                        Button("Reset All") {
+                            viewModel.resetAllEdits()
+                        }
+                        .font(.caption)
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                }
+            }
 
             ForEach(groupedTools, id: \.0) { category, categoryTools in
                 VStack(alignment: .leading, spacing: 8) {
@@ -25,7 +45,7 @@ struct ToolPriceListView: View {
                         .textCase(.uppercase)
 
                     ForEach(categoryTools) { tool in
-                        ToolPriceRow(tool: tool)
+                        ToolPriceRow(tool: tool, viewModel: viewModel)
                     }
                 }
             }

@@ -19,7 +19,7 @@ struct ChatView: View {
             case .loading:
                 VStack(spacing: 16) {
                     ProgressView()
-                    Text("Fetching messages from relays...")
+                    Text("Polling relays...")
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -27,9 +27,9 @@ struct ChatView: View {
             case .loaded:
                 if chatVM.conversations.isEmpty {
                     ContentUnavailableView {
-                        Label("No Conversations", systemImage: "bubble.left")
+                        Label("Nostr Secure Messaging", systemImage: "bubble.left.and.exclamationmark.bubble.right")
                     } description: {
-                        Text("No DMs found on the relays.")
+                        Text("Send encrypted DMs via Nostr relays. Tap the compose button to start a conversation, or refresh to poll relays for new arrivals.")
                     } actions: {
                         Button {
                             showingCompose = true

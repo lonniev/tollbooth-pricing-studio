@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var patronAccountVM = PatronAccountViewModel()
     @State private var assistantVM = AssistantViewModel()
     @State private var showingAssistant = false
+    @State private var assistantFullScreen = false
     @State private var showingTrafficLog = false
 
     var body: some View {
@@ -67,9 +68,24 @@ struct ContentView: View {
             .inspector(isPresented: $showingAssistant) {
                 AssistantPanelView(
                     assistantVM: assistantVM,
-                    context: buildAppContext()
+                    context: buildAppContext(),
+                    onToggleFullScreen: {
+                        showingAssistant = false
+                        assistantFullScreen = true
+                    }
                 )
                 .inspectorColumnWidth(min: 300, ideal: 360, max: 480)
+            }
+            .fullScreenCover(isPresented: $assistantFullScreen) {
+                AssistantPanelView(
+                    assistantVM: assistantVM,
+                    context: buildAppContext(),
+                    onToggleFullScreen: {
+                        assistantFullScreen = false
+                        showingAssistant = true
+                    },
+                    isFullScreen: true
+                )
             }
         }
         .sheet(isPresented: $authorityVM.showingAddSheet) {

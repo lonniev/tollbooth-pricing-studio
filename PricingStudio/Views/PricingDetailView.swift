@@ -19,6 +19,18 @@ struct PricingDetailView: View {
 
             case .error(let message):
                 errorContent(message)
+
+            case .cancelled:
+                ContentUnavailableView {
+                    Label("Loading Cancelled", systemImage: "stop.circle")
+                } description: {
+                    Text("The connection was cancelled before it could complete.")
+                } actions: {
+                    Button("Retry") {
+                        viewModel.retry(for: target)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
         }
         .navigationTitle(target.displayName)
@@ -36,7 +48,7 @@ struct PricingDetailView: View {
                         modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord)
                     }
 
-                    ToolPriceListView(tools: tools)
+                    ToolPriceListView(tools: tools, viewModel: viewModel)
 
                     if let pipeline = model.pipeline, !pipeline.isEmpty {
                         PipelineView(steps: pipeline)

@@ -3,6 +3,8 @@ import SwiftUI
 struct AssistantPanelView: View {
     @Bindable var assistantVM: AssistantViewModel
     let context: AppContext
+    var onToggleFullScreen: (() -> Void)?
+    var isFullScreen: Bool = false
     @State private var inputText = ""
     @State private var showingAPIKeySheet = false
 
@@ -18,7 +20,7 @@ struct AssistantPanelView: View {
 
             inputBar
         }
-        .frame(minWidth: 300, idealWidth: 360)
+        .frame(minWidth: 300, idealWidth: isFullScreen ? .infinity : 360)
         .sheet(isPresented: $showingAPIKeySheet) {
             AssistantAPIKeySheet()
         }
@@ -33,6 +35,20 @@ struct AssistantPanelView: View {
                 .font(.headline)
 
             Spacer()
+
+            if let onToggleFullScreen {
+                Button {
+                    onToggleFullScreen()
+                } label: {
+                    Label(
+                        isFullScreen ? "Collapse" : "Expand",
+                        systemImage: isFullScreen
+                            ? "arrow.down.right.and.arrow.up.left"
+                            : "arrow.up.left.and.arrow.down.right"
+                    )
+                    .labelStyle(.iconOnly)
+                }
+            }
 
             Button {
                 assistantVM.clear()
@@ -153,18 +169,54 @@ struct AssistantPanelView: View {
     @ViewBuilder
     private func markdownView(for text: String) -> some View {
         let segments = parseMarkdownSegments(text)
-        if segments.contains(where: { $0.isCodeBlock }) {
+        let hasBlocks = segments.contains(where: { $0.isCodeBlock }) || containsListItems(text)
+        if hasBlocks {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                     if segment.isCodeBlock {
                         codeBlockView(segment.content, language: segment.language)
                     } else {
-                        Text(markdownAttributed(segment.content))
+                        renderBlockText(segment.content)
                     }
                 }
             }
         } else {
             Text(markdownAttributed(text))
+        }
+    }
+
+    private func containsListItems(_ text: String) -> Bool {
+        text.components(separatedBy: "\n").contains { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ")
+                || trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) != nil
+        }
+    }
+
+    @ViewBuilder
+    private func renderBlockText(_ text: String) -> some View {
+        let lines = text.components(separatedBy: "\n")
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                    HStack(alignment: .top, spacing: 6) {
+                        Text("\u{2022}")
+                            .font(.body)
+                        Text(markdownAttributed(String(trimmed.dropFirst(2))))
+                    }
+                } else if let range = trimmed.range(of: #"^(\d+)\.\s"#, options: .regularExpression) {
+                    let prefix = String(trimmed[range])
+                    let rest = String(trimmed[range.upperBound...])
+                    HStack(alignment: .top, spacing: 4) {
+                        Text(prefix)
+                            .foregroundStyle(.secondary)
+                        Text(markdownAttributed(rest))
+                    }
+                } else if !trimmed.isEmpty {
+                    Text(markdownAttributed(trimmed))
+                }
+            }
         }
     }
 
