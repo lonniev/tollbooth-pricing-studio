@@ -35,22 +35,44 @@ enum NIP04Service {
         privateKeyHex: String,
         publicKeyHex: String
     ) throws -> Data {
-        guard let privBytes = Data(hexString: privateKeyHex), privBytes.count == 32,
-              let pubBytes = Data(hexString: publicKeyHex), pubBytes.count == 32 else {
+        guard let privBytes = Data(hexString: privateKeyHex), privBytes.count == 32 else {
+            throw NIP04Error.invalidKey
+        }
+        guard let pubBytes = Data(hexString: publicKeyHex), pubBytes.count == 32 else {
             throw NIP04Error.invalidKey
         }
 
         // P256K.KeyAgreement requires a compressed public key (02 prefix + 32 bytes)
         let compressedPub = [UInt8(0x02)] + Array(pubBytes)
-        let privKey = try P256K.KeyAgreement.PrivateKey(dataRepresentation: Array(privBytes))
-        let pubKey = try P256K.KeyAgreement.PublicKey(dataRepresentation: compressedPub)
-        let shared = try privKey.sharedSecretFromKeyAgreement(with: pubKey)
 
-        // Extract x-coordinate (32 bytes) from the shared secret
-        // SharedSecret conforms to ContiguousBytes; extract raw representation
+        let privKey: P256K.KeyAgreement.PrivateKey
+        do {
+            privKey = try P256K.KeyAgreement.PrivateKey(dataRepresentation: Array(privBytes))
+        } catch {
+            throw NIP04Error.ecdhFailed
+        }
+
+        let pubKey: P256K.KeyAgreement.PublicKey
+        do {
+            pubKey = try P256K.KeyAgreement.PublicKey(dataRepresentation: compressedPub)
+        } catch {
+            // The x-coordinate might correspond to an odd y — try 03 prefix
+            let compressedPubOdd = [UInt8(0x03)] + Array(pubBytes)
+            do {
+                pubKey = try P256K.KeyAgreement.PublicKey(dataRepresentation: compressedPubOdd)
+            } catch {
+                throw NIP04Error.ecdhFailed
+            }
+        }
+
+        let shared: P256K.KeyAgreement.SharedSecret
+        do {
+            shared = try privKey.sharedSecretFromKeyAgreement(with: pubKey)
+        } catch {
+            throw NIP04Error.ecdhFailed
+        }
+
         let sharedBytes = shared.withUnsafeBytes { Data($0) }
-
-        // The shared secret from P256K is already the 32-byte x-coordinate
         guard sharedBytes.count == 32 else {
             throw NIP04Error.ecdhFailed
         }

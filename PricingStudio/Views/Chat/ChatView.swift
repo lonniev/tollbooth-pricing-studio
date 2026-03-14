@@ -16,16 +16,8 @@ struct ChatView: View {
                     description: Text("Select an entity with an nsec to view messages.")
                 )
 
-            case .loading:
-                VStack(spacing: 16) {
-                    ProgressView()
-                    Text("Polling relays...")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            case .loaded:
-                if chatVM.conversations.isEmpty {
+            case .loading, .loaded:
+                if chatVM.conversations.isEmpty && !chatVM.isLoading {
                     ContentUnavailableView {
                         Label("Nostr Secure Messaging", systemImage: "bubble.left.and.exclamationmark.bubble.right")
                     } description: {
@@ -38,27 +30,60 @@ struct ChatView: View {
                         }
                         .buttonStyle(.borderedProminent)
                     }
+                } else if chatVM.conversations.isEmpty {
+                    // Loading with no cached conversations yet — show welcome + spinner
+                    VStack(spacing: 16) {
+                        Image(systemName: "bubble.left.and.exclamationmark.bubble.right")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.secondary)
+                        Text("Nostr Secure Messaging")
+                            .font(.title3.bold())
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Polling relays\u{2026}")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("You can compose a message while relays are polled.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    HStack(spacing: 0) {
-                        ConversationListView(
-                            conversations: chatVM.conversations,
-                            selectedId: $chatVM.selectedConversationId
-                        )
-                        .frame(width: 280)
-
-                        Divider()
-
-                        if let convo = chatVM.selectedConversation {
-                            MessageThreadView(
-                                conversation: convo,
-                                chatVM: chatVM
+                    ZStack(alignment: .top) {
+                        HStack(spacing: 0) {
+                            ConversationListView(
+                                conversations: chatVM.conversations,
+                                selectedId: $chatVM.selectedConversationId
                             )
-                        } else {
-                            ContentUnavailableView(
-                                "Select a Conversation",
-                                systemImage: "bubble.left.and.text.bubble.right",
-                                description: Text("Choose a conversation from the list.")
-                            )
+                            .frame(width: 280)
+
+                            Divider()
+
+                            if let convo = chatVM.selectedConversation {
+                                MessageThreadView(
+                                    conversation: convo,
+                                    chatVM: chatVM
+                                )
+                            } else {
+                                ContentUnavailableView(
+                                    "Select a Conversation",
+                                    systemImage: "bubble.left.and.text.bubble.right",
+                                    description: Text("Choose a conversation from the list.")
+                                )
+                            }
+                        }
+
+                        if chatVM.isLoading {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.mini)
+                                Text("Polling relays\u{2026}")
+                                    .font(.caption2)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding(.top, 4)
                         }
                     }
                 }
@@ -107,6 +132,16 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingCompose) {
             ComposeMessageSheet(chatVM: chatVM)
+        }
+        .alert("Send Failed", isPresented: .init(
+            get: { chatVM.sendError != nil },
+            set: { if !$0 { chatVM.sendError = nil } }
+        )) {
+            Button("OK") { chatVM.sendError = nil }
+        } message: {
+            if let error = chatVM.sendError {
+                Text(error)
+            }
         }
     }
 }
