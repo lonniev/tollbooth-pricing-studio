@@ -65,17 +65,23 @@ enum NIP04Service {
             }
         }
 
-        let sharedBytes: Data
         do {
             let shared = try privKey.sharedSecretFromKeyAgreement(with: pubKey)
-            sharedBytes = shared.withUnsafeBytes { Data($0) }
+            let raw = shared.withUnsafeBytes { Data($0) }
+            // P256K returns compressed format: version(1) + x(32) = 33 bytes.
+            // NIP-04 shared secret is the raw x-coordinate only (32 bytes).
+            if raw.count == 33 {
+                return Data(raw.dropFirst())
+            } else if raw.count == 32 {
+                return raw
+            } else {
+                throw NIP04Error.ecdhFailed
+            }
+        } catch is NIP04Error {
+            throw NIP04Error.ecdhFailed
         } catch {
             throw NIP04Error.ecdhFailed
         }
-        guard sharedBytes.count == 32 else {
-            throw NIP04Error.ecdhFailed
-        }
-        return sharedBytes
     }
 
     // MARK: - Encrypt
