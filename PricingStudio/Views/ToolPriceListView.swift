@@ -3,6 +3,9 @@ import SwiftUI
 struct ToolPriceListView: View {
     let tools: [ToolPrice]
     var viewModel: PricingViewModel?
+    var target: (any PricingTarget)?
+    @State private var saveError: String?
+    @State private var showSaveSuccess = false
 
     private var groupedTools: [(String, [ToolPrice])] {
         let groups = Dictionary(grouping: tools) { $0.category }
@@ -27,6 +30,25 @@ struct ToolPriceListView: View {
                             .font(.caption)
                             .foregroundStyle(.blue)
 
+                        if let target {
+                            Button("Save to Operator") {
+                                Task {
+                                    do {
+                                        try await viewModel.savePricing(for: target)
+                                        showSaveSuccess = true
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            showSaveSuccess = false
+                                        }
+                                    } catch {
+                                        saveError = error.localizedDescription
+                                    }
+                                }
+                            }
+                            .font(.caption)
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.mini)
+                        }
+
                         Button("Reset All") {
                             viewModel.resetAllEdits()
                         }
@@ -34,6 +56,12 @@ struct ToolPriceListView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                     }
+                }
+
+                if showSaveSuccess {
+                    Label("Saved", systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
                 }
             }
 
@@ -48,6 +76,16 @@ struct ToolPriceListView: View {
                         ToolPriceRow(tool: tool, viewModel: viewModel)
                     }
                 }
+            }
+        }
+        .alert("Save Failed", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK") { saveError = nil }
+        } message: {
+            if let saveError {
+                Text(saveError)
             }
         }
     }

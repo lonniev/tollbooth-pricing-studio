@@ -6,6 +6,11 @@ enum PriceType: String, Codable, Sendable, CaseIterable {
     case formula
 }
 
+enum PricingSource: String, Codable, Sendable {
+    case stored      // from get_pricing_model (persisted in Neon)
+    case synthesized // from tool listing heuristics
+}
+
 struct ToolPrice: Codable, Identifiable, Sendable {
     var id: String { toolName }
     let toolName: String
@@ -25,7 +30,11 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case toolName, priceSats, priceType, priceFormula, category, intent
+        case toolName = "tool_name"
+        case priceSats = "price_sats"
+        case priceType = "price_type"
+        case priceFormula = "price_formula"
+        case category, intent
     }
 
     init(from decoder: Decoder) throws {
@@ -102,6 +111,7 @@ struct PricingModelResponse: Codable, Sendable {
     let isActive: Bool?
     let tools: [ToolPrice]?
     let pipeline: [PipelineStep]?
+    var source: PricingSource = .synthesized
 
     enum CodingKeys: String, CodingKey {
         case status
@@ -110,6 +120,7 @@ struct PricingModelResponse: Codable, Sendable {
         case isActive = "is_active"
         case tools
         case pipeline
+        // source excluded — set programmatically, not from JSON
     }
 }
 
