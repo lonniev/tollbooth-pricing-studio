@@ -127,69 +127,88 @@ final class PricingViewModel {
         state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
 
         do {
-            // Step 1: Resolve Oracle URL and authenticate
-            let oracleURL = try await mcpService.resolveOracleURL(forOperator: target.npub)
-            let oracleHost = oracleURL.host ?? "oracle"
-
-            state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
-            let oracleToken = try await resolveToken(for: oracleURL, host: oracleHost)
-
-            // Step 2: Lookup via Oracle
-            let member = try await mcpService.lookupOperator(npub: target.npub, bearerToken: oracleToken) { [weak self] step in
-                Task { @MainActor in
-                    self?.state = .loading(step: step.rawValue)
-                }
-            }
-
-            memberRecord = member
-
-            // Update cached endpoint
-            if let endpoint = member.mcpEndpointURL {
-                target.mcpEndpointURL = endpoint
-            }
-
-            // Auto-discover upstream authority (Operator-specific)
-            if let op = target as? Operator, let authNpub = member.upstreamAuthorityNpub {
-                op.authorityNpub = authNpub
-                let authInfo = await resolveAuthorityInfo(npub: authNpub)
-                onAuthorityDiscovered?(authNpub, authInfo.displayName, authInfo.endpointURL)
-            }
-
-            guard let endpointString = target.mcpEndpointURL,
-                  let endpointURL = URL(string: endpointString) else {
-                state = .error("No MCP endpoint found for this entity")
-                return
-            }
-
-            // Step 3: Get auth token for MCP endpoint
-            state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
-            let targetHost = endpointURL.host ?? target.npub
-            let targetToken = try await resolveToken(for: endpointURL, host: targetHost)
-
-            // Step 4: Fetch pricing model
-            let model = try await mcpService.fetchPricingModel(
-                endpointURL: endpointURL,
-                bearerToken: targetToken
-            ) { [weak self] step in
-                Task { @MainActor in
-                    self?.state = .loading(step: step.rawValue)
-                }
-            }
-
-            let now = Date()
-            cache[target.npub] = CacheEntry(model: model, memberRecord: member, cachedAt: now)
-            loadedAt = now
-            state = .loaded(model)
-
+            try await fetchPricingSteps(for: target)
         } catch is CancellationError {
-            return
+            if case .loading = state { state = .idle }
         } catch let urlError as URLError where urlError.code == .cancelled {
-            return
+            if case .loading = state { state = .idle }
         } catch {
             let detail = "\(error.localizedDescription)\n\nUnderlying: \(String(describing: error))"
             TrafficLogger.shared.log(.error, label: "Load Failed: \(target.displayName)", detail: detail)
             state = .error(error.localizedDescription)
         }
+    }
+
+    private func fetchPricingSteps(for target: any PricingTarget) async throws {
+        try Task.checkCancellation()
+
+        // Step 1: Resolve Oracle URL and authenticate
+        let oracleURL = try await mcpService.resolveOracleURL(forOperator: target.npub)
+        let oracleHost = oracleURL.host ?? "oracle"
+
+        try Task.checkCancellation()
+        state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
+        let oracleToken = try await resolveToken(for: oracleURL, host: oracleHost)
+
+        try Task.checkCancellation()
+
+        // Step 2: Lookup via Oracle
+        let member = try await mcpService.lookupOperator(npub: target.npub, bearerToken: oracleToken) { [weak self] step in
+            guard !Task.isCancelled else { return }
+            Task { @MainActor in
+                guard !Task.isCancelled else { return }
+                self?.state = .loading(step: step.rawValue)
+            }
+        }
+
+        try Task.checkCancellation()
+        memberRecord = member
+
+        // Update cached endpoint
+        if let endpoint = member.mcpEndpointURL {
+            target.mcpEndpointURL = endpoint
+        }
+
+        // Auto-discover upstream authority (Operator-specific)
+        if let op = target as? Operator, let authNpub = member.upstreamAuthorityNpub {
+            op.authorityNpub = authNpub
+            let authInfo = await resolveAuthorityInfo(npub: authNpub)
+            onAuthorityDiscovered?(authNpub, authInfo.displayName, authInfo.endpointURL)
+        }
+
+        guard let endpointString = target.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            state = .error("No MCP endpoint found for this entity")
+            return
+        }
+
+        try Task.checkCancellation()
+
+        // Step 3: Get auth token for MCP endpoint
+        state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
+        let targetHost = endpointURL.host ?? target.npub
+        let targetToken = try await resolveToken(for: endpointURL, host: targetHost)
+
+        try Task.checkCancellation()
+
+        // Step 4: Fetch pricing model
+        let model = try await mcpService.fetchPricingModel(
+            endpointURL: endpointURL,
+            bearerToken: targetToken
+        ) { [weak self] step in
+            guard !Task.isCancelled else { return }
+            Task { @MainActor in
+                guard !Task.isCancelled else { return }
+                self?.state = .loading(step: step.rawValue)
+            }
+        }
+
+        try Task.checkCancellation()
+
+        let now = Date()
+        cache[target.npub] = CacheEntry(model: model, memberRecord: member, cachedAt: now)
+        loadedAt = now
+        state = .loaded(model)
     }
 
     // MARK: - Save Pricing
@@ -248,6 +267,7 @@ final class PricingViewModel {
 
     func startLoading(for target: any PricingTarget) {
         loadingTask?.cancel()
+        currentOperatorNpub = nil  // clear so loadPricing guard passes for new target
         loadingTask = Task {
             await loadPricing(for: target)
         }
@@ -324,3 +344,4 @@ final class PricingViewModel {
         return bundle.accessToken
     }
 }
+
