@@ -169,13 +169,16 @@ struct AssistantPanelView: View {
     @ViewBuilder
     private func markdownView(for text: String) -> some View {
         let segments = parseMarkdownSegments(text)
-        let hasBlocks = segments.contains(where: { $0.isCodeBlock }) || containsBlockMarkdown(text)
+        let hasBlocks = segments.contains(where: { $0.isCodeBlock || $0.isTable }) || containsBlockMarkdown(text)
         if hasBlocks {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-                    if segment.isCodeBlock {
-                        codeBlockView(segment.content, language: segment.language)
-                    } else {
+                    switch segment.kind {
+                    case .code(let language):
+                        codeBlockView(segment.content, language: language)
+                    case .table(let header, let rows):
+                        tableView(header: header, rows: rows)
+                    case .text:
                         renderBlockText(segment.content)
                     }
                 }
@@ -193,6 +196,7 @@ struct AssistantPanelView: View {
                 || trimmed.hasPrefix("## ")
                 || trimmed.hasPrefix("### ")
                 || trimmed == "---" || trimmed == "***" || trimmed == "___"
+                || trimmed.hasPrefix("|")
                 || trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) != nil
         }
     }
@@ -280,12 +284,67 @@ struct AssistantPanelView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
+    @ViewBuilder
+    private func tableView(header: [String], rows: [[String]]) -> some View {
+        let colCount = header.count
+        ScrollView(.horizontal, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header row
+                HStack(spacing: 0) {
+                    ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
+                        Text(markdownAttributed(cell))
+                            .font(.caption.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .frame(minWidth: 60, alignment: .leading)
+                    }
+                }
+                Divider()
+                // Data rows
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, row in
+                    HStack(spacing: 0) {
+                        ForEach(0..<colCount, id: \.self) { colIdx in
+                            Text(markdownAttributed(colIdx < row.count ? row[colIdx] : ""))
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .frame(minWidth: 60, alignment: .leading)
+                        }
+                    }
+                    if rowIdx < rows.count - 1 {
+                        Divider().opacity(0.5)
+                    }
+                }
+            }
+            .textSelection(.enabled)
+        }
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     // MARK: - Markdown Segment Parsing
+
+    private enum SegmentKind {
+        case text
+        case code(language: String?)
+        case table(header: [String], rows: [[String]])
+    }
 
     private struct MarkdownSegment {
         let content: String
-        let isCodeBlock: Bool
-        let language: String?
+        let kind: SegmentKind
+
+        var isCodeBlock: Bool {
+            if case .code = kind { return true }
+            return false
+        }
+        var language: String? {
+            if case .code(let lang) = kind { return lang }
+            return nil
+        }
+        var isTable: Bool {
+            if case .table = kind { return true }
+            return false
+        }
     }
 
     private func parseMarkdownSegments(_ text: String) -> [MarkdownSegment] {
@@ -295,45 +354,104 @@ struct AssistantPanelView: View {
         var codeLines: [String] = []
         var inCodeBlock = false
         var codeLang: String?
+        var tableLines: [String] = []
+
+        func flushText() {
+            let accumulated = currentText.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !accumulated.isEmpty {
+                segments.append(MarkdownSegment(content: accumulated, kind: .text))
+            }
+            currentText = []
+        }
+
+        func flushTable() {
+            guard tableLines.count >= 2 else {
+                // Not enough lines for a real table — treat as text
+                currentText.append(contentsOf: tableLines)
+                tableLines = []
+                return
+            }
+            let parsed = parseTableLines(tableLines)
+            if let parsed {
+                segments.append(MarkdownSegment(
+                    content: tableLines.joined(separator: "\n"),
+                    kind: .table(header: parsed.header, rows: parsed.rows)
+                ))
+            } else {
+                currentText.append(contentsOf: tableLines)
+            }
+            tableLines = []
+        }
 
         for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
             if line.hasPrefix("```") && !inCodeBlock {
-                // Start of code block — flush accumulated text
-                let accumulated = currentText.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-                if !accumulated.isEmpty {
-                    segments.append(MarkdownSegment(content: accumulated, isCodeBlock: false, language: nil))
-                }
-                currentText = []
+                flushTable()
+                flushText()
                 inCodeBlock = true
                 codeLang = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
                 if codeLang?.isEmpty == true { codeLang = nil }
             } else if line.hasPrefix("```") && inCodeBlock {
-                // End of code block
                 let code = codeLines.joined(separator: "\n")
-                segments.append(MarkdownSegment(content: code, isCodeBlock: true, language: codeLang))
+                segments.append(MarkdownSegment(content: code, kind: .code(language: codeLang)))
                 codeLines = []
                 inCodeBlock = false
                 codeLang = nil
             } else if inCodeBlock {
                 codeLines.append(line)
+            } else if trimmed.hasPrefix("|") {
+                // Accumulate table lines
+                if tableLines.isEmpty {
+                    flushText()
+                }
+                tableLines.append(trimmed)
             } else {
+                if !tableLines.isEmpty {
+                    flushTable()
+                }
                 currentText.append(line)
             }
         }
 
         // Flush remaining
         if inCodeBlock {
-            // Unterminated code block — render as code anyway
             let code = codeLines.joined(separator: "\n")
-            segments.append(MarkdownSegment(content: code, isCodeBlock: true, language: codeLang))
+            segments.append(MarkdownSegment(content: code, kind: .code(language: codeLang)))
         } else {
-            let accumulated = currentText.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            if !accumulated.isEmpty {
-                segments.append(MarkdownSegment(content: accumulated, isCodeBlock: false, language: nil))
-            }
+            if !tableLines.isEmpty { flushTable() }
+            flushText()
         }
 
         return segments
+    }
+
+    /// Parse markdown table lines into header + rows. Returns nil if not a valid table.
+    private func parseTableLines(_ lines: [String]) -> (header: [String], rows: [[String]])? {
+        guard lines.count >= 2 else { return nil }
+
+        func splitRow(_ line: String) -> [String] {
+            var s = line.trimmingCharacters(in: .whitespaces)
+            if s.hasPrefix("|") { s = String(s.dropFirst()) }
+            if s.hasSuffix("|") { s = String(s.dropLast()) }
+            return s.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+
+        let header = splitRow(lines[0])
+
+        // Check if line 1 is the separator (e.g. |---|---|)
+        let separatorLine = lines[1].trimmingCharacters(in: .whitespaces)
+        let isSeparator = separatorLine.allSatisfy { $0 == "|" || $0 == "-" || $0 == ":" || $0 == " " }
+            && separatorLine.contains("-")
+        guard isSeparator else { return nil }
+
+        var rows: [[String]] = []
+        for i in 2..<lines.count {
+            let row = splitRow(lines[i])
+            rows.append(row)
+        }
+
+        return (header, rows)
     }
 
     // MARK: - Input Bar
