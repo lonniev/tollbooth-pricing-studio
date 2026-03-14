@@ -45,10 +45,10 @@ struct PricingDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     if let name = model.name {
-                        modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord)
+                        modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord, source: model.source)
                     }
 
-                    ToolPriceListView(tools: tools, viewModel: viewModel)
+                    ToolPriceListView(tools: tools, viewModel: viewModel, target: target)
 
                     if let pipeline = model.pipeline, !pipeline.isEmpty {
                         PipelineView(steps: pipeline)
@@ -69,7 +69,7 @@ struct PricingDetailView: View {
     }
 
     @ViewBuilder
-    private func modelHeader(name: String, isActive: Bool, member: MemberRecord?) -> some View {
+    private func modelHeader(name: String, isActive: Bool, member: MemberRecord?, source: PricingSource) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -86,6 +86,12 @@ struct PricingDetailView: View {
                             .font(.subheadline)
                             .foregroundStyle(.green)
                     }
+                    Label(
+                        source == .stored ? "Stored" : "Synthesized",
+                        systemImage: source == .stored ? "externaldrive.fill" : "wand.and.stars"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(source == .stored ? .blue : .orange)
                     if let age = viewModel.cacheAgeSecs {
                         Text("\(age)s ago")
                             .font(.caption)

@@ -32,7 +32,19 @@ actor MCPService {
         onStep(.connectingToOperator)
 
         onStep(.fetchingPricing)
-        let result = try await synthesizePricingModel(endpointURL: endpointURL, bearerToken: bearerToken)
+
+        // Try stored pricing first
+        if let stored = try? await callGetPricingModel(endpointURL: endpointURL, bearerToken: bearerToken),
+           stored.tools != nil {
+            var result = stored
+            result.source = .stored
+            onStep(.done)
+            return result
+        }
+
+        // Fall back to synthesized pricing
+        var result = try await synthesizePricingModel(endpointURL: endpointURL, bearerToken: bearerToken)
+        result.source = .synthesized
 
         onStep(.done)
         return result
@@ -332,6 +344,148 @@ actor MCPService {
             lightningInvoice: bolt11,
             amountSats: amountSats
         )
+    }
+
+    // MARK: - Get Pricing Model (stored)
+
+    /// Call get_pricing_model on an operator's MCP endpoint.
+    /// Returns nil if the tool is not found (operator doesn't support stored pricing).
+    func callGetPricingModel(
+        endpointURL: URL,
+        bearerToken: String
+    ) async throws -> PricingModelResponse? {
+        await traffic(.outbound, label: "Get Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let pricingTool = allTools.first(where: { $0.name.contains("get_pricing_model") }) else {
+            await traffic(.inbound, label: "Get Pricing Model", detail: "Tool not found — operator doesn't support stored pricing")
+            return nil
+        }
+
+        let (content, isError) = try await client.callTool(name: pricingTool.name, arguments: [:])
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Get Pricing Model Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Get Pricing Model", detail: String(text.prefix(500)))
+
+        let response = try JSONDecoder().decode(PricingModelResponse.self, from: data)
+
+        // If tools is nil, no active model stored
+        guard response.tools != nil else { return nil }
+
+        return response
+    }
+
+    // MARK: - Set Pricing Model
+
+    /// Payload for serializing a pricing model to the format expected by set_pricing_model.
+    private struct SetPricingPayload: Encodable {
+        let modelId: String?
+        let name: String
+        let tools: [ToolPrice]
+        let pipeline: [PipelineStep]?
+
+        enum CodingKeys: String, CodingKey {
+            case modelId = "model_id"
+            case name, tools, pipeline
+        }
+    }
+
+    /// Call set_pricing_model on an operator's MCP endpoint.
+    /// Returns the model_id of the created/updated model.
+    func callSetPricingModel(
+        endpointURL: URL,
+        bearerToken: String,
+        model: PricingModelResponse
+    ) async throws -> String {
+        await traffic(.outbound, label: "Set Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let setTool = allTools.first(where: { $0.name.contains("set_pricing_model") }) else {
+            await traffic(.error, label: "Set Pricing Model", detail: "No set_pricing_model tool found")
+            throw MCPError.toolCallFailed("No set_pricing_model tool found")
+        }
+
+        // Build the model_json payload
+        let effectiveModelId = (model.modelId != "synthesized") ? model.modelId : nil
+        let payload = SetPricingPayload(
+            modelId: effectiveModelId,
+            name: model.name ?? "Pricing Model",
+            tools: model.tools ?? [],
+            pipeline: model.pipeline
+        )
+        let jsonData = try JSONEncoder().encode(payload)
+        let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+
+        await traffic(.outbound, label: "callTool: \(setTool.name)", detail: "model_json: \(String(jsonString.prefix(500)))")
+
+        let (content, isError) = try await client.callTool(
+            name: setTool.name,
+            arguments: ["model_json": .string(jsonString)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Set Pricing Model Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Set Pricing Model", detail: String(text.prefix(500)))
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw MCPError.invalidResponse
+        }
+
+        guard let status = json["status"] as? String, status == "ok" else {
+            let error = json["error"] as? String ?? "Unknown error"
+            throw MCPError.toolCallFailed(error)
+        }
+
+        return (json["model_id"] as? String) ?? ""
     }
 
     // MARK: - Pricing Synthesis

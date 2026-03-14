@@ -211,6 +211,54 @@ final class PricingViewModel {
         state = .loaded(model)
     }
 
+    // MARK: - Save Pricing
+
+    func savePricing(for target: any PricingTarget) async throws {
+        guard let model = pricingModel,
+              let endpointString = target.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else { return }
+
+        state = .loading(step: "Saving pricing...")
+
+        let targetHost = endpointURL.host ?? target.npub
+        let token = try await resolveToken(for: endpointURL, host: targetHost)
+
+        // Merge local edits into model
+        let mergedModel = mergeEdits(into: model)
+
+        _ = try await mcpService.callSetPricingModel(
+            endpointURL: endpointURL,
+            bearerToken: token,
+            model: mergedModel
+        )
+
+        // Clear local edits after successful save
+        localEdits.removeAll()
+
+        // Invalidate cache and reload
+        cache.removeValue(forKey: target.npub)
+        currentOperatorNpub = nil
+        await loadPricing(for: target)
+    }
+
+    private func mergeEdits(into model: PricingModelResponse) -> PricingModelResponse {
+        guard var tools = model.tools, !localEdits.isEmpty else { return model }
+        for (name, edited) in localEdits {
+            if let idx = tools.firstIndex(where: { $0.toolName == name }) {
+                tools[idx] = edited
+            }
+        }
+        return PricingModelResponse(
+            status: model.status,
+            modelId: model.modelId,
+            name: model.name,
+            isActive: model.isActive,
+            tools: tools,
+            pipeline: model.pipeline,
+            source: model.source
+        )
+    }
+
     func loadPreview(for target: any PricingTarget) {
         currentOperatorNpub = target.npub
         loadedAt = Date()
