@@ -65,14 +65,13 @@ enum NIP04Service {
             }
         }
 
-        let shared: P256K.KeyAgreement.SharedSecret
+        let sharedBytes: Data
         do {
-            shared = try privKey.sharedSecretFromKeyAgreement(with: pubKey)
+            let shared = try privKey.sharedSecretFromKeyAgreement(with: pubKey)
+            sharedBytes = shared.withUnsafeBytes { Data($0) }
         } catch {
             throw NIP04Error.ecdhFailed
         }
-
-        let sharedBytes = shared.withUnsafeBytes { Data($0) }
         guard sharedBytes.count == 32 else {
             throw NIP04Error.ecdhFailed
         }
