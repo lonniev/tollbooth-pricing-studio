@@ -24,6 +24,11 @@ final class ChatViewModel {
     var conversations: [DMConversation] = []
     var selectedConversationId: String?
 
+    var isLoading: Bool {
+        if case .loading = state { return true }
+        return false
+    }
+
     /// Font customization persisted in UserDefaults.
     var messageFontName: String {
         didSet { UserDefaults.standard.set(messageFontName, forKey: "chat.fontName") }
@@ -153,10 +158,16 @@ final class ChatViewModel {
 
     // MARK: - Send Message
 
+    /// Last send error, surfaced as an alert instead of replacing the chat view.
+    var sendError: String?
+
     /// Send a DM to the given counterparty via dual protocol.
     func sendMessage(to counterpartyPubkeyHex: String, content: String) async {
         guard let identity = currentIdentity,
-              let privHex = identity.privateKeyHex else { return }
+              let privHex = identity.privateKeyHex else {
+            sendError = "No private key available for this identity. Add an nsec in the entity editor."
+            return
+        }
 
         do {
             try await dmService.sendDM(
@@ -191,7 +202,7 @@ final class ChatViewModel {
                 conversationCache.removeValue(forKey: npub)
             }
         } catch {
-            state = .error(error.localizedDescription)
+            sendError = error.localizedDescription
             logger.error("Send failed: \(error.localizedDescription)")
         }
     }
