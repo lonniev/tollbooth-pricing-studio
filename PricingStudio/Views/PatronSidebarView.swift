@@ -8,7 +8,7 @@ struct PatronSidebarView: View {
 
     var body: some View {
         ForEach(patrons) { patron in
-            PatronRow(patron: patron, isSelected: viewModel.selectedPatron?.npub == patron.npub)
+            PatronRow(patron: patron, isSelected: viewModel.selectedPatron?.id == patron.id)
                 .contentShape(Rectangle())
                 .onTapGesture { viewModel.selectedPatron = patron }
                 .tag(patron)
@@ -43,14 +43,29 @@ private struct PatronRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(patron.displayName)
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Image(systemName: patron.aliasOf != nil ? "person.2.fill" : "person.badge.key")
+                        .foregroundStyle(patron.aliasOf != nil ? .purple : .teal)
+                        .font(.caption)
+                    Text(patron.displayName)
+                        .font(.headline)
+                }
                 Text(truncatedNpub(patron.npub))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospaced()
+                if let aliasOf = patron.aliasOf {
+                    Label("Alias of \(aliasOf)", systemImage: "arrow.triangle.branch")
+                        .font(.caption2)
+                        .foregroundStyle(.purple)
+                }
             }
             Spacer()
+            if KeychainService.loadNsec(forNpub: patron.npub) != nil {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            }
             if DMPollingService.shared.hasUnread(for: patron.npub) {
                 Image(systemName: "message.fill")
                     .font(.caption2)

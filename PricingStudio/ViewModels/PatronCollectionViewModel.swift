@@ -17,8 +17,55 @@ final class PatronCollectionViewModel {
     var showingDeleteConfirmation = false
     var patronToDelete: Patron?
 
+    /// Set by AddPatronSheet when a duplicate npub is detected; triggers alias confirmation alert.
+    var pendingAlias: PendingAlias?
+    var showingAliasConfirmation = false
+
+    struct PendingAlias {
+        let npub: String
+        let displayName: String
+        let nsec: String
+        let existingName: String
+    }
+
     func addPatron(npub: String, displayName: String, nsec: String, context: ModelContext) {
-        let patron = Patron(npub: npub, displayName: displayName)
+        // Check for existing patron with same npub
+        let descriptor = FetchDescriptor<Patron>(predicate: #Predicate { $0.npub == npub })
+        if let existing = try? context.fetch(descriptor).first {
+            // Duplicate detected — ask user to confirm alias
+            pendingAlias = PendingAlias(
+                npub: npub,
+                displayName: displayName,
+                nsec: nsec,
+                existingName: existing.displayName
+            )
+            showingAliasConfirmation = true
+            return
+        }
+
+        insertPatron(npub: npub, displayName: displayName, nsec: nsec, aliasOf: nil, context: context)
+    }
+
+    func confirmAlias(context: ModelContext) {
+        guard let alias = pendingAlias else { return }
+        insertPatron(
+            npub: alias.npub,
+            displayName: alias.displayName,
+            nsec: alias.nsec,
+            aliasOf: alias.existingName,
+            context: context
+        )
+        pendingAlias = nil
+        showingAliasConfirmation = false
+    }
+
+    func cancelAlias() {
+        pendingAlias = nil
+        showingAliasConfirmation = false
+    }
+
+    private func insertPatron(npub: String, displayName: String, nsec: String, aliasOf: String?, context: ModelContext) {
+        let patron = Patron(npub: npub, displayName: displayName, aliasOf: aliasOf)
         context.insert(patron)
         try? context.save()
         try? KeychainService.saveNsec(nsec, forNpub: npub)

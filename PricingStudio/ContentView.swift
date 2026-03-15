@@ -371,6 +371,20 @@ private struct SidebarView: View {
         } message: { patron in
             Text("Delete \"\(patron.displayName)\"? Any saved nsec for this patron will also be removed.")
         }
+        .alert(
+            "Identity Alias",
+            isPresented: $patronVM.showingAliasConfirmation,
+            presenting: patronVM.pendingAlias
+        ) { _ in
+            Button("Cancel", role: .cancel) {
+                patronVM.cancelAlias()
+            }
+            Button("Add Alias") {
+                patronVM.confirmAlias(context: modelContext)
+            }
+        } message: { alias in
+            Text("A patron named \"\(alias.existingName)\" already uses this npub. Add \"\(alias.displayName)\" as an identity alias sharing the same key?")
+        }
     }
 
     // MARK: - Sidebar Sections
