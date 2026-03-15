@@ -3,6 +3,9 @@ import SwiftUI
 struct PricingDetailView: View {
     let target: any PricingTarget
     @Bindable var viewModel: PricingViewModel
+    @State private var isEditingPipeline = false
+    @State private var saveError: String?
+    @State private var showSaveSuccess = false
 
     var body: some View {
         Group {
@@ -39,25 +42,51 @@ struct PricingDetailView: View {
         }
     }
 
+    private var editSummary: String {
+        var parts: [String] = []
+        if !viewModel.localEdits.isEmpty {
+            let n = viewModel.localEdits.count
+            parts.append("\(n) tool \(n == 1 ? "edit" : "edits")")
+        }
+        if viewModel.hasPipelineEdits {
+            parts.append("pipeline changes")
+        }
+        return parts.joined(separator: ", ")
+    }
+
     @ViewBuilder
     private func loadedContent(_ model: PricingModelResponse) -> some View {
         if model.status == "ok", let tools = model.tools {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    if let name = model.name {
-                        modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord, source: model.source)
-                    }
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        if let name = model.name {
+                            modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord, source: model.source)
+                        }
 
-                    ToolPriceListView(tools: tools, viewModel: viewModel, target: target)
+                        pipelineSection(model.pipeline ?? [])
 
-                    if let pipeline = model.pipeline, !pipeline.isEmpty {
-                        PipelineView(steps: pipeline)
+                        ToolPriceListView(tools: tools, viewModel: viewModel, target: target)
                     }
+                    .padding()
                 }
-                .padding()
+                .refreshable {
+                    viewModel.retry(for: target)
+                }
+
+                if viewModel.hasEdits {
+                    unifiedSaveBar
+                }
             }
-            .refreshable {
-                viewModel.retry(for: target)
+            .alert("Save Failed", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("OK") { saveError = nil }
+            } message: {
+                if let saveError {
+                    Text(saveError)
+                }
             }
         } else {
             ContentUnavailableView(
@@ -66,6 +95,85 @@ struct PricingDetailView: View {
                 description: Text("This entity hasn't published a pricing model yet.")
             )
         }
+    }
+
+    private var unifiedSaveBar: some View {
+        HStack {
+            Text(editSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            if showSaveSuccess {
+                Label("Saved", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
+            Button("Reset All") {
+                viewModel.resetAllEdits()
+                isEditingPipeline = false
+            }
+            .font(.caption)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button("Save to Operator") {
+                Task {
+                    do {
+                        try await viewModel.savePricing(for: target)
+                        isEditingPipeline = false
+                        showSaveSuccess = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            showSaveSuccess = false
+                        }
+                    } catch {
+                        saveError = error.localizedDescription
+                    }
+                }
+            }
+            .font(.caption)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    @ViewBuilder
+    private func pipelineSection(_ serverPipeline: [PipelineStep]) -> some View {
+        HStack {
+            Spacer()
+            if isEditingPipeline {
+                Button("Done") {
+                    isEditingPipeline = false
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            } else {
+                Button {
+                    viewModel.beginPipelineEditing()
+                    isEditingPipeline = true
+                } label: {
+                    Label("Edit Pipeline", systemImage: "pencil")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+
+        PipelineView(
+            steps: isEditingPipeline
+                ? Binding(
+                    get: { viewModel.localPipeline ?? serverPipeline },
+                    set: { viewModel.localPipeline = $0 }
+                )
+                : .constant(serverPipeline),
+            isEditing: isEditingPipeline
+        )
     }
 
     @ViewBuilder

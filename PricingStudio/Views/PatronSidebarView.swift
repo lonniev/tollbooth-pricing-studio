@@ -41,13 +41,21 @@ private struct PatronRow: View {
     let isSelected: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(patron.displayName)
-                .font(.headline)
-            Text(truncatedNpub(patron.npub))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .monospaced()
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(patron.displayName)
+                    .font(.headline)
+                Text(truncatedNpub(patron.npub))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospaced()
+            }
+            Spacer()
+            if DMPollingService.shared.hasUnread(for: patron.npub) {
+                Image(systemName: "message.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            }
         }
         .padding(.vertical, 2)
         .listRowBackground(isSelected ? Color.accentColor.opacity(0.15) : nil)

@@ -194,52 +194,26 @@ actor MCPService {
             balanceDict = json
         }
 
-        let balance = (balanceDict["balance_api_sats"] as? Int)
-            ?? (balanceDict["balanceApiSats"] as? Int)
-            ?? (balanceDict["balance"] as? Int)
-            ?? 0
-        let deposited = (balanceDict["total_deposited"] as? Int)
-            ?? (balanceDict["totalDeposited"] as? Int)
-            ?? 0
-        let consumed = (balanceDict["total_consumed"] as? Int)
-            ?? (balanceDict["totalConsumed"] as? Int)
-            ?? 0
-        let expired = (balanceDict["total_expired"] as? Int)
-            ?? (balanceDict["totalExpired"] as? Int)
-            ?? 0
-        let tranches = (balanceDict["active_tranches"] as? Int)
-            ?? (balanceDict["activeTranches"] as? Int)
-            ?? 0
-        let expiring24h = (balanceDict["expiring_within_24h"] as? Int)
-            ?? (balanceDict["expiringWithin24h"] as? Int)
-            ?? 0
+        let balance = (balanceDict["balance_api_sats"] as? Int) ?? 0
+        let deposited = (balanceDict["total_deposited_api_sats"] as? Int) ?? 0
+        let consumed = (balanceDict["total_consumed_api_sats"] as? Int) ?? 0
+        let expired = (balanceDict["total_expired_api_sats"] as? Int) ?? 0
+        let tranches = (balanceDict["active_tranches"] as? Int) ?? 0
+        let expiring24h = (balanceDict["expiring_within_24h_sats"] as? Int) ?? 0
 
         var nextExpiration: Date? = nil
-        if let ts = balanceDict["next_expiration"] as? TimeInterval {
-            nextExpiration = Date(timeIntervalSince1970: ts)
-        } else if let isoStr = balanceDict["next_expiration"] as? String {
-            let formatter = ISO8601DateFormatter()
-            nextExpiration = formatter.date(from: isoStr)
+        if let isoStr = balanceDict["next_expiration_iso"] as? String {
+            nextExpiration = ISO8601DateFormatter().date(from: isoStr)
         }
 
         var trancheDetails: [PatronAccountViewModel.TrancheDetail] = []
         if let trancheArray = balanceDict["tranches"] as? [[String: Any]] {
             let isoFormatter = ISO8601DateFormatter()
             for (index, t) in trancheArray.enumerated() {
-                let amount = (t["amount_sats"] as? Int) ?? (t["amountSats"] as? Int) ?? 0
-                let remaining = (t["remaining_sats"] as? Int) ?? (t["remainingSats"] as? Int) ?? amount
-                var expiresAt: Date?
-                if let ts = t["expires_at"] as? TimeInterval {
-                    expiresAt = Date(timeIntervalSince1970: ts)
-                } else if let str = t["expires_at"] as? String {
-                    expiresAt = isoFormatter.date(from: str)
-                }
-                var createdAt: Date?
-                if let ts = t["created_at"] as? TimeInterval {
-                    createdAt = Date(timeIntervalSince1970: ts)
-                } else if let str = t["created_at"] as? String {
-                    createdAt = isoFormatter.date(from: str)
-                }
+                let amount = (t["amount_sats"] as? Int) ?? 0
+                let remaining = (t["remaining_sats"] as? Int) ?? amount
+                let expiresAt = (t["expires_at"] as? String).flatMap { isoFormatter.date(from: $0) }
+                let createdAt = (t["created_at"] as? String).flatMap { isoFormatter.date(from: $0) }
                 let id = (t["id"] as? String) ?? "\(index)"
                 trancheDetails.append(PatronAccountViewModel.TrancheDetail(
                     id: id,
@@ -559,6 +533,11 @@ actor MCPService {
             || name.contains("dpyc_about") || name.contains("network_advisory")
             || name.contains("check_balance") || name.contains("get_tax_rate") {
             return ("free", 0)
+        }
+
+        // Restricted — operator-only tools
+        if name.contains("set_pricing_model") {
+            return ("restricted", 0)
         }
 
         // Heavy operations — 10 sats

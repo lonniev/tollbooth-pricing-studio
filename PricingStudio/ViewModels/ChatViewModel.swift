@@ -65,6 +65,10 @@ final class ChatViewModel {
         conversations = []
         selectedConversationId = nil
 
+        if let identity {
+            DMPollingService.shared.markRead(npub: identity.npub)
+        }
+
         guard let identity, identity.hasNsec else {
             state = .idle
             return

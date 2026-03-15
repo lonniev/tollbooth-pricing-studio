@@ -56,17 +56,17 @@ struct PatronDetailView: View {
         }
     }
 
-    // MARK: - Operator Accounts
+    // MARK: - Authenticated Patron Balances
 
     @ViewBuilder
     private var operatorAccountsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Operator Accounts")
+            Text("Authenticated Patron at")
                 .font(.headline)
 
             if accountVM.operatorBalances.isEmpty {
                 ContentUnavailableView(
-                    "No Operator Accounts",
+                    "No Operator Connections",
                     systemImage: "server.rack",
                     description: Text("Add operators with MCP endpoints to view balances.")
                 )
@@ -206,15 +206,15 @@ private struct OperatorBalanceCard: View {
                 .padding(.vertical, 4)
 
             ForEach(result.tranches) { tranche in
-                HStack {
-                    Text("\(tranche.remainingSats)/\(tranche.amountSats) sats")
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(tranche.remainingSats) sats")
+                        .font(.caption.monospacedDigit().bold())
+                    Text("of \(tranche.amountSats)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                     Spacer()
-                    if let exp = tranche.expiresAt {
-                        Text("expires \(exp.formatted(date: .abbreviated, time: .shortened))")
-                            .foregroundStyle(.secondary)
-                    }
+                    trancheExpirationLabel(tranche.expiresAt)
                 }
-                .font(.caption.monospacedDigit())
             }
         }
 
@@ -230,6 +230,21 @@ private struct OperatorBalanceCard: View {
         .buttonStyle(.borderedProminent)
         .tint(result.balanceApiSats < 100 || result.expiringWithin24h > 0 ? .orange : .accentColor)
         .controlSize(.small)
+    }
+
+    @ViewBuilder
+    private func trancheExpirationLabel(_ expiresAt: Date?) -> some View {
+        if let exp = expiresAt {
+            let isUrgent = exp.timeIntervalSinceNow < 24 * 3600
+            Text("Expires \(exp.formatted(.dateTime.month(.abbreviated).day().year()))")
+                .font(.caption2)
+                .foregroundStyle(isUrgent ? (exp.timeIntervalSinceNow < 0 ? .red : .orange) : .secondary)
+                .fontWeight(isUrgent ? .semibold : .regular)
+        } else {
+            Text("No expiration")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
     }
 }
 

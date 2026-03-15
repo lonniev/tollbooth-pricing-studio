@@ -6,11 +6,11 @@ private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", categ
 /// Manages WebSocket connections to Nostr relays for fetching and publishing events.
 final class NostrRelayService: Sendable {
 
-    static let defaultRelays: [URL] = [
-        URL(string: "wss://relay.primal.net")!,
-        URL(string: "wss://relay.damus.io")!,
-        URL(string: "wss://nos.lol")!,
-    ]
+    static var defaultRelays: [URL] {
+        let strings = UserDefaults.standard.stringArray(forKey: RelaySettings.storageKey)
+            ?? RelaySettings.defaultRelayStrings
+        return strings.compactMap { URL(string: $0) }
+    }
 
     let relays: [URL]
     private let session: URLSession

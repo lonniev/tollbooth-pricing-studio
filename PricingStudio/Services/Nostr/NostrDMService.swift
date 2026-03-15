@@ -45,7 +45,8 @@ actor NostrDMService {
         }
 
         await MainActor.run {
-            TrafficLogger.shared.log(.inbound, label: "DM Decrypt", detail: "\(decryptedCount)/\(events.count) OK, \(dmsByCounterparty.count) counterparties")
+            let parties = dmsByCounterparty.keys.map { String($0.prefix(8)) }.joined(separator: ", ")
+            TrafficLogger.shared.log(.inbound, label: "DM Decrypt", detail: "\(decryptedCount)/\(events.count) OK, counterparties: \(parties)")
         }
 
         return dmsByCounterparty
@@ -110,7 +111,7 @@ actor NostrDMService {
         }
 
         await MainActor.run {
-            TrafficLogger.shared.log(.outbound, label: "DM Sent", detail: "NIP-17: \(nip17OK ? "OK" : "fail"), NIP-04: \(nip04OK ? "OK" : "fail")")
+            TrafficLogger.shared.log(.outbound, label: "DM Sent", detail: "\(publicKeyHex.prefix(8))\u{2192}\(recipientPubkeyHex.prefix(8)) NIP-17: \(nip17OK ? "OK" : "fail"), NIP-04: \(nip04OK ? "OK" : "fail")")
         }
         logger.info("Sent DM (NIP-17: \(nip17OK), NIP-04: \(nip04OK))")
     }

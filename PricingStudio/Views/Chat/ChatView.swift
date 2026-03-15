@@ -6,6 +6,8 @@ struct ChatView: View {
     @State private var showingCompose = false
     @State private var showingFontPicker = false
 
+    private let polling = DMPollingService.shared
+
     var body: some View {
         Group {
             switch chatVM.state {
@@ -18,72 +20,71 @@ struct ChatView: View {
 
             case .loading, .loaded:
                 if chatVM.conversations.isEmpty && !chatVM.isLoading {
-                    ContentUnavailableView {
-                        Label("Nostr Secure Messaging", systemImage: "bubble.left.and.exclamationmark.bubble.right")
-                    } description: {
-                        Text("Send encrypted DMs via Nostr relays. Tap the compose button to start a conversation, or refresh to poll relays for new arrivals.")
-                    } actions: {
-                        Button {
-                            showingCompose = true
-                        } label: {
-                            Text("Start a Conversation")
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                } else if chatVM.conversations.isEmpty {
-                    // Loading with no cached conversations yet — show welcome + spinner
                     VStack(spacing: 16) {
                         Image(systemName: "bubble.left.and.exclamationmark.bubble.right")
                             .font(.system(size: 48))
                             .foregroundStyle(.secondary)
                         Text("Nostr Secure Messaging")
                             .font(.title3.bold())
-                        HStack(spacing: 8) {
-                            ProgressView().controlSize(.small)
-                            Text("Polling relays\u{2026}")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                        Text("No conversations yet. Start one below.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            showingCompose = true
+                        } label: {
+                            Label("Start a Conversation", systemImage: "square.and.pencil")
                         }
-                        Text("You can compose a message while relays are polled.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if chatVM.conversations.isEmpty {
+                    // Loading with no cached conversations yet
+                    VStack(spacing: 16) {
+                        Image(systemName: "bubble.left.and.exclamationmark.bubble.right")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.secondary)
+                        Text("Nostr Secure Messaging")
+                            .font(.title3.bold())
+                        Text("Fetching messages from relays\u{2026}")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            showingCompose = true
+                        } label: {
+                            Label("Compose While Waiting", systemImage: "square.and.pencil")
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    ZStack(alignment: .top) {
-                        HStack(spacing: 0) {
-                            ConversationListView(
-                                conversations: chatVM.conversations,
-                                selectedId: $chatVM.selectedConversationId
+                    HStack(spacing: 0) {
+                        ConversationListView(
+                            conversations: chatVM.conversations,
+                            selectedId: $chatVM.selectedConversationId
+                        )
+                        .frame(width: 280)
+
+                        Divider()
+
+                        if let convo = chatVM.selectedConversation {
+                            MessageThreadView(
+                                conversation: convo,
+                                chatVM: chatVM
                             )
-                            .frame(width: 280)
-
-                            Divider()
-
-                            if let convo = chatVM.selectedConversation {
-                                MessageThreadView(
-                                    conversation: convo,
-                                    chatVM: chatVM
-                                )
-                            } else {
+                        } else {
+                            VStack(spacing: 16) {
                                 ContentUnavailableView(
                                     "Select a Conversation",
                                     systemImage: "bubble.left.and.text.bubble.right",
-                                    description: Text("Choose a conversation from the list.")
+                                    description: Text("Choose a conversation from the list, or start a new one.")
                                 )
+                                Button {
+                                    showingCompose = true
+                                } label: {
+                                    Label("New Conversation", systemImage: "square.and.pencil")
+                                }
+                                .buttonStyle(.borderedProminent)
                             }
-                        }
-
-                        if chatVM.isLoading {
-                            HStack(spacing: 6) {
-                                ProgressView().controlSize(.mini)
-                                Text("Polling relays\u{2026}")
-                                    .font(.caption2)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .padding(.top, 4)
                         }
                     }
                 }
@@ -102,6 +103,10 @@ struct ChatView: View {
                     .buttonStyle(.borderedProminent)
                 }
             }
+        }
+        .overlay(alignment: .topTrailing) {
+            RelayHeartbeat(polling: polling)
+                .padding(8)
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -143,5 +148,29 @@ struct ChatView: View {
                 Text(error)
             }
         }
+    }
+}
+
+// MARK: - Pulsing Green Heart
+
+/// Shows a green heart that pulses each time the polling service completes a cycle.
+/// If polling stops, the pulse stops — the heart stays static.
+private struct RelayHeartbeat: View {
+    let polling: DMPollingService
+    @State private var scale: CGFloat = 1.0
+
+    var body: some View {
+        Image(systemName: "heart.fill")
+            .font(.system(size: 12))
+            .foregroundStyle(.green)
+            .scaleEffect(scale)
+            .onChange(of: polling.lastPollAt) {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    scale = 1.4
+                }
+                withAnimation(.easeInOut(duration: 0.3).delay(0.3)) {
+                    scale = 1.0
+                }
+            }
     }
 }

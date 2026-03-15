@@ -113,6 +113,18 @@ private struct ToolPriceEditor: View {
     @State private var editSats: String
     @State private var editPercent: String
     @State private var editFormula: String
+    @State private var editMinCost: String
+    @State private var editMaxCost: String
+    @State private var editCategory: String
+
+    private static let categoryOptions: [(value: String, label: String)] = [
+        ("free", "Free"),
+        ("auth", "Auth & Balance"),
+        ("read", "Read (1 sat)"),
+        ("write", "Write (5 sats)"),
+        ("heavy", "Heavy (10 sats)"),
+        ("restricted", "Restricted (Operator Only)")
+    ]
 
     init(tool: ToolPrice, viewModel: PricingViewModel, isPresented: Binding<Bool>) {
         self.tool = tool
@@ -122,6 +134,9 @@ private struct ToolPriceEditor: View {
         self._editSats = State(initialValue: "\(tool.priceSats)")
         self._editPercent = State(initialValue: tool.priceFormula ?? "\(tool.priceSats)")
         self._editFormula = State(initialValue: tool.priceFormula ?? "")
+        self._editMinCost = State(initialValue: tool.minCost == 0 ? "" : "\(tool.minCost)")
+        self._editMaxCost = State(initialValue: tool.maxCost.map { "\($0)" } ?? "")
+        self._editCategory = State(initialValue: tool.category)
     }
 
     var body: some View {
@@ -129,6 +144,12 @@ private struct ToolPriceEditor: View {
             Text(tool.toolName)
                 .font(.headline.monospaced())
                 .lineLimit(1)
+
+            Picker("Category", selection: $editCategory) {
+                ForEach(Self.categoryOptions, id: \.value) { option in
+                    Text(option.label).tag(option.value)
+                }
+            }
 
             Picker("Type", selection: $editType) {
                 ForEach(PriceType.allCases, id: \.self) { type in
@@ -159,6 +180,25 @@ private struct ToolPriceEditor: View {
                     .textFieldStyle(.roundedBorder)
             }
 
+            HStack(spacing: 8) {
+                HStack {
+                    TextField("Min (sats)", text: $editMinCost)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                    Text("min")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+                HStack {
+                    TextField("Max (sats)", text: $editMaxCost)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                    Text("max")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+            }
+
             HStack {
                 Button("Apply") {
                     let sats: Int
@@ -174,11 +214,16 @@ private struct ToolPriceEditor: View {
                         sats = 0
                         formula = editFormula
                     }
+                    let minCost = Int(editMinCost) ?? 0
+                    let maxCost = editMaxCost.isEmpty ? nil : Int(editMaxCost)
                     viewModel.applyEdit(
                         toolName: tool.toolName,
                         priceSats: sats,
                         priceType: editType,
-                        priceFormula: formula
+                        priceFormula: formula,
+                        minCost: minCost,
+                        maxCost: maxCost,
+                        category: editCategory
                     )
                     isPresented = false
                 }

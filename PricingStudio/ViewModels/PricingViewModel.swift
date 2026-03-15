@@ -30,17 +30,33 @@ final class PricingViewModel {
     // MARK: - Local Edits
 
     var localEdits: [String: ToolPrice] = [:]
+    var localPipeline: [PipelineStep]? = nil
+
+    var hasPipelineEdits: Bool {
+        guard let localPipeline else { return false }
+        guard let serverPipeline = pricingModel?.pipeline else {
+            return !localPipeline.isEmpty
+        }
+        guard localPipeline.count == serverPipeline.count else { return true }
+        for (local, server) in zip(localPipeline, serverPipeline) {
+            if local.id != server.id || local.type != server.type { return true }
+        }
+        return false
+    }
 
     func editedTool(for toolName: String) -> ToolPrice? {
         localEdits[toolName]
     }
 
-    func applyEdit(toolName: String, priceSats: Int, priceType: PriceType, priceFormula: String?) {
+    func applyEdit(toolName: String, priceSats: Int, priceType: PriceType, priceFormula: String?, minCost: Int = 0, maxCost: Int? = nil, category: String? = nil) {
         guard let model = pricingModel, let tools = model.tools,
               var tool = tools.first(where: { $0.toolName == toolName }) else { return }
         tool.priceSats = priceSats
         tool.priceType = priceType
         tool.priceFormula = priceFormula
+        tool.minCost = minCost
+        tool.maxCost = maxCost
+        if let category { tool.category = category }
         localEdits[toolName] = tool
     }
 
@@ -50,10 +66,41 @@ final class PricingViewModel {
 
     func resetAllEdits() {
         localEdits.removeAll()
+        localPipeline = nil
     }
 
     var hasEdits: Bool {
-        !localEdits.isEmpty
+        !localEdits.isEmpty || hasPipelineEdits
+    }
+
+    // MARK: - Pipeline Edits
+
+    func beginPipelineEditing() {
+        localPipeline = pricingModel?.pipeline ?? []
+    }
+
+    func addPipelineStep(type: String, params: [String: AnyCodableValue]) {
+        guard localPipeline != nil else { return }
+        let step = PipelineStep(id: UUID().uuidString, type: type, params: params)
+        localPipeline?.append(step)
+    }
+
+    func removePipelineStep(at offsets: IndexSet) {
+        localPipeline?.remove(atOffsets: offsets)
+    }
+
+    func movePipelineStep(from source: IndexSet, to destination: Int) {
+        localPipeline?.move(fromOffsets: source, toOffset: destination)
+    }
+
+    func updatePipelineStepParams(stepId: String, params: [String: AnyCodableValue]) {
+        guard let idx = localPipeline?.firstIndex(where: { $0.id == stepId }) else { return }
+        let existing = localPipeline![idx]
+        localPipeline![idx] = PipelineStep(id: existing.id, type: existing.type, params: params)
+    }
+
+    func resetPipeline() {
+        localPipeline = nil
     }
 
     // MARK: - In-Memory Discovery Cache (5-minute TTL)
@@ -234,6 +281,7 @@ final class PricingViewModel {
 
         // Clear local edits after successful save
         localEdits.removeAll()
+        localPipeline = nil
 
         // Invalidate cache and reload
         cache.removeValue(forKey: target.npub)
@@ -242,19 +290,24 @@ final class PricingViewModel {
     }
 
     private func mergeEdits(into model: PricingModelResponse) -> PricingModelResponse {
-        guard var tools = model.tools, !localEdits.isEmpty else { return model }
-        for (name, edited) in localEdits {
-            if let idx = tools.firstIndex(where: { $0.toolName == name }) {
-                tools[idx] = edited
+        var tools = model.tools
+        if let modelTools = tools, !localEdits.isEmpty {
+            var merged = modelTools
+            for (name, edited) in localEdits {
+                if let idx = merged.firstIndex(where: { $0.toolName == name }) {
+                    merged[idx] = edited
+                }
             }
+            tools = merged
         }
+        let pipeline = localPipeline ?? model.pipeline
         return PricingModelResponse(
             status: model.status,
             modelId: model.modelId,
             name: model.name,
             isActive: model.isActive,
             tools: tools,
-            pipeline: model.pipeline,
+            pipeline: pipeline,
             source: model.source
         )
     }

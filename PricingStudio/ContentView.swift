@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showingAssistant = false
     @State private var assistantFullScreen = false
     @State private var showingTrafficLog = false
+    @State private var showingSettings = false
 
     var body: some View {
         NavigationSplitView {
@@ -20,7 +21,8 @@ struct ContentView: View {
                 authorityVM: authorityVM,
                 operatorVM: operatorVM,
                 patronVM: patronVM,
-                showingTrafficLog: $showingTrafficLog
+                showingTrafficLog: $showingTrafficLog,
+                showingSettings: $showingSettings
             )
         } detail: {
             VStack(spacing: 0) {
@@ -118,14 +120,15 @@ struct ContentView: View {
                 EditPatronSheet(viewModel: patronVM, patron: patron)
             }
         }
+        .sheet(isPresented: $showingSettings) {
+            SettingsSheet()
+        }
         .onChange(of: authorityVM.selectedAuthority) { _, newAuth in
             if let auth = newAuth {
                 operatorVM.selectedOperator = nil
                 patronVM.selectedPatron = nil
                 pricingVM.reset()
                 chatVM.switchIdentity(to: ChatIdentity(from: auth))
-            } else {
-                chatVM.switchIdentity(to: nil)
             }
         }
         .onChange(of: operatorVM.selectedOperator) { _, newOp in
@@ -133,8 +136,6 @@ struct ContentView: View {
                 authorityVM.selectedAuthority = nil
                 patronVM.selectedPatron = nil
                 chatVM.switchIdentity(to: ChatIdentity(from: op))
-            } else {
-                chatVM.switchIdentity(to: nil)
             }
             pricingVM.reset()
         }
@@ -147,7 +148,6 @@ struct ContentView: View {
                 chatVM.switchIdentity(to: ChatIdentity(from: patron))
             } else {
                 patronAccountVM.reset()
-                chatVM.switchIdentity(to: nil)
             }
         }
         .onAppear {
@@ -159,6 +159,7 @@ struct ContentView: View {
                     context: modelContext
                 )
             }
+            DMPollingService.shared.startPolling(modelContext: modelContext)
         }
     }
 
@@ -223,6 +224,7 @@ private struct SidebarView: View {
     @Bindable var operatorVM: OperatorCollectionViewModel
     @Bindable var patronVM: PatronCollectionViewModel
     @Binding var showingTrafficLog: Bool
+    @Binding var showingSettings: Bool
 
     private var hasSelection: Bool {
         authorityVM.selectedAuthority != nil
@@ -271,6 +273,12 @@ private struct SidebarView: View {
                     .disabled(!hasSelection)
 
                     Spacer()
+
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
 
                     Button {
                         withAnimation { showingTrafficLog.toggle() }
@@ -431,22 +439,30 @@ private struct AuthorityRowInline: View {
     let isSelected: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: "building.columns")
-                    .foregroundStyle(.blue)
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "building.columns")
+                        .foregroundStyle(.blue)
+                        .font(.caption)
+                    Text(authority.displayName)
+                        .font(.headline)
+                }
+                Text(truncatedNpub(authority.npub))
                     .font(.caption)
-                Text(authority.displayName)
-                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .monospaced()
+                if authority.isAutoDiscovered {
+                    Label("Auto-discovered", systemImage: "sparkles")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
-            Text(truncatedNpub(authority.npub))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .monospaced()
-            if authority.isAutoDiscovered {
-                Label("Auto-discovered", systemImage: "sparkles")
+            Spacer()
+            if DMPollingService.shared.hasUnread(for: authority.npub) {
+                Image(systemName: "message.fill")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.green)
             }
         }
         .padding(.vertical, 2)
@@ -513,13 +529,21 @@ private struct OperatorRowInline: View {
     let isSelected: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(op.displayName)
-                .font(.headline)
-            Text(truncatedNpub(op.npub))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .monospaced()
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(op.displayName)
+                    .font(.headline)
+                Text(truncatedNpub(op.npub))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospaced()
+            }
+            Spacer()
+            if DMPollingService.shared.hasUnread(for: op.npub) {
+                Image(systemName: "message.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            }
         }
         .padding(.vertical, 2)
         .listRowBackground(isSelected ? Color.accentColor.opacity(0.15) : nil)

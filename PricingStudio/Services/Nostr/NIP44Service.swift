@@ -1,4 +1,3 @@
-import CommonCrypto
 import CryptoKit
 import Foundation
 import P256K
@@ -225,31 +224,40 @@ enum NIP44Service {
         return result
     }
 
-    // MARK: - ChaCha20 via CommonCrypto
+    // MARK: - ChaCha20 via CryptoKit
 
     /// ChaCha20 stream cipher (symmetric — same for encrypt and decrypt).
+    ///
+    /// NIP-44 uses raw ChaCha20 (no Poly1305 auth tag). CryptoKit only exposes
+    /// ChaChaPoly (AEAD), so we encrypt zeros to extract the keystream and XOR
+    /// it with the data. The 16-byte nonce is split: first 4 bytes as counter
+    /// prefix (unused by CryptoKit — it uses a 12-byte nonce), last 12 bytes
+    /// as the ChaChaPoly nonce.
     private static func chacha20(data: Data, key: Data, nonce: Data) throws -> Data {
-        var output = Data(count: data.count)
-        var moved = 0
-        let status = output.withUnsafeMutableBytes { outPtr in
-            data.withUnsafeBytes { inPtr in
-                key.withUnsafeBytes { keyPtr in
-                    nonce.withUnsafeBytes { noncePtr in
-                        CCCrypt(
-                            CCOperation(kCCEncrypt),
-                            CCAlgorithm(0x6003),  // kCCAlgorithmChaCha20 = 0x6003
-                            0,
-                            keyPtr.baseAddress!, key.count,
-                            noncePtr.baseAddress!,
-                            inPtr.baseAddress!, data.count,
-                            outPtr.baseAddress!, data.count,
-                            &moved
-                        )
-                    }
-                }
-            }
+        // NIP-44 passes a 16-byte nonce: 4 zero bytes + 12-byte chacha_nonce.
+        // ChaChaPoly uses 12-byte nonce — take the last 12.
+        let nonce12: Data
+        if nonce.count == 16 {
+            nonce12 = nonce.suffix(12)
+        } else if nonce.count == 12 {
+            nonce12 = nonce
+        } else {
+            throw NIP44Error.encryptionFailed
         }
-        guard status == kCCSuccess else { throw NIP44Error.encryptionFailed }
-        return output.prefix(moved)
+
+        let symmetricKey = SymmetricKey(data: key)
+        let cryptoNonce = try ChaChaPoly.Nonce(data: nonce12)
+
+        // Encrypt zeros to get keystream, then XOR with data
+        let zeros = Data(count: data.count)
+        let sealed = try ChaChaPoly.seal(zeros, using: symmetricKey, nonce: cryptoNonce)
+        let keystream = Data(sealed.ciphertext)  // Copy to ensure zero-based indexing
+        let inputData = Data(data)               // Same for input slice safety
+
+        var output = Data(count: inputData.count)
+        for i in 0..<inputData.count {
+            output[i] = inputData[i] ^ keystream[i]
+        }
+        return output
     }
 }

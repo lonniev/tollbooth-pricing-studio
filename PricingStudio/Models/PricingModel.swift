@@ -17,16 +17,20 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     var priceSats: Int
     var priceType: PriceType
     var priceFormula: String?
-    let category: String
+    var category: String
     let intent: String
+    var minCost: Int = 0
+    var maxCost: Int? = nil
 
-    init(toolName: String, priceSats: Int, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String) {
+    init(toolName: String, priceSats: Int, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil) {
         self.toolName = toolName
         self.priceSats = priceSats
         self.priceType = priceType
         self.priceFormula = priceFormula
         self.category = category
         self.intent = intent
+        self.minCost = minCost
+        self.maxCost = maxCost
     }
 
     enum CodingKeys: String, CodingKey {
@@ -35,6 +39,8 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         case priceType = "price_type"
         case priceFormula = "price_formula"
         case category, intent
+        case minCost = "min_cost"
+        case maxCost = "max_cost"
     }
 
     init(from decoder: Decoder) throws {
@@ -45,6 +51,24 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         priceFormula = try container.decodeIfPresent(String.self, forKey: .priceFormula)
         category = try container.decode(String.self, forKey: .category)
         intent = try container.decode(String.self, forKey: .intent)
+        minCost = try container.decodeIfPresent(Int.self, forKey: .minCost) ?? 0
+        maxCost = try container.decodeIfPresent(Int.self, forKey: .maxCost)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(toolName, forKey: .toolName)
+        try container.encode(priceSats, forKey: .priceSats)
+        try container.encode(priceType, forKey: .priceType)
+        try container.encodeIfPresent(priceFormula, forKey: .priceFormula)
+        try container.encode(category, forKey: .category)
+        try container.encode(intent, forKey: .intent)
+        if minCost != 0 {
+            try container.encode(minCost, forKey: .minCost)
+        }
+        if let maxCost {
+            try container.encode(maxCost, forKey: .maxCost)
+        }
     }
 }
 
@@ -55,6 +79,10 @@ struct PipelineStep: Codable, Identifiable, Sendable {
 
     var displayType: PipelineStepType {
         PipelineStepType(rawValue: type) ?? .unknown
+    }
+
+    static func create(type: String, params: [String: AnyCodableValue] = [:]) -> PipelineStep {
+        PipelineStep(id: UUID().uuidString, type: type, params: params)
     }
 }
 
@@ -129,6 +157,7 @@ enum AnyCodableValue: Codable, Sendable, CustomStringConvertible {
     case int(Int)
     case double(Double)
     case bool(Bool)
+    case array([AnyCodableValue])
     case null
 
     var description: String {
@@ -137,6 +166,7 @@ enum AnyCodableValue: Codable, Sendable, CustomStringConvertible {
         case .int(let i): return "\(i)"
         case .double(let d): return "\(d)"
         case .bool(let b): return b ? "true" : "false"
+        case .array(let a): return "[\(a.map(\.description).joined(separator: ", "))]"
         case .null: return "null"
         }
     }
@@ -151,6 +181,8 @@ enum AnyCodableValue: Codable, Sendable, CustomStringConvertible {
             self = .double(d)
         } else if let b = try? container.decode(Bool.self) {
             self = .bool(b)
+        } else if let a = try? container.decode([AnyCodableValue].self) {
+            self = .array(a)
         } else {
             self = .null
         }
@@ -163,6 +195,7 @@ enum AnyCodableValue: Codable, Sendable, CustomStringConvertible {
         case .int(let i): try container.encode(i)
         case .double(let d): try container.encode(d)
         case .bool(let b): try container.encode(b)
+        case .array(let a): try container.encode(a)
         case .null: try container.encodeNil()
         }
     }

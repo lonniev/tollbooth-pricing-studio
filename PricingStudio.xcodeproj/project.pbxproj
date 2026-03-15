@@ -74,6 +74,12 @@
 		AA0000010000000000000404 /* AssistantPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000414 /* AssistantPanelView.swift */; };
 		AA0000010000000000000405 /* AssistantAPIKeySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000415 /* AssistantAPIKeySheet.swift */; };
 		AA0000010000000000000511 /* Contact.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000501 /* Contact.swift */; };
+		AA0000010000000000000531 /* ConstraintCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000521 /* ConstraintCatalog.swift */; };
+		AA0000010000000000000611 /* AddConstraintSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000601 /* AddConstraintSheet.swift */; };
+		AA0000010000000000000612 /* ConstraintParamEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000602 /* ConstraintParamEditor.swift */; };
+		AA0000010000000000000711 /* RelaySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000701 /* RelaySettings.swift */; };
+		AA0000010000000000000712 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000702 /* SettingsSheet.swift */; };
+		AA0000010000000000000811 /* DMPollingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000801 /* DMPollingService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -145,6 +151,12 @@
 		AA0000010000000000000414 /* AssistantPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantPanelView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000415 /* AssistantAPIKeySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantAPIKeySheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000501 /* Contact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Contact.swift; sourceTree = "<group>"; };
+		AA0000010000000000000521 /* ConstraintCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintCatalog.swift; sourceTree = "<group>"; };
+		AA0000010000000000000601 /* AddConstraintSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddConstraintSheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000602 /* ConstraintParamEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintParamEditor.swift; sourceTree = "<group>"; };
+		AA0000010000000000000701 /* RelaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySettings.swift; sourceTree = "<group>"; };
+		AA0000010000000000000702 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000801 /* DMPollingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMPollingService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -212,6 +224,8 @@
 				AA0000010000000000000232 /* DMConversation.swift */,
 				AA0000010000000000000411 /* AssistantMessage.swift */,
 				AA0000010000000000000501 /* Contact.swift */,
+				AA0000010000000000000521 /* ConstraintCatalog.swift */,
+				AA0000010000000000000701 /* RelaySettings.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -226,6 +240,7 @@
 				AA00000100000000000000FC /* NostrKeyService.swift */,
 				AA00000100000000000000FD /* TrafficLogger.swift */,
 				AA0000010000000000000412 /* AnthropicService.swift */,
+				AA0000010000000000000801 /* DMPollingService.swift */,
 				AA0000010000000000000200 /* Nostr */,
 			);
 			path = Services;
@@ -283,6 +298,9 @@
 				AA0000010000000000000302 /* PatronDetailView.swift */,
 				AA0000010000000000000414 /* AssistantPanelView.swift */,
 				AA0000010000000000000415 /* AssistantAPIKeySheet.swift */,
+				AA0000010000000000000601 /* AddConstraintSheet.swift */,
+				AA0000010000000000000602 /* ConstraintParamEditor.swift */,
+				AA0000010000000000000702 /* SettingsSheet.swift */,
 				AA0000010000000000000250 /* Chat */,
 			);
 			path = Views;
@@ -455,6 +473,12 @@
 				AA0000010000000000000404 /* AssistantPanelView.swift in Sources */,
 				AA0000010000000000000405 /* AssistantAPIKeySheet.swift in Sources */,
 				AA0000010000000000000511 /* Contact.swift in Sources */,
+				AA0000010000000000000531 /* ConstraintCatalog.swift in Sources */,
+				AA0000010000000000000611 /* AddConstraintSheet.swift in Sources */,
+				AA0000010000000000000612 /* ConstraintParamEditor.swift in Sources */,
+				AA0000010000000000000711 /* RelaySettings.swift in Sources */,
+				AA0000010000000000000712 /* SettingsSheet.swift in Sources */,
+				AA0000010000000000000811 /* DMPollingService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

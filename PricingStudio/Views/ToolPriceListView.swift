@@ -4,12 +4,10 @@ struct ToolPriceListView: View {
     let tools: [ToolPrice]
     var viewModel: PricingViewModel?
     var target: (any PricingTarget)?
-    @State private var saveError: String?
-    @State private var showSaveSuccess = false
 
     private var groupedTools: [(String, [ToolPrice])] {
         let groups = Dictionary(grouping: tools) { $0.category }
-        let order = ["free", "auth", "read", "write", "heavy"]
+        let order = ["free", "auth", "read", "write", "heavy", "restricted"]
         return order.compactMap { key in
             guard let items = groups[key] else { return nil }
             return (key, items.sorted { $0.toolName < $1.toolName })
@@ -24,44 +22,11 @@ struct ToolPriceListView: View {
 
                 Spacer()
 
-                if let viewModel, viewModel.hasEdits {
-                    HStack(spacing: 6) {
-                        Text("\(viewModel.localEdits.count) edit\(viewModel.localEdits.count == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-
-                        if let target {
-                            Button("Save to Operator") {
-                                Task {
-                                    do {
-                                        try await viewModel.savePricing(for: target)
-                                        showSaveSuccess = true
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                            showSaveSuccess = false
-                                        }
-                                    } catch {
-                                        saveError = error.localizedDescription
-                                    }
-                                }
-                            }
-                            .font(.caption)
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.mini)
-                        }
-
-                        Button("Reset All") {
-                            viewModel.resetAllEdits()
-                        }
+                if let viewModel, !viewModel.localEdits.isEmpty {
+                    let n = viewModel.localEdits.count
+                    Text("\(n) tool \(n == 1 ? "edit" : "edits")")
                         .font(.caption)
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                    }
-                }
-
-                if showSaveSuccess {
-                    Label("Saved", systemImage: "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(.blue)
                 }
             }
 
@@ -78,16 +43,6 @@ struct ToolPriceListView: View {
                 }
             }
         }
-        .alert("Save Failed", isPresented: Binding(
-            get: { saveError != nil },
-            set: { if !$0 { saveError = nil } }
-        )) {
-            Button("OK") { saveError = nil }
-        } message: {
-            if let saveError {
-                Text(saveError)
-            }
-        }
     }
 
     private func categoryDisplayName(_ category: String) -> String {
@@ -97,6 +52,7 @@ struct ToolPriceListView: View {
         case "read": return "Read (1 sat)"
         case "write": return "Write (5 sats)"
         case "heavy": return "Heavy (10 sats)"
+        case "restricted": return "Restricted (Operator Only)"
         default: return category.capitalized
         }
     }
