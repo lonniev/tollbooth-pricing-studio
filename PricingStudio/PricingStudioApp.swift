@@ -6,11 +6,18 @@ struct PricingStudioApp: App {
     let container: ModelContainer
 
     init() {
-        let config = ModelConfiguration(cloudKitDatabase: .automatic)
-        container = try! ModelContainer(
+        // Try CloudKit-backed container first; fall back to local-only if
+        // the iCloud container isn't provisioned yet.
+        if let cloudContainer = try? ModelContainer(
             for: Operator.self, Patron.self, Authority.self, Contact.self, Campaign.self,
-            configurations: config
-        )
+            configurations: ModelConfiguration(cloudKitDatabase: .automatic)
+        ) {
+            container = cloudContainer
+        } else {
+            container = try! ModelContainer(
+                for: Operator.self, Patron.self, Authority.self, Contact.self, Campaign.self
+            )
+        }
     }
 
     var body: some Scene {
