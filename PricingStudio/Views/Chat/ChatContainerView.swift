@@ -42,7 +42,7 @@ struct ChatContainerView<PricingContent: View>: View {
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
-                        .task {
+                        .onAppear {
                             chatVM.switchIdentity(to: identity)
                         }
                 } else {

@@ -19,26 +19,27 @@ struct ComposeMessageSheet: View {
     @State private var contactDisplayName = ""
 
     private var suggestions: [ContactSuggestion] {
+        let ownNpub = chatVM.currentIdentity?.npub
         var seen = Set<String>()
         var result: [ContactSuggestion] = []
 
         for auth in authorities {
-            if seen.insert(auth.npub).inserted {
+            if auth.npub != ownNpub, seen.insert(auth.npub).inserted {
                 result.append(ContactSuggestion(npub: auth.npub, displayName: auth.displayName, kind: "Authority"))
             }
         }
         for op in operators {
-            if seen.insert(op.npub).inserted {
+            if op.npub != ownNpub, seen.insert(op.npub).inserted {
                 result.append(ContactSuggestion(npub: op.npub, displayName: op.displayName, kind: "Operator"))
             }
         }
         for patron in patrons {
-            if seen.insert(patron.npub).inserted {
+            if patron.npub != ownNpub, seen.insert(patron.npub).inserted {
                 result.append(ContactSuggestion(npub: patron.npub, displayName: patron.displayName, kind: "Patron"))
             }
         }
         for contact in contacts {
-            if seen.insert(contact.npub).inserted {
+            if contact.npub != ownNpub, seen.insert(contact.npub).inserted {
                 result.append(ContactSuggestion(npub: contact.npub, displayName: contact.displayName, kind: "Contact"))
             }
         }
@@ -103,21 +104,26 @@ struct ComposeMessageSheet: View {
                 }
 
                 Section("Message") {
-                    TextEditor(text: $messageText)
-                        .font(.custom(chatVM.messageFontName, size: chatVM.messageFontSize))
-                        .frame(minHeight: 100)
+                    ZStack(alignment: .bottomTrailing) {
+                        TextEditor(text: $messageText)
+                            .font(.custom(chatVM.messageFontName, size: chatVM.messageFontSize))
+                            .frame(minHeight: 100)
+
+                        Button {
+                            send()
+                        } label: {
+                            Image(systemName: "paperplane.fill")
+                                .font(.title3)
+                        }
+                        .disabled(recipientNpub.isEmpty || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .padding(8)
+                    }
                 }
             }
             .navigationTitle("New Message")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Send") {
-                        send()
-                    }
-                    .disabled(recipientNpub.isEmpty || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             .alert("Save as Contact?", isPresented: $showingSaveContact) {
@@ -154,6 +160,7 @@ struct ComposeMessageSheet: View {
         let message = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
             await chatVM.sendMessage(to: pubHex, content: message)
+            chatVM.selectedConversationId = pubHex
             if !isKnownNpub {
                 showingSaveContact = true
             } else {

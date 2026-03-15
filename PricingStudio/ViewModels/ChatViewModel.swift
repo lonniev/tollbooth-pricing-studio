@@ -111,7 +111,7 @@ final class ChatViewModel {
         }
 
         do {
-            let dmsByCounterparty = try await withOverallTimeout(seconds: 20) {
+            let dmsByCounterparty = try await withOverallTimeout(seconds: 30) {
                 await self.dmService.fetchConversations(
                     privateKeyHex: privHex,
                     publicKeyHex: pubHex
@@ -136,7 +136,7 @@ final class ChatViewModel {
 
             logger.info("Loaded \(convos.count) conversations for \(identity.npub.prefix(12))")
         } catch is ChatTimeoutError {
-            let msg = "Relay fetch timed out after 20 seconds. Check your network connection."
+            let msg = "Relay fetch timed out after 30 seconds. Check your network connection."
             await MainActor.run {
                 TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg)
             }
@@ -201,9 +201,12 @@ final class ChatViewModel {
                 )
             }
 
-            // Invalidate cache so next load fetches fresh
+            // Update cache with current conversations (includes optimistic message)
             if let npub = currentIdentity?.npub {
-                conversationCache.removeValue(forKey: npub)
+                conversationCache[npub] = CachedConversations(
+                    conversations: conversations,
+                    fetchedAt: Date()
+                )
             }
         } catch {
             sendError = error.localizedDescription
