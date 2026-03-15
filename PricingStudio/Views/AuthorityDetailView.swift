@@ -11,7 +11,7 @@ struct AuthorityDetailView: View {
         VStack(spacing: 0) {
             authorityHeader
             Divider()
-            adoptOperatorButton
+            claimAuthorityButton
             Divider()
             connectedOperatorsSection
             Divider()
@@ -20,15 +20,15 @@ struct AuthorityDetailView: View {
         .navigationTitle(authority.displayName)
     }
 
-    // MARK: - Adopt Operator
+    // MARK: - Claim Authority
 
     @ViewBuilder
-    private var adoptOperatorButton: some View {
+    private var claimAuthorityButton: some View {
         if authority.mcpEndpointURL != nil, let vm = authorityVM {
             Button {
-                vm.requestAdopt(authority)
+                vm.requestClaim(authority)
             } label: {
-                Label("Adopt Operator", systemImage: "person.badge.plus")
+                Label("Claim Authority", systemImage: "person.badge.plus")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)

@@ -60,13 +60,13 @@ final class AuthorityCollectionViewModel {
         try? context.save()
     }
 
-    // Adoption sheet
-    var showingAdoptSheet = false
-    var authorityToAdopt: Authority?
+    // Claim sheet
+    var showingClaimSheet = false
+    var authorityToClaim: Authority?
 
-    // MARK: - Authority Adoption
+    // MARK: - Authority Claim
 
-    enum AdoptionStatus: Equatable {
+    enum ClaimStatus: Equatable {
         case idle
         case connecting
         case registering
@@ -74,21 +74,21 @@ final class AuthorityCollectionViewModel {
         case failed(String)
     }
 
-    var adoptionStatus: AdoptionStatus = .idle
+    var claimStatus: ClaimStatus = .idle
 
-    /// Initiate the Authority adoption protocol by calling `register_authority_npub`
+    /// Initiate the Authority claim protocol by calling `register_authority_npub`
     /// on the Authority's MCP endpoint. The Authority will send a challenge DM
     /// to the candidate npub via the Secure Courier channel.
-    func initiateAdoption(
+    func initiateAuthorityClaim(
         authorityEndpoint: URL,
         candidateNpub: String,
         bearerToken: String
     ) async {
-        adoptionStatus = .connecting
+        claimStatus = .connecting
 
         let mcpService = MCPService()
         do {
-            adoptionStatus = .registering
+            claimStatus = .registering
 
             let result = try await mcpService.callRegisterAuthorityNpub(
                 endpointURL: authorityEndpoint,
@@ -97,18 +97,19 @@ final class AuthorityCollectionViewModel {
             )
 
             if result.contains("challenge") || result.contains("sent") || result.contains("ok") {
-                adoptionStatus = .challengeSent
+                claimStatus = .challengeSent
             } else {
-                adoptionStatus = .challengeSent // Treat any non-error response as success
+                claimStatus = .challengeSent
             }
         } catch {
-            adoptionStatus = .failed(error.localizedDescription)
+            claimStatus = .failed(error.localizedDescription)
         }
     }
 
-    func requestAdopt(_ auth: Authority) {
-        authorityToAdopt = auth
-        showingAdoptSheet = true
+    func requestClaim(_ auth: Authority) {
+        authorityToClaim = auth
+        showingClaimSheet = true
+        claimStatus = .idle
     }
 
     // MARK: - Sheet / Alert Triggers

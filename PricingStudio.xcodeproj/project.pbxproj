@@ -93,7 +93,7 @@
 		AA0000010000000000000B15 /* SecondOpinionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B05 /* SecondOpinionSheet.swift */; };
 		AA0000010000000000000B16 /* CourierPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B06 /* CourierPayload.swift */; };
 		AA0000010000000000000B17 /* CourierPayloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B07 /* CourierPayloadView.swift */; };
-		AA0000010000000000000C01 /* AdoptOperatorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000C02 /* AdoptOperatorSheet.swift */; };
+		AA0000010000000000000C01 /* ClaimAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000C02 /* ClaimAuthoritySheet.swift */; };
 		AA0000010000000000000D01 /* CourierPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000D02 /* CourierPayloadTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -186,7 +186,7 @@
 		AA0000010000000000000B05 /* SecondOpinionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondOpinionSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000B06 /* CourierPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayload.swift; sourceTree = "<group>"; };
 		AA0000010000000000000B07 /* CourierPayloadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayloadView.swift; sourceTree = "<group>"; };
-		AA0000010000000000000C02 /* AdoptOperatorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdoptOperatorSheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000C02 /* ClaimAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimAuthoritySheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000D02 /* CourierPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayloadTests.swift; sourceTree = "<group>"; };
 		AA0000010000000000000DFF /* PricingStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PricingStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -364,7 +364,7 @@
 				AA0000010000000000000A06 /* CampaignComparisonView.swift */,
 				AA0000010000000000000A07 /* Shared */,
 				AA0000010000000000000B05 /* SecondOpinionSheet.swift */,
-				AA0000010000000000000C02 /* AdoptOperatorSheet.swift */,
+				AA0000010000000000000C02 /* ClaimAuthoritySheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -604,7 +604,7 @@
 				AA0000010000000000000B15 /* SecondOpinionSheet.swift in Sources */,
 				AA0000010000000000000B16 /* CourierPayload.swift in Sources */,
 				AA0000010000000000000B17 /* CourierPayloadView.swift in Sources */,
-				AA0000010000000000000C01 /* AdoptOperatorSheet.swift in Sources */,
+				AA0000010000000000000C01 /* ClaimAuthoritySheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

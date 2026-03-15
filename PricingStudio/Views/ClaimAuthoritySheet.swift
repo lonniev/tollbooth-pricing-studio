@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct AdoptOperatorSheet: View {
+struct ClaimAuthoritySheet: View {
     @Environment(\.dismiss) private var dismiss
     let authority: Authority
     var viewModel: AuthorityCollectionViewModel
@@ -8,6 +8,7 @@ struct AdoptOperatorSheet: View {
     @State private var nsec = ""
     @State private var derivedNpub: String?
     @State private var keyError: String?
+    @State private var keychainError: String?
 
     private var effectiveNpub: String? { derivedNpub }
 
@@ -23,19 +24,20 @@ struct AdoptOperatorSheet: View {
                 nsecSection
                 statusSection
             }
-            .navigationTitle("Adopt Operator")
+            .navigationTitle("Claim Authority")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Initiate Adoption") {
-                        startAdoption()
+                    Button("Initiate Claim") {
+                        startClaim()
                     }
-                    .disabled(!isValid || viewModel.adoptionStatus != .idle)
+                    .disabled(!isValid || viewModel.claimStatus != .idle)
                 }
             }
+            .onDisappear { nsec = "" }
         }
     }
 
@@ -56,7 +58,7 @@ struct AdoptOperatorSheet: View {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("Sponsoring Authority")
+            Text("Authority")
         }
     }
 
@@ -74,7 +76,9 @@ struct AdoptOperatorSheet: View {
         } header: {
             Text("Operator nsec")
         } footer: {
-            if let error = keyError {
+            if let error = keychainError {
+                Text(error).foregroundStyle(.red)
+            } else if let error = keyError {
                 Text(error).foregroundStyle(.red)
             } else if let npub = derivedNpub {
                 VStack(alignment: .leading, spacing: 4) {
@@ -93,7 +97,7 @@ struct AdoptOperatorSheet: View {
 
     @ViewBuilder
     private var statusSection: some View {
-        switch viewModel.adoptionStatus {
+        switch viewModel.claimStatus {
         case .idle:
             EmptyView()
         case .connecting:
@@ -104,9 +108,9 @@ struct AdoptOperatorSheet: View {
             Section {
                 Label {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Challenge sent!")
+                        Text("Challenge sent")
                             .fontWeight(.medium)
-                        Text("Check your DMs for the @@@-delimited credential payload from the Authority. Fill in the fields and send your reply.")
+                        Text("Check your DMs for the credential payload from the Authority. Fill in the fields and send your reply.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -165,7 +169,7 @@ struct AdoptOperatorSheet: View {
         }
     }
 
-    private func startAdoption() {
+    private func startClaim() {
         guard let candidateNpub = effectiveNpub,
               let endpointStr = authority.mcpEndpointURL,
               let endpointURL = URL(string: endpointStr) else { return }
@@ -173,13 +177,21 @@ struct AdoptOperatorSheet: View {
         // Save nsec to keychain for the candidate operator
         let trimmedNsec = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedNsec.isEmpty {
-            try? KeychainService.saveNsec(trimmedNsec, forNpub: candidateNpub)
+            do {
+                try KeychainService.saveNsec(trimmedNsec, forNpub: candidateNpub)
+            } catch {
+                keychainError = "Failed to save nsec: \(error.localizedDescription)"
+                return
+            }
         }
 
-        let token = KeychainService.loadToken(forOperator: authority.npub) ?? ""
+        guard let token = KeychainService.loadToken(forOperator: authority.npub), !token.isEmpty else {
+            viewModel.claimStatus = .failed("No bearer token found for this Authority. Add one in the Authority edit sheet first.")
+            return
+        }
 
         Task {
-            await viewModel.initiateAdoption(
+            await viewModel.initiateAuthorityClaim(
                 authorityEndpoint: endpointURL,
                 candidateNpub: candidateNpub,
                 bearerToken: token

@@ -2,7 +2,7 @@
 
 ## [1.4.0] — 2026-03-15
 
-Secure Courier credential delivery, Authority adoption flow, and test infrastructure.
+Secure Courier credential delivery, Authority claim flow, and test infrastructure.
 
 ### Added
 - **CourierPayload parser** — extracts `key = @@@value@@@` credential fields, greeting,
@@ -11,10 +11,10 @@ Secure Courier credential delivery, Authority adoption flow, and test infrastruc
   send button, provenance disclosure, and status indicators
 - **MessageBubble Courier rendering** — DMs containing `@@@` fields render as
   interactive credential forms instead of plain text; orange lock.shield badge
-- **Authority adoption flow** — `AdoptOperatorSheet` accepts operator nsec, derives
+- **Authority claim flow** — `ClaimAuthoritySheet` accepts operator nsec, derives
   npub, and calls `register_authority_npub` on the Authority MCP endpoint to begin
   the DM challenge-response protocol
-- **AuthorityDetailView adopt button** — "Adopt Operator" button on Authority detail
+- **AuthorityDetailView claim button** — "Claim Authority" button on Authority detail
   when an MCP endpoint is available
 - **PricingStudioTests target** — new XCTest target with 14 `CourierPayloadTests`
   covering parsing, placeholders, serialization round-trip, and edge cases
@@ -30,13 +30,19 @@ Secure Courier credential delivery, Authority adoption flow, and test infrastruc
   direct `Binding` projection on `$courierPayload` to prevent edits silently vanishing
 - **Ephemeral agent reply target** — reply now prefers provenance `operatorNpub`
   (converted to hex) over `dm.senderPubkeyHex` for self-DM onboarding flows
+- **Empty bearer token guard** — `ClaimAuthoritySheet` now rejects missing/empty
+  bearer tokens with an explicit error instead of sending empty `Authorization` header
+- **Keychain save failure surfacing** — nsec Keychain save errors are caught and
+  displayed to the user, aborting the claim flow on failure
+- **nsec memory zeroing** — `ClaimAuthoritySheet` clears nsec `@State` on dismiss
 
 ### Changed
-- `MCPService` gains `callRegisterAuthorityNpub()` for Authority adoption protocol
-- `AuthorityCollectionViewModel` gains `AdoptionStatus` state machine and
-  `initiateAdoption()` async method
+- `MCPService` gains `callRegisterAuthorityNpub()` for Authority claim protocol
+- `AuthorityCollectionViewModel` gains `ClaimStatus` state machine and
+  `initiateAuthorityClaim()` async method; status resets to `.idle` on new claim
 - `ContentView` wires `authorityVM` into `AuthorityDetailView` and presents
-  `AdoptOperatorSheet`
+  `ClaimAuthoritySheet`
+- Renamed "Adopt Operator" → "Claim Authority" across UI, view models, and file names
 - Default branch renamed from `master` to `main`
 
 ## [1.3.1] — 2026-03-15

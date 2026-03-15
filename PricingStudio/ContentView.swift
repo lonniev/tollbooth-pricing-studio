@@ -108,9 +108,9 @@ struct ContentView: View {
                 EditAuthoritySheet(viewModel: authorityVM, authority: auth)
             }
         }
-        .sheet(isPresented: $authorityVM.showingAdoptSheet) {
-            if let auth = authorityVM.authorityToAdopt {
-                AdoptOperatorSheet(authority: auth, viewModel: authorityVM)
+        .sheet(isPresented: $authorityVM.showingClaimSheet) {
+            if let auth = authorityVM.authorityToClaim {
+                ClaimAuthoritySheet(authority: auth, viewModel: authorityVM)
             }
         }
         .sheet(isPresented: $operatorVM.showingAddSheet) {
