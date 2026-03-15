@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.3.1] — 2026-03-15
+
+Post-release fixes and UX improvements from physical iPad testing.
+
+### Fixed
+- `.gitignore` now correctly excludes `xcuserdata/` directory and `*.xcuserstate`
+- `PreviewData` references guarded with `#if DEBUG` for release builds
+- Device ID used instead of display name in Makefile (smart apostrophe broke `devicectl`)
+- Export method changed from deprecated `development` to `debugging`
+- CloudKit entitlements removed until models are migrated (presence alone triggers
+  CloudKit mode in SwiftData, causing launch crash)
+
+### Added
+- **nsec-first Add flows** — Add Operator and Add Authority sheets accept nsec
+  with auto-derived npub via `NostrKeyService`; green checkmark on valid derivation
+- **Autofill pairing** — nsec uses `.textContentType(.password)`, display name uses
+  `.textContentType(.username)` for iPadOS keyring autofill
+- **Edit Authority nsec** — `EditAuthoritySheet` gains nsec field with show/hide
+  toggle, matching `EditOperatorSheet`
+- **Tappable sidebar icons** — push Authority/Operator icon to open edit sheet;
+  green shield badge when nsec stored in Keychain
+- **Clickable empty states** — "No X yet" labels replaced with `Button` to open
+  the corresponding Add sheet
+- **Patron identity aliases** — reusing an nsec across Patrons triggers alias
+  confirmation; aliases tracked with `aliasOf` field and purple badge in sidebar
+
+### Changed
+- `Patron.npub` no longer has `@Attribute(.unique)` — multiple patrons can share
+  an npub when one is an alias of another
+- `PatronCollectionViewModel` adds duplicate-npub detection and alias confirmation
+  flow (`PendingAlias`, `confirmAlias`, `cancelAlias`)
+- `PatronSidebarView` uses `.id` instead of `.npub` for selection comparison
+
 ## [1.3.0] — 2026-03-15
 
 CloudKit sync, OTA deployment, and operator balance infographic.
