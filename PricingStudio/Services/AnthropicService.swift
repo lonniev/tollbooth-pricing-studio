@@ -7,7 +7,7 @@ actor AnthropicService {
 
     private static let apiURL = URL(string: "https://api.anthropic.com/v1/messages")!
     private static let model = "claude-sonnet-4-6"
-    private static let maxTokens = 1024
+    private static let maxTokens = 2048
 
     /// Send a message and stream the response tokens back.
     func sendMessage(

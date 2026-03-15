@@ -69,6 +69,56 @@ final class PricingViewModel {
         localPipeline = nil
     }
 
+    /// Apply JSON output from the AI Pricing Consultant.
+    /// Parses the consultant's campaign JSON and stages tool prices + pipeline as local edits.
+    func applyConsultantJSON(_ json: String, for target: any PricingTarget) {
+        guard let data = json.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+
+        // Apply tool prices
+        if let toolDicts = obj["tools"] as? [[String: Any]] {
+            for toolDict in toolDicts {
+                guard let name = toolDict["tool_name"] as? String,
+                      let price = toolDict["price_sats"] as? Int else { continue }
+                let category = toolDict["category"] as? String ?? "general"
+                let intent = toolDict["intent"] as? String ?? ""
+                let tool = ToolPrice(
+                    toolName: name,
+                    priceSats: price,
+                    priceType: .flat,
+                    category: category,
+                    intent: intent
+                )
+                localEdits[name] = tool
+            }
+        }
+
+        // Apply pipeline
+        if let pipelineDicts = obj["pipeline"] as? [[String: Any]] {
+            var steps: [PipelineStep] = []
+            for stepDict in pipelineDicts {
+                guard let type = stepDict["type"] as? String else { continue }
+                var params: [String: AnyCodableValue] = [:]
+                if let paramDict = stepDict["params"] as? [String: Any] {
+                    for (key, value) in paramDict {
+                        params[key] = anyCodableValue(from: value)
+                    }
+                }
+                steps.append(PipelineStep.create(type: type, params: params))
+            }
+            localPipeline = steps
+        }
+    }
+
+    private func anyCodableValue(from value: Any) -> AnyCodableValue {
+        if let s = value as? String { return .string(s) }
+        if let i = value as? Int { return .int(i) }
+        if let d = value as? Double { return .double(d) }
+        if let b = value as? Bool { return .bool(b) }
+        if let arr = value as? [Any] { return .array(arr.map { anyCodableValue(from: $0) }) }
+        return .null
+    }
+
     var hasEdits: Bool {
         !localEdits.isEmpty || hasPipelineEdits
     }

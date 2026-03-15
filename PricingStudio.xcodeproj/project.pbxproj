@@ -80,6 +80,12 @@
 		AA0000010000000000000711 /* RelaySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000701 /* RelaySettings.swift */; };
 		AA0000010000000000000712 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000702 /* SettingsSheet.swift */; };
 		AA0000010000000000000811 /* DMPollingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000801 /* DMPollingService.swift */; };
+		AA0000010000000000000911 /* PricingConsultantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000901 /* PricingConsultantViewModel.swift */; };
+		AA0000010000000000000912 /* PricingConsultantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000902 /* PricingConsultantView.swift */; };
+		AA0000010000000000000921 /* Campaign.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000922 /* Campaign.swift */; };
+		AA0000010000000000000A01 /* RevenueProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A02 /* RevenueProjection.swift */; };
+		AA0000010000000000000A03 /* MarkdownContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A04 /* MarkdownContentView.swift */; };
+		AA0000010000000000000A05 /* CampaignComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A06 /* CampaignComparisonView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -157,6 +163,12 @@
 		AA0000010000000000000701 /* RelaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySettings.swift; sourceTree = "<group>"; };
 		AA0000010000000000000702 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000801 /* DMPollingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMPollingService.swift; sourceTree = "<group>"; };
+		AA0000010000000000000901 /* PricingConsultantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingConsultantViewModel.swift; sourceTree = "<group>"; };
+		AA0000010000000000000902 /* PricingConsultantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingConsultantView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000922 /* Campaign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Campaign.swift; sourceTree = "<group>"; };
+		AA0000010000000000000A02 /* RevenueProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueProjection.swift; sourceTree = "<group>"; };
+		AA0000010000000000000A04 /* MarkdownContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownContentView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000A06 /* CampaignComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignComparisonView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -226,6 +238,8 @@
 				AA0000010000000000000501 /* Contact.swift */,
 				AA0000010000000000000521 /* ConstraintCatalog.swift */,
 				AA0000010000000000000701 /* RelaySettings.swift */,
+				AA0000010000000000000922 /* Campaign.swift */,
+				AA0000010000000000000A02 /* RevenueProjection.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -269,6 +283,7 @@
 				AA0000010000000000000233 /* ChatViewModel.swift */,
 				AA0000010000000000000301 /* PatronAccountViewModel.swift */,
 				AA0000010000000000000413 /* AssistantViewModel.swift */,
+				AA0000010000000000000901 /* PricingConsultantViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -302,6 +317,9 @@
 				AA0000010000000000000602 /* ConstraintParamEditor.swift */,
 				AA0000010000000000000702 /* SettingsSheet.swift */,
 				AA0000010000000000000250 /* Chat */,
+				AA0000010000000000000902 /* PricingConsultantView.swift */,
+				AA0000010000000000000A06 /* CampaignComparisonView.swift */,
+				AA0000010000000000000A07 /* Shared */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -328,6 +346,14 @@
 				AA0000010000000000000259 /* NoNsecView.swift */,
 			);
 			path = Chat;
+			sourceTree = "<group>";
+		};
+		AA0000010000000000000A07 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000010000000000000A04 /* MarkdownContentView.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -479,6 +505,12 @@
 				AA0000010000000000000711 /* RelaySettings.swift in Sources */,
 				AA0000010000000000000712 /* SettingsSheet.swift in Sources */,
 				AA0000010000000000000811 /* DMPollingService.swift in Sources */,
+				AA0000010000000000000911 /* PricingConsultantViewModel.swift in Sources */,
+				AA0000010000000000000912 /* PricingConsultantView.swift in Sources */,
+				AA0000010000000000000921 /* Campaign.swift in Sources */,
+				AA0000010000000000000A01 /* RevenueProjection.swift in Sources */,
+				AA0000010000000000000A03 /* MarkdownContentView.swift in Sources */,
+				AA0000010000000000000A05 /* CampaignComparisonView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -612,7 +644,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"PricingStudio/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -625,7 +657,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -642,7 +674,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"PricingStudio/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -655,7 +687,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
