@@ -546,6 +546,57 @@ actor MCPService {
         return (json["model_id"] as? String) ?? ""
     }
 
+    // MARK: - Register Authority Npub (Adoption)
+
+    /// Call `register_authority_npub` on an Authority's MCP endpoint to initiate
+    /// the adoption protocol. Returns the text response from the tool.
+    func callRegisterAuthorityNpub(
+        endpointURL: URL,
+        bearerToken: String,
+        candidateNpub: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Register Authority Npub", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let registerTool = allTools.first(where: { $0.name.contains("register_authority_npub") }) else {
+            await traffic(.error, label: "Register Authority Npub", detail: "No register_authority_npub tool found")
+            throw MCPError.toolCallFailed("No register_authority_npub tool found on this Authority")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: registerTool.name,
+            arguments: ["candidate_npub": .string(candidateNpub)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Register Authority Npub Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Register Authority Npub", detail: String(text.prefix(500)))
+        return text
+    }
+
     // MARK: - Pricing Synthesis
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model

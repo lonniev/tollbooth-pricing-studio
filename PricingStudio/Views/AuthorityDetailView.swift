@@ -4,17 +4,38 @@ import SwiftData
 struct AuthorityDetailView: View {
     let authority: Authority
     @Bindable var pricingVM: PricingViewModel
+    var authorityVM: AuthorityCollectionViewModel?
     var onOperatorSelected: ((Operator) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             authorityHeader
             Divider()
+            adoptOperatorButton
+            Divider()
             connectedOperatorsSection
             Divider()
             pricingSection
         }
         .navigationTitle(authority.displayName)
+    }
+
+    // MARK: - Adopt Operator
+
+    @ViewBuilder
+    private var adoptOperatorButton: some View {
+        if authority.mcpEndpointURL != nil, let vm = authorityVM {
+            Button {
+                vm.requestAdopt(authority)
+            } label: {
+                Label("Adopt Operator", systemImage: "person.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
     }
 
     // MARK: - Header

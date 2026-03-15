@@ -3,6 +3,7 @@ import SwiftUI
 struct AssistantAPIKeySheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var apiKey: String = ""
+    @State private var xaiKey: String = ""
     @State private var isSaved = false
 
     var body: some View {
@@ -17,15 +18,30 @@ struct AssistantAPIKeySheet: View {
                     Text("Anthropic API Key")
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Your API key is stored securely in the device Keychain. It is never sent anywhere except api.anthropic.com.")
+                        Text("Used for the Pricing Consultant interview (Claude).")
                         Link("Get an API key at console.anthropic.com",
                              destination: URL(string: "https://console.anthropic.com/settings/keys")!)
                     }
                 }
 
+                Section {
+                    SecureField("xai-...", text: $xaiKey)
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                } header: {
+                    Text("xAI API Key")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Used for the Second Opinion reviewer (Grok). If not set, Claude is used as fallback.")
+                        Link("Get an API key at console.x.ai",
+                             destination: URL(string: "https://console.x.ai/")!)
+                    }
+                }
+
                 if isSaved {
                     Section {
-                        Label("API key saved", systemImage: "checkmark.circle.fill")
+                        Label("API keys saved", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     }
                 }
@@ -36,9 +52,18 @@ struct AssistantAPIKeySheet: View {
                         apiKey = ""
                         isSaved = false
                     } label: {
-                        Label("Remove API Key", systemImage: "trash")
+                        Label("Remove Anthropic Key", systemImage: "trash")
                     }
                     .disabled(KeychainService.loadAnthropicAPIKey() == nil && apiKey.isEmpty)
+
+                    Button(role: .destructive) {
+                        KeychainService.deleteXAIAPIKey()
+                        xaiKey = ""
+                        isSaved = false
+                    } label: {
+                        Label("Remove xAI Key", systemImage: "trash")
+                    }
+                    .disabled(KeychainService.loadXAIAPIKey() == nil && xaiKey.isEmpty)
                 }
             }
             .navigationTitle("AI Assistant Settings")
@@ -49,15 +74,28 @@ struct AssistantAPIKeySheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        try? KeychainService.saveAnthropicAPIKey(apiKey)
+                        let trimmedAnthropic = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedXAI = xaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmedAnthropic.isEmpty {
+                            try? KeychainService.saveAnthropicAPIKey(trimmedAnthropic)
+                        }
+                        if !trimmedXAI.isEmpty {
+                            try? KeychainService.saveXAIAPIKey(trimmedXAI)
+                        }
                         isSaved = true
                     }
-                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(
+                        apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && xaiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
                 }
             }
             .onAppear {
                 if let existing = KeychainService.loadAnthropicAPIKey() {
                     apiKey = existing
+                }
+                if let existing = KeychainService.loadXAIAPIKey() {
+                    xaiKey = existing
                 }
             }
         }

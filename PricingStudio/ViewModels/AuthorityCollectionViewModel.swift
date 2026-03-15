@@ -60,6 +60,57 @@ final class AuthorityCollectionViewModel {
         try? context.save()
     }
 
+    // Adoption sheet
+    var showingAdoptSheet = false
+    var authorityToAdopt: Authority?
+
+    // MARK: - Authority Adoption
+
+    enum AdoptionStatus: Equatable {
+        case idle
+        case connecting
+        case registering
+        case challengeSent
+        case failed(String)
+    }
+
+    var adoptionStatus: AdoptionStatus = .idle
+
+    /// Initiate the Authority adoption protocol by calling `register_authority_npub`
+    /// on the Authority's MCP endpoint. The Authority will send a challenge DM
+    /// to the candidate npub via the Secure Courier channel.
+    func initiateAdoption(
+        authorityEndpoint: URL,
+        candidateNpub: String,
+        bearerToken: String
+    ) async {
+        adoptionStatus = .connecting
+
+        let mcpService = MCPService()
+        do {
+            adoptionStatus = .registering
+
+            let result = try await mcpService.callRegisterAuthorityNpub(
+                endpointURL: authorityEndpoint,
+                bearerToken: bearerToken,
+                candidateNpub: candidateNpub
+            )
+
+            if result.contains("challenge") || result.contains("sent") || result.contains("ok") {
+                adoptionStatus = .challengeSent
+            } else {
+                adoptionStatus = .challengeSent // Treat any non-error response as success
+            }
+        } catch {
+            adoptionStatus = .failed(error.localizedDescription)
+        }
+    }
+
+    func requestAdopt(_ auth: Authority) {
+        authorityToAdopt = auth
+        showingAdoptSheet = true
+    }
+
     // MARK: - Sheet / Alert Triggers
 
     func requestEdit(_ auth: Authority) {

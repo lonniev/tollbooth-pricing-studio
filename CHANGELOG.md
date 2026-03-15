@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.4.0] — 2026-03-15
+
+Secure Courier credential delivery, Authority adoption flow, and test infrastructure.
+
+### Added
+- **CourierPayload parser** — extracts `key = @@@value@@@` credential fields, greeting,
+  anti-replay poison, and provenance metadata from Secure Courier DMs
+- **CourierPayloadView** — inline editable form for Courier credential fields with
+  send button, provenance disclosure, and status indicators
+- **MessageBubble Courier rendering** — DMs containing `@@@` fields render as
+  interactive credential forms instead of plain text; orange lock.shield badge
+- **Authority adoption flow** — `AdoptOperatorSheet` accepts operator nsec, derives
+  npub, and calls `register_authority_npub` on the Authority MCP endpoint to begin
+  the DM challenge-response protocol
+- **AuthorityDetailView adopt button** — "Adopt Operator" button on Authority detail
+  when an MCP endpoint is available
+- **PricingStudioTests target** — new XCTest target with 14 `CourierPayloadTests`
+  covering parsing, placeholders, serialization round-trip, and edge cases
+- **Shared scheme** — `xcshareddata/xcschemes/PricingStudio.xcscheme` with test action
+  wired to PricingStudioTests
+- **Second opinion sheet** — LLM provider abstraction with xAI Grok and Anthropic
+  backends for pricing consultant second opinions
+- **LLM provider protocol** — `LLMProvider` with `AnthropicProvider` and `XAIProvider`
+  implementations; API key management via `AssistantAPIKeySheet`
+
+### Fixed
+- **MessageBubble binding bug** — replaced `if var payload` local copy pattern with
+  direct `Binding` projection on `$courierPayload` to prevent edits silently vanishing
+- **Ephemeral agent reply target** — reply now prefers provenance `operatorNpub`
+  (converted to hex) over `dm.senderPubkeyHex` for self-DM onboarding flows
+
+### Changed
+- `MCPService` gains `callRegisterAuthorityNpub()` for Authority adoption protocol
+- `AuthorityCollectionViewModel` gains `AdoptionStatus` state machine and
+  `initiateAdoption()` async method
+- `ContentView` wires `authorityVM` into `AuthorityDetailView` and presents
+  `AdoptOperatorSheet`
+- Default branch renamed from `master` to `main`
+
 ## [1.3.1] — 2026-03-15
 
 Post-release fixes and UX improvements from physical iPad testing.

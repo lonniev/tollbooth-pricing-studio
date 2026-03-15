@@ -22,6 +22,9 @@ final class Campaign {
     /// Serialized revenue projections JSON, if any.
     var projectionsJSON: Data?
 
+    /// Saved second-opinion review text (markdown from Grok/Claude reviewer).
+    var secondOpinionText: String?
+
     init(
         name: String,
         operatorNpub: String,

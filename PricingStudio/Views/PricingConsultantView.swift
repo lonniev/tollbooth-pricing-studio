@@ -18,6 +18,8 @@ struct PricingConsultantView: View {
     @State private var showingSaveSheet = false
     @State private var showingLoadSheet = false
     @State private var showingCompareSheet = false
+    @State private var showingSecondOpinion = false
+    @State private var secondOpinionVM = SecondOpinionViewModel()
     @State private var saveName = ""
 
     var body: some View {
@@ -95,6 +97,28 @@ struct PricingConsultantView: View {
         .sheet(isPresented: $showingCompareSheet) {
             CampaignComparisonSheet()
         }
+        .sheet(isPresented: $showingSecondOpinion) {
+            SecondOpinionSheet(
+                viewModel: secondOpinionVM,
+                onSave: { reviewText in
+                    consultantVM.currentCampaign?.secondOpinionText = reviewText
+                    if let ctx = consultantVM.currentCampaign {
+                        ctx.updatedAt = Date()
+                    }
+                },
+                onRerun: {
+                    let summary = secondOpinionVM.buildCampaignSummary(
+                        messages: consultantVM.messages,
+                        progress: consultantVM.interviewProgress,
+                        projections: consultantVM.revenueProjections,
+                        pipelineJSON: consultantVM.extractedPipelineJSON,
+                        operatorName: context.operatorName,
+                        campaignName: consultantVM.currentCampaign?.name
+                    )
+                    secondOpinionVM.requestReview(summary: summary)
+                }
+            )
+        }
         .alert("Save Campaign", isPresented: $showingSaveSheet) {
             TextField("Campaign name", text: $saveName)
             Button("Save") {
@@ -151,6 +175,32 @@ struct PricingConsultantView: View {
                     Label("Export", systemImage: "square.and.arrow.up")
                         .labelStyle(.iconOnly)
                 }
+            }
+
+            // Second Opinion
+            if consultantVM.interviewProgress.stageNumber >= 6
+                || consultantVM.currentCampaign?.secondOpinionText != nil {
+                Button {
+                    if let existingReview = consultantVM.currentCampaign?.secondOpinionText,
+                       !existingReview.isEmpty {
+                        secondOpinionVM.loadExistingReview(text: existingReview)
+                    } else {
+                        let summary = secondOpinionVM.buildCampaignSummary(
+                            messages: consultantVM.messages,
+                            progress: consultantVM.interviewProgress,
+                            projections: consultantVM.revenueProjections,
+                            pipelineJSON: consultantVM.extractedPipelineJSON,
+                            operatorName: context.operatorName,
+                            campaignName: consultantVM.currentCampaign?.name
+                        )
+                        secondOpinionVM.requestReview(summary: summary)
+                    }
+                    showingSecondOpinion = true
+                } label: {
+                    Label("Second Opinion", systemImage: "person.2.wave.2")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(consultantVM.isStreaming)
             }
 
             // Campaign actions
