@@ -24,6 +24,7 @@ struct AddAuthoritySheet: View {
             Form {
                 Section {
                     SecureField("nsec1... (optional)", text: $nsec)
+                        .textContentType(.password)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .monospaced()
@@ -67,6 +68,7 @@ struct AddAuthoritySheet: View {
 
                 Section {
                     TextField("Display Name", text: $displayName)
+                        .textContentType(.username)
                 } header: {
                     Text("Display Name")
                 } footer: {
