@@ -4,6 +4,7 @@ ARCHIVE_PATH := build/PricingStudio.xcarchive
 EXPORT_DIR   := build/export
 EXPORT_OPTS  := ExportOptions.plist
 DESTINATION  := generic/platform=iOS
+DEVICE_ID    := DA64BB63-AA0D-578F-A394-033A5E719864
 
 .PHONY: archive export ipa install clean
 
@@ -32,7 +33,7 @@ ipa: export
 install: export
 	@if command -v devicectl >/dev/null 2>&1; then \
 		echo "Installing via devicectl..."; \
-		xcrun devicectl device install app --device "Lonnie's iPad" $(EXPORT_DIR)/$(SCHEME).ipa; \
+		xcrun devicectl device install app --device $(DEVICE_ID) $(EXPORT_DIR)/$(SCHEME).ipa; \
 	elif command -v ios-deploy >/dev/null 2>&1; then \
 		echo "Installing via ios-deploy..."; \
 		ios-deploy --bundle $(EXPORT_DIR)/$(SCHEME).ipa; \
@@ -47,7 +48,7 @@ install: export
 ## wifi-install: Install over WiFi using devicectl (iPad must be paired)
 wifi-install: export
 	@echo "Ensure iPad is WiFi-paired: Xcode > Window > Devices > Connect via network"
-	xcrun devicectl device install app --device "Lonnie's iPad" $(EXPORT_DIR)/$(SCHEME).ipa
+	xcrun devicectl device install app --device $(DEVICE_ID) $(EXPORT_DIR)/$(SCHEME).ipa
 
 ## clean: Remove build artifacts
 clean:

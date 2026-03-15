@@ -362,11 +362,13 @@ final class PricingViewModel {
         )
     }
 
+    #if DEBUG
     func loadPreview(for target: any PricingTarget) {
         currentOperatorNpub = target.npub
         loadedAt = Date()
         state = .loaded(PreviewData.samplePricingModel)
     }
+    #endif
 
     func startLoading(for target: any PricingTarget) {
         loadingTask?.cancel()
