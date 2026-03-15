@@ -169,6 +169,7 @@
 		AA0000010000000000000A02 /* RevenueProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueProjection.swift; sourceTree = "<group>"; };
 		AA0000010000000000000A04 /* MarkdownContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownContentView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000A06 /* CampaignComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignComparisonView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000A08 /* PricingStudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PricingStudio.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,6 +195,7 @@
 			isa = PBXGroup;
 			children = (
 				AA000001000000000000000A /* PricingStudioApp.swift */,
+				AA0000010000000000000A08 /* PricingStudio.entitlements */,
 				AA000001000000000000000B /* ContentView.swift */,
 				AA00000100000000000000D1 /* Models */,
 				AA00000100000000000001D5 /* Protocols */,
@@ -643,8 +645,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = PricingStudio/PricingStudio.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"PricingStudio/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -657,7 +660,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -673,8 +676,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = PricingStudio/PricingStudio.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"PricingStudio/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -687,7 +691,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
