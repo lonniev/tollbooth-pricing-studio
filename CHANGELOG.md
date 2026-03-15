@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.3.0] — 2026-03-15
+
+CloudKit sync, OTA deployment, and operator balance infographic.
+
+### Added
+- **CloudKit sync** — SwiftData model container configured with
+  `cloudKitDatabase: .automatic`; entitlements for iCloud container
+  `iCloud.com.tollbooth.dpyc.PricingStudio` with CloudKit services
+- **OTA iPad deployment** — Makefile with `archive`, `export`, `install`,
+  and `wifi-install` targets using `xcodebuild` + `devicectl`; includes
+  `ExportOptions.plist` for automatic signing
+- **Balance infographic** — `MCPService.callAccountStatementInfographic()`
+  fetches SVG/PNG from operator MCP; `PatronAccountViewModel` manages
+  per-operator infographic state; `PatronDetailView` shows "Statement"
+  button opening infographic sheet with SVG (via WKWebView) or PNG render
+
+### Changed
+- `PricingStudioApp` uses `ModelConfiguration` + `ModelContainer` init
+  instead of Scene modifier for CloudKit database configuration
+- `OperatorBalanceCard` now receives full `Patron` and `Operator` objects
+  for infographic auth flow
+
 ## [1.2.0] — 2026-03-15
 
 Interview Progress v2 — 9 feedback items from physical iPad testing.

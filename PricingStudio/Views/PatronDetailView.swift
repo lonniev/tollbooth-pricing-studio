@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import CoreImage
 import UIKit
+import WebKit
 
 struct PatronDetailView: View {
     let patron: Patron
@@ -75,7 +76,8 @@ struct PatronDetailView: View {
                     ForEach(accountVM.operatorBalances) { balance in
                         OperatorBalanceCard(
                             balance: balance,
-                            patronNpub: patron.npub,
+                            patron: patron,
+                            operator: operators.first(where: { $0.npub == balance.id }),
                             accountVM: accountVM
                         )
                     }
@@ -89,10 +91,12 @@ struct PatronDetailView: View {
 
 private struct OperatorBalanceCard: View {
     let balance: PatronAccountViewModel.OperatorBalance
-    let patronNpub: String
+    let patron: Patron
+    let `operator`: Operator?
     let accountVM: PatronAccountViewModel
     @State private var isExpanded = false
     @State private var showingTopOff = false
+    @State private var showingInfographic = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -134,9 +138,16 @@ private struct OperatorBalanceCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .sheet(isPresented: $showingTopOff) {
             TopOffSheet(
-                patronNpub: patronNpub,
+                patronNpub: patron.npub,
                 operatorName: balance.operatorName,
                 endpoint: balance.endpoint,
+                accountVM: accountVM
+            )
+        }
+        .sheet(isPresented: $showingInfographic) {
+            InfographicSheet(
+                operatorName: balance.operatorName,
+                operatorNpub: balance.id,
                 accountVM: accountVM
             )
         }
@@ -221,15 +232,31 @@ private struct OperatorBalanceCard: View {
         Divider()
             .padding(.vertical, 4)
 
-        Button {
-            showingTopOff = true
-        } label: {
-            Label("Top Off", systemImage: "plus.circle.fill")
-                .font(.caption.bold())
+        HStack(spacing: 12) {
+            Button {
+                showingTopOff = true
+            } label: {
+                Label("Top Off", systemImage: "plus.circle.fill")
+                    .font(.caption.bold())
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(result.balanceApiSats < 100 || result.expiringWithin24h > 0 ? .orange : Color.accentColor)
+            .controlSize(.small)
+
+            Button {
+                showingInfographic = true
+                if let op = self.operator {
+                    Task {
+                        await accountVM.fetchInfographic(for: patron, operator: op)
+                    }
+                }
+            } label: {
+                Label("Statement", systemImage: "chart.bar.doc.horizontal")
+                    .font(.caption.bold())
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(result.balanceApiSats < 100 || result.expiringWithin24h > 0 ? .orange : .accentColor)
-        .controlSize(.small)
     }
 
     @ViewBuilder
@@ -414,5 +441,104 @@ private struct TopOffSheet: View {
         guard let output = filter.outputImage else { return nil }
         let scaled = output.transformed(by: CGAffineTransform(scaleX: 6, y: 6))
         return UIImage(ciImage: scaled)
+    }
+}
+
+// MARK: - Infographic Sheet
+
+private struct InfographicSheet: View {
+    let operatorName: String
+    let operatorNpub: String
+    let accountVM: PatronAccountViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch accountVM.infographicStates[operatorNpub] ?? .idle {
+                case .idle, .loading:
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("Generating statement infographic...")
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                case .loaded(let content):
+                    switch content {
+                    case .svg(let svgString):
+                        SVGWebView(svgContent: svgString)
+                            .ignoresSafeArea(edges: .bottom)
+                    case .png(let data):
+                        if let uiImage = UIImage(data: data) {
+                            ScrollView {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .padding()
+                            }
+                        } else {
+                            ContentUnavailableView(
+                                "Invalid Image",
+                                systemImage: "photo.badge.exclamationmark",
+                                description: Text("Could not decode the infographic image.")
+                            )
+                        }
+                    }
+
+                case .error(let message):
+                    ContentUnavailableView(
+                        "Infographic Unavailable",
+                        systemImage: "chart.bar.xaxis.ascending.badge.clock",
+                        description: Text(message)
+                    )
+                }
+            }
+            .navigationTitle("\(operatorName) Statement")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - SVG Web View
+
+private struct SVGWebView: UIViewRepresentable {
+    let svgContent: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0">
+        <style>
+            body {
+                margin: 0; padding: 16px;
+                display: flex; justify-content: center; align-items: flex-start;
+                background: transparent;
+                -webkit-user-select: none;
+            }
+            svg { max-width: 100%; height: auto; }
+        </style>
+        </head>
+        <body>\(svgContent)</body>
+        </html>
+        """
+        webView.loadHTMLString(html, baseURL: nil)
     }
 }

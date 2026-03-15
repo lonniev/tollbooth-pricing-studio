@@ -237,6 +237,90 @@ actor MCPService {
         )
     }
 
+    // MARK: - Account Statement Infographic
+
+    struct InfographicResult: Sendable {
+        let svgContent: String?
+        let pngBase64: String?
+        let generatedAt: String?
+    }
+
+    /// Call account_statement_infographic on an operator's MCP endpoint.
+    /// Returns SVG or PNG data for a rich balance visualization.
+    func callAccountStatementInfographic(
+        endpointURL: URL,
+        bearerToken: String
+    ) async throws -> InfographicResult {
+        await traffic(.outbound, label: "Statement Infographic", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let infoTool = allTools.first(where: { $0.name.contains("account_statement_infographic") }) else {
+            await traffic(.inbound, label: "Statement Infographic", detail: "Tool not found on this operator")
+            throw MCPError.toolCallFailed("No account_statement_infographic tool found")
+        }
+
+        let (content, isError) = try await client.callTool(name: infoTool.name, arguments: [:])
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Statement Infographic Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        // Check for image content first (PNG/JPEG)
+        for item in content {
+            if case .image(let data, let mimeType, _) = item {
+                await traffic(.inbound, label: "Statement Infographic", detail: "Image received: \(mimeType)")
+                return InfographicResult(svgContent: nil, pngBase64: data, generatedAt: nil)
+            }
+        }
+
+        // Fall back to text content (SVG or JSON wrapper)
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Statement Infographic", detail: "Text response (\(text.count) chars)")
+
+        // If it's raw SVG
+        if text.contains("<svg") {
+            return InfographicResult(svgContent: text, pngBase64: nil, generatedAt: nil)
+        }
+
+        // Try JSON with svg/png fields
+        if let data = text.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let responseDict: [String: Any]
+            if let result = json["result"] as? [String: Any] {
+                responseDict = result
+            } else {
+                responseDict = json
+            }
+            return InfographicResult(
+                svgContent: responseDict["svg"] as? String,
+                pngBase64: responseDict["png_base64"] as? String ?? responseDict["image_base64"] as? String,
+                generatedAt: responseDict["generated_at"] as? String
+            )
+        }
+
+        throw MCPError.invalidResponse
+    }
+
     // MARK: - Purchase Credits
 
     struct PurchaseResult: Sendable {
