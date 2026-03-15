@@ -379,7 +379,11 @@ private struct SidebarView: View {
     private var authoritiesSection: some View {
         Section("Authorities") {
             ForEach(authorities) { auth in
-                AuthorityRowInline(authority: auth, isSelected: authorityVM.selectedAuthority?.npub == auth.npub)
+                AuthorityRowInline(
+                    authority: auth,
+                    isSelected: authorityVM.selectedAuthority?.npub == auth.npub,
+                    onIconTapped: { authorityVM.requestEdit(auth) }
+                )
                     .contentShape(Rectangle())
                     .onTapGesture { authorityVM.selectedAuthority = auth }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -405,9 +409,11 @@ private struct SidebarView: View {
             }
 
             if authorities.isEmpty {
-                Text("No authorities yet")
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
+                Button { authorityVM.showingAddSheet = true } label: {
+                    Label("Add an authority", systemImage: "plus.circle")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                }
             }
         }
     }
@@ -416,7 +422,11 @@ private struct SidebarView: View {
     private var operatorsSection: some View {
         Section("Operators") {
             ForEach(operators) { op in
-                OperatorRowInline(op: op, isSelected: operatorVM.selectedOperator?.npub == op.npub)
+                OperatorRowInline(
+                    op: op,
+                    isSelected: operatorVM.selectedOperator?.npub == op.npub,
+                    onIconTapped: { operatorVM.requestEdit(op) }
+                )
                     .contentShape(Rectangle())
                     .onTapGesture { operatorVM.selectedOperator = op }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -447,9 +457,11 @@ private struct SidebarView: View {
             }
 
             if operators.isEmpty {
-                Text("No operators yet")
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
+                Button { operatorVM.showingAddSheet = true } label: {
+                    Label("Add an operator", systemImage: "plus.circle")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                }
             }
         }
     }
@@ -460,9 +472,11 @@ private struct SidebarView: View {
             PatronSidebarView(viewModel: patronVM)
 
             if patrons.isEmpty {
-                Text("No patrons yet")
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
+                Button { patronVM.showingAddSheet = true } label: {
+                    Label("Add a patron", systemImage: "plus.circle")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                }
             }
         }
     }
@@ -473,14 +487,20 @@ private struct SidebarView: View {
 private struct AuthorityRowInline: View {
     let authority: Authority
     let isSelected: Bool
+    var onIconTapped: (() -> Void)?
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Image(systemName: "building.columns")
-                        .foregroundStyle(.blue)
-                        .font(.caption)
+                    Button {
+                        onIconTapped?()
+                    } label: {
+                        Image(systemName: "building.columns")
+                            .foregroundStyle(.blue)
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
                     Text(authority.displayName)
                         .font(.headline)
                 }
@@ -495,6 +515,11 @@ private struct AuthorityRowInline: View {
                 }
             }
             Spacer()
+            if KeychainService.loadNsec(forNpub: authority.npub) != nil {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            }
             if DMPollingService.shared.hasUnread(for: authority.npub) {
                 Image(systemName: "message.fill")
                     .font(.caption2)
@@ -563,18 +588,34 @@ private struct AuthorityDetailCard: View {
 private struct OperatorRowInline: View {
     let op: Operator
     let isSelected: Bool
+    var onIconTapped: (() -> Void)?
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(op.displayName)
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Button {
+                        onIconTapped?()
+                    } label: {
+                        Image(systemName: "server.rack")
+                            .foregroundStyle(.orange)
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    Text(op.displayName)
+                        .font(.headline)
+                }
                 Text(truncatedNpub(op.npub))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospaced()
             }
             Spacer()
+            if KeychainService.loadNsec(forNpub: op.npub) != nil {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            }
             if DMPollingService.shared.hasUnread(for: op.npub) {
                 Image(systemName: "message.fill")
                     .font(.caption2)

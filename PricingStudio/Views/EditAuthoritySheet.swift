@@ -7,6 +7,9 @@ struct EditAuthoritySheet: View {
     let authority: Authority
 
     @State private var displayName: String
+    @State private var nsec: String = ""
+    @State private var showNsec = false
+    @State private var hasStoredNsec = false
 
     init(viewModel: AuthorityCollectionViewModel, authority: Authority) {
         self.viewModel = viewModel
@@ -15,8 +18,10 @@ struct EditAuthoritySheet: View {
     }
 
     private var hasChanges: Bool {
-        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && trimmed != authority.displayName
+        let nameChanged = !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && displayName != authority.displayName
+        let nsecChanged = !nsec.isEmpty
+        return nameChanged || nsecChanged
     }
 
     var body: some View {
@@ -40,6 +45,41 @@ struct EditAuthoritySheet: View {
                     Text("Display Name")
                 }
 
+                Section {
+                    HStack {
+                        if showNsec {
+                            TextField("nsec1...", text: $nsec)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .monospaced()
+                                .font(.callout)
+                        } else {
+                            SecureField("nsec1...", text: $nsec)
+                                .textContentType(.password)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .monospaced()
+                                .font(.callout)
+                        }
+                        Button {
+                            showNsec.toggle()
+                        } label: {
+                            Image(systemName: showNsec ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if hasStoredNsec && nsec.isEmpty {
+                        Label("Stored in Keychain", systemImage: "checkmark.shield.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                } header: {
+                    Text("Secret Key (nsec)")
+                } footer: {
+                    Text("Stored securely in the device Keychain. Leave blank to keep the existing key.")
+                }
+
                 if authority.isAutoDiscovered {
                     Section {
                         Label("Auto-discovered from operator lookup", systemImage: "sparkles")
@@ -56,14 +96,21 @@ struct EditAuthoritySheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmed != authority.displayName {
-                            viewModel.updateAuthority(authority, displayName: trimmed, context: modelContext)
+                        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmedName != authority.displayName {
+                            viewModel.updateAuthority(authority, displayName: trimmedName, context: modelContext)
+                        }
+                        let trimmedNsec = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmedNsec.isEmpty {
+                            try? KeychainService.saveNsec(trimmedNsec, forNpub: authority.npub)
                         }
                         dismiss()
                     }
                     .disabled(!hasChanges)
                 }
+            }
+            .task {
+                hasStoredNsec = KeychainService.loadNsec(forNpub: authority.npub) != nil
             }
         }
     }
