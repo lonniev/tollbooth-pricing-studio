@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var chatVM = ChatViewModel()
     @State private var patronAccountVM = PatronAccountViewModel()
     @State private var assistantVM = AssistantViewModel()
+    @State private var consultantVM = PricingConsultantViewModel()
     @State private var showingAssistant = false
     @State private var assistantFullScreen = false
     @State private var showingTrafficLog = false
@@ -36,6 +37,15 @@ struct ContentView: View {
                     } else if let op = operatorVM.selectedOperator {
                         ChatContainerView(identity: ChatIdentity(from: op), chatVM: chatVM) {
                             PricingDetailView(target: op, viewModel: pricingVM)
+                        } consultantContent: {
+                            PricingConsultantView(
+                                consultantVM: consultantVM,
+                                context: buildConsultantContext(for: op),
+                                operatorNpub: op.npub,
+                                onApplyJSON: { json in
+                                    pricingVM.applyConsultantJSON(json, for: op)
+                                }
+                            )
                         }
                     } else if let patron = patronVM.selectedPatron {
                         ChatContainerView(identity: ChatIdentity(from: patron), chatVM: chatVM, firstTabLabel: "Account") {
@@ -191,6 +201,25 @@ struct ContentView: View {
         }
 
         ctx.conversationCount = chatVM.conversations.count
+
+        return ctx
+    }
+
+    // MARK: - Consultant Context
+
+    private func buildConsultantContext(for op: Operator) -> ConsultantContext {
+        var ctx = ConsultantContext()
+        ctx.operatorName = op.displayName
+
+        if let model = pricingVM.pricingModel, let tools = model.tools {
+            ctx.toolSummary = tools.prefix(30).map { "\($0.toolName): \($0.priceSats) sats (\($0.category))" }.joined(separator: "\n")
+            if let pipeline = model.pipeline {
+                let pipelineDesc = pipeline.enumerated().map { (i, step) in
+                    "  \(i + 1). \(step.type)" + (step.params.isEmpty ? "" : " — \(step.params)")
+                }.joined(separator: "\n")
+                ctx.currentPipeline = pipelineDesc
+            }
+        }
 
         return ctx
     }
@@ -559,5 +588,5 @@ private struct OperatorRowInline: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [Operator.self, Patron.self, Authority.self, Contact.self], inMemory: true)
+        .modelContainer(for: [Operator.self, Patron.self, Authority.self, Contact.self, Campaign.self], inMemory: true)
 }

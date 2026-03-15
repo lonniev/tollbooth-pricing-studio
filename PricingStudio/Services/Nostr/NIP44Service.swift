@@ -259,5 +259,6 @@ enum NIP44Service {
             output[i] = inputData[i] ^ keystream[i]
         }
         return output
+        
     }
 }
