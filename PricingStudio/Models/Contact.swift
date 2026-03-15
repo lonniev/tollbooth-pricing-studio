@@ -3,9 +3,9 @@ import SwiftData
 
 @Model
 final class Contact {
-    @Attribute(.unique) var npub: String
-    var displayName: String
-    var addedAt: Date
+    var npub: String = ""
+    var displayName: String = ""
+    var addedAt: Date = Date()
 
     init(npub: String, displayName: String) {
         self.npub = npub

@@ -7,14 +7,14 @@ import SwiftData
 /// so the analyst can resume interviews across sessions.
 @Model
 final class Campaign {
-    var name: String
-    var operatorNpub: String
-    var operatorDisplayName: String
-    var createdAt: Date
-    var updatedAt: Date
+    var name: String = ""
+    var operatorNpub: String = ""
+    var operatorDisplayName: String = ""
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
 
     /// Serialized messages as JSON array of {role, content, timestamp}.
-    var messagesJSON: Data
+    var messagesJSON: Data = Data()
 
     /// Serialized interview progress JSON, if any.
     var progressJSON: Data?

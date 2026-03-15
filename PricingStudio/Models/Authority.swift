@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class Authority: PricingTarget {
-    @Attribute(.unique) var npub: String
-    var displayName: String
+    var npub: String = ""
+    var displayName: String = ""
     var mcpEndpointURL: String?
-    var addedAt: Date
-    var isAutoDiscovered: Bool
+    var addedAt: Date = Date()
+    var isAutoDiscovered: Bool = false
 
     init(npub: String, displayName: String, mcpEndpointURL: String? = nil, isAutoDiscovered: Bool = false) {
         self.npub = npub

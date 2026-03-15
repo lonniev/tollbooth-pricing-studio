@@ -3,14 +3,24 @@ import SwiftData
 
 @main
 struct PricingStudioApp: App {
+    let modelContainer: ModelContainer
+
+    init() {
+        let schema = Schema([Operator.self, Patron.self, Authority.self, Contact.self, Campaign.self])
+        let config = ModelConfiguration(schema: schema, cloudKitDatabase: .automatic)
+        do {
+            modelContainer = try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            // Fallback to local-only if CloudKit container not provisioned
+            let localConfig = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
+            modelContainer = try! ModelContainer(for: schema, configurations: [localConfig])
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-        // CloudKit sync requires all attributes optional/defaulted and no
-        // unique constraints. Until models are migrated, use local-only.
-        // TODO: Migrate models for CloudKit compatibility, then switch to:
-        //   ModelConfiguration(cloudKitDatabase: .automatic)
-        .modelContainer(for: [Operator.self, Patron.self, Authority.self, Contact.self, Campaign.self])
+        .modelContainer(modelContainer)
     }
 }

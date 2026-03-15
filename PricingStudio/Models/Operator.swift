@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class Operator: PricingTarget {
-    @Attribute(.unique) var npub: String
-    var displayName: String
+    var npub: String = ""
+    var displayName: String = ""
     var mcpEndpointURL: String?
     var authorityNpub: String?
-    var addedAt: Date
+    var addedAt: Date = Date()
 
     init(npub: String, displayName: String, mcpEndpointURL: String? = nil, authorityNpub: String? = nil) {
         self.npub = npub
