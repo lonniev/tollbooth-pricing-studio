@@ -53,7 +53,15 @@ struct MessageThreadView: View {
                                 dm: dm,
                                 fontName: chatVM.messageFontName,
                                 fontSize: chatVM.messageFontSize,
-                                isSelected: selectedMessageIds.contains(dm.id)
+                                isSelected: selectedMessageIds.contains(dm.id),
+                                onSendReply: { recipientHex, content in
+                                    Task {
+                                        await chatVM.sendMessage(
+                                            to: recipientHex,
+                                            content: content
+                                        )
+                                    }
+                                }
                             )
                             .id(dm.id)
                             .onLongPressGesture {

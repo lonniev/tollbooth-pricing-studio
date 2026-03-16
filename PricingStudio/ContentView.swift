@@ -30,7 +30,7 @@ struct ContentView: View {
                 Group {
                     if let auth = authorityVM.selectedAuthority {
                         ChatContainerView(identity: ChatIdentity(from: auth), chatVM: chatVM) {
-                            AuthorityDetailView(authority: auth, pricingVM: pricingVM) { op in
+                            AuthorityDetailView(authority: auth, pricingVM: pricingVM, authorityVM: authorityVM) { op in
                                 operatorVM.selectedOperator = op
                             }
                         }
@@ -106,6 +106,11 @@ struct ContentView: View {
         .sheet(isPresented: $authorityVM.showingEditSheet) {
             if let auth = authorityVM.authorityToEdit {
                 EditAuthoritySheet(viewModel: authorityVM, authority: auth)
+            }
+        }
+        .sheet(isPresented: $authorityVM.showingClaimSheet) {
+            if let auth = authorityVM.authorityToClaim {
+                ClaimAuthoritySheet(authority: auth, viewModel: authorityVM)
             }
         }
         .sheet(isPresented: $operatorVM.showingAddSheet) {

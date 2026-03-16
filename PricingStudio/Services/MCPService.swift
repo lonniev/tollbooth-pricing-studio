@@ -201,19 +201,23 @@ actor MCPService {
         let tranches = (balanceDict["active_tranches"] as? Int) ?? 0
         let expiring24h = (balanceDict["expiring_within_24h_sats"] as? Int) ?? 0
 
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
         var nextExpiration: Date? = nil
         if let isoStr = balanceDict["next_expiration_iso"] as? String {
-            nextExpiration = ISO8601DateFormatter().date(from: isoStr)
+            nextExpiration = isoFormatter.date(from: isoStr)
+                ?? ISO8601DateFormatter().date(from: isoStr)  // fallback without fractional seconds
         }
 
         var trancheDetails: [PatronAccountViewModel.TrancheDetail] = []
         if let trancheArray = balanceDict["tranches"] as? [[String: Any]] {
-            let isoFormatter = ISO8601DateFormatter()
             for (index, t) in trancheArray.enumerated() {
                 let amount = (t["amount_sats"] as? Int) ?? 0
                 let remaining = (t["remaining_sats"] as? Int) ?? amount
-                let expiresAt = (t["expires_at"] as? String).flatMap { isoFormatter.date(from: $0) }
-                let createdAt = (t["created_at"] as? String).flatMap { isoFormatter.date(from: $0) }
+                let isoFallback = ISO8601DateFormatter()  // without fractional seconds
+                let expiresAt = (t["expires_at"] as? String).flatMap { isoFormatter.date(from: $0) ?? isoFallback.date(from: $0) }
+                let createdAt = (t["created_at"] as? String).flatMap { isoFormatter.date(from: $0) ?? isoFallback.date(from: $0) }
                 let id = (t["id"] as? String) ?? "\(index)"
                 trancheDetails.append(PatronAccountViewModel.TrancheDetail(
                     id: id,
@@ -475,10 +479,18 @@ actor MCPService {
 
     /// Call set_pricing_model on an operator's MCP endpoint.
     /// Returns the model_id of the created/updated model.
+    ///
+    /// - Parameters:
+    ///   - endpointURL: The operator's MCP SSE endpoint.
+    ///   - bearerToken: OAuth bearer token for the session.
+    ///   - model: The pricing model to save.
+    ///   - operatorNpub: If provided, generates a kind-27235 operator proof
+    ///     so a patron session can prove operator authority.
     func callSetPricingModel(
         endpointURL: URL,
         bearerToken: String,
-        model: PricingModelResponse
+        model: PricingModelResponse,
+        operatorNpub: String? = nil
     ) async throws -> String {
         await traffic(.outbound, label: "Set Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
 
@@ -514,11 +526,22 @@ actor MCPService {
         let jsonData = try JSONEncoder().encode(payload)
         let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
 
+        // Build tool arguments — include operator_proof when available
+        var arguments: [String: Value] = ["model_json": .string(jsonString)]
+        if let npub = operatorNpub {
+            let proof = try OperatorProofService.createProof(
+                toolName: "set_pricing_model",
+                operatorNpub: npub
+            )
+            arguments["operator_proof"] = .string(proof)
+            await traffic(.outbound, label: "Operator Proof", detail: "Signed kind-27235 for \(npub.prefix(16))…")
+        }
+
         await traffic(.outbound, label: "callTool: \(setTool.name)", detail: "model_json: \(String(jsonString.prefix(500)))")
 
         let (content, isError) = try await client.callTool(
             name: setTool.name,
-            arguments: ["model_json": .string(jsonString)]
+            arguments: arguments
         )
 
         if isError == true {
@@ -544,6 +567,115 @@ actor MCPService {
         }
 
         return (json["model_id"] as? String) ?? ""
+    }
+
+    // MARK: - Service Status
+
+    /// Call `service_status` on an operator's MCP endpoint.
+    /// Returns the versions dictionary (package → version string) or nil if the tool isn't found.
+    func callServiceStatus(
+        endpointURL: URL,
+        bearerToken: String
+    ) async throws -> [String: String]? {
+        await traffic(.outbound, label: "Service Status", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let statusTool = allTools.first(where: { $0.name.contains("service_status") }) else {
+            await traffic(.inbound, label: "Service Status", detail: "Tool not found on this endpoint")
+            return nil
+        }
+
+        let (content, isError) = try await client.callTool(name: statusTool.name, arguments: [:])
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Service Status Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Service Status", detail: String(text.prefix(500)))
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw MCPError.invalidResponse
+        }
+
+        // Extract versions dict — keys and values are both strings
+        guard let versions = json["versions"] as? [String: String] else {
+            return nil
+        }
+
+        return versions
+    }
+
+    // MARK: - Register Authority Npub (Claim)
+
+    /// Call `register_authority_npub` on an Authority's MCP endpoint to initiate
+    /// the adoption protocol. Returns the text response from the tool.
+    func callRegisterAuthorityNpub(
+        endpointURL: URL,
+        bearerToken: String,
+        candidateNpub: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Register Authority Npub", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let registerTool = allTools.first(where: { $0.name.contains("register_authority_npub") }) else {
+            await traffic(.error, label: "Register Authority Npub", detail: "No register_authority_npub tool found")
+            throw MCPError.toolCallFailed("No register_authority_npub tool found on this Authority")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: registerTool.name,
+            arguments: ["candidate_npub": .string(candidateNpub)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Register Authority Npub Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Register Authority Npub", detail: String(text.prefix(500)))
+        return text
     }
 
     // MARK: - Pricing Synthesis

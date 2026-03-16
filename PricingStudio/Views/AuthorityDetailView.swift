@@ -4,17 +4,38 @@ import SwiftData
 struct AuthorityDetailView: View {
     let authority: Authority
     @Bindable var pricingVM: PricingViewModel
+    var authorityVM: AuthorityCollectionViewModel?
     var onOperatorSelected: ((Operator) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             authorityHeader
             Divider()
+            claimAuthorityButton
+            Divider()
             connectedOperatorsSection
             Divider()
             pricingSection
         }
         .navigationTitle(authority.displayName)
+    }
+
+    // MARK: - Claim Authority
+
+    @ViewBuilder
+    private var claimAuthorityButton: some View {
+        if authority.mcpEndpointURL != nil, let vm = authorityVM {
+            Button {
+                vm.requestClaim(authority)
+            } label: {
+                Label("Claim Authority", systemImage: "person.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
     }
 
     // MARK: - Header

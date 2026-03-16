@@ -92,6 +92,23 @@ enum KeychainService {
         delete(service: anthropicService, account: anthropicAccount)
     }
 
+    // MARK: - xAI API Key Storage
+
+    private static let xaiService = "com.tollbooth.dpyc.PricingStudio.xai"
+    private static let xaiAccount = "api-key"
+
+    static func saveXAIAPIKey(_ key: String) throws {
+        try save(data: Data(key.utf8), service: xaiService, account: xaiAccount)
+    }
+
+    static func loadXAIAPIKey() -> String? {
+        load(service: xaiService, account: xaiAccount)
+    }
+
+    static func deleteXAIAPIKey() {
+        delete(service: xaiService, account: xaiAccount)
+    }
+
     // MARK: - Generic Keychain Operations
 
     private static func save(data: Data, service: String, account: String) throws {

@@ -13,7 +13,8 @@ actor AnthropicService {
     func sendMessage(
         messages: [[String: String]],
         systemPrompt: String,
-        apiKey: String
+        apiKey: String,
+        maxTokens: Int = 2048
     ) -> AsyncStream<String> {
         AsyncStream { continuation in
             Task {
@@ -21,6 +22,7 @@ actor AnthropicService {
                     messages: messages,
                     systemPrompt: systemPrompt,
                     apiKey: apiKey,
+                    maxTokens: maxTokens,
                     continuation: continuation
                 )
             }
@@ -31,6 +33,7 @@ actor AnthropicService {
         messages: [[String: String]],
         systemPrompt: String,
         apiKey: String,
+        maxTokens: Int = 2048,
         continuation: AsyncStream<String>.Continuation
     ) async {
         var request = URLRequest(url: Self.apiURL)
@@ -41,7 +44,7 @@ actor AnthropicService {
 
         let body: [String: Any] = [
             "model": Self.model,
-            "max_tokens": Self.maxTokens,
+            "max_tokens": maxTokens,
             "stream": true,
             "system": systemPrompt,
             "messages": messages,

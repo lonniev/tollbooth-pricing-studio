@@ -86,6 +86,21 @@
 		AA0000010000000000000A01 /* RevenueProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A02 /* RevenueProjection.swift */; };
 		AA0000010000000000000A03 /* MarkdownContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A04 /* MarkdownContentView.swift */; };
 		AA0000010000000000000A05 /* CampaignComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A06 /* CampaignComparisonView.swift */; };
+		AA0000010000000000000B11 /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B01 /* LLMProvider.swift */; };
+		AA0000010000000000000B12 /* XAIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B02 /* XAIProvider.swift */; };
+		AA0000010000000000000B13 /* AnthropicProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B03 /* AnthropicProvider.swift */; };
+		AA0000010000000000000B14 /* SecondOpinionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B04 /* SecondOpinionViewModel.swift */; };
+		AA0000010000000000000B15 /* SecondOpinionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B05 /* SecondOpinionSheet.swift */; };
+		AA0000010000000000000B16 /* CourierPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B06 /* CourierPayload.swift */; };
+		AA0000010000000000000B17 /* CourierPayloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B07 /* CourierPayloadView.swift */; };
+		AA0000010000000000000C01 /* ClaimAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000C02 /* ClaimAuthoritySheet.swift */; };
+		AA0000010000000000000D01 /* CourierPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000D02 /* CourierPayloadTests.swift */; };
+		73CAFAD62513454B9CD36981 /* OperatorProofService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */; };
+		9E3FAA7C1B6E45B59CBDB128 /* ToolRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7115326FE3DE4906B756A9D5 /* ToolRole.swift */; };
+		1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */; };
+		E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9844C99A73C4999A2235C1B /* PricingDiffView.swift */; };
+		8229C70DF9CA42748FCDC159 /* FullScreenInterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */; };
+		1A9E319668E94E4F9FFDF88F /* ForkInterviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6094B651CBBB4BC48F72E6F2 /* ForkInterviewSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -170,10 +185,33 @@
 		AA0000010000000000000A04 /* MarkdownContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownContentView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000A06 /* CampaignComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignComparisonView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000A08 /* PricingStudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PricingStudio.entitlements; sourceTree = "<group>"; };
+		AA0000010000000000000B01 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
+		AA0000010000000000000B02 /* XAIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XAIProvider.swift; sourceTree = "<group>"; };
+		AA0000010000000000000B03 /* AnthropicProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicProvider.swift; sourceTree = "<group>"; };
+		AA0000010000000000000B04 /* SecondOpinionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondOpinionViewModel.swift; sourceTree = "<group>"; };
+		AA0000010000000000000B05 /* SecondOpinionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondOpinionSheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000B06 /* CourierPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayload.swift; sourceTree = "<group>"; };
+		AA0000010000000000000B07 /* CourierPayloadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayloadView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000C02 /* ClaimAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimAuthoritySheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000D02 /* CourierPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayloadTests.swift; sourceTree = "<group>"; };
+		AA0000010000000000000DFF /* PricingStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PricingStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorProofService.swift; sourceTree = "<group>"; };
+		7115326FE3DE4906B756A9D5 /* ToolRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolRole.swift; sourceTree = "<group>"; };
+		CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPickerView.swift; sourceTree = "<group>"; };
+		D9844C99A73C4999A2235C1B /* PricingDiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingDiffView.swift; sourceTree = "<group>"; };
+		075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenInterviewView.swift; sourceTree = "<group>"; };
+		6094B651CBBB4BC48F72E6F2 /* ForkInterviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForkInterviewSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		AA000001000000000000003A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000010000000000000D0A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -187,8 +225,17 @@
 			isa = PBXGroup;
 			children = (
 				AA000001000000000000004B /* PricingStudio */,
+				AA0000010000000000000D10 /* PricingStudioTests */,
 				AA000001000000000000004C /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AA0000010000000000000D10 /* PricingStudioTests */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000010000000000000D02 /* CourierPayloadTests.swift */,
+			);
+			path = PricingStudioTests;
 			sourceTree = "<group>";
 		};
 		AA000001000000000000004B /* PricingStudio */ = {
@@ -212,6 +259,7 @@
 			isa = PBXGroup;
 			children = (
 				AA00000100000000000000FF /* PricingStudio.app */,
+				AA0000010000000000000DFF /* PricingStudioTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -228,6 +276,7 @@
 		AA00000100000000000000D1 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				7115326FE3DE4906B756A9D5 /* ToolRole.swift */,
 				AA00000100000000000000E1 /* Operator.swift */,
 				AA00000100000000000000E2 /* PricingModel.swift */,
 				AA00000100000000000000E3 /* MemberRecord.swift */,
@@ -242,6 +291,7 @@
 				AA0000010000000000000701 /* RelaySettings.swift */,
 				AA0000010000000000000922 /* Campaign.swift */,
 				AA0000010000000000000A02 /* RevenueProjection.swift */,
+				AA0000010000000000000B06 /* CourierPayload.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -249,6 +299,7 @@
 		AA00000100000000000000D2 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */,
 				AA00000100000000000000E4 /* MCPService.swift */,
 				AA00000100000000000000E5 /* OAuthService.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
@@ -257,6 +308,9 @@
 				AA00000100000000000000FD /* TrafficLogger.swift */,
 				AA0000010000000000000412 /* AnthropicService.swift */,
 				AA0000010000000000000801 /* DMPollingService.swift */,
+				AA0000010000000000000B01 /* LLMProvider.swift */,
+				AA0000010000000000000B02 /* XAIProvider.swift */,
+				AA0000010000000000000B03 /* AnthropicProvider.swift */,
 				AA0000010000000000000200 /* Nostr */,
 			);
 			path = Services;
@@ -286,6 +340,7 @@
 				AA0000010000000000000301 /* PatronAccountViewModel.swift */,
 				AA0000010000000000000413 /* AssistantViewModel.swift */,
 				AA0000010000000000000901 /* PricingConsultantViewModel.swift */,
+				AA0000010000000000000B04 /* SecondOpinionViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -293,6 +348,10 @@
 		AA00000100000000000000D4 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				6094B651CBBB4BC48F72E6F2 /* ForkInterviewSheet.swift */,
+				075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */,
+				D9844C99A73C4999A2235C1B /* PricingDiffView.swift */,
+				CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */,
 				AA00000100000000000000EA /* OperatorSidebarView.swift */,
 				AA00000100000000000000EB /* AddOperatorSheet.swift */,
 				AA00000100000000000000F5 /* EditOperatorSheet.swift */,
@@ -322,6 +381,8 @@
 				AA0000010000000000000902 /* PricingConsultantView.swift */,
 				AA0000010000000000000A06 /* CampaignComparisonView.swift */,
 				AA0000010000000000000A07 /* Shared */,
+				AA0000010000000000000B05 /* SecondOpinionSheet.swift */,
+				AA0000010000000000000C02 /* ClaimAuthoritySheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -354,6 +415,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000010000000000000A04 /* MarkdownContentView.swift */,
+				AA0000010000000000000B07 /* CourierPayloadView.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -382,6 +444,23 @@
 			productReference = AA00000100000000000000FF /* PricingStudio.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AA0000010000000000000D20 /* PricingStudioTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000010000000000000D7B /* Build configuration list for PBXNativeTarget "PricingStudioTests" */;
+			buildPhases = (
+				AA0000010000000000000D0B /* Sources */,
+				AA0000010000000000000D0A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA0000010000000000000D31 /* PBXTargetDependency */,
+			);
+			name = PricingStudioTests;
+			productName = PricingStudioTests;
+			productReference = AA0000010000000000000DFF /* PricingStudioTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -394,6 +473,10 @@
 				TargetAttributes = {
 					AA000001000000000000005A = {
 						CreatedOnToolsVersion = 16.2;
+					};
+					AA0000010000000000000D20 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = AA000001000000000000005A;
 					};
 				};
 			};
@@ -415,9 +498,28 @@
 			projectRoot = "";
 			targets = (
 				AA000001000000000000005A /* PricingStudio */,
+				AA0000010000000000000D20 /* PricingStudioTests */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXContainerItemProxy section */
+		AA0000010000000000000D30 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA000001000000000000006A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA000001000000000000005A;
+			remoteInfo = PricingStudio;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		AA0000010000000000000D31 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA000001000000000000005A /* PricingStudio */;
+			targetProxy = AA0000010000000000000D30 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		AA000001000000000000003C /* Resources */ = {
@@ -436,6 +538,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A9E319668E94E4F9FFDF88F /* ForkInterviewSheet.swift in Sources */,
+				73CAFAD62513454B9CD36981 /* OperatorProofService.swift in Sources */,
+				9E3FAA7C1B6E45B59CBDB128 /* ToolRole.swift in Sources */,
+				1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */,
+				E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */,
+				8229C70DF9CA42748FCDC159 /* FullScreenInterviewView.swift in Sources */,
 				AA000001000000000000001B /* ContentView.swift in Sources */,
 				AA000001000000000000001A /* PricingStudioApp.swift in Sources */,
 				AA00000100000000000000B1 /* Operator.swift in Sources */,
@@ -513,6 +621,22 @@
 				AA0000010000000000000A01 /* RevenueProjection.swift in Sources */,
 				AA0000010000000000000A03 /* MarkdownContentView.swift in Sources */,
 				AA0000010000000000000A05 /* CampaignComparisonView.swift in Sources */,
+				AA0000010000000000000B11 /* LLMProvider.swift in Sources */,
+				AA0000010000000000000B12 /* XAIProvider.swift in Sources */,
+				AA0000010000000000000B13 /* AnthropicProvider.swift in Sources */,
+				AA0000010000000000000B14 /* SecondOpinionViewModel.swift in Sources */,
+				AA0000010000000000000B15 /* SecondOpinionSheet.swift in Sources */,
+				AA0000010000000000000B16 /* CourierPayload.swift in Sources */,
+				AA0000010000000000000B17 /* CourierPayloadView.swift in Sources */,
+				AA0000010000000000000C01 /* ClaimAuthoritySheet.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000010000000000000D0B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000010000000000000D01 /* CourierPayloadTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -660,7 +784,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -691,7 +815,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -699,6 +823,46 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+		AA0000010000000000000D8C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JHPQNMW73Z;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudioTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PricingStudio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PricingStudio";
+			};
+			name = Debug;
+		};
+		AA0000010000000000000D8D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JHPQNMW73Z;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudioTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PricingStudio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PricingStudio";
 			};
 			name = Release;
 		};
@@ -719,6 +883,15 @@
 			buildConfigurations = (
 				AA000001000000000000008C /* Debug */,
 				AA000001000000000000008D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000010000000000000D7B /* Build configuration list for PBXNativeTarget "PricingStudioTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000010000000000000D8C /* Debug */,
+				AA0000010000000000000D8D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

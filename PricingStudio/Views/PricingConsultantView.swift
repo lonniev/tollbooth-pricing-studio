@@ -18,7 +18,14 @@ struct PricingConsultantView: View {
     @State private var showingSaveSheet = false
     @State private var showingLoadSheet = false
     @State private var showingCompareSheet = false
+    @State private var showingSecondOpinion = false
+    @State private var showingFullScreen = false
+    @State private var secondOpinionVM = SecondOpinionViewModel()
     @State private var saveName = ""
+    @State private var editingMessageIndex: Int?
+    @State private var editedMessageText = ""
+    @State private var showingForkSheet = false
+    @State private var showingReshapePreview = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,6 +36,7 @@ struct PricingConsultantView: View {
                 InterviewStepperView(
                     progress: consultantVM.interviewProgress,
                     viewingStageNumber: consultantVM.viewingStageNumber,
+                    isStreaming: consultantVM.isStreaming,
                     onStageTapped: { stage in
                         consultantVM.revisitStage(stage)
                     }
@@ -36,7 +44,7 @@ struct PricingConsultantView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
 
-                InsightSummaryCard(progress: consultantVM.interviewProgress)
+                InsightSummaryCard(progress: consultantVM.interviewProgress, projections: consultantVM.revenueProjections)
                     .padding(.horizontal)
                 Divider()
             }
@@ -86,6 +94,15 @@ struct PricingConsultantView: View {
         .sheet(isPresented: $showingAPIKeySheet) {
             AssistantAPIKeySheet()
         }
+        .fullScreenCover(isPresented: $showingFullScreen) {
+            FullScreenInterviewView(
+                consultantVM: consultantVM,
+                context: context,
+                operatorNpub: operatorNpub,
+                onApplyJSON: onApplyJSON,
+                onDismiss: { showingFullScreen = false }
+            )
+        }
         .sheet(isPresented: $showingPromptEditor) {
             PromptEditorSheet(consultantVM: consultantVM)
         }
@@ -94,6 +111,85 @@ struct PricingConsultantView: View {
         }
         .sheet(isPresented: $showingCompareSheet) {
             CampaignComparisonSheet()
+        }
+        .sheet(isPresented: $showingSecondOpinion) {
+            SecondOpinionSheet(
+                viewModel: secondOpinionVM,
+                onSave: { reviewText in
+                    consultantVM.currentCampaign?.secondOpinionText = reviewText
+                    if let ctx = consultantVM.currentCampaign {
+                        ctx.updatedAt = Date()
+                    }
+                },
+                onRerun: {
+                    let summary = secondOpinionVM.buildCampaignSummary(
+                        messages: consultantVM.messages,
+                        progress: consultantVM.interviewProgress,
+                        projections: consultantVM.revenueProjections,
+                        pipelineJSON: consultantVM.extractedPipelineJSON,
+                        operatorName: context.operatorName,
+                        campaignName: consultantVM.currentCampaign?.name
+                    )
+                    secondOpinionVM.requestReview(summary: summary)
+                },
+                onRevise: { suggestedChanges in
+                    // Fork the interview with the reviewer's suggestions
+                    let revisionPrompt = """
+                    The second-opinion reviewer (\(secondOpinionVM.providerName)) suggested these changes to the campaign:
+
+                    \(suggestedChanges)
+
+                    Please revise the pricing recommendation to incorporate these suggestions where they make sense within the DPYC economic model. Explain what you changed and why.
+                    """
+                    if let lastIdx = consultantVM.messages.indices.last {
+                        consultantVM.forkFromMessage(at: lastIdx, newText: revisionPrompt, context: context)
+                    }
+                }
+            )
+        }
+        .sheet(isPresented: $showingForkSheet) {
+            ForkInterviewSheet(
+                messageIndex: editingMessageIndex ?? 0,
+                initialText: editedMessageText,
+                isUserMessage: editingMessageIndex.flatMap { consultantVM.messages.indices.contains($0) ? consultantVM.messages[$0].role == .user : false } ?? false,
+                onFork: { newText in
+                    guard let idx = editingMessageIndex else { return }
+                    consultantVM.forkFromMessage(at: idx, newText: newText, context: context)
+                    editingMessageIndex = nil
+                    editedMessageText = ""
+                },
+                onCancel: {
+                    editingMessageIndex = nil
+                    editedMessageText = ""
+                }
+            )
+        }
+        .sheet(isPresented: $showingReshapePreview) {
+            ReshapePreviewSheet(
+                messages: consultantVM.messages,
+                stages: consultantVM.pendingReshape ?? [],
+                onAccept: {
+                    consultantVM.acceptReshape(context: modelContext)
+                    showingReshapePreview = false
+                },
+                onDiscard: {
+                    consultantVM.discardReshape()
+                    showingReshapePreview = false
+                }
+            )
+        }
+        .onChange(of: consultantVM.pendingReshape) { _, newValue in
+            if newValue != nil {
+                showingReshapePreview = true
+            }
+        }
+        .alert("Reshape Failed", isPresented: .init(
+            get: { consultantVM.reshapeError != nil },
+            set: { if !$0 { consultantVM.reshapeError = nil } }
+        )) {
+            Button("OK") { consultantVM.reshapeError = nil }
+        } message: {
+            Text(consultantVM.reshapeError ?? "")
         }
         .alert("Save Campaign", isPresented: $showingSaveSheet) {
             TextField("Campaign name", text: $saveName)
@@ -153,6 +249,32 @@ struct PricingConsultantView: View {
                 }
             }
 
+            // Second Opinion
+            if consultantVM.interviewProgress.stageNumber >= 6
+                || consultantVM.currentCampaign?.secondOpinionText != nil {
+                Button {
+                    if let existingReview = consultantVM.currentCampaign?.secondOpinionText,
+                       !existingReview.isEmpty {
+                        secondOpinionVM.loadExistingReview(text: existingReview)
+                    } else {
+                        let summary = secondOpinionVM.buildCampaignSummary(
+                            messages: consultantVM.messages,
+                            progress: consultantVM.interviewProgress,
+                            projections: consultantVM.revenueProjections,
+                            pipelineJSON: consultantVM.extractedPipelineJSON,
+                            operatorName: context.operatorName,
+                            campaignName: consultantVM.currentCampaign?.name
+                        )
+                        secondOpinionVM.requestReview(summary: summary)
+                    }
+                    showingSecondOpinion = true
+                } label: {
+                    Label("Second Opinion", systemImage: "person.2.wave.2")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(consultantVM.isStreaming)
+            }
+
             // Campaign actions
             Button {
                 showingLoadSheet = true
@@ -187,6 +309,28 @@ struct PricingConsultantView: View {
                 consultantVM.clear()
             } label: {
                 Label("Clear", systemImage: "trash")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(consultantVM.messages.isEmpty)
+
+            Button {
+                consultantVM.aiReshape()
+            } label: {
+                if consultantVM.isReshaping {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("Re-tag Stages", systemImage: "arrow.triangle.2.circlepath")
+                        .labelStyle(.iconOnly)
+                }
+            }
+            .disabled(consultantVM.messages.isEmpty || consultantVM.isReshaping)
+            .help("AI re-classify messages into interview stages")
+
+            Button {
+                showingFullScreen = true
+            } label: {
+                Label("Expand", systemImage: "arrow.up.left.and.arrow.down.right")
                     .labelStyle(.iconOnly)
             }
             .disabled(consultantVM.messages.isEmpty)
@@ -251,11 +395,40 @@ struct PricingConsultantView: View {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     if consultantVM.messages.isEmpty {
                         emptyState
-                    } else {
+                    } else if consultantVM.viewingStageNumber != nil {
+                        // Stage-filtered view: show only messages for the selected stage
                         ForEach(consultantVM.displayedMessages) { message in
                             bubble(message)
                                 .id(message.id)
                         }
+                    } else {
+                        // All-stages view: group messages by phase with section headers
+                        let grouped = groupMessagesByStage(consultantVM.messages)
+                        ForEach(grouped, id: \.stage) { group in
+                            stageSectionHeader(stage: group.stage)
+                                .id("stage-header-\(group.stage)")
+                            ForEach(group.messages) { message in
+                                bubble(message)
+                                    .id(message.id)
+                            }
+                        }
+                    }
+
+                    // Stage 6 buffering indicator
+                    if consultantVM.isStreaming && consultantVM.interviewProgress.stageNumber == 6 {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .controlSize(.regular)
+                            Text("Preparing your recommendation...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("The full pricing proposal will appear once ready.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                        .id("recommendation-loading")
                     }
                 }
                 .padding()
@@ -267,6 +440,63 @@ struct PricingConsultantView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Group messages into contiguous stage sections for display.
+    /// Stage 6 assistant messages are excluded while streaming (buffered).
+    private func groupMessagesByStage(_ messages: [AssistantMessage]) -> [StageGroup] {
+        var groups: [StageGroup] = []
+        var currentStage = 0
+        var currentMessages: [AssistantMessage] = []
+
+        for message in messages {
+            // Buffer stage 6 assistant messages while streaming
+            if (message.stageNumber ?? 0) == 6 && message.role == .assistant && message.isStreaming {
+                continue
+            }
+            let stage = message.stageNumber ?? currentStage
+            if stage != currentStage && !currentMessages.isEmpty {
+                groups.append(StageGroup(stage: currentStage, messages: currentMessages))
+                currentMessages = []
+            }
+            currentStage = stage
+            currentMessages.append(message)
+        }
+        if !currentMessages.isEmpty {
+            groups.append(StageGroup(stage: currentStage, messages: currentMessages))
+        }
+        return groups
+    }
+
+    @ViewBuilder
+    private func stageSectionHeader(stage: Int) -> some View {
+        let label = stage > 0 && stage <= InterviewProgress.stageLabels.count
+            ? InterviewProgress.stageLabels[stage - 1]
+            : "Stage \(stage)"
+        let icon = stageIcon(stage)
+
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(Color.accentColor)
+            Text("Phase \(stage): \(label)")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            VStack { Divider() }
+        }
+        .padding(.top, stage > 1 ? 16 : 4)
+    }
+
+    private func stageIcon(_ stage: Int) -> String {
+        switch stage {
+        case 1: return "hammer"
+        case 2: return "chart.bar"
+        case 3: return "dollarsign.circle"
+        case 4: return "gauge.with.dots.needle.bottom.50percent"
+        case 5: return "slider.horizontal.3"
+        case 6: return "star.fill"
+        default: return "circle"
         }
     }
 
@@ -311,7 +541,7 @@ struct PricingConsultantView: View {
                     Label("Value — what callers will pay", systemImage: "3.circle")
                     Label("Cost — what it costs you to serve", systemImage: "4.circle")
                     Label("Constraints — promotional mechanics", systemImage: "5.circle")
-                    Label("Synthesis — draft + refine", systemImage: "6.circle")
+                    Label("Recommendation — draft + refine", systemImage: "6.circle")
                 }
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -341,6 +571,8 @@ struct PricingConsultantView: View {
 
     @ViewBuilder
     private func bubble(_ message: AssistantMessage) -> some View {
+        let messageIndex = consultantVM.messages.firstIndex(where: { $0.id == message.id })
+
         HStack(alignment: .top) {
             if message.role == .user { Spacer(minLength: 40) }
 
@@ -362,6 +594,22 @@ struct PricingConsultantView: View {
                 if message.isStreaming {
                     ProgressView()
                         .controlSize(.mini)
+                }
+            }
+            .contextMenu {
+                if let idx = messageIndex, !message.isStreaming {
+                    Button {
+                        editingMessageIndex = idx
+                        // For user messages, edit the text directly.
+                        // For assistant messages, prompt for a replacement user message.
+                        editedMessageText = message.role == .user ? message.content : ""
+                        showingForkSheet = true
+                    } label: {
+                        Label(
+                            message.role == .user ? "Edit & Replay" : "What-If from Here",
+                            systemImage: "arrow.triangle.branch"
+                        )
+                    }
                 }
             }
 
@@ -413,6 +661,13 @@ struct PricingConsultantView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Stage Group
+
+    private struct StageGroup {
+        let stage: Int
+        let messages: [AssistantMessage]
     }
 
     // MARK: - Actions
@@ -578,6 +833,7 @@ private struct CampaignListSheet: View {
 private struct InterviewStepperView: View {
     let progress: InterviewProgress
     var viewingStageNumber: Int?
+    var isStreaming: Bool = false
     var onStageTapped: ((Int) -> Void)?
 
     var body: some View {
@@ -588,10 +844,12 @@ private struct InterviewStepperView: View {
                 let isCurrent = stageNumber == progress.stageNumber
                 let isViewing = stageNumber == viewingStageNumber
                 let isTappable = isCompleted || isCurrent
+                // Stage 6 turns green when recommendation is delivered (not streaming)
+                let isRecommendationReady = stageNumber == 6 && isCurrent && !isStreaming
 
                 if index > 0 {
                     Rectangle()
-                        .fill(isCompleted ? Color.accentColor : Color.secondary.opacity(0.3))
+                        .fill(isCompleted || isRecommendationReady ? Color.accentColor : Color.secondary.opacity(0.3))
                         .frame(height: 2)
                 }
 
@@ -601,11 +859,12 @@ private struct InterviewStepperView: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(isViewing ? Color.orange : (isCompleted || isCurrent ? Color.accentColor : Color.secondary.opacity(0.3)))
+                                .fill(chicletColor(isViewing: isViewing, isCompleted: isCompleted,
+                                                   isCurrent: isCurrent, isRecommendationReady: isRecommendationReady))
                                 .frame(width: 28, height: 28)
 
-                            if isCompleted && !isViewing {
-                                Image(systemName: "checkmark")
+                            if (isCompleted || isRecommendationReady) && !isViewing {
+                                Image(systemName: isRecommendationReady ? "star.fill" : "checkmark")
                                     .font(.caption.bold())
                                     .foregroundStyle(.white)
                             } else {
@@ -619,11 +878,18 @@ private struct InterviewStepperView: View {
 
                     Text(InterviewProgress.stageLabels[index])
                         .font(.system(size: 9))
-                        .foregroundStyle(isViewing ? .orange : (isCurrent ? .primary : .secondary))
+                        .foregroundStyle(isViewing ? .orange : (isRecommendationReady ? .green : (isCurrent ? .primary : .secondary)))
                         .lineLimit(1)
                 }
             }
         }
+    }
+
+    private func chicletColor(isViewing: Bool, isCompleted: Bool, isCurrent: Bool, isRecommendationReady: Bool) -> Color {
+        if isViewing { return .orange }
+        if isRecommendationReady { return .green }
+        if isCompleted || isCurrent { return Color.accentColor }
+        return Color.secondary.opacity(0.3)
     }
 }
 
@@ -631,6 +897,7 @@ private struct InterviewStepperView: View {
 
 private struct InsightSummaryCard: View {
     let progress: InterviewProgress
+    var projections: CampaignProjections?
     @State private var isExpanded = false
 
     private var hasAnyInsight: Bool {
@@ -643,6 +910,31 @@ private struct InsightSummaryCard: View {
 
     var body: some View {
         if hasAnyInsight {
+            // Revenue headline (always visible, not inside disclosure)
+            if let moderate = projections?.moderate {
+                HStack(spacing: 12) {
+                    Image(systemName: "bitcoinsign.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(moderate.revenueSats.formatted()) sats/mo")
+                            .font(.caption.bold().monospacedDigit())
+                        Text("$\(String(format: "%.2f", moderate.revenueUsd))/mo moderate")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let conservative = projections?.conservative,
+                       let optimistic = projections?.optimistic {
+                        Text("\(conservative.revenueSats.formatted())–\(optimistic.revenueSats.formatted())")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(8)
+                .background(Color.green.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            }
+
             DisclosureGroup(isExpanded: $isExpanded) {
                 VStack(alignment: .leading, spacing: 6) {
                     if let tools = progress.insights.toolsIdentified {
@@ -729,7 +1021,7 @@ private struct CampaignComparisonSheet: View {
             ContentUnavailableView(
                 "Not Enough Data",
                 systemImage: "chart.bar.xaxis",
-                description: Text("At least 2 campaigns with revenue projections are needed. Complete the Synthesis stage to generate projections.")
+                description: Text("At least 2 campaigns with revenue projections are needed. Complete the Recommendation stage to generate projections.")
             )
         } else {
             List {
@@ -1032,6 +1324,101 @@ private struct PromptEditorSheet: View {
             Label("Loading...", systemImage: "hourglass")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Reshape Preview Sheet
+
+/// Shows the AI's proposed stage assignments side-by-side with message previews.
+/// The user can accept (overwrite saved campaign) or discard.
+struct ReshapePreviewSheet: View {
+    let messages: [AssistantMessage]
+    let stages: [Int]
+    var onAccept: () -> Void
+    var onDiscard: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private let stageLabels = ["", "Inventory", "Demand", "Value", "Cost", "Constraints", "Recommendation"]
+    private let stageIcons = ["", "hammer", "chart.bar", "dollarsign.circle",
+                              "gauge.with.dots.needle.bottom.50percent",
+                              "slider.horizontal.3", "star.fill"]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.title2)
+                            .foregroundStyle(.purple)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("AI Stage Classification")
+                                .font(.headline)
+                            Text("Review the proposed stage assignments below. Accept to overwrite the saved campaign.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                ForEach(Array(zip(messages.indices, messages)), id: \.0) { index, message in
+                    let stage = index < stages.count ? stages[index] : 1
+                    let oldStage = message.stageNumber ?? 0
+                    let changed = oldStage != stage
+
+                    HStack(alignment: .top, spacing: 10) {
+                        // Stage badge
+                        VStack(spacing: 2) {
+                            Image(systemName: stageIcons[stage])
+                                .font(.caption)
+                                .foregroundStyle(changed ? .orange : Color.accentColor)
+                            Text(stageLabels[stage])
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(changed ? .orange : .secondary)
+                        }
+                        .frame(width: 56)
+
+                        // Message preview
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(message.role == .user ? "Operator" : "Consultant")
+                                .font(.caption2.bold())
+                                .foregroundStyle(message.role == .user ? Color.blue : Color.green)
+                            Text(message.content.prefix(120) + (message.content.count > 120 ? "..." : ""))
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .lineLimit(3)
+                        }
+
+                        Spacer()
+
+                        // Change indicator
+                        if changed {
+                            Image(systemName: "arrow.right.circle.fill")
+                                .foregroundStyle(.orange)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Reshape Preview")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Discard") {
+                        dismiss()
+                        onDiscard()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Accept & Save") {
+                        dismiss()
+                        onAccept()
+                    }
+                    .bold()
+                }
+            }
         }
     }
 }

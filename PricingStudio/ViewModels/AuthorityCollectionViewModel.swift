@@ -60,6 +60,58 @@ final class AuthorityCollectionViewModel {
         try? context.save()
     }
 
+    // Claim sheet
+    var showingClaimSheet = false
+    var authorityToClaim: Authority?
+
+    // MARK: - Authority Claim
+
+    enum ClaimStatus: Equatable {
+        case idle
+        case connecting
+        case registering
+        case challengeSent
+        case failed(String)
+    }
+
+    var claimStatus: ClaimStatus = .idle
+
+    /// Initiate the Authority claim protocol by calling `register_authority_npub`
+    /// on the Authority's MCP endpoint. The Authority will send a challenge DM
+    /// to the candidate npub via the Secure Courier channel.
+    func initiateAuthorityClaim(
+        authorityEndpoint: URL,
+        candidateNpub: String,
+        bearerToken: String
+    ) async {
+        claimStatus = .connecting
+
+        let mcpService = MCPService()
+        do {
+            claimStatus = .registering
+
+            let result = try await mcpService.callRegisterAuthorityNpub(
+                endpointURL: authorityEndpoint,
+                bearerToken: bearerToken,
+                candidateNpub: candidateNpub
+            )
+
+            if result.contains("challenge") || result.contains("sent") || result.contains("ok") {
+                claimStatus = .challengeSent
+            } else {
+                claimStatus = .challengeSent
+            }
+        } catch {
+            claimStatus = .failed(error.localizedDescription)
+        }
+    }
+
+    func requestClaim(_ auth: Authority) {
+        authorityToClaim = auth
+        showingClaimSheet = true
+        claimStatus = .idle
+    }
+
     // MARK: - Sheet / Alert Triggers
 
     func requestEdit(_ auth: Authority) {

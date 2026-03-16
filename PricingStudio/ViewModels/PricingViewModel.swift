@@ -18,6 +18,8 @@ final class PricingViewModel {
     private(set) var memberRecord: MemberRecord?
     /// When the current result was fetched — nil if not from cache or not yet loaded.
     private(set) var loadedAt: Date?
+    /// Package versions from the operator's `service_status` tool.
+    private(set) var serviceVersions: [String: String]?
 
     /// Called when an operator lookup discovers an upstream authority.
     /// Parameters: (authorityNpub, displayName?, endpointURL?)
@@ -158,6 +160,7 @@ final class PricingViewModel {
     private struct CacheEntry {
         let model: PricingModelResponse
         let memberRecord: MemberRecord?
+        let versions: [String: String]?
         let cachedAt: Date
 
         var isExpired: Bool {
@@ -205,6 +208,7 @@ final class PricingViewModel {
         // Check cache first
         if let entry = cache[target.npub], !entry.isExpired {
             memberRecord = entry.memberRecord
+            serviceVersions = entry.versions
             loadedAt = entry.cachedAt
             state = .loaded(entry.model)
             return
@@ -302,13 +306,31 @@ final class PricingViewModel {
 
         try Task.checkCancellation()
 
+        // Fetch service status (best-effort, non-blocking for pricing display)
+        let versions = try? await mcpService.callServiceStatus(
+            endpointURL: endpointURL,
+            bearerToken: targetToken
+        )
+        serviceVersions = versions
+
         let now = Date()
-        cache[target.npub] = CacheEntry(model: model, memberRecord: member, cachedAt: now)
+        cache[target.npub] = CacheEntry(model: model, memberRecord: member, versions: versions, cachedAt: now)
         loadedAt = now
         state = .loaded(model)
     }
 
     // MARK: - Save Pricing
+
+    /// The npub selected for operator proof when saving pricing.
+    /// Set automatically when a single operator nsec is stored, or via
+    /// ``IdentityPickerView`` when multiple are available.
+    var resolvedOperatorNpub: String?
+
+    /// Set to `true` to present the identity picker sheet.
+    var showingIdentityPicker = false
+
+    /// Known operator identities (npub + display name) for the picker.
+    var availableIdentities: [(npub: String, displayName: String)] = []
 
     func savePricing(for target: any PricingTarget) async throws {
         guard let model = pricingModel,
@@ -320,13 +342,17 @@ final class PricingViewModel {
         let targetHost = endpointURL.host ?? target.npub
         let token = try await resolveToken(for: endpointURL, host: targetHost)
 
+        // Resolve operator identity for the proof
+        let operatorNpub = resolveOperatorNpub(for: target)
+
         // Merge local edits into model
         let mergedModel = mergeEdits(into: model)
 
         _ = try await mcpService.callSetPricingModel(
             endpointURL: endpointURL,
             bearerToken: token,
-            model: mergedModel
+            model: mergedModel,
+            operatorNpub: operatorNpub
         )
 
         // Clear local edits after successful save
@@ -337,6 +363,22 @@ final class PricingViewModel {
         cache.removeValue(forKey: target.npub)
         currentOperatorNpub = nil
         await loadPricing(for: target)
+    }
+
+    /// Determine which npub to use for the operator proof.
+    ///
+    /// - If ``resolvedOperatorNpub`` is already set (e.g. from picker), use it.
+    /// - If the target's npub has an nsec in Keychain, use that directly.
+    /// - Returns `nil` if no operator nsec is available (call proceeds without proof).
+    private func resolveOperatorNpub(for target: any PricingTarget) -> String? {
+        if let resolved = resolvedOperatorNpub {
+            return resolved
+        }
+        // If the target operator's nsec is in Keychain, use it
+        if KeychainService.loadNsec(forNpub: target.npub) != nil {
+            return target.npub
+        }
+        return nil
     }
 
     private func mergeEdits(into model: PricingModelResponse) -> PricingModelResponse {
@@ -360,6 +402,11 @@ final class PricingViewModel {
             pipeline: pipeline,
             source: model.source
         )
+    }
+
+    /// Return a preview of the model with local edits applied, for diff comparison.
+    func mergedPreview(from model: PricingModelResponse) -> PricingModelResponse {
+        mergeEdits(into: model)
     }
 
     #if DEBUG
@@ -398,6 +445,7 @@ final class PricingViewModel {
         state = .idle
         currentOperatorNpub = nil
         memberRecord = nil
+        serviceVersions = nil
         loadedAt = nil
         // NOTE: cache is intentionally NOT cleared — survives selection changes
     }
