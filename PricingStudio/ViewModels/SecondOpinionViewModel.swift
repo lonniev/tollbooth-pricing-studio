@@ -17,7 +17,26 @@ final class SecondOpinionViewModel {
     var error: String?
     var providerName: String = "Grok"
 
+    /// Parsed sections from the review for structured display.
+    var sections: [ReviewSection] = []
+    /// Whether the reviewer recommended changes (non-APPROVE verdict or has alternatives).
+    var hasSuggestedChanges: Bool = false
+    /// The alternative pricing suggestions section text, if any.
+    var suggestedChangesText: String = ""
+
     private var reviewerPrompt: String = ""
+
+    struct ReviewSection: Identifiable {
+        let id = UUID()
+        let title: String
+        let icon: String
+        let content: String
+        let verdict: Verdict?
+
+        enum Verdict {
+            case approve, approveWithReservations, reworkRecommended, reject
+        }
+    }
 
     // MARK: - Campaign Summary Assembly
 
@@ -102,9 +121,13 @@ final class SecondOpinionViewModel {
 
     // MARK: - Review Request
 
-    /// Load the reviewer prompt and stream a review from the best available provider.
+    /// Load the reviewer prompt and request a review from the best available provider.
+    /// Collects the full response before displaying to the user.
     func requestReview(summary: String) {
         reviewText = ""
+        sections = []
+        hasSuggestedChanges = false
+        suggestedChangesText = ""
         error = nil
         isStreaming = true
 
@@ -132,24 +155,137 @@ final class SecondOpinionViewModel {
                 ["role": "user", "content": summary]
             ]
 
+            // Collect full response (no live streaming to UI)
+            var fullResponse = ""
             let stream = provider.streamCompletion(
                 messages: messages,
                 systemPrompt: prompt,
                 maxTokens: 4096
             )
-
             for await token in stream {
-                reviewText += token
+                fullResponse += token
             }
 
             // Check for error in response
-            if reviewText.hasPrefix("[Error:") {
-                error = reviewText
-                reviewText = ""
+            if fullResponse.hasPrefix("[Error:") {
+                error = fullResponse
+                isStreaming = false
+                return
             }
+
+            // Post-process: parse into sections and present
+            reviewText = fullResponse
+            sections = parseSections(from: fullResponse)
+            detectSuggestedChanges(from: fullResponse)
 
             isStreaming = false
             logger.info("Second opinion complete (\(self.reviewText.count) chars)")
+        }
+    }
+
+    // MARK: - Response Parsing
+
+    /// Parse the review into titled sections based on markdown headings.
+    private func parseSections(from text: String) -> [ReviewSection] {
+        let lines = text.components(separatedBy: "\n")
+        var result: [ReviewSection] = []
+        var currentTitle = ""
+        var currentLines: [String] = []
+
+        func flushSection() {
+            let content = currentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !currentTitle.isEmpty, !content.isEmpty else { return }
+            let (icon, verdict) = sectionMeta(for: currentTitle, content: content)
+            result.append(ReviewSection(title: currentTitle, icon: icon, content: content, verdict: verdict))
+        }
+
+        for line in lines {
+            // Match ## or **N.** section headers
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("## ") || trimmed.hasPrefix("# ") {
+                flushSection()
+                currentTitle = trimmed
+                    .replacingOccurrences(of: "## ", with: "")
+                    .replacingOccurrences(of: "# ", with: "")
+                    .trimmingCharacters(in: .init(charactersIn: "*#"))
+                    .trimmingCharacters(in: .whitespaces)
+                currentLines = []
+            } else if let match = trimmed.range(of: #"^\d+\.\s+\*\*"#, options: .regularExpression) {
+                flushSection()
+                currentTitle = String(trimmed[match.upperBound...])
+                    .replacingOccurrences(of: "**", with: "")
+                    .trimmingCharacters(in: .init(charactersIn: " —-:"))
+                currentLines = []
+            } else {
+                currentLines.append(line)
+            }
+        }
+        flushSection()
+
+        return result
+    }
+
+    /// Map section titles to icons and detect verdict sections.
+    private func sectionMeta(for title: String, content: String) -> (String, ReviewSection.Verdict?) {
+        let lower = title.lowercased()
+        if lower.contains("strength") {
+            return ("checkmark.seal.fill", nil)
+        } else if lower.contains("risk") || lower.contains("weakness") {
+            return ("exclamationmark.triangle.fill", nil)
+        } else if lower.contains("alternative") || lower.contains("suggestion") {
+            return ("lightbulb.fill", nil)
+        } else if lower.contains("revenue") || lower.contains("impact") {
+            return ("chart.line.uptrend.xyaxis", nil)
+        } else if lower.contains("verdict") || lower.contains("conclusion") {
+            let verdictContent = content.uppercased()
+            let verdict: ReviewSection.Verdict?
+            if verdictContent.contains("REJECT") {
+                verdict = .reject
+            } else if verdictContent.contains("REWORK") {
+                verdict = .reworkRecommended
+            } else if verdictContent.contains("RESERVATIONS") {
+                verdict = .approveWithReservations
+            } else if verdictContent.contains("APPROVE") {
+                verdict = .approve
+            } else {
+                verdict = nil
+            }
+            return ("gavel.fill", verdict)
+        }
+        return ("doc.text", nil)
+    }
+
+    /// Check if the reviewer suggested changes the operator might want to apply.
+    private func detectSuggestedChanges(from text: String) {
+        let upper = text.uppercased()
+        // Has changes if verdict is not a clean APPROVE, or alternatives section exists
+        let hasAlternatives = upper.contains("ALTERNATIVE") || upper.contains("SUGGESTION")
+        let isCleanApprove = upper.contains("APPROVE") && !upper.contains("RESERVATION") && !upper.contains("REWORK") && !upper.contains("REJECT")
+
+        hasSuggestedChanges = hasAlternatives && !isCleanApprove
+
+        // Extract the alternatives section for potential campaign revision
+        if hasSuggestedChanges {
+            let lines = text.components(separatedBy: "\n")
+            var capturing = false
+            var captured: [String] = []
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.lowercased().contains("alternative") || trimmed.lowercased().contains("suggestion") {
+                    if trimmed.hasPrefix("#") || trimmed.range(of: #"^\d+\.\s+\*\*"#, options: .regularExpression) != nil {
+                        capturing = true
+                        continue
+                    }
+                }
+                if capturing {
+                    // Stop at next section header
+                    if (trimmed.hasPrefix("#") || trimmed.range(of: #"^\d+\.\s+\*\*"#, options: .regularExpression) != nil) && !trimmed.lowercased().contains("alternative") {
+                        break
+                    }
+                    captured.append(line)
+                }
+            }
+            suggestedChangesText = captured.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 

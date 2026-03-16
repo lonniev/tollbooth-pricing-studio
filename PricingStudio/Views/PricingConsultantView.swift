@@ -25,6 +25,7 @@ struct PricingConsultantView: View {
     @State private var editingMessageIndex: Int?
     @State private var editedMessageText = ""
     @State private var showingForkSheet = false
+    @State private var showingReshapePreview = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,6 +36,7 @@ struct PricingConsultantView: View {
                 InterviewStepperView(
                     progress: consultantVM.interviewProgress,
                     viewingStageNumber: consultantVM.viewingStageNumber,
+                    isStreaming: consultantVM.isStreaming,
                     onStageTapped: { stage in
                         consultantVM.revisitStage(stage)
                     }
@@ -129,6 +131,19 @@ struct PricingConsultantView: View {
                         campaignName: consultantVM.currentCampaign?.name
                     )
                     secondOpinionVM.requestReview(summary: summary)
+                },
+                onRevise: { suggestedChanges in
+                    // Fork the interview with the reviewer's suggestions
+                    let revisionPrompt = """
+                    The second-opinion reviewer (\(secondOpinionVM.providerName)) suggested these changes to the campaign:
+
+                    \(suggestedChanges)
+
+                    Please revise the pricing recommendation to incorporate these suggestions where they make sense within the DPYC economic model. Explain what you changed and why.
+                    """
+                    if let lastIdx = consultantVM.messages.indices.last {
+                        consultantVM.forkFromMessage(at: lastIdx, newText: revisionPrompt, context: context)
+                    }
                 }
             )
         }
@@ -148,6 +163,33 @@ struct PricingConsultantView: View {
                     editedMessageText = ""
                 }
             )
+        }
+        .sheet(isPresented: $showingReshapePreview) {
+            ReshapePreviewSheet(
+                messages: consultantVM.messages,
+                stages: consultantVM.pendingReshape ?? [],
+                onAccept: {
+                    consultantVM.acceptReshape(context: modelContext)
+                    showingReshapePreview = false
+                },
+                onDiscard: {
+                    consultantVM.discardReshape()
+                    showingReshapePreview = false
+                }
+            )
+        }
+        .onChange(of: consultantVM.pendingReshape) { _, newValue in
+            if newValue != nil {
+                showingReshapePreview = true
+            }
+        }
+        .alert("Reshape Failed", isPresented: .init(
+            get: { consultantVM.reshapeError != nil },
+            set: { if !$0 { consultantVM.reshapeError = nil } }
+        )) {
+            Button("OK") { consultantVM.reshapeError = nil }
+        } message: {
+            Text(consultantVM.reshapeError ?? "")
         }
         .alert("Save Campaign", isPresented: $showingSaveSheet) {
             TextField("Campaign name", text: $saveName)
@@ -272,6 +314,20 @@ struct PricingConsultantView: View {
             .disabled(consultantVM.messages.isEmpty)
 
             Button {
+                consultantVM.aiReshape()
+            } label: {
+                if consultantVM.isReshaping {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("Re-tag Stages", systemImage: "arrow.triangle.2.circlepath")
+                        .labelStyle(.iconOnly)
+                }
+            }
+            .disabled(consultantVM.messages.isEmpty || consultantVM.isReshaping)
+            .help("AI re-classify messages into interview stages")
+
+            Button {
                 showingFullScreen = true
             } label: {
                 Label("Expand", systemImage: "arrow.up.left.and.arrow.down.right")
@@ -357,6 +413,23 @@ struct PricingConsultantView: View {
                             }
                         }
                     }
+
+                    // Stage 6 buffering indicator
+                    if consultantVM.isStreaming && consultantVM.interviewProgress.stageNumber == 6 {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .controlSize(.regular)
+                            Text("Preparing your recommendation...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text("The full pricing proposal will appear once ready.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                        .id("recommendation-loading")
+                    }
                 }
                 .padding()
             }
@@ -371,12 +444,17 @@ struct PricingConsultantView: View {
     }
 
     /// Group messages into contiguous stage sections for display.
+    /// Stage 6 assistant messages are excluded while streaming (buffered).
     private func groupMessagesByStage(_ messages: [AssistantMessage]) -> [StageGroup] {
         var groups: [StageGroup] = []
         var currentStage = 0
         var currentMessages: [AssistantMessage] = []
 
         for message in messages {
+            // Buffer stage 6 assistant messages while streaming
+            if (message.stageNumber ?? 0) == 6 && message.role == .assistant && message.isStreaming {
+                continue
+            }
             let stage = message.stageNumber ?? currentStage
             if stage != currentStage && !currentMessages.isEmpty {
                 groups.append(StageGroup(stage: currentStage, messages: currentMessages))
@@ -755,6 +833,7 @@ private struct CampaignListSheet: View {
 private struct InterviewStepperView: View {
     let progress: InterviewProgress
     var viewingStageNumber: Int?
+    var isStreaming: Bool = false
     var onStageTapped: ((Int) -> Void)?
 
     var body: some View {
@@ -765,10 +844,12 @@ private struct InterviewStepperView: View {
                 let isCurrent = stageNumber == progress.stageNumber
                 let isViewing = stageNumber == viewingStageNumber
                 let isTappable = isCompleted || isCurrent
+                // Stage 6 turns green when recommendation is delivered (not streaming)
+                let isRecommendationReady = stageNumber == 6 && isCurrent && !isStreaming
 
                 if index > 0 {
                     Rectangle()
-                        .fill(isCompleted ? Color.accentColor : Color.secondary.opacity(0.3))
+                        .fill(isCompleted || isRecommendationReady ? Color.accentColor : Color.secondary.opacity(0.3))
                         .frame(height: 2)
                 }
 
@@ -778,11 +859,12 @@ private struct InterviewStepperView: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(isViewing ? Color.orange : (isCompleted || isCurrent ? Color.accentColor : Color.secondary.opacity(0.3)))
+                                .fill(chicletColor(isViewing: isViewing, isCompleted: isCompleted,
+                                                   isCurrent: isCurrent, isRecommendationReady: isRecommendationReady))
                                 .frame(width: 28, height: 28)
 
-                            if isCompleted && !isViewing {
-                                Image(systemName: "checkmark")
+                            if (isCompleted || isRecommendationReady) && !isViewing {
+                                Image(systemName: isRecommendationReady ? "star.fill" : "checkmark")
                                     .font(.caption.bold())
                                     .foregroundStyle(.white)
                             } else {
@@ -796,11 +878,18 @@ private struct InterviewStepperView: View {
 
                     Text(InterviewProgress.stageLabels[index])
                         .font(.system(size: 9))
-                        .foregroundStyle(isViewing ? .orange : (isCurrent ? .primary : .secondary))
+                        .foregroundStyle(isViewing ? .orange : (isRecommendationReady ? .green : (isCurrent ? .primary : .secondary)))
                         .lineLimit(1)
                 }
             }
         }
+    }
+
+    private func chicletColor(isViewing: Bool, isCompleted: Bool, isCurrent: Bool, isRecommendationReady: Bool) -> Color {
+        if isViewing { return .orange }
+        if isRecommendationReady { return .green }
+        if isCompleted || isCurrent { return Color.accentColor }
+        return Color.secondary.opacity(0.3)
     }
 }
 
@@ -1235,6 +1324,101 @@ private struct PromptEditorSheet: View {
             Label("Loading...", systemImage: "hourglass")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Reshape Preview Sheet
+
+/// Shows the AI's proposed stage assignments side-by-side with message previews.
+/// The user can accept (overwrite saved campaign) or discard.
+struct ReshapePreviewSheet: View {
+    let messages: [AssistantMessage]
+    let stages: [Int]
+    var onAccept: () -> Void
+    var onDiscard: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private let stageLabels = ["", "Inventory", "Demand", "Value", "Cost", "Constraints", "Recommendation"]
+    private let stageIcons = ["", "hammer", "chart.bar", "dollarsign.circle",
+                              "gauge.with.dots.needle.bottom.50percent",
+                              "slider.horizontal.3", "star.fill"]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.title2)
+                            .foregroundStyle(.purple)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("AI Stage Classification")
+                                .font(.headline)
+                            Text("Review the proposed stage assignments below. Accept to overwrite the saved campaign.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                ForEach(Array(zip(messages.indices, messages)), id: \.0) { index, message in
+                    let stage = index < stages.count ? stages[index] : 1
+                    let oldStage = message.stageNumber ?? 0
+                    let changed = oldStage != stage
+
+                    HStack(alignment: .top, spacing: 10) {
+                        // Stage badge
+                        VStack(spacing: 2) {
+                            Image(systemName: stageIcons[stage])
+                                .font(.caption)
+                                .foregroundStyle(changed ? .orange : Color.accentColor)
+                            Text(stageLabels[stage])
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(changed ? .orange : .secondary)
+                        }
+                        .frame(width: 56)
+
+                        // Message preview
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(message.role == .user ? "Operator" : "Consultant")
+                                .font(.caption2.bold())
+                                .foregroundStyle(message.role == .user ? Color.blue : Color.green)
+                            Text(message.content.prefix(120) + (message.content.count > 120 ? "..." : ""))
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .lineLimit(3)
+                        }
+
+                        Spacer()
+
+                        // Change indicator
+                        if changed {
+                            Image(systemName: "arrow.right.circle.fill")
+                                .foregroundStyle(.orange)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Reshape Preview")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Discard") {
+                        dismiss()
+                        onDiscard()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Accept & Save") {
+                        dismiss()
+                        onAccept()
+                    }
+                    .bold()
+                }
+            }
         }
     }
 }

@@ -44,12 +44,20 @@ final class PricingConsultantViewModel {
     var revenueProjections: CampaignProjections?
 
     /// Messages filtered by the currently viewed stage.
+    /// Stage 6 (Recommendation) buffers the streaming assistant response —
+    /// it only appears once streaming is complete, so the user sees a clean
+    /// rendered result instead of messy incremental markdown.
     var displayedMessages: [AssistantMessage] {
         let targetStage = viewingStageNumber ?? interviewProgress.stageNumber
         return messages.filter { msg in
             // Messages with no stage tag are shown in all stages
             guard let stage = msg.stageNumber else { return true }
-            return stage == targetStage
+            guard stage == targetStage else { return false }
+            // Buffer stage 6 assistant messages while streaming
+            if stage == 6 && msg.role == .assistant && msg.isStreaming {
+                return false
+            }
+            return true
         }
     }
 
@@ -368,14 +376,166 @@ final class PricingConsultantViewModel {
 
     // MARK: - Legacy Reshape
 
+    /// Force re-reshape using keyword heuristics (offline fallback).
+    func forceReshape(context: ModelContext? = nil) {
+        for i in messages.indices {
+            messages[i].stageNumber = nil
+        }
+        interviewProgress = .default
+        reshapeStages()
+        persistReshape(context: context)
+        logger.info("Force-reshaped \(self.messages.count) messages (keyword heuristics)")
+    }
+
+    /// AI-powered reshape: sends the transcript to the LLM to classify each
+    /// message into the correct interview stage. Results are stored in
+    /// `pendingReshape` for preview before the user confirms overwrite.
+    var isReshaping = false
+    var reshapeError: String?
+    var pendingReshape: [Int]?   // stage number per message index, awaiting confirmation
+
+    func aiReshape() {
+        guard !messages.isEmpty else { return }
+        isReshaping = true
+        reshapeError = nil
+        pendingReshape = nil
+
+        Task {
+            // Reshape uses Claude (the primary interview agent)
+            guard let anthropicKey = KeychainService.loadAnthropicAPIKey(), !anthropicKey.isEmpty else {
+                reshapeError = "No Anthropic API key available. Add one in settings."
+                isReshaping = false
+                return
+            }
+            let provider: any LLMProvider = AnthropicProvider(apiKey: anthropicKey)
+
+            // Build a numbered transcript
+            var transcript = ""
+            for (i, msg) in messages.enumerated() {
+                let role = msg.role == .user ? "Operator" : "Consultant"
+                let preview = String(msg.content.prefix(300))
+                transcript += "[\(i)] \(role): \(preview)\n\n"
+            }
+
+            let systemPrompt = """
+            You are classifying messages in a pricing interview transcript into exactly 6 stages:
+            1 = Inventory (what tools/services does the operator offer)
+            2 = Demand (who are the users, usage patterns, philosophy/framing)
+            3 = Value (willingness to pay, economic value delivered, ROI)
+            4 = Cost (operator's cost to serve, margins, infrastructure)
+            5 = Constraints (free tiers, rate limits, surge pricing, pipeline rules)
+            6 = Recommendation (final pricing proposal, revenue projections, approval)
+
+            The interview flows forward through these stages in order. A stage may \
+            span multiple messages. Stages are never revisited — once the conversation \
+            moves to a later stage, earlier topics mentioned in passing do not change \
+            the stage assignment.
+
+            For each message index, output ONLY a JSON array of integers representing \
+            the stage number. Example for 5 messages: [1, 1, 2, 2, 3]
+
+            Output nothing else — no explanation, no markdown, just the JSON array.
+            """
+
+            let userMessage = "Classify each message:\n\n\(transcript)"
+            let apiMessages: [[String: String]] = [
+                ["role": "user", "content": userMessage]
+            ]
+
+            var response = ""
+            let stream = provider.streamCompletion(
+                messages: apiMessages,
+                systemPrompt: systemPrompt,
+                maxTokens: 1024
+            )
+            for await token in stream {
+                response += token
+            }
+
+            // Parse the JSON array from the response
+            let cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Extract JSON array even if wrapped in markdown code fence
+            let jsonString: String
+            if let start = cleaned.firstIndex(of: "["),
+               let end = cleaned.lastIndex(of: "]") {
+                jsonString = String(cleaned[start...end])
+            } else {
+                jsonString = cleaned
+            }
+
+            guard let data = jsonString.data(using: .utf8),
+                  let stages = try? JSONDecoder().decode([Int].self, from: data),
+                  !stages.isEmpty else {
+                reshapeError = "AI returned unexpected format. Got \(response.prefix(200))"
+                isReshaping = false
+                logger.warning("AI reshape parse failed: \(response.prefix(200))")
+                return
+            }
+
+            // Reconcile count: pad or trim to match message count
+            var reconciled = stages.map { max(1, min(6, $0)) }
+            let msgCount = messages.count
+            if reconciled.count < msgCount {
+                // Pad remaining messages with the last stage
+                let lastStage = reconciled.last ?? 1
+                reconciled.append(contentsOf: Array(repeating: lastStage, count: msgCount - reconciled.count))
+            } else if reconciled.count > msgCount {
+                reconciled = Array(reconciled.prefix(msgCount))
+            }
+
+            pendingReshape = reconciled
+
+            isReshaping = false
+            logger.info("AI reshape complete: \(stages)")
+        }
+    }
+
+    /// Accept the pending AI reshape and overwrite message stage tags.
+    func acceptReshape(context: ModelContext? = nil) {
+        guard let stages = pendingReshape, stages.count == messages.count else { return }
+        for i in messages.indices {
+            messages[i].stageNumber = stages[i]
+        }
+        // Update interview progress to the highest stage reached
+        if let maxStage = stages.max() {
+            let stageNames = ["", "inventory", "demand", "value", "cost", "constraints", "recommendation"]
+            interviewProgress = InterviewProgress(
+                stage: stageNames[maxStage],
+                stageNumber: maxStage,
+                insights: interviewProgress.insights
+            )
+        }
+        pendingReshape = nil
+        persistReshape(context: context)
+        logger.info("Accepted AI reshape")
+    }
+
+    /// Discard the pending reshape preview.
+    func discardReshape() {
+        pendingReshape = nil
+    }
+
+    private func persistReshape(context: ModelContext? = nil) {
+        if let campaign = currentCampaign {
+            campaign.messages = messages
+            campaign.interviewProgress = interviewProgress
+            try? context?.save()
+        }
+    }
+
     /// Re-tag messages that have nil stageNumber by parsing PROGRESS metadata
     /// or falling back to keyword heuristics.
+    ///
+    /// Stage progression is **monotonically increasing** — once we advance to
+    /// stage N, earlier-stage keywords in later messages won't drag us backward.
+    /// This matches how interviews actually flow: Inventory → Demand → Value →
+    /// Cost → Constraints → Recommendation.
     private func reshapeStages() {
         var currentStage = 1
 
         for i in messages.indices {
             if messages[i].stageNumber != nil {
-                currentStage = messages[i].stageNumber!
+                currentStage = max(currentStage, messages[i].stageNumber!)
                 continue
             }
 
@@ -383,7 +543,7 @@ final class PricingConsultantViewModel {
             if messages[i].role == .assistant {
                 let (stripped, progress) = parseAndStripProgress(from: messages[i].content)
                 if let progress {
-                    currentStage = progress.stageNumber
+                    currentStage = max(currentStage, progress.stageNumber)
                     messages[i].content = stripped
                     messages[i].stageNumber = currentStage
                     if progress.stageNumber > interviewProgress.stageNumber {
@@ -400,33 +560,80 @@ final class PricingConsultantViewModel {
                 }
             }
 
-            // Heuristic: classify by keyword presence in the message content
+            // Heuristic: classify by transition-signaling phrases in the content.
+            // Only advance forward — never regress to an earlier stage.
             let text = messages[i].content.lowercased()
-            let detectedStage = classifyStageByKeywords(text)
-            if let detected = detectedStage {
+            if let detected = classifyStageByKeywords(text), detected > currentStage {
                 currentStage = detected
             }
             messages[i].stageNumber = currentStage
         }
     }
 
-    /// Simple keyword heuristic to guess which interview stage a message belongs to.
+    /// Keyword heuristic to detect interview stage transitions.
+    ///
+    /// Keywords are chosen to match **transition signals** — the phrases that
+    /// indicate the consultant is moving to a new topic — not general vocabulary
+    /// that appears throughout the interview. This prevents early messages that
+    /// mention "value" or "cost" in passing from triggering premature stage jumps.
     private func classifyStageByKeywords(_ text: String) -> Int? {
-        // Check from later stages first (more specific keywords)
+        // Scored by counting distinct keyword hits per stage.
+        // A stage needs at least 2 hits to trigger, reducing false positives
+        // from stray keyword mentions. Check only stages > 1 since stage 1 is default.
         let stageKeywords: [(Int, [String])] = [
-            (6, ["recommend", "final", "approve", "approved", "campaign draft", "here's the pricing", "bluf"]),
-            (5, ["constraint", "free tier", "rate limit", "promotional", "fairness", "pipeline"]),
-            (4, ["cost", "margin", "infrastructure", "serving cost", "overhead", "expense"]),
-            (3, ["value", "willingness to pay", "wtp", "competitive", "worth", "perceive"]),
-            (2, ["demand", "usage pattern", "market size", "adoption", "how many", "traffic"]),
-            (1, ["tool", "inventory", "offer", "category", "what do you", "describe your"]),
+            (6, ["draft campaign", "here's the pricing", "final design",
+                 "bluf", "proposed tool pricing", "campaign json", "approve this",
+                 "do you approve", "variant a", "variant b", "variant c",
+                 "revenue projection", "revenue forecast", "tam / sam", "tam/sam",
+                 "monthly revenue", "3-scenario", "three scenario"]),
+            (5, ["constraint question", "treat specially", "rate limiting",
+                 "surge pricing", "free tier", "pipeline", "free_trial",
+                 "loyalty_discount", "bulk_bonus", "permanently free",
+                 "should remain free", "demand control"]),
+            (4, ["cost side", "cost you to serve", "what does it cost",
+                 "marginal cost", "near-zero", "cost structure", "cost floor",
+                 "monthly subscription", "hosting cost", "infrastructure cost",
+                 "backend cost", "serving cost", "azure vm"]),
+            (3, ["value question", "value ceiling", "value signal",
+                 "willingness to pay", "wtp", "economic value",
+                 "cognitive leverage", "how much would", "pricing power",
+                 "price sensitiv", "worth paying", "roi",
+                 "productive session", "career or business outcome"]),
+            (2, ["demand", "philosophy", "primary users", "who are your",
+                 "usage pattern", "how frequently", "who's calling",
+                 "target market", "user profile", "high-loyalty",
+                 "low-frequency", "business-first", "mission-driven"]),
         ]
+
+        var bestStage: Int?
+        var bestScore = 0
+
         for (stage, keywords) in stageKeywords {
-            if keywords.contains(where: { text.contains($0) }) {
-                return stage
+            let score = keywords.filter({ text.contains($0) }).count
+            if score >= 2 && score > bestScore {
+                bestScore = score
+                bestStage = stage
             }
         }
-        return nil
+
+        // Single-keyword fallback only for very distinctive phrases
+        if bestStage == nil {
+            let uniqueTransitions: [(Int, [String])] = [
+                (6, ["draft campaign", "campaign json", "3-scenario", "tam / sam"]),
+                (5, ["free_trial", "loyalty_discount", "bulk_bonus", "surge_pricing"]),
+                (4, ["cost you to serve", "near-zero marginal cost", "cost floor"]),
+                (3, ["willingness to pay", "cognitive leverage", "productive session"]),
+                (2, ["primary users", "who's calling these tools"]),
+            ]
+            for (stage, phrases) in uniqueTransitions {
+                if phrases.contains(where: { text.contains($0) }) {
+                    bestStage = stage
+                    break
+                }
+            }
+        }
+
+        return bestStage
     }
 
     /// Delete a campaign from the store.
