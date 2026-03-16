@@ -345,6 +345,7 @@ final class PricingConsultantViewModel {
     }
 
     /// Load a saved campaign's messages into the conversation.
+    /// Automatically reshapes legacy messages that lack stage tags.
     func loadCampaign(_ campaign: Campaign) {
         messages = campaign.messages
         currentCampaign = campaign
@@ -352,7 +353,80 @@ final class PricingConsultantViewModel {
         revenueProjections = campaign.revenueProjections
         isStreaming = false
         viewingStageNumber = nil
+
+        // Reshape legacy campaigns that lack stage numbers
+        let untaggedCount = messages.filter({ $0.stageNumber == nil }).count
+        if untaggedCount > 0 && !messages.isEmpty {
+            logger.info("Reshaping \(untaggedCount) untagged messages in '\(campaign.name)'")
+            reshapeStages()
+            // Persist the reshaped tags back
+            campaign.messages = messages
+        }
+
         logger.info("Loaded campaign '\(campaign.name)' (\(self.messages.count) messages)")
+    }
+
+    // MARK: - Legacy Reshape
+
+    /// Re-tag messages that have nil stageNumber by parsing PROGRESS metadata
+    /// or falling back to keyword heuristics.
+    private func reshapeStages() {
+        var currentStage = 1
+
+        for i in messages.indices {
+            if messages[i].stageNumber != nil {
+                currentStage = messages[i].stageNumber!
+                continue
+            }
+
+            // Try to recover stage from PROGRESS comment in assistant messages
+            if messages[i].role == .assistant {
+                let (stripped, progress) = parseAndStripProgress(from: messages[i].content)
+                if let progress {
+                    currentStage = progress.stageNumber
+                    messages[i].content = stripped
+                    messages[i].stageNumber = currentStage
+                    if progress.stageNumber > interviewProgress.stageNumber {
+                        interviewProgress = progress
+                    }
+
+                    // Also strip REVENUE if present
+                    let (strippedRevenue, projections) = parseAndStripRevenue(from: messages[i].content)
+                    if let projections {
+                        messages[i].content = strippedRevenue
+                        revenueProjections = projections
+                    }
+                    continue
+                }
+            }
+
+            // Heuristic: classify by keyword presence in the message content
+            let text = messages[i].content.lowercased()
+            let detectedStage = classifyStageByKeywords(text)
+            if let detected = detectedStage {
+                currentStage = detected
+            }
+            messages[i].stageNumber = currentStage
+        }
+    }
+
+    /// Simple keyword heuristic to guess which interview stage a message belongs to.
+    private func classifyStageByKeywords(_ text: String) -> Int? {
+        // Check from later stages first (more specific keywords)
+        let stageKeywords: [(Int, [String])] = [
+            (6, ["recommend", "final", "approve", "approved", "campaign draft", "here's the pricing", "bluf"]),
+            (5, ["constraint", "free tier", "rate limit", "promotional", "fairness", "pipeline"]),
+            (4, ["cost", "margin", "infrastructure", "serving cost", "overhead", "expense"]),
+            (3, ["value", "willingness to pay", "wtp", "competitive", "worth", "perceive"]),
+            (2, ["demand", "usage pattern", "market size", "adoption", "how many", "traffic"]),
+            (1, ["tool", "inventory", "offer", "category", "what do you", "describe your"]),
+        ]
+        for (stage, keywords) in stageKeywords {
+            if keywords.contains(where: { text.contains($0) }) {
+                return stage
+            }
+        }
+        return nil
     }
 
     /// Delete a campaign from the store.
@@ -363,6 +437,48 @@ final class PricingConsultantViewModel {
         }
         context.delete(campaign)
         try? context.save()
+    }
+
+    // MARK: - Fork / What-If
+
+    /// Fork the conversation from a specific message index, replacing the user message
+    /// at that index with new text and replaying from there.
+    /// Returns the messages that were truncated (for undo/comparison).
+    @discardableResult
+    func forkFromMessage(at index: Int, newText: String, context: ConsultantContext) -> [AssistantMessage] {
+        guard index < messages.count else { return [] }
+
+        // Save truncated tail for potential undo
+        let truncated = Array(messages.suffix(from: index))
+
+        // Trim conversation to just before the fork point
+        messages = Array(messages.prefix(index))
+
+        // Send the new/edited message as a fresh turn
+        send(newText, context: context)
+
+        logger.info("Forked conversation at message \(index), truncated \(truncated.count) messages")
+        return truncated
+    }
+
+    /// Create a what-if branch: forks and returns the branch without affecting
+    /// the main conversation. Caller decides whether to persist.
+    func whatIfBranch(at index: Int, newText: String, context: ConsultantContext) -> (branchMessages: [AssistantMessage], truncated: [AssistantMessage]) {
+        // Snapshot current state
+        let savedMessages = messages
+        let savedProgress = interviewProgress
+        let savedProjections = revenueProjections
+
+        // Fork
+        let truncated = forkFromMessage(at: index, newText: newText, context: context)
+        let branchMessages = messages
+
+        // Restore original state
+        messages = savedMessages
+        interviewProgress = savedProgress
+        revenueProjections = savedProjections
+
+        return (branchMessages, truncated)
     }
 
     // MARK: - Export

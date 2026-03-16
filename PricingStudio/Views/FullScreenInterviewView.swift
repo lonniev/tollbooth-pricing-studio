@@ -179,41 +179,141 @@ struct FullScreenInterviewView: View {
     @ViewBuilder
     private var blufSection: some View {
         let insights = consultantVM.interviewProgress.insights
+        let projections = consultantVM.revenueProjections
 
         VStack(alignment: .leading, spacing: 12) {
             Label("Bottom Line Up Front", systemImage: "star.fill")
                 .font(.title3.bold())
 
-            VStack(alignment: .leading, spacing: 8) {
+            // Infographic card row
+            HStack(spacing: 16) {
+                // Revenue headline
+                if let moderate = projections?.moderate {
+                    blufMetric(
+                        icon: "bitcoinsign.circle.fill",
+                        value: "\(moderate.revenueSats.formatted())",
+                        unit: "sats/mo",
+                        subtitle: "$\(String(format: "%.2f", moderate.revenueUsd))/mo",
+                        color: .green
+                    )
+                }
+
+                // Philosophy
                 if let philosophy = insights.philosophy {
-                    HStack(spacing: 6) {
-                        Image(systemName: philosophyIcon(philosophy))
-                            .foregroundStyle(philosophyColor(philosophy))
-                        Text("Recommended approach: **\(philosophy.capitalized)**")
-                    }
+                    blufMetric(
+                        icon: philosophyIcon(philosophy),
+                        value: philosophy.capitalized,
+                        unit: "approach",
+                        subtitle: nil,
+                        color: philosophyColor(philosophy)
+                    )
                 }
-                if let demand = insights.demandSummary {
-                    Text("Demand: \(demand)")
+
+                // Tool count
+                if let tc = projections?.toolCount {
+                    blufMetric(
+                        icon: "hammer.fill",
+                        value: "\(tc)",
+                        unit: "tools",
+                        subtitle: projections?.avgPriceSats.map { "\($0) sats avg" },
+                        color: .blue
+                    )
                 }
-                if let value = insights.valueSummary {
-                    Text("Value: \(value)")
+
+                // Top constraint
+                if let constraints = insights.constraintsConsidered, let first = constraints.first {
+                    blufMetric(
+                        icon: "slider.horizontal.3",
+                        value: first,
+                        unit: "key constraint",
+                        subtitle: constraints.count > 1 ? "+\(constraints.count - 1) more" : nil,
+                        color: .orange
+                    )
                 }
-                if let cost = insights.costSummary {
-                    Text("Cost: \(cost)")
-                }
-                if let constraints = insights.constraintsConsidered, !constraints.isEmpty {
-                    Text("Key constraints: \(constraints.joined(separator: ", "))")
-                }
+
+                // Campaign status
                 if let draft = insights.campaignDraft {
-                    Label("Campaign status: \(draft)", systemImage: draft == "approved" ? "checkmark.seal.fill" : "doc.text")
-                        .foregroundStyle(draft == "approved" ? .green : .secondary)
+                    blufMetric(
+                        icon: draft == "approved" ? "checkmark.seal.fill" : "doc.text",
+                        value: draft.capitalized,
+                        unit: "status",
+                        subtitle: nil,
+                        color: draft == "approved" ? .green : .secondary
+                    )
                 }
             }
-            .font(.subheadline)
             .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+            .frame(maxWidth: .infinity)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+
+            // Revenue range bar (conservative → optimistic)
+            if let conservative = projections?.conservative,
+               let optimistic = projections?.optimistic {
+                HStack(spacing: 8) {
+                    Text("\(conservative.revenueSats.formatted())")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+
+                    GeometryReader { geo in
+                        let moderateRatio = projections?.moderate.map {
+                            CGFloat($0.revenueSats - conservative.revenueSats) /
+                            CGFloat(max(optimistic.revenueSats - conservative.revenueSats, 1))
+                        } ?? 0.5
+
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue, .green, .orange],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(height: 8)
+
+                            // Moderate marker
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 12, height: 12)
+                                .shadow(radius: 1)
+                                .offset(x: geo.size.width * moderateRatio - 6)
+                        }
+                    }
+                    .frame(height: 12)
+
+                    Text("\(optimistic.revenueSats.formatted())")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+
+                    Text("sats/mo")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 4)
+            }
         }
+    }
+
+    @ViewBuilder
+    private func blufMetric(icon: String, value: String, unit: String, subtitle: String?, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(color)
+            Text(value)
+                .font(.headline.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(unit)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder

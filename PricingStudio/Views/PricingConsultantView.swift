@@ -22,6 +22,9 @@ struct PricingConsultantView: View {
     @State private var showingFullScreen = false
     @State private var secondOpinionVM = SecondOpinionViewModel()
     @State private var saveName = ""
+    @State private var editingMessageIndex: Int?
+    @State private var editedMessageText = ""
+    @State private var showingForkSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +42,7 @@ struct PricingConsultantView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
 
-                InsightSummaryCard(progress: consultantVM.interviewProgress)
+                InsightSummaryCard(progress: consultantVM.interviewProgress, projections: consultantVM.revenueProjections)
                     .padding(.horizontal)
                 Divider()
             }
@@ -126,6 +129,23 @@ struct PricingConsultantView: View {
                         campaignName: consultantVM.currentCampaign?.name
                     )
                     secondOpinionVM.requestReview(summary: summary)
+                }
+            )
+        }
+        .sheet(isPresented: $showingForkSheet) {
+            ForkInterviewSheet(
+                messageIndex: editingMessageIndex ?? 0,
+                initialText: editedMessageText,
+                isUserMessage: editingMessageIndex.flatMap { consultantVM.messages.indices.contains($0) ? consultantVM.messages[$0].role == .user : false } ?? false,
+                onFork: { newText in
+                    guard let idx = editingMessageIndex else { return }
+                    consultantVM.forkFromMessage(at: idx, newText: newText, context: context)
+                    editingMessageIndex = nil
+                    editedMessageText = ""
+                },
+                onCancel: {
+                    editingMessageIndex = nil
+                    editedMessageText = ""
                 }
             )
         }
@@ -473,6 +493,8 @@ struct PricingConsultantView: View {
 
     @ViewBuilder
     private func bubble(_ message: AssistantMessage) -> some View {
+        let messageIndex = consultantVM.messages.firstIndex(where: { $0.id == message.id })
+
         HStack(alignment: .top) {
             if message.role == .user { Spacer(minLength: 40) }
 
@@ -494,6 +516,22 @@ struct PricingConsultantView: View {
                 if message.isStreaming {
                     ProgressView()
                         .controlSize(.mini)
+                }
+            }
+            .contextMenu {
+                if let idx = messageIndex, !message.isStreaming {
+                    Button {
+                        editingMessageIndex = idx
+                        // For user messages, edit the text directly.
+                        // For assistant messages, prompt for a replacement user message.
+                        editedMessageText = message.role == .user ? message.content : ""
+                        showingForkSheet = true
+                    } label: {
+                        Label(
+                            message.role == .user ? "Edit & Replay" : "What-If from Here",
+                            systemImage: "arrow.triangle.branch"
+                        )
+                    }
                 }
             }
 
@@ -770,6 +808,7 @@ private struct InterviewStepperView: View {
 
 private struct InsightSummaryCard: View {
     let progress: InterviewProgress
+    var projections: CampaignProjections?
     @State private var isExpanded = false
 
     private var hasAnyInsight: Bool {
@@ -782,6 +821,31 @@ private struct InsightSummaryCard: View {
 
     var body: some View {
         if hasAnyInsight {
+            // Revenue headline (always visible, not inside disclosure)
+            if let moderate = projections?.moderate {
+                HStack(spacing: 12) {
+                    Image(systemName: "bitcoinsign.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(moderate.revenueSats.formatted()) sats/mo")
+                            .font(.caption.bold().monospacedDigit())
+                        Text("$\(String(format: "%.2f", moderate.revenueUsd))/mo moderate")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let conservative = projections?.conservative,
+                       let optimistic = projections?.optimistic {
+                        Text("\(conservative.revenueSats.formatted())–\(optimistic.revenueSats.formatted())")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(8)
+                .background(Color.green.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            }
+
             DisclosureGroup(isExpanded: $isExpanded) {
                 VStack(alignment: .leading, spacing: 6) {
                     if let tools = progress.insights.toolsIdentified {

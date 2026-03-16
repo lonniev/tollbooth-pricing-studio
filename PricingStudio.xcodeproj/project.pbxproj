@@ -100,6 +100,7 @@
 		1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */; };
 		E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9844C99A73C4999A2235C1B /* PricingDiffView.swift */; };
 		8229C70DF9CA42748FCDC159 /* FullScreenInterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */; };
+		1A9E319668E94E4F9FFDF88F /* ForkInterviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6094B651CBBB4BC48F72E6F2 /* ForkInterviewSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -199,6 +200,7 @@
 		CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPickerView.swift; sourceTree = "<group>"; };
 		D9844C99A73C4999A2235C1B /* PricingDiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingDiffView.swift; sourceTree = "<group>"; };
 		075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenInterviewView.swift; sourceTree = "<group>"; };
+		6094B651CBBB4BC48F72E6F2 /* ForkInterviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForkInterviewSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -346,6 +348,7 @@
 		AA00000100000000000000D4 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				6094B651CBBB4BC48F72E6F2 /* ForkInterviewSheet.swift */,
 				075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */,
 				D9844C99A73C4999A2235C1B /* PricingDiffView.swift */,
 				CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */,
@@ -535,6 +538,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A9E319668E94E4F9FFDF88F /* ForkInterviewSheet.swift in Sources */,
 				73CAFAD62513454B9CD36981 /* OperatorProofService.swift in Sources */,
 				9E3FAA7C1B6E45B59CBDB128 /* ToolRole.swift in Sources */,
 				1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */,
