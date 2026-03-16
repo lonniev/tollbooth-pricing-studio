@@ -19,6 +19,7 @@ struct PricingConsultantView: View {
     @State private var showingLoadSheet = false
     @State private var showingCompareSheet = false
     @State private var showingSecondOpinion = false
+    @State private var showingFullScreen = false
     @State private var secondOpinionVM = SecondOpinionViewModel()
     @State private var saveName = ""
 
@@ -87,6 +88,15 @@ struct PricingConsultantView: View {
         }
         .sheet(isPresented: $showingAPIKeySheet) {
             AssistantAPIKeySheet()
+        }
+        .fullScreenCover(isPresented: $showingFullScreen) {
+            FullScreenInterviewView(
+                consultantVM: consultantVM,
+                context: context,
+                operatorNpub: operatorNpub,
+                onApplyJSON: onApplyJSON,
+                onDismiss: { showingFullScreen = false }
+            )
         }
         .sheet(isPresented: $showingPromptEditor) {
             PromptEditorSheet(consultantVM: consultantVM)
@@ -242,6 +252,14 @@ struct PricingConsultantView: View {
             .disabled(consultantVM.messages.isEmpty)
 
             Button {
+                showingFullScreen = true
+            } label: {
+                Label("Expand", systemImage: "arrow.up.left.and.arrow.down.right")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(consultantVM.messages.isEmpty)
+
+            Button {
                 showingAPIKeySheet = true
             } label: {
                 Label("API Key", systemImage: "key")
@@ -301,10 +319,22 @@ struct PricingConsultantView: View {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     if consultantVM.messages.isEmpty {
                         emptyState
-                    } else {
+                    } else if consultantVM.viewingStageNumber != nil {
+                        // Stage-filtered view: show only messages for the selected stage
                         ForEach(consultantVM.displayedMessages) { message in
                             bubble(message)
                                 .id(message.id)
+                        }
+                    } else {
+                        // All-stages view: group messages by phase with section headers
+                        let grouped = groupMessagesByStage(consultantVM.messages)
+                        ForEach(grouped, id: \.stage) { group in
+                            stageSectionHeader(stage: group.stage)
+                                .id("stage-header-\(group.stage)")
+                            ForEach(group.messages) { message in
+                                bubble(message)
+                                    .id(message.id)
+                            }
                         }
                     }
                 }
@@ -317,6 +347,58 @@ struct PricingConsultantView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Group messages into contiguous stage sections for display.
+    private func groupMessagesByStage(_ messages: [AssistantMessage]) -> [StageGroup] {
+        var groups: [StageGroup] = []
+        var currentStage = 0
+        var currentMessages: [AssistantMessage] = []
+
+        for message in messages {
+            let stage = message.stageNumber ?? currentStage
+            if stage != currentStage && !currentMessages.isEmpty {
+                groups.append(StageGroup(stage: currentStage, messages: currentMessages))
+                currentMessages = []
+            }
+            currentStage = stage
+            currentMessages.append(message)
+        }
+        if !currentMessages.isEmpty {
+            groups.append(StageGroup(stage: currentStage, messages: currentMessages))
+        }
+        return groups
+    }
+
+    @ViewBuilder
+    private func stageSectionHeader(stage: Int) -> some View {
+        let label = stage > 0 && stage <= InterviewProgress.stageLabels.count
+            ? InterviewProgress.stageLabels[stage - 1]
+            : "Stage \(stage)"
+        let icon = stageIcon(stage)
+
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(Color.accentColor)
+            Text("Phase \(stage): \(label)")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            VStack { Divider() }
+        }
+        .padding(.top, stage > 1 ? 16 : 4)
+    }
+
+    private func stageIcon(_ stage: Int) -> String {
+        switch stage {
+        case 1: return "hammer"
+        case 2: return "chart.bar"
+        case 3: return "dollarsign.circle"
+        case 4: return "gauge.with.dots.needle.bottom.50percent"
+        case 5: return "slider.horizontal.3"
+        case 6: return "star.fill"
+        default: return "circle"
         }
     }
 
@@ -361,7 +443,7 @@ struct PricingConsultantView: View {
                     Label("Value — what callers will pay", systemImage: "3.circle")
                     Label("Cost — what it costs you to serve", systemImage: "4.circle")
                     Label("Constraints — promotional mechanics", systemImage: "5.circle")
-                    Label("Synthesis — draft + refine", systemImage: "6.circle")
+                    Label("Recommendation — draft + refine", systemImage: "6.circle")
                 }
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -463,6 +545,13 @@ struct PricingConsultantView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Stage Group
+
+    private struct StageGroup {
+        let stage: Int
+        let messages: [AssistantMessage]
     }
 
     // MARK: - Actions
@@ -779,7 +868,7 @@ private struct CampaignComparisonSheet: View {
             ContentUnavailableView(
                 "Not Enough Data",
                 systemImage: "chart.bar.xaxis",
-                description: Text("At least 2 campaigns with revenue projections are needed. Complete the Synthesis stage to generate projections.")
+                description: Text("At least 2 campaigns with revenue projections are needed. Complete the Recommendation stage to generate projections.")
             )
         } else {
             List {

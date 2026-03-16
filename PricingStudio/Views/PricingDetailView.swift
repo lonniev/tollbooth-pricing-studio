@@ -6,6 +6,8 @@ struct PricingDetailView: View {
     @State private var isEditingPipeline = false
     @State private var saveError: String?
     @State private var showSaveSuccess = false
+    @State private var showingSaveConfirmation = false
+    @State private var showingDiff = false
 
     var body: some View {
         Group {
@@ -78,6 +80,21 @@ struct PricingDetailView: View {
                     unifiedSaveBar
                 }
             }
+            .sheet(isPresented: $showingDiff) {
+                NavigationStack {
+                    PricingDiffView(
+                        modelA: model,
+                        modelB: viewModel.mergedPreview(from: model),
+                        labelA: "Current",
+                        labelB: "With Edits"
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showingDiff = false }
+                        }
+                    }
+                }
+            }
             .alert("Save Failed", isPresented: Binding(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
@@ -111,6 +128,13 @@ struct PricingDetailView: View {
                     .foregroundStyle(.green)
             }
 
+            Button("Compare") {
+                showingDiff = true
+            }
+            .font(.caption)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
             Button("Reset All") {
                 viewModel.resetAllEdits()
                 isEditingPipeline = false
@@ -120,22 +144,34 @@ struct PricingDetailView: View {
             .controlSize(.small)
 
             Button("Save to Operator") {
-                Task {
-                    do {
-                        try await viewModel.savePricing(for: target)
-                        isEditingPipeline = false
-                        showSaveSuccess = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            showSaveSuccess = false
-                        }
-                    } catch {
-                        saveError = error.localizedDescription
-                    }
-                }
+                showingSaveConfirmation = true
             }
             .font(.caption)
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
+            .confirmationDialog(
+                "Save Changes",
+                isPresented: $showingSaveConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Save to \(target.displayName)") {
+                    Task {
+                        do {
+                            try await viewModel.savePricing(for: target)
+                            isEditingPipeline = false
+                            showSaveSuccess = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                showSaveSuccess = false
+                            }
+                        } catch {
+                            saveError = error.localizedDescription
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This will overwrite the operator's active pricing model with your \(editSummary). This action cannot be undone.")
+            }
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -206,6 +242,9 @@ struct PricingDetailView: View {
                             .foregroundStyle(.tertiary)
                             .monospacedDigit()
                     }
+                }
+                if let versions = viewModel.serviceVersions {
+                    ServiceVersionsRow(versions: versions)
                 }
             }
             Spacer()
@@ -293,5 +332,75 @@ private struct MemberInfoButton: View {
         }
         .padding()
         .frame(idealWidth: 300)
+    }
+}
+
+// MARK: - Service Versions Row
+
+private struct ServiceVersionsRow: View {
+    let versions: [String: String]
+    @State private var expanded = false
+
+    /// Display order: show the MCP package first, then tollbooth_dpyc, then others.
+    private var sortedVersions: [(key: String, value: String)] {
+        let priority = ["excalibur_mcp", "tollbooth_authority", "tollbooth_dpyc", "fastmcp"]
+        return versions.sorted { a, b in
+            let ai = priority.firstIndex(of: a.key) ?? priority.count
+            let bi = priority.firstIndex(of: b.key) ?? priority.count
+            return ai < bi
+        }
+    }
+
+    /// Short label for the primary package version.
+    private var primaryVersion: (name: String, version: String)? {
+        let preferred = ["excalibur_mcp", "tollbooth_authority"]
+        for key in preferred {
+            if let v = versions[key] {
+                return (key, v)
+            }
+        }
+        return sortedVersions.first.map { ($0.key, $0.value) }
+    }
+
+    var body: some View {
+        if let primary = primaryVersion {
+            Button {
+                withAnimation { expanded.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "shippingbox")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("\(formatName(primary.name)) \(primary.version)")
+                        .font(.caption)
+                        .monospaced()
+                        .foregroundStyle(.secondary)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(sortedVersions, id: \.key) { entry in
+                        HStack(spacing: 6) {
+                            Text(formatName(entry.key))
+                                .frame(width: 120, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                            Text(entry.value)
+                                .monospaced()
+                        }
+                        .font(.caption2)
+                    }
+                }
+                .padding(.leading, 20)
+            }
+        }
+    }
+
+    private func formatName(_ name: String) -> String {
+        name.replacingOccurrences(of: "_", with: " ")
     }
 }

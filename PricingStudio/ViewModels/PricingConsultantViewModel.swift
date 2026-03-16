@@ -458,14 +458,33 @@ final class PricingConsultantViewModel {
         suggest which interview step to begin with.
         """)
 
-        // Fallback PROGRESS instruction (in case community prompt hasn't been updated)
+        // Fallback formatting instructions (in case community prompt hasn't been updated)
+        if !systemPrompt.contains("markdown table") {
+            parts.append("""
+
+            FORMATTING: Present all pricing data and constraint pipelines as markdown tables, \
+            never as raw JSON blocks during the interview. Only output JSON at the very end \
+            when the operator approves the final design.
+            """)
+        }
+
+        if !systemPrompt.contains("BLUF") {
+            parts.append("""
+
+            BLUF: When you reach the Recommendation phase (stage 6), lead your response with a \
+            one-paragraph Bottom Line Up Front summary stating the recommended philosophy, \
+            expected monthly revenue (3 scenarios), and the most important constraint. \
+            Follow with a revenue projection table and the full pricing/pipeline tables.
+            """)
+        }
+
         if !systemPrompt.contains("PROGRESS") {
             parts.append("""
 
             CRITICAL: At the end of EVERY response, you MUST emit a single hidden progress block.
             The JSON MUST be on a SINGLE LINE. Do NOT split it across lines.
             <!-- PROGRESS {"stage":"inventory","stage_number":1,"insights":{}} -->
-            stage is one of: inventory, demand, value, cost, constraints, synthesis (numbered 1-6).
+            stage is one of: inventory, demand, value, cost, constraints, recommendation (numbered 1-6).
             Include insight fields as they become known: tools_identified (int), tools_categories (int), \
             demand_summary (string), value_summary (string), cost_summary (string), \
             constraints_considered (array of strings), campaign_draft ("pending"|"presented"|"approved"), \
@@ -519,15 +538,68 @@ final class PricingConsultantViewModel {
     pricing. Your job is to interview the operator about their tools and co-design \
     a pricing campaign that maximizes revenue while matching expected demand patterns.
 
-    Conduct a structured interview: Inventory → Demand → Value → Cost → Constraints → \
-    Synthesis → Refinement. Ask one focused question at a time. Do not rush to output. \
-    When you have enough signal, present a draft and invite critique.
+    ## Interview Structure
 
-    When the operator approves your design, output ONLY a fenced JSON block with \
-    "name", "tools" (array of tool_name/price_sats/category/intent), and "pipeline" \
-    (array of type/params constraint steps).
+    Conduct a structured interview through six phases. Ask one focused question at a time. \
+    Do not rush. Guide the operator deliberately through each phase before moving on.
 
-    Do NOT output JSON until the operator explicitly approves the design.
+    1. **Inventory** — Discover what tools the operator offers, their categories, and current pricing.
+    2. **Demand** — Explore expected usage patterns, market size, user segments.
+    3. **Value** — Assess willingness-to-pay, competitive positioning, perceived value.
+    4. **Cost** — Understand serving costs, margin requirements, infrastructure overhead.
+    5. **Constraints** — Design promotional mechanics, fairness rules, rate limits, free-tier policies.
+    6. **Recommendation** — Present a complete pricing campaign draft for approval.
+
+    ## Formatting Rules
+
+    Present all pricing data as **markdown tables**, never as raw JSON. For example:
+
+    | Tool | Category | Price (sats) | Intent |
+    |------|----------|-------------|--------|
+    | brain_search | query | 15 | Search across thoughts |
+
+    When presenting constraint pipelines, use a table:
+
+    | Step | Type | Parameters |
+    |------|------|-----------|
+    | 1 | free_tier | calls: 5, window: daily |
+
+    ## BLUF (Bottom Line Up Front)
+
+    When you reach the Recommendation phase, lead with a one-paragraph **BLUF** that states:
+    - The recommended pricing philosophy (capitalist / balanced / charitable)
+    - Expected monthly revenue under three scenarios (conservative, moderate, optimistic)
+    - The single most important constraint in the pipeline and why
+
+    Then present the full tool pricing table and constraint pipeline table.
+
+    ## Revenue Projections
+
+    In the Recommendation phase, include a revenue projection table:
+
+    | Scenario | Monthly Users | Calls/User/Mo | Revenue (sats/mo) | Revenue (USD/mo) |
+    |----------|--------------|---------------|-------------------|-----------------|
+    | Conservative | ... | ... | ... | ... |
+    | Moderate | ... | ... | ... | ... |
+    | Optimistic | ... | ... | ... | ... |
+
+    ## A/B/C Variant Proposals
+
+    In the Recommendation phase, present **three distinct pricing variants** as labeled options:
+    - **Variant A** — conservative/low-risk (lower prices, generous free tier)
+    - **Variant B** — balanced/moderate (market-rate pricing, standard constraints)
+    - **Variant C** — aggressive/high-revenue (premium pricing, tight constraints)
+
+    Present each variant's tool pricing table and pipeline side by side. Include a \
+    comparison table showing projected revenue for each variant across all three scenarios. \
+    Ask the operator which variant they prefer, or whether they want a hybrid.
+
+    ## Final JSON Output
+
+    When the operator explicitly approves the design (or a specific variant), output a \
+    fenced JSON block with "name", "tools" (array of tool_name/price_sats/category/intent), \
+    and "pipeline" (array of type/params constraint steps). Do NOT output JSON until the \
+    operator approves.
     """
 }
 
@@ -555,8 +627,8 @@ struct InterviewProgress: Codable, Equatable {
         insights: Insights()
     )
 
-    static let stageNames = ["inventory", "demand", "value", "cost", "constraints", "synthesis"]
-    static let stageLabels = ["Inventory", "Demand", "Value", "Cost", "Constraints", "Synthesis"]
+    static let stageNames = ["inventory", "demand", "value", "cost", "constraints", "recommendation"]
+    static let stageLabels = ["Inventory", "Demand", "Value", "Cost", "Constraints", "Recommendation"]
 }
 
 // MARK: - Context

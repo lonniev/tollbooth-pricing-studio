@@ -7,6 +7,11 @@ struct SettingsSheet: View {
     @State private var newRelayURL = ""
     @State private var showingValidationError = false
 
+    // API Keys
+    @State private var anthropicKey: String = ""
+    @State private var xaiKey: String = ""
+    @State private var keySaveStatus: String?
+
     private var isValidNewRelay: Bool {
         newRelayURL.hasPrefix("wss://") && newRelayURL.count > 6
     }
@@ -14,6 +19,73 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                // MARK: - AI Agent Keys
+
+                Section {
+                    SecureField("sk-ant-...", text: $anthropicKey)
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                } header: {
+                    Label("Anthropic API Key", systemImage: "brain")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Powers the Pricing Consultant interview (Claude).")
+                        Link("Get a key at console.anthropic.com",
+                             destination: URL(string: "https://console.anthropic.com/settings/keys")!)
+                    }
+                }
+
+                Section {
+                    SecureField("xai-...", text: $xaiKey)
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                } header: {
+                    Label("xAI API Key", systemImage: "sparkles")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Powers the Second Opinion reviewer (Grok). Falls back to Claude if not set.")
+                        Link("Get a key at console.x.ai",
+                             destination: URL(string: "https://console.x.ai/")!)
+                    }
+                }
+
+                if let status = keySaveStatus {
+                    Section {
+                        Label(status, systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                }
+
+                Section {
+                    Button("Save API Keys") {
+                        saveAPIKeys()
+                    }
+                    .disabled(
+                        anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && xaiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+
+                    Button(role: .destructive) {
+                        KeychainService.deleteAnthropicAPIKey()
+                        KeychainService.deleteXAIAPIKey()
+                        anthropicKey = ""
+                        xaiKey = ""
+                        keySaveStatus = nil
+                    } label: {
+                        Label("Remove All API Keys", systemImage: "trash")
+                    }
+                    .disabled(
+                        KeychainService.loadAnthropicAPIKey() == nil
+                        && KeychainService.loadXAIAPIKey() == nil
+                        && anthropicKey.isEmpty
+                        && xaiKey.isEmpty
+                    )
+                }
+
+                // MARK: - Nostr Relays
+
                 Section {
                     ForEach(relaySettings.relays, id: \.self) { relay in
                         HStack {
@@ -50,13 +122,13 @@ struct SettingsSheet: View {
                         .buttonStyle(.borderless)
                     }
                 } header: {
-                    Text("Nostr Relays")
+                    Label("Nostr Relays", systemImage: "antenna.radiowaves.left.and.right")
                 } footer: {
-                    Text("WebSocket relay URLs used for Nostr communication. URLs must begin with wss://.")
+                    Text("WebSocket relay URLs for Nostr communication. Must begin with wss://.")
                 }
 
                 Section {
-                    Button("Reset to Defaults") {
+                    Button("Reset Relays to Defaults") {
                         withAnimation {
                             relaySettings.resetToDefaults()
                         }
@@ -71,6 +143,14 @@ struct SettingsSheet: View {
             } message: {
                 Text("Relay URLs must start with wss:// and contain a valid host.")
             }
+            .onAppear {
+                if let existing = KeychainService.loadAnthropicAPIKey() {
+                    anthropicKey = existing
+                }
+                if let existing = KeychainService.loadXAIAPIKey() {
+                    xaiKey = existing
+                }
+            }
         }
     }
 
@@ -79,6 +159,21 @@ struct SettingsSheet: View {
         ToolbarItem(placement: .confirmationAction) {
             Button("Done") { dismiss() }
         }
+    }
+
+    private func saveAPIKeys() {
+        let trimmedAnthropic = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedXAI = xaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        var saved: [String] = []
+        if !trimmedAnthropic.isEmpty {
+            try? KeychainService.saveAnthropicAPIKey(trimmedAnthropic)
+            saved.append("Anthropic")
+        }
+        if !trimmedXAI.isEmpty {
+            try? KeychainService.saveXAIAPIKey(trimmedXAI)
+            saved.append("xAI")
+        }
+        keySaveStatus = saved.isEmpty ? nil : "\(saved.joined(separator: " + ")) key\(saved.count > 1 ? "s" : "") saved"
     }
 
     private func addRelay() {

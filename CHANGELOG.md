@@ -1,10 +1,36 @@
 # Changelog
 
-## [1.4.0] — 2026-03-15
+## [1.4.0] — 2026-03-16
 
-Secure Courier credential delivery, Authority claim flow, and test infrastructure.
+Secure Courier credential delivery, Authority claim flow, operator identity
+proofs, stage-divided interview display, and AI-guided pricing enhancements.
 
 ### Added
+- **Operator proof (NIP-98)** — `OperatorProofService` signs kind-27235 Nostr events
+  to prove operator authority for RESTRICTED MCP tool calls without rebinding the
+  patron session; server-side verification via `tollbooth.operator_proof`
+- **Tool role classifier** — `ToolRole` enum (`.patron` / `.operator` / `.ambiguous`)
+  and `ToolRoleClassifier` to determine which identity a given MCP tool requires
+- **Identity picker** — `IdentityPickerView` sheet for selecting among stored operator
+  npubs when multiple identities exist or the tool role is ambiguous
+- **Pricing diff view** — `PricingDiffView` shows side-by-side comparison of two
+  pricing models: tool-by-tool price deltas, pipeline divergences, and total cost
+  summary with directional arrows
+- **Full-screen interview view** — `FullScreenInterviewView` with stage sidebar,
+  BLUF summary, revenue projection table, and per-phase transcript navigation;
+  accessible via expand button in consultant header
+- **Stage-divided message display** — interview messages grouped by phase with
+  section headers (icon + "Phase N: Label" + divider) in the default view
+- **BLUF prompt instruction** — fallback prompt now requires a Bottom Line Up Front
+  paragraph in the Recommendation phase: philosophy, 3 revenue scenarios, key constraint
+- **A/B/C variant proposals** — prompt instructs Claude to present three labeled
+  pricing variants (conservative, balanced, aggressive) with comparison table
+- **Markdown table formatting** — prompt requires all pricing data as markdown tables
+  instead of raw JSON during the interview; JSON only on final approval
+- **Save confirmation dialog** — "Save to Operator" button now shows a confirmation
+  dialog with operator name and edit summary before overwriting
+- **Compare button** — unified save bar includes "Compare" to preview edits as a
+  side-by-side diff before saving
 - **CourierPayload parser** — extracts `key = @@@value@@@` credential fields, greeting,
   anti-replay poison, and provenance metadata from Secure Courier DMs
 - **CourierPayloadView** — inline editable form for Courier credential fields with
@@ -37,6 +63,19 @@ Secure Courier credential delivery, Authority claim flow, and test infrastructur
 - **nsec memory zeroing** — `ClaimAuthoritySheet` clears nsec `@State` on dismiss
 
 ### Changed
+- `MCPService.callSetPricingModel()` accepts optional `operatorNpub` and sends
+  `operator_proof` in tool call arguments when provided
+- `PricingViewModel.savePricing()` resolves operator identity before saving,
+  passing proof to the MCP service
+- `PricingViewModel` gains `mergedPreview(from:)` for diff view integration
+- `PricingDetailView` gains save confirmation dialog and compare button in
+  unified save bar
+- `SettingsSheet` consolidated with AI API keys (Anthropic + xAI) alongside
+  Nostr relay configuration
+- `NostrEventKind` gains `.httpAuth` case (kind 27235) for operator proofs
+- `PricingConsultantViewModel` fallback prompt restructured: six named phases,
+  markdown table formatting, BLUF requirement, A/B/C variant instructions,
+  PROGRESS stage name corrected from "synthesis" to "recommendation"
 - `MCPService` gains `callRegisterAuthorityNpub()` for Authority claim protocol
 - `AuthorityCollectionViewModel` gains `ClaimStatus` state machine and
   `initiateAuthorityClaim()` async method; status resets to `.idle` on new claim

@@ -11,6 +11,7 @@ enum NostrEventKind: Int, Codable, Sendable {
     case seal = 13             // NIP-59 seal (middle layer)
     case privateDM = 14        // NIP-17 private DM (inner layer)
     case giftWrap = 1059       // NIP-17 gift wrap (outer layer)
+    case httpAuth = 27235      // NIP-98 HTTP Auth (operator proof)
 }
 
 // MARK: - Nostr Event
