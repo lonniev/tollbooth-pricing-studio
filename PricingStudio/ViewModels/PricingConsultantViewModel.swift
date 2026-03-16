@@ -61,12 +61,8 @@ final class PricingConsultantViewModel {
         }
     }
 
-    /// Non-nil when the latest assistant turn contains approved JSON.
-    var extractedPipelineJSON: String? {
-        guard let last = messages.last(where: { $0.role == .assistant && !$0.isStreaming }),
-              !last.content.isEmpty else { return nil }
-        return extractJSON(from: last.content)
-    }
+    /// Cached pipeline JSON extracted before display cleanup.
+    var extractedPipelineJSON: String?
 
     private let service = AnthropicService()
     private var originalPrompt: String = ""
@@ -242,6 +238,14 @@ final class PricingConsultantViewModel {
                 content = strippedRevenue
                 if let projections { self.revenueProjections = projections }
 
+                // Extract pipeline JSON before cleaning for display
+                if let json = self.extractJSON(from: content) {
+                    self.extractedPipelineJSON = json
+                }
+
+                // Clean remaining machine artifacts for display
+                content = self.cleanForDisplay(content)
+
                 self.messages[idx].content = content
                 self.messages[idx].stageNumber = self.interviewProgress.stageNumber
             }
@@ -293,6 +297,14 @@ final class PricingConsultantViewModel {
                 let (strippedRevenue, projections) = self.parseAndStripRevenue(from: content)
                 content = strippedRevenue
                 if let projections { self.revenueProjections = projections }
+
+                // Extract pipeline JSON before cleaning for display
+                if let json = self.extractJSON(from: content) {
+                    self.extractedPipelineJSON = json
+                }
+
+                // Clean remaining machine artifacts for display
+                content = self.cleanForDisplay(content)
 
                 self.messages[idx].content = content
                 self.messages[idx].stageNumber = self.interviewProgress.stageNumber
@@ -362,12 +374,27 @@ final class PricingConsultantViewModel {
         isStreaming = false
         viewingStageNumber = nil
 
+        // Clean machine artifacts from legacy messages and extract cached JSON
+        var cleaned = false
+        for i in messages.indices where messages[i].role == .assistant {
+            if let json = extractJSON(from: messages[i].content) {
+                extractedPipelineJSON = json
+            }
+            let before = messages[i].content
+            messages[i].content = cleanForDisplay(messages[i].content)
+            if messages[i].content != before { cleaned = true }
+        }
+
         // Reshape legacy campaigns that lack stage numbers
         let untaggedCount = messages.filter({ $0.stageNumber == nil }).count
         if untaggedCount > 0 && !messages.isEmpty {
             logger.info("Reshaping \(untaggedCount) untagged messages in '\(campaign.name)'")
             reshapeStages()
-            // Persist the reshaped tags back
+            cleaned = true
+        }
+
+        // Persist cleaned/reshaped content back
+        if cleaned {
             campaign.messages = messages
         }
 
@@ -724,9 +751,55 @@ final class PricingConsultantViewModel {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: - Content Cleanup
+
+    /// Strip machine-readable artifacts from the displayed message content:
+    /// - JSON code fences (```json ... ```) — extracted separately for pipeline apply
+    /// - HTML comments (<!-- ... -->) that weren't caught by PROGRESS/REVENUE parsing
+    /// - Excessive blank lines left after stripping
+    private func cleanForDisplay(_ text: String) -> String {
+        var cleaned = text
+
+        // Strip JSON code fences (keep the prose around them)
+        cleaned = cleaned.replacingOccurrences(
+            of: #"```json\s*\n[\s\S]*?\n```"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        // Strip any remaining HTML comments
+        cleaned = cleaned.replacingOccurrences(
+            of: #"<!--[\s\S]*?-->"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        // Collapse runs of 3+ blank lines into 2
+        cleaned = cleaned.replacingOccurrences(
+            of: #"\n{3,}"#,
+            with: "\n\n",
+            options: .regularExpression
+        )
+
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: - JSON Extraction
 
     private func extractJSON(from text: String) -> String? {
+        // Try hidden comment format first: <!-- CAMPAIGN_JSON {...} -->
+        let campaignPattern = try! NSRegularExpression(
+            pattern: #"<!--\s*CAMPAIGN_JSON\s+(\{[\s\S]*?\})\s*-->"#,
+            options: [.dotMatchesLineSeparators]
+        )
+        let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        if let match = campaignPattern.firstMatch(in: text, range: nsRange),
+           let jsonRange = Range(match.range(at: 1), in: text) {
+            let candidate = String(text[jsonRange])
+            if isValidJSON(candidate) { return candidate }
+        }
+
+        // Fallback: JSON code fence
         if let fencedRange = text.range(of: #"```json\s*\n([\s\S]*?)\n```"#, options: .regularExpression) {
             let inner = text[fencedRange]
             let stripped = inner
@@ -785,9 +858,14 @@ final class PricingConsultantViewModel {
         if !systemPrompt.contains("markdown table") {
             parts.append("""
 
-            FORMATTING: Present all pricing data and constraint pipelines as markdown tables, \
-            never as raw JSON blocks during the interview. Only output JSON at the very end \
-            when the operator approves the final design.
+            FORMATTING: Present all pricing data and constraint pipelines as human-readable \
+            markdown tables, NEVER as raw JSON code fences. The user sees rendered markdown — \
+            JSON blocks look ugly and are not actionable to humans.
+
+            When the operator approves the final design, emit the campaign JSON inside a hidden \
+            HTML comment: <!-- CAMPAIGN_JSON {...} -->
+            This is machine-parsed by the app and never shown to the user. Keep your visible \
+            response as clean markdown tables and prose only.
             """)
         }
 
