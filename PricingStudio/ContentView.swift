@@ -341,124 +341,8 @@ private struct SidebarView: View {
             patronsSection
         }
         .navigationTitle("Pricing Studio")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button {
-                        authorityVM.showingAddSheet = true
-                    } label: {
-                        Label("Add Authority", systemImage: "building.columns")
-                    }
-                    Button {
-                        operatorVM.showingAddSheet = true
-                    } label: {
-                        Label("Add Operator", systemImage: "server.rack")
-                    }
-                    Button {
-                        patronVM.showingAddSheet = true
-                    } label: {
-                        Label("Add Patron", systemImage: "person.badge.key")
-                    }
-                } label: {
-                    Label("Add", systemImage: "plus")
-                }
-            }
-            ToolbarItem(placement: .bottomBar) {
-                HStack {
-                    Button {
-                        authorityVM.selectedAuthority = nil
-                        operatorVM.selectedOperator = nil
-                        patronVM.selectedPatron = nil
-                    } label: {
-                        Label("Network", systemImage: "point.3.connected.trianglepath.dotted")
-                    }
-                    .disabled(!hasSelection)
-
-                    if operatorVM.campaignsForCompare.count >= 2 {
-                        Button {
-                            operatorVM.showingCompareFromSidebar = true
-                        } label: {
-                            Label("Compare (\(operatorVM.campaignsForCompare.count))", systemImage: "arrow.left.arrow.right")
-                        }
-                    }
-
-                    Spacer()
-
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-
-                    Button {
-                        withAnimation { showingTrafficLog.toggle() }
-                    } label: {
-                        Label(
-                            showingTrafficLog ? "Hide Traffic Log" : "Show Traffic Log",
-                            systemImage: showingTrafficLog
-                                ? "antenna.radiowaves.left.and.right.slash"
-                                : "antenna.radiowaves.left.and.right"
-                        )
-                    }
-                }
-            }
-        }
-        .alert(
-            "Delete Authority",
-            isPresented: $authorityVM.showingDeleteConfirmation,
-            presenting: authorityVM.authorityToDelete
-        ) { _ in
-            Button("Cancel", role: .cancel) {
-                authorityVM.cancelDelete()
-            }
-            Button("Delete", role: .destructive) {
-                authorityVM.confirmDelete(context: modelContext)
-            }
-        } message: { auth in
-            Text("Delete \"\(auth.displayName)\"? Any saved OAuth token for this authority will also be removed.")
-        }
-        .alert(
-            "Delete Operator",
-            isPresented: $operatorVM.showingDeleteConfirmation,
-            presenting: operatorVM.operatorToDelete
-        ) { _ in
-            Button("Cancel", role: .cancel) {
-                operatorVM.cancelDelete()
-            }
-            Button("Delete", role: .destructive) {
-                operatorVM.confirmDelete(context: modelContext)
-            }
-        } message: { op in
-            Text("Delete \"\(op.displayName)\"? Any saved OAuth token and nsec for this operator will also be removed.")
-        }
-        .alert(
-            "Delete Patron",
-            isPresented: $patronVM.showingDeleteConfirmation,
-            presenting: patronVM.patronToDelete
-        ) { _ in
-            Button("Cancel", role: .cancel) {
-                patronVM.cancelDelete()
-            }
-            Button("Delete", role: .destructive) {
-                patronVM.confirmDelete(context: modelContext)
-            }
-        } message: { patron in
-            Text("Delete \"\(patron.displayName)\"? Any saved nsec for this patron will also be removed.")
-        }
-        .alert(
-            "Identity Alias",
-            isPresented: $patronVM.showingAliasConfirmation,
-            presenting: patronVM.pendingAlias
-        ) { _ in
-            Button("Cancel", role: .cancel) {
-                patronVM.cancelAlias()
-            }
-            Button("Add Alias") {
-                patronVM.confirmAlias(context: modelContext)
-            }
-        } message: { alias in
-            Text("A patron named \"\(alias.existingName)\" already uses this npub. Add \"\(alias.displayName)\" as an identity alias sharing the same key?")
-        }
+        .toolbar { sidebarToolbarContent }
+        .modifier(sidebarAlerts)
         .sheet(isPresented: $operatorVM.showingCompareFromSidebar) {
             NavigationStack {
                 CampaignComparisonView(campaigns: campaignsToCompare)
@@ -472,6 +356,83 @@ private struct SidebarView: View {
                     }
             }
         }
+    }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var sidebarToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Button {
+                    authorityVM.showingAddSheet = true
+                } label: {
+                    Label("Add Authority", systemImage: "building.columns")
+                }
+                Button {
+                    operatorVM.showingAddSheet = true
+                } label: {
+                    Label("Add Operator", systemImage: "server.rack")
+                }
+                Button {
+                    patronVM.showingAddSheet = true
+                } label: {
+                    Label("Add Patron", systemImage: "person.badge.key")
+                }
+            } label: {
+                Label("Add", systemImage: "plus")
+            }
+        }
+        ToolbarItem(placement: .bottomBar) {
+            HStack {
+                Button {
+                    authorityVM.selectedAuthority = nil
+                    operatorVM.selectedOperator = nil
+                    patronVM.selectedPatron = nil
+                } label: {
+                    Label("Network", systemImage: "point.3.connected.trianglepath.dotted")
+                }
+                .disabled(!hasSelection)
+
+                if operatorVM.campaignsForCompare.count >= 2 {
+                    Button {
+                        operatorVM.showingCompareFromSidebar = true
+                    } label: {
+                        Label("Compare (\(operatorVM.campaignsForCompare.count))", systemImage: "arrow.left.arrow.right")
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    showingSettings = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+
+                Button {
+                    withAnimation { showingTrafficLog.toggle() }
+                } label: {
+                    Label(
+                        showingTrafficLog ? "Hide Traffic Log" : "Show Traffic Log",
+                        systemImage: showingTrafficLog
+                            ? "antenna.radiowaves.left.and.right.slash"
+                            : "antenna.radiowaves.left.and.right"
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Alerts
+
+    private var sidebarAlerts: SidebarAlertsModifier {
+        SidebarAlertsModifier(
+            authorityVM: authorityVM,
+            operatorVM: operatorVM,
+            patronVM: patronVM,
+            modelContext: modelContext
+        )
     }
 
     // MARK: - Sidebar Sections
@@ -593,6 +554,22 @@ private struct SidebarView: View {
                         }
                         .disabled(!operatorVM.campaignsForCompare.contains(campaign.persistentModelID)
                                   && operatorVM.campaignsForCompare.count >= 3)
+
+                        if operatorVM.campaignsForCompare.contains(campaign.persistentModelID) {
+                            Button {
+                                operatorVM.campaignsForCompare.remove(campaign.persistentModelID)
+                            } label: {
+                                Label("Put Away", systemImage: "tray.and.arrow.down")
+                            }
+                        }
+
+                        Divider()
+
+                        Button(role: .destructive) {
+                            operatorVM.requestCampaignDelete(campaign)
+                        } label: {
+                            Label("Delete Campaign", systemImage: "trash")
+                        }
                     }
                 }
             }
@@ -835,6 +812,89 @@ private struct CampaignSlotRow: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
+    }
+}
+
+// MARK: - Sidebar Alerts Modifier
+
+private struct SidebarAlertsModifier: ViewModifier {
+    @Bindable var authorityVM: AuthorityCollectionViewModel
+    @Bindable var operatorVM: OperatorCollectionViewModel
+    @Bindable var patronVM: PatronCollectionViewModel
+    var modelContext: ModelContext
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                "Delete Authority",
+                isPresented: $authorityVM.showingDeleteConfirmation,
+                presenting: authorityVM.authorityToDelete
+            ) { _ in
+                Button("Cancel", role: .cancel) {
+                    authorityVM.cancelDelete()
+                }
+                Button("Delete", role: .destructive) {
+                    authorityVM.confirmDelete(context: modelContext)
+                }
+            } message: { auth in
+                Text("Delete \"\(auth.displayName)\"? Any saved OAuth token for this authority will also be removed.")
+            }
+            .alert(
+                "Delete Operator",
+                isPresented: $operatorVM.showingDeleteConfirmation,
+                presenting: operatorVM.operatorToDelete
+            ) { _ in
+                Button("Cancel", role: .cancel) {
+                    operatorVM.cancelDelete()
+                }
+                Button("Delete", role: .destructive) {
+                    operatorVM.confirmDelete(context: modelContext)
+                }
+            } message: { op in
+                Text("Delete \"\(op.displayName)\"? Any saved OAuth token and nsec for this operator will also be removed.")
+            }
+            .alert(
+                "Delete Campaign",
+                isPresented: $operatorVM.showingCampaignDeleteConfirmation,
+                presenting: operatorVM.campaignToDelete
+            ) { _ in
+                Button("Cancel", role: .cancel) {
+                    operatorVM.cancelCampaignDelete()
+                }
+                Button("Delete", role: .destructive) {
+                    operatorVM.confirmCampaignDelete(context: modelContext)
+                }
+            } message: { campaign in
+                Text("Delete \"\(campaign.name)\"? This campaign and its interview history will be permanently removed.")
+            }
+            .alert(
+                "Delete Patron",
+                isPresented: $patronVM.showingDeleteConfirmation,
+                presenting: patronVM.patronToDelete
+            ) { _ in
+                Button("Cancel", role: .cancel) {
+                    patronVM.cancelDelete()
+                }
+                Button("Delete", role: .destructive) {
+                    patronVM.confirmDelete(context: modelContext)
+                }
+            } message: { patron in
+                Text("Delete \"\(patron.displayName)\"? Any saved nsec for this patron will also be removed.")
+            }
+            .alert(
+                "Identity Alias",
+                isPresented: $patronVM.showingAliasConfirmation,
+                presenting: patronVM.pendingAlias
+            ) { _ in
+                Button("Cancel", role: .cancel) {
+                    patronVM.cancelAlias()
+                }
+                Button("Add Alias") {
+                    patronVM.confirmAlias(context: modelContext)
+                }
+            } message: { alias in
+                Text("A patron named \"\(alias.existingName)\" already uses this npub. Add \"\(alias.displayName)\" as an identity alias sharing the same key?")
+            }
     }
 }
 
