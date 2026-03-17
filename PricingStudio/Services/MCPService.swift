@@ -523,19 +523,24 @@ actor MCPService {
             tools: model.tools ?? [],
             pipeline: model.pipeline
         )
-        let jsonData = try JSONEncoder().encode(payload)
-        let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+        var jsonData = try JSONEncoder().encode(payload)
 
-        // Build tool arguments — include operator_proof when available
-        var arguments: [String: Value] = ["model_json": .string(jsonString)]
+        // Include operator_proof INSIDE the model_json payload (not as a separate argument)
         if let npub = operatorNpub {
             let proof = try OperatorProofService.createProof(
                 toolName: "set_pricing_model",
                 operatorNpub: npub
             )
-            arguments["operator_proof"] = .string(proof)
+            // Decode, inject proof, re-encode
+            if var dict = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                dict["operator_proof"] = proof
+                jsonData = (try? JSONSerialization.data(withJSONObject: dict)) ?? jsonData
+            }
             await traffic(.outbound, label: "Operator Proof", detail: "Signed kind-27235 for \(npub.prefix(16))…")
         }
+
+        let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+        let arguments: [String: Value] = ["model_json": .string(jsonString)]
 
         await traffic(.outbound, label: "callTool: \(setTool.name)", detail: "model_json: \(String(jsonString.prefix(500)))")
 
