@@ -132,7 +132,7 @@ struct SecondOpinionSheet: View {
     // MARK: - Section Card
 
     @ViewBuilder
-    private func sectionCard(_ section: SecondOpinionViewModel.ReviewSection) -> some View {
+    private func sectionCard(_ section: ReviewSection) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             // Section header
             HStack(spacing: 8) {
@@ -152,7 +152,6 @@ struct SecondOpinionSheet: View {
 
             // Section content
             MarkdownContentView(text: section.content)
-                .textSelection(.enabled)
         }
         .padding()
         .background(
@@ -161,7 +160,7 @@ struct SecondOpinionSheet: View {
         )
     }
 
-    private func iconColor(for section: SecondOpinionViewModel.ReviewSection) -> Color {
+    private func iconColor(for section: ReviewSection) -> Color {
         switch section.icon {
         case "checkmark.seal.fill": return .green
         case "exclamationmark.triangle.fill": return .orange
@@ -180,7 +179,7 @@ struct SecondOpinionSheet: View {
     }
 
     @ViewBuilder
-    private func verdictBadge(_ verdict: SecondOpinionViewModel.ReviewSection.Verdict) -> some View {
+    private func verdictBadge(_ verdict: ReviewVerdict) -> some View {
         let (text, color): (String, Color) = {
             switch verdict {
             case .approve: return ("APPROVE", .green)

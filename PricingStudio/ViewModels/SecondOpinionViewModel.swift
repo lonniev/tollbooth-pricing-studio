@@ -8,6 +8,9 @@ private let reviewerPromptURL = URL(string: "https://raw.githubusercontent.com/l
 
 /// Drives the Second Opinion review — sends campaign context to Grok (or Claude fallback)
 /// and streams a structured critique.
+///
+/// Uses shared `ReviewSection` and `ReviewVerdict` types from `PeerReview.swift`.
+/// Parsing is delegated to `ResponseParser.parseReviewSections(from:)`.
 @MainActor
 @Observable
 final class SecondOpinionViewModel {
@@ -24,23 +27,15 @@ final class SecondOpinionViewModel {
     /// The alternative pricing suggestions section text, if any.
     var suggestedChangesText: String = ""
 
+    /// The structured peer review, populated after a successful review.
+    var peerReview: PeerReview?
+
     private var reviewerPrompt: String = ""
-
-    struct ReviewSection: Identifiable {
-        let id = UUID()
-        let title: String
-        let icon: String
-        let content: String
-        let verdict: Verdict?
-
-        enum Verdict {
-            case approve, approveWithReservations, reworkRecommended, reject
-        }
-    }
 
     // MARK: - Campaign Summary Assembly
 
     /// Build a single-message summary of the campaign for the reviewer.
+    /// Delegates to CampaignSummaryBuilder.
     func buildCampaignSummary(
         messages: [AssistantMessage],
         progress: InterviewProgress,
@@ -49,74 +44,14 @@ final class SecondOpinionViewModel {
         operatorName: String?,
         campaignName: String?
     ) -> String {
-        var parts: [String] = []
-
-        // Identity
-        let name = campaignName ?? "Untitled Campaign"
-        let opName = operatorName ?? "Unknown Operator"
-        parts.append("## Campaign: \(name)")
-        parts.append("Operator: \(opName)")
-
-        // Interview insights
-        let insights = progress.insights
-        parts.append("\n## Interview Insights")
-        parts.append("Stage reached: \(progress.stage) (\(progress.stageNumber)/6)")
-        if let tools = insights.toolsIdentified {
-            parts.append("Tools identified: \(tools)")
-        }
-        if let cats = insights.toolsCategories {
-            parts.append("Tool categories: \(cats)")
-        }
-        if let demand = insights.demandSummary {
-            parts.append("Demand: \(demand)")
-        }
-        if let value = insights.valueSummary {
-            parts.append("Value: \(value)")
-        }
-        if let cost = insights.costSummary {
-            parts.append("Cost: \(cost)")
-        }
-        if let constraints = insights.constraintsConsidered, !constraints.isEmpty {
-            parts.append("Constraints considered: \(constraints.joined(separator: ", "))")
-        }
-        if let philosophy = insights.philosophy {
-            parts.append("Philosophy: \(philosophy)")
-        }
-
-        // Revenue projections
-        if let projections {
-            parts.append("\n## Revenue Projections")
-            if let tam = projections.tam { parts.append("TAM: \(tam)") }
-            if let sam = projections.sam { parts.append("SAM: \(sam)") }
-            if let som = projections.som { parts.append("SOM: \(som)") }
-            if let tc = projections.toolCount { parts.append("Tool count: \(tc)") }
-            if let avg = projections.avgPriceSats { parts.append("Avg price: \(avg) sats") }
-            for proj in projections.projections {
-                parts.append("- \(proj.scenario): \(proj.monthlyUsers) users, \(proj.callsPerUserPerMonth) calls/user/mo, \(proj.revenueSats) sats/mo ($\(String(format: "%.2f", proj.revenueUsd))/mo)")
-            }
-        }
-
-        // Final pricing JSON
-        if let json = pipelineJSON {
-            parts.append("\n## Pricing JSON")
-            parts.append("```json")
-            parts.append(json)
-            parts.append("```")
-        }
-
-        // Condensed transcript (assistant messages only, truncated)
-        let assistantMessages = messages
-            .filter { $0.role == .assistant && !$0.content.isEmpty }
-            .map { $0.content }
-        let transcript = assistantMessages.joined(separator: "\n\n---\n\n")
-        // Truncate to ~4000 chars to leave room for system prompt and response
-        let truncated = transcript.count > 4000
-            ? String(transcript.prefix(4000)) + "\n\n[...truncated...]"
-            : transcript
-        parts.append("\n## Consultant Reasoning (condensed)")
-        parts.append(truncated)
-
-        return parts.joined(separator: "\n")
+        CampaignSummaryBuilder.buildForSecondOpinion(
+            messages: messages,
+            progress: progress,
+            projections: projections,
+            pipelineJSON: pipelineJSON,
+            operatorName: operatorName,
+            campaignName: campaignName
+        )
     }
 
     // MARK: - Review Request
@@ -128,6 +63,7 @@ final class SecondOpinionViewModel {
         sections = []
         hasSuggestedChanges = false
         suggestedChangesText = ""
+        peerReview = nil
         error = nil
         isStreaming = true
 
@@ -173,125 +109,37 @@ final class SecondOpinionViewModel {
                 return
             }
 
-            // Post-process: parse into sections and present
+            // Post-process: parse into sections via ResponseParser
             reviewText = fullResponse
-            sections = parseSections(from: fullResponse)
-            detectSuggestedChanges(from: fullResponse)
+            sections = ResponseParser.parseReviewSections(from: fullResponse)
+
+            let (hasSuggestions, suggestionsText) = ResponseParser.detectSuggestedChanges(from: fullResponse)
+            hasSuggestedChanges = hasSuggestions
+            suggestedChangesText = suggestionsText
+
+            // Build the structured PeerReview value type
+            let overallVerdict = sections.compactMap(\.verdict).last
+            peerReview = PeerReview(
+                providerName: providerName,
+                rawResponse: fullResponse,
+                sections: sections,
+                verdict: overallVerdict,
+                suggestedChanges: hasSuggestions ? suggestionsText : nil,
+                reviewedAt: Date()
+            )
 
             isStreaming = false
             logger.info("Second opinion complete (\(self.reviewText.count) chars)")
         }
     }
 
-    // MARK: - Response Parsing
-
-    /// Parse the review into titled sections based on markdown headings.
-    private func parseSections(from text: String) -> [ReviewSection] {
-        let lines = text.components(separatedBy: "\n")
-        var result: [ReviewSection] = []
-        var currentTitle = ""
-        var currentLines: [String] = []
-
-        func flushSection() {
-            let content = currentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !currentTitle.isEmpty, !content.isEmpty else { return }
-            let (icon, verdict) = sectionMeta(for: currentTitle, content: content)
-            result.append(ReviewSection(title: currentTitle, icon: icon, content: content, verdict: verdict))
-        }
-
-        for line in lines {
-            // Match ## or **N.** section headers
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("## ") || trimmed.hasPrefix("# ") {
-                flushSection()
-                currentTitle = trimmed
-                    .replacingOccurrences(of: "## ", with: "")
-                    .replacingOccurrences(of: "# ", with: "")
-                    .trimmingCharacters(in: .init(charactersIn: "*#"))
-                    .trimmingCharacters(in: .whitespaces)
-                currentLines = []
-            } else if let match = trimmed.range(of: #"^\d+\.\s+\*\*"#, options: .regularExpression) {
-                flushSection()
-                currentTitle = String(trimmed[match.upperBound...])
-                    .replacingOccurrences(of: "**", with: "")
-                    .trimmingCharacters(in: .init(charactersIn: " —-:"))
-                currentLines = []
-            } else {
-                currentLines.append(line)
-            }
-        }
-        flushSection()
-
-        return result
-    }
-
-    /// Map section titles to icons and detect verdict sections.
-    private func sectionMeta(for title: String, content: String) -> (String, ReviewSection.Verdict?) {
-        let lower = title.lowercased()
-        if lower.contains("strength") {
-            return ("checkmark.seal.fill", nil)
-        } else if lower.contains("risk") || lower.contains("weakness") {
-            return ("exclamationmark.triangle.fill", nil)
-        } else if lower.contains("alternative") || lower.contains("suggestion") {
-            return ("lightbulb.fill", nil)
-        } else if lower.contains("revenue") || lower.contains("impact") {
-            return ("chart.line.uptrend.xyaxis", nil)
-        } else if lower.contains("verdict") || lower.contains("conclusion") {
-            let verdictContent = content.uppercased()
-            let verdict: ReviewSection.Verdict?
-            if verdictContent.contains("REJECT") {
-                verdict = .reject
-            } else if verdictContent.contains("REWORK") {
-                verdict = .reworkRecommended
-            } else if verdictContent.contains("RESERVATIONS") {
-                verdict = .approveWithReservations
-            } else if verdictContent.contains("APPROVE") {
-                verdict = .approve
-            } else {
-                verdict = nil
-            }
-            return ("gavel.fill", verdict)
-        }
-        return ("doc.text", nil)
-    }
-
-    /// Check if the reviewer suggested changes the operator might want to apply.
-    private func detectSuggestedChanges(from text: String) {
-        let upper = text.uppercased()
-        // Has changes if verdict is not a clean APPROVE, or alternatives section exists
-        let hasAlternatives = upper.contains("ALTERNATIVE") || upper.contains("SUGGESTION")
-        let isCleanApprove = upper.contains("APPROVE") && !upper.contains("RESERVATION") && !upper.contains("REWORK") && !upper.contains("REJECT")
-
-        hasSuggestedChanges = hasAlternatives && !isCleanApprove
-
-        // Extract the alternatives section for potential campaign revision
-        if hasSuggestedChanges {
-            let lines = text.components(separatedBy: "\n")
-            var capturing = false
-            var captured: [String] = []
-            for line in lines {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.lowercased().contains("alternative") || trimmed.lowercased().contains("suggestion") {
-                    if trimmed.hasPrefix("#") || trimmed.range(of: #"^\d+\.\s+\*\*"#, options: .regularExpression) != nil {
-                        capturing = true
-                        continue
-                    }
-                }
-                if capturing {
-                    // Stop at next section header
-                    if (trimmed.hasPrefix("#") || trimmed.range(of: #"^\d+\.\s+\*\*"#, options: .regularExpression) != nil) && !trimmed.lowercased().contains("alternative") {
-                        break
-                    }
-                    captured.append(line)
-                }
-            }
-            suggestedChangesText = captured.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-    }
-
     /// Load an existing saved review without making an API call.
     func loadExistingReview(text: String) {
         reviewText = text
+        sections = ResponseParser.parseReviewSections(from: text)
+        let (hasSuggestions, suggestionsText) = ResponseParser.detectSuggestedChanges(from: text)
+        hasSuggestedChanges = hasSuggestions
+        suggestedChangesText = suggestionsText
         error = nil
         isStreaming = false
     }

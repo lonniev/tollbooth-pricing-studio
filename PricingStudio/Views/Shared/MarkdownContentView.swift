@@ -24,8 +24,10 @@ struct MarkdownContentView: View {
                     }
                 }
             }
+            .textSelection(.enabled)
         } else {
             Text(Self.markdownAttributed(text))
+                .textSelection(.enabled)
         }
     }
 
@@ -145,7 +147,7 @@ struct MarkdownContentView: View {
                 HStack(spacing: 0) {
                     ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
                         Text(Self.markdownAttributed(cell))
-                            .font(.caption.bold())
+                            .font(.system(.caption, design: .monospaced).bold())
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
                             .frame(minWidth: 60, alignment: .leading)
@@ -156,7 +158,7 @@ struct MarkdownContentView: View {
                     HStack(spacing: 0) {
                         ForEach(0..<colCount, id: \.self) { colIdx in
                             Text(Self.markdownAttributed(colIdx < row.count ? row[colIdx] : ""))
-                                .font(.caption)
+                                .font(.system(.caption, design: .monospaced))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .frame(minWidth: 60, alignment: .leading)

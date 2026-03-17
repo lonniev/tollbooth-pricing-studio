@@ -20,6 +20,12 @@ final class OperatorCollectionViewModel {
     // Stats sheet
     var operatorForStats: Operator?
 
+    // Campaign slots
+    var selectedCampaign: Campaign?
+    var campaignsForCompare: Set<PersistentIdentifier> = []
+    var showingCompareFromSidebar = false
+    var deployedCampaignJSON: String?
+
     func addOperator(npub: String, displayName: String, context: ModelContext) {
         let op = Operator(npub: npub, displayName: displayName)
         context.insert(op)
@@ -69,5 +75,33 @@ final class OperatorCollectionViewModel {
 
     func requestStats(_ op: Operator) {
         operatorForStats = op
+    }
+
+    // MARK: - Campaign Slots
+
+    /// Deploy a campaign: mark it as live, clear siblings, and bridge the pipeline JSON.
+    func deployCampaign(_ campaign: Campaign, for op: Operator, context: ModelContext) {
+        // Clear deployed flag on all sibling campaigns
+        let opNpub = op.npub
+        let descriptor = FetchDescriptor<Campaign>(predicate: #Predicate { $0.operatorNpub == opNpub })
+        if let siblings = try? context.fetch(descriptor) {
+            for sibling in siblings {
+                sibling.isDeployed = (sibling.persistentModelID == campaign.persistentModelID)
+            }
+        }
+
+        op.deployedCampaignName = campaign.name
+        deployedCampaignJSON = campaign.proposal?.pipelineJSON
+        try? context.save()
+    }
+
+    /// Toggle a campaign in/out of the compare set (max 3).
+    func toggleCompare(_ campaign: Campaign) {
+        let id = campaign.persistentModelID
+        if campaignsForCompare.contains(id) {
+            campaignsForCompare.remove(id)
+        } else if campaignsForCompare.count < 3 {
+            campaignsForCompare.insert(id)
+        }
     }
 }
