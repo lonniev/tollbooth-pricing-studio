@@ -49,6 +49,11 @@ struct ContentView: View {
                                 onApplyJSON: { json in
                                     pricingVM.applyConsultantJSON(json, for: op)
                                     showingPushConfirmation = true
+                                },
+                                onDeleteCampaign: {
+                                    if let campaign = operatorVM.selectedCampaign {
+                                        operatorVM.requestCampaignDelete(campaign)
+                                    }
                                 }
                             )
                         }
@@ -129,6 +134,20 @@ struct ContentView: View {
             Button("OK") { pushError = nil }
         } message: {
             Text(pushError ?? "An unknown error occurred.")
+        }
+        .alert(
+            "Delete Campaign",
+            isPresented: $operatorVM.showingCampaignDeleteConfirmation,
+            presenting: operatorVM.campaignToDelete
+        ) { _ in
+            Button("Cancel", role: .cancel) {
+                operatorVM.cancelCampaignDelete()
+            }
+            Button("Delete", role: .destructive) {
+                operatorVM.confirmCampaignDelete(context: modelContext)
+            }
+        } message: { campaign in
+            Text("Permanently delete \"\(campaign.name)\"? This campaign and its interview history cannot be recovered.")
         }
         .sheet(isPresented: $authorityVM.showingAddSheet) {
             AddAuthoritySheet(viewModel: authorityVM)
@@ -555,20 +574,12 @@ private struct SidebarView: View {
                         .disabled(!operatorVM.campaignsForCompare.contains(campaign.persistentModelID)
                                   && operatorVM.campaignsForCompare.count >= 3)
 
-                        if operatorVM.campaignsForCompare.contains(campaign.persistentModelID) {
-                            Button {
-                                operatorVM.campaignsForCompare.remove(campaign.persistentModelID)
-                            } label: {
-                                Label("Put Away", systemImage: "tray.and.arrow.down")
-                            }
-                        }
-
                         Divider()
 
-                        Button(role: .destructive) {
-                            operatorVM.requestCampaignDelete(campaign)
+                        Button {
+                            operatorVM.putAwayCampaign(campaign)
                         } label: {
-                            Label("Delete Campaign", systemImage: "trash")
+                            Label("Put Away", systemImage: "tray.and.arrow.down")
                         }
                     }
                 }
@@ -852,20 +863,6 @@ private struct SidebarAlertsModifier: ViewModifier {
                 }
             } message: { op in
                 Text("Delete \"\(op.displayName)\"? Any saved OAuth token and nsec for this operator will also be removed.")
-            }
-            .alert(
-                "Delete Campaign",
-                isPresented: $operatorVM.showingCampaignDeleteConfirmation,
-                presenting: operatorVM.campaignToDelete
-            ) { _ in
-                Button("Cancel", role: .cancel) {
-                    operatorVM.cancelCampaignDelete()
-                }
-                Button("Delete", role: .destructive) {
-                    operatorVM.confirmCampaignDelete(context: modelContext)
-                }
-            } message: { campaign in
-                Text("Delete \"\(campaign.name)\"? This campaign and its interview history will be permanently removed.")
             }
             .alert(
                 "Delete Patron",

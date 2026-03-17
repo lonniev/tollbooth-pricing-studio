@@ -99,6 +99,14 @@ final class OperatorCollectionViewModel {
         try? context.save()
     }
 
+    /// Put away a campaign: deselect it and remove from compare, but keep in DB.
+    func putAwayCampaign(_ campaign: Campaign) {
+        campaignsForCompare.remove(campaign.persistentModelID)
+        if selectedCampaign?.persistentModelID == campaign.persistentModelID {
+            selectedCampaign = nil
+        }
+    }
+
     /// Request deletion of a campaign (shows confirmation alert).
     func requestCampaignDelete(_ campaign: Campaign) {
         campaignToDelete = campaign

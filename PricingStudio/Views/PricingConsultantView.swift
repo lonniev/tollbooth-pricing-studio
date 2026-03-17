@@ -10,6 +10,7 @@ struct PricingConsultantView: View {
     let context: ConsultantContext
     let operatorNpub: String
     var onApplyJSON: ((String) -> Void)?
+    var onDeleteCampaign: (() -> Void)?
 
     @Environment(\.modelContext) private var modelContext
     @State private var inputText = ""
@@ -321,9 +322,14 @@ struct PricingConsultantView: View {
                 Button("Close Without Saving", role: .destructive) {
                     consultantVM.clear()
                 }
+                if onDeleteCampaign != nil {
+                    Button("Delete Campaign Permanently", role: .destructive) {
+                        onDeleteCampaign?()
+                    }
+                }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("This will discard the current interview. Any unsaved changes will be lost.")
+                Text("Close discards unsaved changes. Delete permanently removes the campaign.")
             }
 
             Button {
