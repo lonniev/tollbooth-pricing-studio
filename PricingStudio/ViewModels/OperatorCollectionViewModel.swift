@@ -26,6 +26,10 @@ final class OperatorCollectionViewModel {
     var showingCompareFromSidebar = false
     var deployedCampaignJSON: String?
 
+    // Campaign delete confirmation
+    var showingCampaignDeleteConfirmation = false
+    var campaignToDelete: Campaign?
+
     func addOperator(npub: String, displayName: String, context: ModelContext) {
         let op = Operator(npub: npub, displayName: displayName)
         context.insert(op)
@@ -93,6 +97,34 @@ final class OperatorCollectionViewModel {
         op.deployedCampaignName = campaign.name
         deployedCampaignJSON = campaign.proposal?.pipelineJSON
         try? context.save()
+    }
+
+    /// Request deletion of a campaign (shows confirmation alert).
+    func requestCampaignDelete(_ campaign: Campaign) {
+        campaignToDelete = campaign
+        showingCampaignDeleteConfirmation = true
+    }
+
+    /// Confirm and delete the campaign from SwiftData.
+    func confirmCampaignDelete(context: ModelContext) {
+        if let campaign = campaignToDelete {
+            // Remove from compare queue if present
+            campaignsForCompare.remove(campaign.persistentModelID)
+            // Clear selection if this was the active campaign
+            if selectedCampaign?.persistentModelID == campaign.persistentModelID {
+                selectedCampaign = nil
+            }
+            context.delete(campaign)
+            try? context.save()
+        }
+        campaignToDelete = nil
+        showingCampaignDeleteConfirmation = false
+    }
+
+    /// Cancel campaign deletion.
+    func cancelCampaignDelete() {
+        campaignToDelete = nil
+        showingCampaignDeleteConfirmation = false
     }
 
     /// Toggle a campaign in/out of the compare set (max 3).
