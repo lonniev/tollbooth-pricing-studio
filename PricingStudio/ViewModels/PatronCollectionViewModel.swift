@@ -73,6 +73,7 @@ final class PatronCollectionViewModel {
     }
 
     func updatePatron(_ patron: Patron, displayName: String, nsec: String?, context: ModelContext) {
+        let oldDisplayName = patron.displayName
         patron.displayName = displayName
 
         if let nsec, !nsec.isEmpty {
@@ -83,12 +84,50 @@ final class PatronCollectionViewModel {
                 if newNpub != oldNpub {
                     KeychainService.deleteNsec(forNpub: oldNpub)
                     patron.npub = newNpub
+
+                    // Re-evaluate alias status for this patron
+                    reevaluateAlias(for: patron, context: context)
+
+                    // Re-evaluate orphaned aliases that pointed at the old display name
+                    reevaluateOrphanedAliases(oldDisplayName: oldDisplayName, context: context)
                 }
             }
             try? KeychainService.saveNsec(nsec, forNpub: patron.npub)
         }
 
         try? context.save()
+    }
+
+    /// Check whether the patron's npub now collides with another patron.
+    /// If so, mark it as an alias; if unique, clear any stale alias marker.
+    private func reevaluateAlias(for patron: Patron, context: ModelContext) {
+        let npub = patron.npub
+        let descriptor = FetchDescriptor<Patron>(predicate: #Predicate { $0.npub == npub })
+        let matches = (try? context.fetch(descriptor)) ?? []
+        let others = matches.filter { $0.persistentModelID != patron.persistentModelID }
+        if let primary = others.first {
+            patron.aliasOf = primary.displayName
+        } else {
+            patron.aliasOf = nil
+        }
+    }
+
+    /// After an npub change, other patrons whose aliasOf pointed at the old name
+    /// may be orphaned. Re-evaluate each one.
+    private func reevaluateOrphanedAliases(oldDisplayName: String, context: ModelContext) {
+        let descriptor = FetchDescriptor<Patron>(predicate: #Predicate { $0.aliasOf == oldDisplayName })
+        guard let orphans = try? context.fetch(descriptor) else { return }
+        for orphan in orphans {
+            let npub = orphan.npub
+            let sameNpubDescriptor = FetchDescriptor<Patron>(predicate: #Predicate { $0.npub == npub })
+            let sameNpub = (try? context.fetch(sameNpubDescriptor)) ?? []
+            let others = sameNpub.filter { $0.persistentModelID != orphan.persistentModelID }
+            if let newPrimary = others.first {
+                orphan.aliasOf = newPrimary.displayName
+            } else {
+                orphan.aliasOf = nil
+            }
+        }
     }
 
     func deletePatron(_ patron: Patron, context: ModelContext) {

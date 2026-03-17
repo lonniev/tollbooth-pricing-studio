@@ -16,7 +16,23 @@ private let communityPromptURL = URL(string: "https://raw.githubusercontent.com/
 @Observable
 final class PricingConsultantViewModel {
 
-    var messages: [AssistantMessage] = []
+    /// Per-stage isolated message arrays. Key = stage number (1-6).
+    var stageMessages: [Int: [AssistantMessage]] = [:]
+
+    /// Flat accessor retained for backward compatibility — returns all messages in stage order.
+    var messages: [AssistantMessage] {
+        get { allMessages }
+        set {
+            // Group by stageNumber for backward compat with callers that set .messages directly
+            var grouped: [Int: [AssistantMessage]] = [:]
+            for msg in newValue {
+                let stage = msg.stageNumber ?? 1
+                grouped[stage, default: []].append(msg)
+            }
+            stageMessages = grouped
+        }
+    }
+
     var isStreaming = false
     var interviewProgress: InterviewProgress = .default
 
@@ -43,104 +59,41 @@ final class PricingConsultantViewModel {
     /// Revenue projections parsed from the latest synthesis response.
     var revenueProjections: CampaignProjections?
 
-    /// Messages filtered by the currently viewed stage.
+    /// Messages for the currently viewed stage's isolated conversation.
     /// Stage 6 (Recommendation) buffers the streaming assistant response —
     /// it only appears once streaming is complete, so the user sees a clean
     /// rendered result instead of messy incremental markdown.
     var displayedMessages: [AssistantMessage] {
         let targetStage = viewingStageNumber ?? interviewProgress.stageNumber
-        return messages.filter { msg in
-            // Messages with no stage tag are shown in all stages
-            guard let stage = msg.stageNumber else { return true }
-            guard stage == targetStage else { return false }
-            // Buffer stage 6 assistant messages while streaming
-            if stage == 6 && msg.role == .assistant && msg.isStreaming {
-                return false
-            }
-            return true
+        var msgs = stageMessages[targetStage] ?? []
+        // Buffer stage 6 assistant messages while streaming
+        if targetStage == 6 {
+            msgs = msgs.filter { !($0.role == .assistant && $0.isStreaming) }
         }
+        return msgs
+    }
+
+    /// All messages across all stages, in stage order.
+    var allMessages: [AssistantMessage] {
+        (1...6).flatMap { stageMessages[$0] ?? [] }
+    }
+
+    /// Direct accessor for a specific stage's messages.
+    func messages(for stage: Int) -> [AssistantMessage] {
+        stageMessages[stage] ?? []
     }
 
     /// Cached pipeline JSON extracted before display cleanup.
     var extractedPipelineJSON: String?
 
+    /// Structured interview analysis — stage classifications and insights.
+    var analysis: InterviewAnalysis = InterviewAnalysis()
+
+    /// Structured pricing proposal — pipeline, tool prices, projections.
+    var proposal: PricingProposal = PricingProposal()
+
     private let service = AnthropicService()
     private var originalPrompt: String = ""
-
-    // MARK: - Progress Parsing
-
-    /// Regex to match `<!-- PROGRESS {...} -->` — uses dotMatchesLineSeparators
-    /// so the JSON can span lines if Claude splits it.
-    private static let progressPattern = try! NSRegularExpression(
-        pattern: #"<!--\s*PROGRESS\s+(\{[\s\S]*?\})\s*-->"#,
-        options: [.dotMatchesLineSeparators]
-    )
-
-    /// Strip the PROGRESS comment from displayed text and parse it.
-    func parseAndStripProgress(from text: String) -> (stripped: String, progress: InterviewProgress?) {
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        guard let match = Self.progressPattern.firstMatch(in: text, range: range),
-              let jsonRange = Range(match.range(at: 1), in: text) else {
-            let suffix = text.suffix(200)
-            logger.debug("PROGRESS parse: no match. Tail: \(suffix)")
-            return (text, nil)
-        }
-
-        let jsonString = String(text[jsonRange])
-        let stripped = Self.progressPattern.stringByReplacingMatches(
-            in: text, range: range, withTemplate: ""
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let data = jsonString.data(using: .utf8) else {
-            return (stripped, nil)
-        }
-
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let progress = try? decoder.decode(InterviewProgress.self, from: data)
-        if let progress {
-            logger.debug("PROGRESS parsed: stage=\(progress.stage) number=\(progress.stageNumber)")
-        } else {
-            logger.debug("PROGRESS JSON found but decode failed: \(jsonString)")
-        }
-        return (stripped, progress)
-    }
-
-    // MARK: - Revenue Parsing
-
-    /// Regex to match `<!-- REVENUE {...} -->`.
-    private static let revenuePattern = try! NSRegularExpression(
-        pattern: #"<!--\s*REVENUE\s+(\{[\s\S]*?\})\s*-->"#,
-        options: [.dotMatchesLineSeparators]
-    )
-
-    /// Strip the REVENUE comment from displayed text and parse it.
-    func parseAndStripRevenue(from text: String) -> (stripped: String, projections: CampaignProjections?) {
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        guard let match = Self.revenuePattern.firstMatch(in: text, range: range),
-              let jsonRange = Range(match.range(at: 1), in: text) else {
-            return (text, nil)
-        }
-
-        let jsonString = String(text[jsonRange])
-        let stripped = Self.revenuePattern.stringByReplacingMatches(
-            in: text, range: range, withTemplate: ""
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let data = jsonString.data(using: .utf8) else {
-            return (stripped, nil)
-        }
-
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let projections = try? decoder.decode(CampaignProjections.self, from: data)
-        if let projections {
-            logger.debug("REVENUE parsed: \(projections.projections.count) scenarios")
-        } else {
-            logger.debug("REVENUE JSON found but decode failed: \(jsonString)")
-        }
-        return (stripped, projections)
-    }
 
     // MARK: - Prompt Loading
 
@@ -191,24 +144,25 @@ final class PricingConsultantViewModel {
     /// is injected into the system prompt so Claude sees tools/pipeline
     /// without cluttering the visible chat.
     func startInterview(context: ConsultantContext) {
-        messages.removeAll()
+        stageMessages = [:]
         currentCampaign = nil
         viewingStageNumber = nil
         revenueProjections = nil
+        interviewProgress = .default
 
         let opener = "Let's design a pricing campaign."
         let userMessage = AssistantMessage(role: .user, content: opener, stageNumber: 1)
-        messages.append(userMessage)
+        stageMessages[1, default: []].append(userMessage)
 
         let placeholder = AssistantMessage(role: .assistant, content: "", isStreaming: true, stageNumber: 1)
-        messages.append(placeholder)
+        stageMessages[1, default: []].append(placeholder)
         isStreaming = true
 
         let apiMessages: [[String: String]] = [
             ["role": "user", "content": opener]
         ]
 
-        let fullPrompt = buildSystemPrompt(context: context)
+        let fullPrompt = buildStageSystemPrompt(stage: 1, context: context)
         let apiKey = KeychainService.loadAnthropicAPIKey() ?? ""
 
         Task {
@@ -219,56 +173,39 @@ final class PricingConsultantViewModel {
             )
 
             for await token in stream {
-                if let idx = self.messages.indices.last {
-                    self.messages[idx].content += token
+                if var msgs = self.stageMessages[1], let idx = msgs.indices.last {
+                    msgs[idx].content += token
+                    self.stageMessages[1] = msgs
                 }
             }
 
-            if let idx = self.messages.indices.last {
-                self.messages[idx].isStreaming = false
-                var content = self.messages[idx].content
-
-                // Parse and strip PROGRESS
-                let (strippedProgress, progress) = self.parseAndStripProgress(from: content)
-                content = strippedProgress
-                if let progress { self.interviewProgress = progress }
-
-                // Parse and strip REVENUE
-                let (strippedRevenue, projections) = self.parseAndStripRevenue(from: content)
-                content = strippedRevenue
-                if let projections { self.revenueProjections = projections }
-
-                // Extract pipeline JSON before cleaning for display
-                if let json = self.extractJSON(from: content) {
-                    self.extractedPipelineJSON = json
-                }
-
-                // Clean remaining machine artifacts for display
-                content = self.cleanForDisplay(content)
-
-                self.messages[idx].content = content
-                self.messages[idx].stageNumber = self.interviewProgress.stageNumber
+            if var msgs = self.stageMessages[1], let idx = msgs.indices.last {
+                msgs[idx].isStreaming = false
+                self.stageMessages[1] = msgs
+                self.processResponse(stage: 1, at: idx)
             }
             self.isStreaming = false
-            logger.info("Interview started (\(self.messages.count) messages)")
+            logger.info("Interview started (\(self.allMessages.count) messages)")
         }
     }
 
     func send(_ text: String, context: ConsultantContext) {
-        let currentStage = interviewProgress.stageNumber
-        let userMessage = AssistantMessage(role: .user, content: text, stageNumber: currentStage)
-        messages.append(userMessage)
+        let targetStage = viewingStageNumber ?? interviewProgress.stageNumber
+        let userMessage = AssistantMessage(role: .user, content: text, stageNumber: targetStage)
+        stageMessages[targetStage, default: []].append(userMessage)
 
-        let placeholder = AssistantMessage(role: .assistant, content: "", isStreaming: true, stageNumber: currentStage)
-        messages.append(placeholder)
+        let placeholder = AssistantMessage(role: .assistant, content: "", isStreaming: true, stageNumber: targetStage)
+        stageMessages[targetStage, default: []].append(placeholder)
         isStreaming = true
 
-        let apiMessages = messages.compactMap { msg -> [String: String]? in
+        // Send ONLY this stage's messages to the API
+        let stageMsgs = stageMessages[targetStage] ?? []
+        let apiMessages = stageMsgs.compactMap { msg -> [String: String]? in
             guard !msg.content.isEmpty else { return nil }
             return ["role": msg.role.rawValue, "content": msg.content]
         }
 
-        let fullPrompt = buildSystemPrompt(context: context)
+        let fullPrompt = buildStageSystemPrompt(stage: targetStage, context: context)
         let apiKey = KeychainService.loadAnthropicAPIKey() ?? ""
 
         Task {
@@ -279,41 +216,63 @@ final class PricingConsultantViewModel {
             )
 
             for await token in stream {
-                if let idx = self.messages.indices.last {
-                    self.messages[idx].content += token
+                if var msgs = self.stageMessages[targetStage], let idx = msgs.indices.last {
+                    msgs[idx].content += token
+                    self.stageMessages[targetStage] = msgs
                 }
             }
 
-            if let idx = self.messages.indices.last {
-                self.messages[idx].isStreaming = false
-                var content = self.messages[idx].content
-
-                // Parse and strip PROGRESS
-                let (strippedProgress, progress) = self.parseAndStripProgress(from: content)
-                content = strippedProgress
-                if let progress { self.interviewProgress = progress }
-
-                // Parse and strip REVENUE
-                let (strippedRevenue, projections) = self.parseAndStripRevenue(from: content)
-                content = strippedRevenue
-                if let projections { self.revenueProjections = projections }
-
-                // Extract pipeline JSON before cleaning for display
-                if let json = self.extractJSON(from: content) {
-                    self.extractedPipelineJSON = json
-                }
-
-                // Clean remaining machine artifacts for display
-                content = self.cleanForDisplay(content)
-
-                self.messages[idx].content = content
-                self.messages[idx].stageNumber = self.interviewProgress.stageNumber
+            if var msgs = self.stageMessages[targetStage], let idx = msgs.indices.last {
+                msgs[idx].isStreaming = false
+                self.stageMessages[targetStage] = msgs
+                self.processResponse(stage: targetStage, at: idx)
             }
             self.isStreaming = false
             // Return to current stage after sending
             self.viewingStageNumber = nil
-            logger.info("Consultant turn complete (\(self.messages.count) messages)")
+            logger.info("Consultant turn complete (\(self.allMessages.count) messages)")
         }
+    }
+
+    /// Post-stream processing: extract structured data via ResponseParser,
+    /// then clean the message for display.
+    private func processResponse(stage: Int, at idx: Int) {
+        guard var msgs = stageMessages[stage], idx < msgs.count else { return }
+        var content = msgs[idx].content
+
+        // Parse and strip PROGRESS
+        let (strippedProgress, progress) = ResponseParser.extractProgress(from: content)
+        content = strippedProgress
+        if let progress {
+            // Stage transitions: when PROGRESS indicates N+1, the response stays in stage N.
+            // Next user message will start N+1.
+            if progress.stageNumber > interviewProgress.stageNumber {
+                interviewProgress = progress
+            }
+            analysis.insights = progress.insights
+        }
+
+        // Parse and strip REVENUE
+        let (strippedRevenue, projections) = ResponseParser.extractRevenue(from: content)
+        content = strippedRevenue
+        if let projections {
+            revenueProjections = projections
+            proposal.projections = projections
+            proposal.generatedAt = Date()
+        }
+
+        // Extract pipeline JSON before cleaning for display
+        if let json = ResponseParser.extractCampaignJSON(from: content) {
+            extractedPipelineJSON = json
+            proposal.pipelineJSON = json
+        }
+
+        // Clean remaining machine artifacts for display
+        content = ResponseParser.cleanForDisplay(content)
+
+        msgs[idx].content = content
+        msgs[idx].stageNumber = stage
+        stageMessages[stage] = msgs
     }
 
     /// Set viewing to a past or current stage.
@@ -322,12 +281,15 @@ final class PricingConsultantViewModel {
     }
 
     func clear() {
-        messages.removeAll()
+        stageMessages = [:]
         currentCampaign = nil
         isStreaming = false
         interviewProgress = .default
         viewingStageNumber = nil
         revenueProjections = nil
+        extractedPipelineJSON = nil
+        analysis = InterviewAnalysis()
+        proposal = PricingProposal()
     }
 
     // MARK: - Campaign Persistence
@@ -336,82 +298,124 @@ final class PricingConsultantViewModel {
     func saveCampaign(name: String, operatorNpub: String, operatorDisplayName: String, context: ModelContext) {
         if let existing = currentCampaign {
             existing.name = name
-            existing.messages = messages
+            existing.stageMessages = stageMessages
+            existing.messages = allMessages  // backward compat
             existing.interviewProgress = interviewProgress
             existing.revenueProjections = revenueProjections
+            existing.analysis = analysis
+            existing.proposal = proposal
         } else {
             let campaign = Campaign(
                 name: name,
                 operatorNpub: operatorNpub,
                 operatorDisplayName: operatorDisplayName,
-                messages: messages
+                messages: allMessages
             )
+            campaign.stageMessages = stageMessages
             campaign.interviewProgress = interviewProgress
             campaign.revenueProjections = revenueProjections
+            campaign.analysis = analysis
+            campaign.proposal = proposal
             context.insert(campaign)
             currentCampaign = campaign
         }
         try? context.save()
-        logger.info("Saved campaign '\(name)' (\(self.messages.count) messages)")
+        logger.info("Saved campaign '\(name)' (\(self.allMessages.count) messages)")
     }
 
     /// Auto-save to the current campaign if one is loaded.
     func autoSave(context: ModelContext) {
         guard let campaign = currentCampaign else { return }
-        campaign.messages = messages
+        campaign.stageMessages = stageMessages
+        campaign.messages = allMessages  // backward compat
         campaign.interviewProgress = interviewProgress
         campaign.revenueProjections = revenueProjections
+        campaign.analysis = analysis
+        campaign.proposal = proposal
         try? context.save()
     }
 
     /// Load a saved campaign's messages into the conversation.
-    /// Automatically reshapes legacy messages that lack stage tags.
+    /// Automatically migrates legacy flat messages to per-stage storage.
     func loadCampaign(_ campaign: Campaign) {
-        messages = campaign.messages
         currentCampaign = campaign
         interviewProgress = campaign.interviewProgress ?? .default
         revenueProjections = campaign.revenueProjections
         isStreaming = false
         viewingStageNumber = nil
 
-        // Clean machine artifacts from legacy messages and extract cached JSON
-        var cleaned = false
-        for i in messages.indices where messages[i].role == .assistant {
-            if let json = extractJSON(from: messages[i].content) {
-                extractedPipelineJSON = json
+        // Hydrate value types from campaign persistence
+        analysis = campaign.analysis ?? InterviewAnalysis()
+        proposal = campaign.proposal ?? PricingProposal()
+
+        // Load from per-stage storage if available, otherwise migrate
+        let loaded = campaign.stageMessages
+        if !loaded.isEmpty {
+            stageMessages = loaded
+        } else {
+            // Legacy campaign — migrate flat messages to per-stage
+            var flat = campaign.messages
+
+            // Clean machine artifacts from legacy messages and extract cached JSON
+            for i in flat.indices where flat[i].role == .assistant {
+                if let json = ResponseParser.extractCampaignJSON(from: flat[i].content) {
+                    extractedPipelineJSON = json
+                    proposal.pipelineJSON = json
+                }
+                flat[i].content = ResponseParser.cleanForDisplay(flat[i].content)
             }
-            let before = messages[i].content
-            messages[i].content = cleanForDisplay(messages[i].content)
-            if messages[i].content != before { cleaned = true }
+
+            // Reshape legacy campaigns that lack stage numbers
+            let untaggedCount = flat.filter({ $0.stageNumber == nil }).count
+            if untaggedCount > 0 && !flat.isEmpty {
+                logger.info("Reshaping \(untaggedCount) untagged messages in '\(campaign.name)'")
+                reshapeStagesInPlace(&flat)
+            }
+
+            // Group into stages
+            var grouped: [Int: [AssistantMessage]] = [:]
+            for msg in flat {
+                let stage = msg.stageNumber ?? 1
+                grouped[stage, default: []].append(msg)
+            }
+            stageMessages = grouped
+
+            // Persist migrated result
+            campaign.stageMessages = stageMessages
+            campaign.messages = allMessages
         }
 
-        // Reshape legacy campaigns that lack stage numbers
-        let untaggedCount = messages.filter({ $0.stageNumber == nil }).count
-        if untaggedCount > 0 && !messages.isEmpty {
-            logger.info("Reshaping \(untaggedCount) untagged messages in '\(campaign.name)'")
-            reshapeStages()
-            cleaned = true
+        // Extract pipeline JSON from loaded messages
+        for msg in allMessages where msg.role == .assistant {
+            if let json = ResponseParser.extractCampaignJSON(from: msg.content) {
+                extractedPipelineJSON = json
+                proposal.pipelineJSON = json
+            }
         }
 
-        // Persist cleaned/reshaped content back
-        if cleaned {
-            campaign.messages = messages
-        }
-
-        logger.info("Loaded campaign '\(campaign.name)' (\(self.messages.count) messages)")
+        logger.info("Loaded campaign '\(campaign.name)' (\(self.allMessages.count) messages)")
     }
 
     // MARK: - Legacy Reshape
 
     /// Force re-reshape using keyword heuristics (offline fallback).
     func forceReshape(context: ModelContext? = nil) {
-        for i in messages.indices {
-            messages[i].stageNumber = nil
+        var flat = allMessages
+        for i in flat.indices {
+            flat[i].stageNumber = nil
         }
         interviewProgress = .default
-        reshapeStages()
+        reshapeStagesInPlace(&flat)
+
+        // Regroup into stages
+        var grouped: [Int: [AssistantMessage]] = [:]
+        for msg in flat {
+            let stage = msg.stageNumber ?? 1
+            grouped[stage, default: []].append(msg)
+        }
+        stageMessages = grouped
         persistReshape(context: context)
-        logger.info("Force-reshaped \(self.messages.count) messages (keyword heuristics)")
+        logger.info("Force-reshaped \(self.allMessages.count) messages (keyword heuristics)")
     }
 
     /// AI-powered reshape: sends the transcript to the LLM to classify each
@@ -428,7 +432,6 @@ final class PricingConsultantViewModel {
         pendingReshape = nil
 
         Task {
-            // Reshape uses Claude (the primary interview agent)
             guard let anthropicKey = KeychainService.loadAnthropicAPIKey(), !anthropicKey.isEmpty else {
                 reshapeError = "No Anthropic API key available. Add one in settings."
                 isReshaping = false
@@ -436,92 +439,25 @@ final class PricingConsultantViewModel {
             }
             let provider: any LLMProvider = AnthropicProvider(apiKey: anthropicKey)
 
-            // Build a numbered transcript
-            var transcript = ""
-            for (i, msg) in messages.enumerated() {
-                let role = msg.role == .user ? "Operator" : "Consultant"
-                let preview = String(msg.content.prefix(300))
-                transcript += "[\(i)] \(role): \(preview)\n\n"
+            let result = await StageClassifier.classifyViaAI(messages: messages, provider: provider)
+            switch result {
+            case .success(let stages):
+                pendingReshape = stages
+                logger.info("AI reshape complete: \(stages)")
+            case .failure(.parseFailed(let response)):
+                reshapeError = "AI returned unexpected format. Got \(response)"
+                logger.warning("AI reshape parse failed: \(response)")
             }
-
-            let systemPrompt = """
-            You are classifying messages in a pricing interview transcript into exactly 6 stages:
-            1 = Inventory (what tools/services does the operator offer)
-            2 = Demand (who are the users, usage patterns, philosophy/framing)
-            3 = Value (willingness to pay, economic value delivered, ROI)
-            4 = Cost (operator's cost to serve, margins, infrastructure)
-            5 = Constraints (free tiers, rate limits, surge pricing, pipeline rules)
-            6 = Recommendation (final pricing proposal, revenue projections, approval)
-
-            The interview flows forward through these stages in order. A stage may \
-            span multiple messages. Stages are never revisited — once the conversation \
-            moves to a later stage, earlier topics mentioned in passing do not change \
-            the stage assignment.
-
-            For each message index, output ONLY a JSON array of integers representing \
-            the stage number. Example for 5 messages: [1, 1, 2, 2, 3]
-
-            Output nothing else — no explanation, no markdown, just the JSON array.
-            """
-
-            let userMessage = "Classify each message:\n\n\(transcript)"
-            let apiMessages: [[String: String]] = [
-                ["role": "user", "content": userMessage]
-            ]
-
-            var response = ""
-            let stream = provider.streamCompletion(
-                messages: apiMessages,
-                systemPrompt: systemPrompt,
-                maxTokens: 1024
-            )
-            for await token in stream {
-                response += token
-            }
-
-            // Parse the JSON array from the response
-            let cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Extract JSON array even if wrapped in markdown code fence
-            let jsonString: String
-            if let start = cleaned.firstIndex(of: "["),
-               let end = cleaned.lastIndex(of: "]") {
-                jsonString = String(cleaned[start...end])
-            } else {
-                jsonString = cleaned
-            }
-
-            guard let data = jsonString.data(using: .utf8),
-                  let stages = try? JSONDecoder().decode([Int].self, from: data),
-                  !stages.isEmpty else {
-                reshapeError = "AI returned unexpected format. Got \(response.prefix(200))"
-                isReshaping = false
-                logger.warning("AI reshape parse failed: \(response.prefix(200))")
-                return
-            }
-
-            // Reconcile count: pad or trim to match message count
-            var reconciled = stages.map { max(1, min(6, $0)) }
-            let msgCount = messages.count
-            if reconciled.count < msgCount {
-                // Pad remaining messages with the last stage
-                let lastStage = reconciled.last ?? 1
-                reconciled.append(contentsOf: Array(repeating: lastStage, count: msgCount - reconciled.count))
-            } else if reconciled.count > msgCount {
-                reconciled = Array(reconciled.prefix(msgCount))
-            }
-
-            pendingReshape = reconciled
-
             isReshaping = false
-            logger.info("AI reshape complete: \(stages)")
         }
     }
 
     /// Accept the pending AI reshape and overwrite message stage tags.
     func acceptReshape(context: ModelContext? = nil) {
-        guard let stages = pendingReshape, stages.count == messages.count else { return }
-        for i in messages.indices {
-            messages[i].stageNumber = stages[i]
+        var flat = allMessages
+        guard let stages = pendingReshape, stages.count == flat.count else { return }
+        for i in flat.indices {
+            flat[i].stageNumber = stages[i]
         }
         // Update interview progress to the highest stage reached
         if let maxStage = stages.max() {
@@ -532,6 +468,13 @@ final class PricingConsultantViewModel {
                 insights: interviewProgress.insights
             )
         }
+        // Regroup into stages
+        var grouped: [Int: [AssistantMessage]] = [:]
+        for msg in flat {
+            let stage = msg.stageNumber ?? 1
+            grouped[stage, default: []].append(msg)
+        }
+        stageMessages = grouped
         pendingReshape = nil
         persistReshape(context: context)
         logger.info("Accepted AI reshape")
@@ -544,130 +487,60 @@ final class PricingConsultantViewModel {
 
     private func persistReshape(context: ModelContext? = nil) {
         if let campaign = currentCampaign {
-            campaign.messages = messages
+            campaign.stageMessages = stageMessages
+            campaign.messages = allMessages
             campaign.interviewProgress = interviewProgress
             try? context?.save()
         }
     }
 
-    /// Re-tag messages that have nil stageNumber by parsing PROGRESS metadata
-    /// or falling back to keyword heuristics.
-    ///
-    /// Stage progression is **monotonically increasing** — once we advance to
-    /// stage N, earlier-stage keywords in later messages won't drag us backward.
-    /// This matches how interviews actually flow: Inventory → Demand → Value →
-    /// Cost → Constraints → Recommendation.
-    private func reshapeStages() {
+    /// Re-tag messages in-place by parsing PROGRESS metadata or keyword heuristics.
+    /// Stage progression is **monotonically increasing**.
+    private func reshapeStagesInPlace(_ msgs: inout [AssistantMessage]) {
         var currentStage = 1
 
-        for i in messages.indices {
-            if messages[i].stageNumber != nil {
-                currentStage = max(currentStage, messages[i].stageNumber!)
+        for i in msgs.indices {
+            if msgs[i].stageNumber != nil {
+                currentStage = max(currentStage, msgs[i].stageNumber!)
                 continue
             }
 
             // Try to recover stage from PROGRESS comment in assistant messages
-            if messages[i].role == .assistant {
-                let (stripped, progress) = parseAndStripProgress(from: messages[i].content)
+            if msgs[i].role == .assistant {
+                let (stripped, progress) = ResponseParser.extractProgress(from: msgs[i].content)
                 if let progress {
                     currentStage = max(currentStage, progress.stageNumber)
-                    messages[i].content = stripped
-                    messages[i].stageNumber = currentStage
+                    msgs[i].content = stripped
+                    msgs[i].stageNumber = currentStage
                     if progress.stageNumber > interviewProgress.stageNumber {
                         interviewProgress = progress
                     }
 
                     // Also strip REVENUE if present
-                    let (strippedRevenue, projections) = parseAndStripRevenue(from: messages[i].content)
+                    let (strippedRevenue, projections) = ResponseParser.extractRevenue(from: msgs[i].content)
                     if let projections {
-                        messages[i].content = strippedRevenue
+                        msgs[i].content = strippedRevenue
                         revenueProjections = projections
+                        proposal.projections = projections
                     }
                     continue
                 }
             }
 
             // Heuristic: classify by transition-signaling phrases in the content.
-            // Only advance forward — never regress to an earlier stage.
-            let text = messages[i].content.lowercased()
-            if let detected = classifyStageByKeywords(text), detected > currentStage {
+            let text = msgs[i].content.lowercased()
+            if let detected = StageClassifier.detectStageByKeywords(text), detected > currentStage {
                 currentStage = detected
             }
-            messages[i].stageNumber = currentStage
+            msgs[i].stageNumber = currentStage
         }
-    }
-
-    /// Keyword heuristic to detect interview stage transitions.
-    ///
-    /// Keywords are chosen to match **transition signals** — the phrases that
-    /// indicate the consultant is moving to a new topic — not general vocabulary
-    /// that appears throughout the interview. This prevents early messages that
-    /// mention "value" or "cost" in passing from triggering premature stage jumps.
-    private func classifyStageByKeywords(_ text: String) -> Int? {
-        // Scored by counting distinct keyword hits per stage.
-        // A stage needs at least 2 hits to trigger, reducing false positives
-        // from stray keyword mentions. Check only stages > 1 since stage 1 is default.
-        let stageKeywords: [(Int, [String])] = [
-            (6, ["draft campaign", "here's the pricing", "final design",
-                 "bluf", "proposed tool pricing", "campaign json", "approve this",
-                 "do you approve", "variant a", "variant b", "variant c",
-                 "revenue projection", "revenue forecast", "tam / sam", "tam/sam",
-                 "monthly revenue", "3-scenario", "three scenario"]),
-            (5, ["constraint question", "treat specially", "rate limiting",
-                 "surge pricing", "free tier", "pipeline", "free_trial",
-                 "loyalty_discount", "bulk_bonus", "permanently free",
-                 "should remain free", "demand control"]),
-            (4, ["cost side", "cost you to serve", "what does it cost",
-                 "marginal cost", "near-zero", "cost structure", "cost floor",
-                 "monthly subscription", "hosting cost", "infrastructure cost",
-                 "backend cost", "serving cost", "azure vm"]),
-            (3, ["value question", "value ceiling", "value signal",
-                 "willingness to pay", "wtp", "economic value",
-                 "cognitive leverage", "how much would", "pricing power",
-                 "price sensitiv", "worth paying", "roi",
-                 "productive session", "career or business outcome"]),
-            (2, ["demand", "philosophy", "primary users", "who are your",
-                 "usage pattern", "how frequently", "who's calling",
-                 "target market", "user profile", "high-loyalty",
-                 "low-frequency", "business-first", "mission-driven"]),
-        ]
-
-        var bestStage: Int?
-        var bestScore = 0
-
-        for (stage, keywords) in stageKeywords {
-            let score = keywords.filter({ text.contains($0) }).count
-            if score >= 2 && score > bestScore {
-                bestScore = score
-                bestStage = stage
-            }
-        }
-
-        // Single-keyword fallback only for very distinctive phrases
-        if bestStage == nil {
-            let uniqueTransitions: [(Int, [String])] = [
-                (6, ["draft campaign", "campaign json", "3-scenario", "tam / sam"]),
-                (5, ["free_trial", "loyalty_discount", "bulk_bonus", "surge_pricing"]),
-                (4, ["cost you to serve", "near-zero marginal cost", "cost floor"]),
-                (3, ["willingness to pay", "cognitive leverage", "productive session"]),
-                (2, ["primary users", "who's calling these tools"]),
-            ]
-            for (stage, phrases) in uniqueTransitions {
-                if phrases.contains(where: { text.contains($0) }) {
-                    bestStage = stage
-                    break
-                }
-            }
-        }
-
-        return bestStage
     }
 
     /// Delete a campaign from the store.
     func deleteCampaign(_ campaign: Campaign, context: ModelContext) {
         if currentCampaign?.persistentModelID == campaign.persistentModelID {
             currentCampaign = nil
-            messages.removeAll()
+            stageMessages = [:]
         }
         context.delete(campaign)
         try? context.save()
@@ -675,20 +548,31 @@ final class PricingConsultantViewModel {
 
     // MARK: - Fork / What-If
 
-    /// Fork the conversation from a specific message index, replacing the user message
-    /// at that index with new text and replaying from there.
+    /// Fork the conversation from a specific message index (across allMessages),
+    /// replacing the user message at that index with new text and replaying from there.
     /// Returns the messages that were truncated (for undo/comparison).
     @discardableResult
     func forkFromMessage(at index: Int, newText: String, context: ConsultantContext) -> [AssistantMessage] {
-        guard index < messages.count else { return [] }
+        let flat = allMessages
+        guard index < flat.count else { return [] }
 
         // Save truncated tail for potential undo
-        let truncated = Array(messages.suffix(from: index))
+        let truncated = Array(flat.suffix(from: index))
+        let kept = Array(flat.prefix(index))
 
-        // Trim conversation to just before the fork point
-        messages = Array(messages.prefix(index))
+        // Determine what stage the fork point belongs to
+        let forkStage = flat[index].stageNumber ?? interviewProgress.stageNumber
 
-        // Send the new/edited message as a fresh turn
+        // Rebuild stageMessages from kept messages
+        var grouped: [Int: [AssistantMessage]] = [:]
+        for msg in kept {
+            let stage = msg.stageNumber ?? 1
+            grouped[stage, default: []].append(msg)
+        }
+        stageMessages = grouped
+
+        // Send the new/edited message as a fresh turn in the fork stage
+        viewingStageNumber = forkStage
         send(newText, context: context)
 
         logger.info("Forked conversation at message \(index), truncated \(truncated.count) messages")
@@ -699,16 +583,16 @@ final class PricingConsultantViewModel {
     /// the main conversation. Caller decides whether to persist.
     func whatIfBranch(at index: Int, newText: String, context: ConsultantContext) -> (branchMessages: [AssistantMessage], truncated: [AssistantMessage]) {
         // Snapshot current state
-        let savedMessages = messages
+        let savedStageMessages = stageMessages
         let savedProgress = interviewProgress
         let savedProjections = revenueProjections
 
         // Fork
         let truncated = forkFromMessage(at: index, newText: newText, context: context)
-        let branchMessages = messages
+        let branchMessages = allMessages
 
         // Restore original state
-        messages = savedMessages
+        stageMessages = savedStageMessages
         interviewProgress = savedProgress
         revenueProjections = savedProjections
 
@@ -717,7 +601,7 @@ final class PricingConsultantViewModel {
 
     // MARK: - Export
 
-    /// Export the full interview transcript as Markdown.
+    /// Export the full interview transcript as Markdown, organized by stage.
     func exportTranscript() -> String {
         let dateStr = Date().formatted(.dateTime.year().month().day().hour().minute())
         let campaignName = currentCampaign?.name ?? "Untitled Campaign"
@@ -738,99 +622,88 @@ final class PricingConsultantViewModel {
         formatter.dateStyle = .none
         formatter.timeStyle = .short
 
-        for message in messages {
-            let roleLabel = message.role == .user ? "Operator" : "Consultant"
-            let time = formatter.string(from: message.timestamp)
-            let stageLabel = message.stageNumber.map { "Stage \($0)" } ?? ""
-            lines.append("### \(roleLabel) [\(time)] \(stageLabel)")
+        for stage in 1...6 {
+            let msgs = stageMessages[stage] ?? []
+            guard !msgs.isEmpty else { continue }
+
+            let stageLabel = stage <= InterviewProgress.stageLabels.count
+                ? InterviewProgress.stageLabels[stage - 1]
+                : "Stage \(stage)"
+            lines.append("## Phase \(stage): \(stageLabel)")
             lines.append("")
-            lines.append(message.content)
+
+            for message in msgs {
+                let roleLabel = message.role == .user ? "Operator" : "Consultant"
+                let time = formatter.string(from: message.timestamp)
+                lines.append("### \(roleLabel) [\(time)]")
+                lines.append("")
+                lines.append(message.content)
+                lines.append("")
+            }
+
+            lines.append("---")
             lines.append("")
         }
 
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - Content Cleanup
-
-    /// Strip machine-readable artifacts from the displayed message content:
-    /// - JSON code fences (```json ... ```) — extracted separately for pipeline apply
-    /// - HTML comments (<!-- ... -->) that weren't caught by PROGRESS/REVENUE parsing
-    /// - Excessive blank lines left after stripping
-    private func cleanForDisplay(_ text: String) -> String {
-        var cleaned = text
-
-        // Strip JSON code fences (keep the prose around them)
-        cleaned = cleaned.replacingOccurrences(
-            of: #"```json\s*\n[\s\S]*?\n```"#,
-            with: "",
-            options: .regularExpression
-        )
-
-        // Strip any remaining HTML comments
-        cleaned = cleaned.replacingOccurrences(
-            of: #"<!--[\s\S]*?-->"#,
-            with: "",
-            options: .regularExpression
-        )
-
-        // Collapse runs of 3+ blank lines into 2
-        cleaned = cleaned.replacingOccurrences(
-            of: #"\n{3,}"#,
-            with: "\n\n",
-            options: .regularExpression
-        )
-
-        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    // MARK: - JSON Extraction
-
-    private func extractJSON(from text: String) -> String? {
-        // Try hidden comment format first: <!-- CAMPAIGN_JSON {...} -->
-        let campaignPattern = try! NSRegularExpression(
-            pattern: #"<!--\s*CAMPAIGN_JSON\s+(\{[\s\S]*?\})\s*-->"#,
-            options: [.dotMatchesLineSeparators]
-        )
-        let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
-        if let match = campaignPattern.firstMatch(in: text, range: nsRange),
-           let jsonRange = Range(match.range(at: 1), in: text) {
-            let candidate = String(text[jsonRange])
-            if isValidJSON(candidate) { return candidate }
-        }
-
-        // Fallback: JSON code fence
-        if let fencedRange = text.range(of: #"```json\s*\n([\s\S]*?)\n```"#, options: .regularExpression) {
-            let inner = text[fencedRange]
-            let stripped = inner
-                .replacingOccurrences(of: #"^```json\s*\n"#, with: "", options: .regularExpression)
-                .replacingOccurrences(of: #"\n```$"#, with: "", options: .regularExpression)
-            if isValidJSON(stripped) { return stripped }
-        }
-
-        guard let openIdx = text.firstIndex(of: "{") else { return nil }
-        var depth = 0
-        var closeIdx: String.Index?
-        for i in text.indices[openIdx...] {
-            if text[i] == "{" { depth += 1 }
-            else if text[i] == "}" {
-                depth -= 1
-                if depth == 0 { closeIdx = i; break }
-            }
-        }
-        guard let end = closeIdx else { return nil }
-        let candidate = String(text[openIdx...end])
-        return isValidJSON(candidate) ? candidate : nil
-    }
-
-    private func isValidJSON(_ text: String) -> Bool {
-        guard let data = text.data(using: .utf8) else { return false }
-        return (try? JSONSerialization.jsonObject(with: data)) != nil
-    }
+    // Content cleanup and JSON extraction delegated to ResponseParser
 
     // MARK: - System Prompt Assembly
 
-    private func buildSystemPrompt(context: ConsultantContext) -> String {
+    /// Build a stage-specific system prompt that includes prior-stage context.
+    private func buildStageSystemPrompt(stage: Int, context: ConsultantContext) -> String {
+        var parts: [String] = [buildBaseSystemPrompt(context: context)]
+
+        // Stage-specific focus instruction
+        let stageFocus: [Int: String] = [
+            1: "You are in the INVENTORY phase. Focus exclusively on discovering the operator's tools, categories, and current pricing. Do not discuss demand, value, costs, or constraints yet.",
+            2: "You are in the DEMAND phase. Focus exclusively on exploring expected usage patterns, market size, and user segments. Build on the inventory findings.",
+            3: "You are in the VALUE phase. Focus exclusively on assessing willingness-to-pay, competitive positioning, and perceived value.",
+            4: "You are in the COST phase. Focus exclusively on understanding serving costs, margin requirements, and infrastructure overhead.",
+            5: "You are in the CONSTRAINTS phase. Focus exclusively on designing promotional mechanics, fairness rules, rate limits, and free-tier policies.",
+            6: "You are in the RECOMMENDATION phase. Synthesize all prior findings and present a complete pricing campaign draft with BLUF, revenue projections, and A/B/C variants.",
+        ]
+
+        if let focus = stageFocus[stage] {
+            parts.append("\n## Current Phase\n\(focus)")
+        }
+
+        // For stages 2+, synthesize prior-stage context from insights
+        if stage >= 2 {
+            var priorContext: [String] = ["\n## Context from Prior Phases"]
+            let insights = interviewProgress.insights
+
+            if let tools = insights.toolsIdentified {
+                priorContext.append("- Inventory: \(tools) tools identified" +
+                    (insights.toolsCategories.map { " across \($0) categories" } ?? ""))
+            }
+            if stage >= 3, let demand = insights.demandSummary {
+                priorContext.append("- Demand: \(demand)")
+            }
+            if stage >= 4, let value = insights.valueSummary {
+                priorContext.append("- Value: \(value)")
+            }
+            if stage >= 5, let cost = insights.costSummary {
+                priorContext.append("- Cost: \(cost)")
+            }
+            if stage >= 6, let constraints = insights.constraintsConsidered, !constraints.isEmpty {
+                priorContext.append("- Constraints considered: \(constraints.joined(separator: ", "))")
+            }
+            if let philosophy = insights.philosophy {
+                priorContext.append("- Pricing philosophy: \(philosophy)")
+            }
+
+            if priorContext.count > 1 {
+                parts.append(priorContext.joined(separator: "\n"))
+            }
+        }
+
+        return parts.joined(separator: "\n")
+    }
+
+    private func buildBaseSystemPrompt(context: ConsultantContext) -> String {
         var parts: [String] = [systemPrompt]
 
         // Inject operator context so Claude can greet naturally

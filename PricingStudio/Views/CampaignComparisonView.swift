@@ -24,6 +24,7 @@ struct CampaignComparisonView: View {
                 }
             }
             .padding()
+            .textSelection(.enabled)
         }
     }
 

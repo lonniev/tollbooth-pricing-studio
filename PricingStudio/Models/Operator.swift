@@ -9,6 +9,9 @@ final class Operator: PricingTarget {
     var authorityNpub: String?
     var addedAt: Date = Date()
 
+    /// Display-only: name of the currently deployed campaign (set on deploy).
+    var deployedCampaignName: String?
+
     init(npub: String, displayName: String, mcpEndpointURL: String? = nil, authorityNpub: String? = nil) {
         self.npub = npub
         self.displayName = displayName

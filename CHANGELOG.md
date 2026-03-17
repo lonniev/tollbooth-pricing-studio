@@ -1,5 +1,61 @@
 # Changelog
 
+## [1.5.0] — 2026-03-16
+
+Per-stage isolated conversations, MCP push-on-apply, patron alias
+re-evaluation, and monospaced markdown tables.
+
+### Added
+- **Per-stage isolated conversations** — each interview phase (1-6) is now
+  its own independent conversation thread. Claude receives only that stage's
+  messages plus synthesized context from prior stages via `InterviewProgress.Insights`.
+  Stage stepper switches between isolated conversations; sending from a past stage
+  appends directly to that stage's thread without artificial "Let's revisit" messages.
+- **Stage-specific system prompts** — `buildStageSystemPrompt(stage:context:)` injects
+  phase-specific focus instructions and prior-stage context summaries, keeping Claude
+  on-topic within each phase.
+- **Apply Model pushes to MCP** — "Apply Model" now shows a confirmation dialog
+  offering "Push to MCP" (calls `savePricing(for:)` to push pricing to the operator's
+  endpoint) or "Keep as Local Edit". Error alert on push failure.
+- **Patron alias re-evaluation on nsec change** — editing a patron's nsec now
+  re-evaluates alias status: if the new npub collides with another patron, aliasOf
+  is set; if unique, aliasOf is cleared. Orphaned aliases (other patrons whose
+  aliasOf pointed at the old display name) are also re-evaluated.
+- **Campaign.stageMessagesJSON** — new SwiftData property for per-stage message
+  storage. Lightweight migration: defaults to nil for existing campaigns.
+- **Campaign.migrateToStageMessages()** — groups flat `messagesJSON` by stageNumber
+  into per-stage storage on first load.
+- **Campaign encode/decode helpers** — `encodeDicts`/`decodeDicts` promoted to
+  internal for per-stage serialization.
+- **Export by stage** — transcript export now organized with `## Phase N: Label`
+  section headers instead of flat message list.
+- **Campaign deploy sidebar** — operator sidebar shows campaign slots with deploy
+  context menu, compare multi-select, and LIVE badge.
+- **CampaignSummaryBuilder** — extracted stateless service for building focused
+  text summaries of campaign data for LLM consumption (second opinion, reshape, revision).
+- **ResponseParser** — extracted stateless service owning all regex parsing:
+  PROGRESS, REVENUE, CAMPAIGN_JSON, display cleanup, review section parsing,
+  and stage transition splitting.
+- **StageClassifier** — extracted AI and keyword-based stage classification.
+- **InterviewAnalysis** / **PricingProposal** / **PeerReview** — extracted value
+  types for structured interview artifacts.
+
+### Changed
+- **Monospaced markdown tables** — table header and body fonts in
+  `MarkdownContentView.tableView()` now use `.system(.caption, design: .monospaced)`
+  matching the code block pattern, so numeric columns align properly.
+- `PricingConsultantViewModel.stageMessages` replaces flat `messages` array as the
+  primary storage. Computed `messages` property retained for backward compatibility.
+- `saveCampaign`/`autoSave` now persist both `stageMessages` and flat `messages`
+  (backward compat safety net for one release cycle).
+- `loadCampaign` reads from `stageMessagesJSON` if available; otherwise migrates
+  from flat `messagesJSON` and persists the grouped result.
+- `forkFromMessage`/`whatIfBranch` now operate stage-aware.
+- `SecondOpinionViewModel` delegates parsing to `ResponseParser` and summary building
+  to `CampaignSummaryBuilder`; uses shared `ReviewSection`/`ReviewVerdict` types.
+- `Operator` model gains `deployedCampaignName` display property.
+- `OperatorCollectionViewModel` gains campaign slot management, deploy, and compare.
+
 ## [1.4.0] — 2026-03-16
 
 Secure Courier credential delivery, Authority claim flow, operator identity

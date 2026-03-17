@@ -14,7 +14,7 @@ struct FullScreenInterviewView: View {
     @State private var selectedStage: Int? = nil
 
     private var stageGroups: [StageGroup] {
-        groupMessagesByStage(consultantVM.messages)
+        groupMessagesByStage(consultantVM.allMessages)
     }
 
     var body: some View {
@@ -35,6 +35,7 @@ struct FullScreenInterviewView: View {
                             stageContent(stage)
                         }
                     }
+                    .textSelection(.enabled)
                     .padding()
                 }
             }

@@ -15,6 +15,9 @@ struct ContentView: View {
     @State private var assistantFullScreen = false
     @State private var showingTrafficLog = false
     @State private var showingSettings = false
+    @State private var showingPushConfirmation = false
+    @State private var pushError: String?
+    @State private var showingPushError = false
 
     var body: some View {
         NavigationSplitView {
@@ -22,6 +25,7 @@ struct ContentView: View {
                 authorityVM: authorityVM,
                 operatorVM: operatorVM,
                 patronVM: patronVM,
+                isConsultantStreaming: consultantVM.isStreaming,
                 showingTrafficLog: $showingTrafficLog,
                 showingSettings: $showingSettings
             )
@@ -44,6 +48,7 @@ struct ContentView: View {
                                 operatorNpub: op.npub,
                                 onApplyJSON: { json in
                                     pricingVM.applyConsultantJSON(json, for: op)
+                                    showingPushConfirmation = true
                                 }
                             )
                         }
@@ -99,6 +104,31 @@ struct ContentView: View {
                     isFullScreen: true
                 )
             }
+        }
+        .confirmationDialog(
+            "Push Pricing to MCP",
+            isPresented: $showingPushConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Push to MCP") {
+                guard let op = operatorVM.selectedOperator else { return }
+                Task {
+                    do {
+                        try await pricingVM.savePricing(for: op)
+                    } catch {
+                        pushError = error.localizedDescription
+                        showingPushError = true
+                    }
+                }
+            }
+            Button("Keep as Local Edit", role: .cancel) { }
+        } message: {
+            Text("The consultant's pricing has been staged locally. Push it to the operator's MCP endpoint now?")
+        }
+        .alert("Push Failed", isPresented: $showingPushError) {
+            Button("OK") { pushError = nil }
+        } message: {
+            Text(pushError ?? "An unknown error occurred.")
         }
         .sheet(isPresented: $authorityVM.showingAddSheet) {
             AddAuthoritySheet(viewModel: authorityVM)
@@ -160,6 +190,26 @@ struct ContentView: View {
                 chatVM.switchIdentity(to: ChatIdentity(from: op))
             }
             pricingVM.reset()
+            // Clear campaign selection when switching operators
+            operatorVM.selectedCampaign = nil
+        }
+        .onChange(of: operatorVM.selectedCampaign) { old, new in
+            // Auto-save outgoing campaign
+            if let old, consultantVM.currentCampaign?.persistentModelID == old.persistentModelID {
+                consultantVM.autoSave(context: modelContext)
+            }
+            // Load incoming campaign
+            if let campaign = new {
+                consultantVM.loadCampaign(campaign)
+            } else {
+                consultantVM.clear()
+            }
+        }
+        .onChange(of: operatorVM.deployedCampaignJSON) { _, json in
+            if let json, let op = operatorVM.selectedOperator {
+                pricingVM.applyConsultantJSON(json, for: op)
+                operatorVM.deployedCampaignJSON = nil
+            }
         }
         .onChange(of: patronVM.selectedPatron) { _, newPatron in
             if let patron = newPatron {
@@ -260,10 +310,12 @@ private struct SidebarView: View {
     @Query(sort: \Authority.addedAt) private var authorities: [Authority]
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
     @Query(sort: \Patron.addedAt) private var patrons: [Patron]
+    @Query(sort: \Campaign.updatedAt, order: .reverse) private var allCampaigns: [Campaign]
     @Environment(\.modelContext) private var modelContext
     @Bindable var authorityVM: AuthorityCollectionViewModel
     @Bindable var operatorVM: OperatorCollectionViewModel
     @Bindable var patronVM: PatronCollectionViewModel
+    var isConsultantStreaming: Bool
     @Binding var showingTrafficLog: Bool
     @Binding var showingSettings: Bool
 
@@ -271,6 +323,15 @@ private struct SidebarView: View {
         authorityVM.selectedAuthority != nil
         || operatorVM.selectedOperator != nil
         || patronVM.selectedPatron != nil
+    }
+
+    private func campaigns(for op: Operator) -> [Campaign] {
+        Array(allCampaigns.filter { $0.operatorNpub == op.npub }.prefix(3))
+    }
+
+    /// Resolve campaigns selected for comparison from their PersistentIdentifiers.
+    private var campaignsToCompare: [Campaign] {
+        allCampaigns.filter { operatorVM.campaignsForCompare.contains($0.persistentModelID) }
     }
 
     var body: some View {
@@ -312,6 +373,14 @@ private struct SidebarView: View {
                         Label("Network", systemImage: "point.3.connected.trianglepath.dotted")
                     }
                     .disabled(!hasSelection)
+
+                    if operatorVM.campaignsForCompare.count >= 2 {
+                        Button {
+                            operatorVM.showingCompareFromSidebar = true
+                        } label: {
+                            Label("Compare (\(operatorVM.campaignsForCompare.count))", systemImage: "arrow.left.arrow.right")
+                        }
+                    }
 
                     Spacer()
 
@@ -390,6 +459,19 @@ private struct SidebarView: View {
         } message: { alias in
             Text("A patron named \"\(alias.existingName)\" already uses this npub. Add \"\(alias.displayName)\" as an identity alias sharing the same key?")
         }
+        .sheet(isPresented: $operatorVM.showingCompareFromSidebar) {
+            NavigationStack {
+                CampaignComparisonView(campaigns: campaignsToCompare)
+                    .navigationTitle("Campaign Comparison")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                operatorVM.showingCompareFromSidebar = false
+                            }
+                        }
+                    }
+            }
+        }
     }
 
     // MARK: - Sidebar Sections
@@ -444,10 +526,14 @@ private struct SidebarView: View {
                 OperatorRowInline(
                     op: op,
                     isSelected: operatorVM.selectedOperator?.npub == op.npub,
+                    deployedCampaignName: op.deployedCampaignName,
                     onIconTapped: { operatorVM.requestEdit(op) }
                 )
                     .contentShape(Rectangle())
-                    .onTapGesture { operatorVM.selectedOperator = op }
+                    .onTapGesture {
+                        operatorVM.selectedOperator = op
+                        operatorVM.selectedCampaign = nil
+                    }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             operatorVM.requestDelete(op)
@@ -473,6 +559,42 @@ private struct SidebarView: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+
+                // Campaign slots indented under operator
+                ForEach(campaigns(for: op), id: \.persistentModelID) { campaign in
+                    CampaignSlotRow(
+                        campaign: campaign,
+                        isSelected: operatorVM.selectedCampaign?.persistentModelID == campaign.persistentModelID,
+                        isDeployed: campaign.isDeployed,
+                        isComparing: operatorVM.campaignsForCompare.contains(campaign.persistentModelID)
+                    )
+                    .padding(.leading, 28)
+                    .contentShape(Rectangle())
+                    .opacity(isConsultantStreaming ? 0.5 : 1.0)
+                    .onTapGesture {
+                        guard !isConsultantStreaming else { return }
+                        operatorVM.selectedOperator = op
+                        operatorVM.selectedCampaign = campaign
+                    }
+                    .contextMenu {
+                        Button {
+                            operatorVM.deployCampaign(campaign, for: op, context: modelContext)
+                        } label: {
+                            Label("Deploy to Operator", systemImage: "arrow.up.to.line")
+                        }
+                        Button {
+                            operatorVM.toggleCompare(campaign)
+                        } label: {
+                            if operatorVM.campaignsForCompare.contains(campaign.persistentModelID) {
+                                Label("Remove from Compare", systemImage: "minus.circle")
+                            } else {
+                                Label("Add to Compare", systemImage: "plus.circle")
+                            }
+                        }
+                        .disabled(!operatorVM.campaignsForCompare.contains(campaign.persistentModelID)
+                                  && operatorVM.campaignsForCompare.count >= 3)
+                    }
+                }
             }
 
             if operators.isEmpty {
@@ -607,6 +729,7 @@ private struct AuthorityDetailCard: View {
 private struct OperatorRowInline: View {
     let op: Operator
     let isSelected: Bool
+    var deployedCampaignName: String?
     var onIconTapped: (() -> Void)?
 
     var body: some View {
@@ -628,6 +751,12 @@ private struct OperatorRowInline: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospaced()
+                if let campaignName = deployedCampaignName {
+                    Text(campaignName)
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                        .lineLimit(1)
+                }
             }
             Spacer()
             if KeychainService.loadNsec(forNpub: op.npub) != nil {
@@ -650,6 +779,62 @@ private struct OperatorRowInline: View {
         let prefix = npub.prefix(12)
         let suffix = npub.suffix(4)
         return "\(prefix)...\(suffix)"
+    }
+}
+
+// MARK: - Campaign Slot Row
+
+private struct CampaignSlotRow: View {
+    let campaign: Campaign
+    let isSelected: Bool
+    let isDeployed: Bool
+    let isComparing: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(campaign.name)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                stageLabel
+            }
+            Spacer()
+            if isComparing {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+            }
+            if isDeployed {
+                Text("LIVE")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.green.opacity(0.2))
+                    .foregroundStyle(.green)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.vertical, 2)
+        .listRowBackground(isSelected ? Color.accentColor.opacity(0.10) : nil)
+    }
+
+    @ViewBuilder
+    private var stageLabel: some View {
+        if let progress = campaign.interviewProgress {
+            if progress.stageNumber >= 6 {
+                Label("Complete", systemImage: "checkmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            } else {
+                Text("Stage \(progress.stageNumber)/6")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Text("New")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
     }
 }
 

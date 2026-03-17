@@ -101,6 +101,12 @@
 		E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9844C99A73C4999A2235C1B /* PricingDiffView.swift */; };
 		8229C70DF9CA42748FCDC159 /* FullScreenInterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */; };
 		1A9E319668E94E4F9FFDF88F /* ForkInterviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6094B651CBBB4BC48F72E6F2 /* ForkInterviewSheet.swift */; };
+		DECD000100000000000001B1 /* InterviewAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000001A1 /* InterviewAnalysis.swift */; };
+		DECD000100000000000002B1 /* PricingProposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000002A1 /* PricingProposal.swift */; };
+		DECD000100000000000003B1 /* PeerReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000003A1 /* PeerReview.swift */; };
+		DECD000100000000000004B1 /* ResponseParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000004A1 /* ResponseParser.swift */; };
+		DECD000100000000000005B1 /* StageClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000005A1 /* StageClassifier.swift */; };
+		DECD000100000000000006B1 /* CampaignSummaryBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000006A1 /* CampaignSummaryBuilder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -197,6 +203,12 @@
 		AA0000010000000000000DFF /* PricingStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PricingStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorProofService.swift; sourceTree = "<group>"; };
 		7115326FE3DE4906B756A9D5 /* ToolRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolRole.swift; sourceTree = "<group>"; };
+		DECD000100000000000001A1 /* InterviewAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewAnalysis.swift; sourceTree = "<group>"; };
+		DECD000100000000000002A1 /* PricingProposal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingProposal.swift; sourceTree = "<group>"; };
+		DECD000100000000000003A1 /* PeerReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerReview.swift; sourceTree = "<group>"; };
+		DECD000100000000000004A1 /* ResponseParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseParser.swift; sourceTree = "<group>"; };
+		DECD000100000000000005A1 /* StageClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageClassifier.swift; sourceTree = "<group>"; };
+		DECD000100000000000006A1 /* CampaignSummaryBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignSummaryBuilder.swift; sourceTree = "<group>"; };
 		CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPickerView.swift; sourceTree = "<group>"; };
 		D9844C99A73C4999A2235C1B /* PricingDiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingDiffView.swift; sourceTree = "<group>"; };
 		075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenInterviewView.swift; sourceTree = "<group>"; };
@@ -292,6 +304,9 @@
 				AA0000010000000000000922 /* Campaign.swift */,
 				AA0000010000000000000A02 /* RevenueProjection.swift */,
 				AA0000010000000000000B06 /* CourierPayload.swift */,
+				DECD000100000000000001A1 /* InterviewAnalysis.swift */,
+				DECD000100000000000002A1 /* PricingProposal.swift */,
+				DECD000100000000000003A1 /* PeerReview.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -311,6 +326,9 @@
 				AA0000010000000000000B01 /* LLMProvider.swift */,
 				AA0000010000000000000B02 /* XAIProvider.swift */,
 				AA0000010000000000000B03 /* AnthropicProvider.swift */,
+				DECD000100000000000004A1 /* ResponseParser.swift */,
+				DECD000100000000000005A1 /* StageClassifier.swift */,
+				DECD000100000000000006A1 /* CampaignSummaryBuilder.swift */,
 				AA0000010000000000000200 /* Nostr */,
 			);
 			path = Services;
@@ -544,6 +562,12 @@
 				1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */,
 				E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */,
 				8229C70DF9CA42748FCDC159 /* FullScreenInterviewView.swift in Sources */,
+				DECD000100000000000001B1 /* InterviewAnalysis.swift in Sources */,
+				DECD000100000000000002B1 /* PricingProposal.swift in Sources */,
+				DECD000100000000000003B1 /* PeerReview.swift in Sources */,
+				DECD000100000000000004B1 /* ResponseParser.swift in Sources */,
+				DECD000100000000000005B1 /* StageClassifier.swift in Sources */,
+				DECD000100000000000006B1 /* CampaignSummaryBuilder.swift in Sources */,
 				AA000001000000000000001B /* ContentView.swift in Sources */,
 				AA000001000000000000001A /* PricingStudioApp.swift in Sources */,
 				AA00000100000000000000B1 /* Operator.swift in Sources */,
@@ -784,7 +808,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -815,7 +839,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

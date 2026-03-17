@@ -26,6 +26,7 @@ struct PricingConsultantView: View {
     @State private var editedMessageText = ""
     @State private var showingForkSheet = false
     @State private var showingReshapePreview = false
+    @State private var showingCloseConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -306,12 +307,24 @@ struct PricingConsultantView: View {
             }
 
             Button {
-                consultantVM.clear()
+                showingCloseConfirmation = true
             } label: {
-                Label("Clear", systemImage: "trash")
+                Label("Close", systemImage: "xmark.circle")
                     .labelStyle(.iconOnly)
             }
             .disabled(consultantVM.messages.isEmpty)
+            .confirmationDialog(
+                "Close Interview",
+                isPresented: $showingCloseConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Close Without Saving", role: .destructive) {
+                    consultantVM.clear()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This will discard the current interview. Any unsaved changes will be lost.")
+            }
 
             Button {
                 consultantVM.aiReshape()
@@ -591,24 +604,27 @@ struct PricingConsultantView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
-                if message.isStreaming {
-                    ProgressView()
+                HStack(spacing: 8) {
+                    if message.isStreaming {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
+
+                    if let idx = messageIndex, !message.isStreaming {
+                        Button {
+                            editingMessageIndex = idx
+                            editedMessageText = message.role == .user ? message.content : ""
+                            showingForkSheet = true
+                        } label: {
+                            Label(
+                                message.role == .user ? "Edit & Replay" : "What-If",
+                                systemImage: "arrow.triangle.branch"
+                            )
+                            .font(.caption2)
+                        }
+                        .buttonStyle(.bordered)
                         .controlSize(.mini)
-                }
-            }
-            .contextMenu {
-                if let idx = messageIndex, !message.isStreaming {
-                    Button {
-                        editingMessageIndex = idx
-                        // For user messages, edit the text directly.
-                        // For assistant messages, prompt for a replacement user message.
-                        editedMessageText = message.role == .user ? message.content : ""
-                        showingForkSheet = true
-                    } label: {
-                        Label(
-                            message.role == .user ? "Edit & Replay" : "What-If from Here",
-                            systemImage: "arrow.triangle.branch"
-                        )
+                        .tint(.orange)
                     }
                 }
             }
@@ -677,20 +693,7 @@ struct PricingConsultantView: View {
         guard !text.isEmpty else { return }
         inputText = ""
 
-        // If viewing a past stage, prepend a revisit message
-        if let viewing = consultantVM.viewingStageNumber,
-           viewing != consultantVM.interviewProgress.stageNumber {
-            let stageName = viewing <= InterviewProgress.stageLabels.count
-                ? InterviewProgress.stageLabels[viewing - 1]
-                : "Stage \(viewing)"
-            let revisitMsg = AssistantMessage(
-                role: .user,
-                content: "Let's revisit \(stageName).",
-                stageNumber: viewing
-            )
-            consultantVM.messages.append(revisitMsg)
-        }
-
+        // send() now respects viewingStageNumber — no artificial "Let's revisit" needed
         consultantVM.send(text, context: context)
 
         // Auto-save if a campaign is loaded
@@ -1389,6 +1392,7 @@ struct ReshapePreviewSheet: View {
                                 .font(.caption)
                                 .foregroundStyle(.primary)
                                 .lineLimit(3)
+                                .textSelection(.enabled)
                         }
 
                         Spacer()
