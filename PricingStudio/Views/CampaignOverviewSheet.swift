@@ -9,6 +9,14 @@ struct CampaignOverviewSheet: View {
     let campaign: Campaign
     var onDismiss: () -> Void
 
+    @State private var panelOffset: CGSize = .zero
+    @State private var panelSize: CGSize = CGSize(width: 520, height: 640)
+    @GestureState private var dragOffset: CGSize = .zero
+    @GestureState private var resizeDelta: CGSize = .zero
+
+    private let minSize = CGSize(width: 360, height: 400)
+    private let maxSize = CGSize(width: 900, height: 1100)
+
     private var progress: InterviewProgress? { campaign.interviewProgress }
     private var projections: CampaignProjections? {
         campaign.proposal?.projections ?? campaign.revenueProjections
@@ -17,8 +25,45 @@ struct CampaignOverviewSheet: View {
     private var review: PeerReview? { campaign.peerReview }
     private var insights: InterviewProgress.Insights? { progress?.insights }
 
+    private var currentWidth: CGFloat {
+        min(max(panelSize.width + resizeDelta.width, minSize.width), maxSize.width)
+    }
+    private var currentHeight: CGFloat {
+        min(max(panelSize.height + resizeDelta.height, minSize.height), maxSize.height)
+    }
+
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Drag handle / title bar
+            HStack {
+                Text(campaign.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer()
+                Button { onDismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(.secondarySystemGroupedBackground))
+            .gesture(
+                DragGesture()
+                    .updating($dragOffset) { value, state, _ in
+                        state = value.translation
+                    }
+                    .onEnded { value in
+                        panelOffset.width += value.translation.width
+                        panelOffset.height += value.translation.height
+                    }
+            )
+
+            Divider()
+
+            // Scrollable content
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     headerSection
@@ -31,14 +76,34 @@ struct CampaignOverviewSheet: View {
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle(campaign.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { onDismiss() }
-                }
+
+            // Resize handle
+            HStack {
+                Spacer()
+                Image(systemName: "arrow.down.right.and.arrow.up.left")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(6)
+                    .gesture(
+                        DragGesture()
+                            .updating($resizeDelta) { value, state, _ in
+                                state = value.translation
+                            }
+                            .onEnded { value in
+                                panelSize.width = min(max(panelSize.width + value.translation.width, minSize.width), maxSize.width)
+                                panelSize.height = min(max(panelSize.height + value.translation.height, minSize.height), maxSize.height)
+                            }
+                    )
             }
+            .background(Color(.secondarySystemGroupedBackground))
         }
+        .frame(width: currentWidth, height: currentHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+        .offset(
+            x: panelOffset.width + dragOffset.width,
+            y: panelOffset.height + dragOffset.height
+        )
     }
 
     // MARK: - Header
