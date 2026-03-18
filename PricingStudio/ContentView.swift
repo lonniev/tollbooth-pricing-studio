@@ -253,6 +253,19 @@ struct ContentView: View {
             }
             DMPollingService.shared.startPolling(modelContext: modelContext)
         }
+        .overlay {
+            if let campaign = campaignForOverview {
+                Color.black.opacity(0.2)
+                    .ignoresSafeArea()
+                    .onTapGesture { campaignForOverview = nil }
+
+                CampaignOverviewSheet(campaign: campaign) {
+                    campaignForOverview = nil
+                }
+                .transition(.scale(scale: 0.9).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: campaignForOverview?.persistentModelID)
     }
 
     // MARK: - App Context for AI Assistant
@@ -377,20 +390,6 @@ private struct SidebarView: View {
                     }
             }
         }
-        .overlay {
-            if let campaign = campaignForOverview {
-                // Dimmed backdrop — tap to dismiss
-                Color.black.opacity(0.2)
-                    .ignoresSafeArea()
-                    .onTapGesture { campaignForOverview = nil }
-
-                CampaignOverviewSheet(campaign: campaign) {
-                    campaignForOverview = nil
-                }
-                .transition(.scale(scale: 0.9).combined(with: .opacity))
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: campaignForOverview?.persistentModelID)
     }
 
     // MARK: - Toolbar
