@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var showingPushConfirmation = false
     @State private var pushError: String?
     @State private var showingPushError = false
+    @State private var campaignForOverview: Campaign?
 
     var body: some View {
         NavigationSplitView {
@@ -27,7 +28,8 @@ struct ContentView: View {
                 patronVM: patronVM,
                 isConsultantStreaming: consultantVM.isStreaming,
                 showingTrafficLog: $showingTrafficLog,
-                showingSettings: $showingSettings
+                showingSettings: $showingSettings,
+                campaignForOverview: $campaignForOverview
             )
         } detail: {
             VStack(spacing: 0) {
@@ -336,6 +338,7 @@ private struct SidebarView: View {
     var isConsultantStreaming: Bool
     @Binding var showingTrafficLog: Bool
     @Binding var showingSettings: Bool
+    @Binding var campaignForOverview: Campaign?
 
     private var hasSelection: Bool {
         authorityVM.selectedAuthority != nil
@@ -372,6 +375,11 @@ private struct SidebarView: View {
                             }
                         }
                     }
+            }
+        }
+        .sheet(item: $campaignForOverview) { campaign in
+            CampaignOverviewSheet(campaign: campaign) {
+                campaignForOverview = nil
             }
         }
     }
@@ -572,6 +580,12 @@ private struct SidebarView: View {
                         }
                         .disabled(!operatorVM.campaignsForCompare.contains(campaign.persistentModelID)
                                   && operatorVM.campaignsForCompare.count >= 3)
+
+                        Button {
+                            campaignForOverview = campaign
+                        } label: {
+                            Label("Campaign Overview", systemImage: "chart.bar.doc.horizontal")
+                        }
 
                         Divider()
 
