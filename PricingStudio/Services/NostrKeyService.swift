@@ -19,6 +19,27 @@ enum NostrKeyService {
         }
     }
 
+    /// Generate a fresh Nostr keypair (nsec + npub).
+    static func generateKeyPair() throws -> (nsec: String, npub: String) {
+        // 1. Generate 32 random bytes for the private key
+        var privateKeyBytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, 32, &privateKeyBytes)
+        guard status == errSecSuccess else { throw KeyError.keyDerivationFailed }
+
+        // 2. Validate it works as a secp256k1 key and derive the public key
+        let privateKey = try P256K.Schnorr.PrivateKey(dataRepresentation: privateKeyBytes)
+        let publicKeyBytes = Array(privateKey.xonly.bytes)
+
+        // 3. Bech32 encode both
+        guard let nsecData = convertBits(data: privateKeyBytes, fromBits: 8, toBits: 5, pad: true),
+              let npubData = convertBits(data: publicKeyBytes, fromBits: 8, toBits: 5, pad: true) else {
+            throw KeyError.keyDerivationFailed
+        }
+        let nsec = bech32Encode(hrp: "nsec", data: nsecData)
+        let npub = bech32Encode(hrp: "npub", data: npubData)
+        return (nsec, npub)
+    }
+
     /// Derive an npub from an nsec.
     static func npubFromNsec(_ nsec: String) throws -> String {
         guard nsec.hasPrefix("nsec1") else { throw KeyError.invalidNsec }

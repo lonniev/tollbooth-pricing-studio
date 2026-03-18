@@ -10,6 +10,7 @@ struct AddOperatorSheet: View {
     @State private var displayName = ""
     @State private var derivedNpub: String?
     @State private var keyError: String?
+    @State private var generatedKeys = false
 
     private var effectiveNpub: String {
         derivedNpub ?? npub
@@ -23,6 +24,22 @@ struct AddOperatorSheet: View {
         NavigationStack {
             Form {
                 Section {
+                    Button {
+                        generateNewKeys()
+                    } label: {
+                        Label("Generate Nostr Keys", systemImage: "key.fill")
+                    }
+                    .disabled(generatedKeys)
+                } footer: {
+                    if generatedKeys {
+                        Label("Keys generated — nsec and npub filled in below", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("Create a brand-new Nostr identity for this operator.")
+                    }
+                }
+
+                Section {
                     SecureField("nsec1... (optional)", text: $nsec)
                         .textContentType(.password)
                         .textInputAutocapitalization(.never)
@@ -30,7 +47,9 @@ struct AddOperatorSheet: View {
                         .monospaced()
                         .font(.callout)
                         .onChange(of: nsec) { _, newValue in
-                            deriveNpubFromNsec(newValue)
+                            if !generatedKeys {
+                                deriveNpubFromNsec(newValue)
+                            }
                         }
                 } header: {
                     Text("Operator nsec")
@@ -41,7 +60,7 @@ struct AddOperatorSheet: View {
                         Label("npub derived from nsec", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     } else {
-                        Text("Provide the nsec to act as this operator. The npub will be derived automatically.")
+                        Text("Provide the nsec to act as this operator, or generate keys above.")
                     }
                 }
 
@@ -101,6 +120,19 @@ struct AddOperatorSheet: View {
                     .disabled(!isValid)
                 }
             }
+        }
+    }
+
+    private func generateNewKeys() {
+        do {
+            let keys = try NostrKeyService.generateKeyPair()
+            nsec = keys.nsec
+            npub = keys.npub
+            derivedNpub = keys.npub
+            keyError = nil
+            generatedKeys = true
+        } catch {
+            keyError = "Key generation failed: \(error.localizedDescription)"
         }
     }
 
