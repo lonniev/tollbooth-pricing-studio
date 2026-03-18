@@ -34,6 +34,9 @@ final class PricingViewModel {
     var localEdits: [String: ToolPrice] = [:]
     var localPipeline: [PipelineStep]? = nil
 
+    /// Warnings from client-side pipeline validation (displayed before save).
+    var pipelineWarnings: [String] = []
+
     var hasPipelineEdits: Bool {
         guard let localPipeline else { return false }
         guard let serverPipeline = pricingModel?.pipeline else {
@@ -110,6 +113,65 @@ final class PricingViewModel {
             }
             localPipeline = steps
         }
+
+        // Validate and repair pipeline against ConstraintCatalog
+        validateAndRepairPipeline()
+    }
+
+    /// Validate pipeline steps against the ConstraintCatalog.
+    /// Backfills missing required params that have catalog defaults.
+    /// Populates `pipelineWarnings` for anything that can't be auto-fixed.
+    func validateAndRepairPipeline() {
+        guard var steps = localPipeline else {
+            pipelineWarnings = []
+            return
+        }
+
+        var warnings: [String] = []
+
+        for i in steps.indices {
+            let step = steps[i]
+            guard let spec = ConstraintCatalog.spec(for: step.displayType) else {
+                warnings.append("Step \(i + 1) (\(step.type)): unknown constraint type")
+                continue
+            }
+
+            var params = step.params
+
+            for paramSpec in spec.params {
+                if params[paramSpec.name] == nil {
+                    if paramSpec.required {
+                        if let defaultValue = paramSpec.defaultValue {
+                            // Auto-repair: backfill the catalog default
+                            params[paramSpec.name] = defaultValue
+                            warnings.append(
+                                "Step \(i + 1) (\(step.type)): " +
+                                "missing '\(paramSpec.name)' — defaulted to \(defaultValue)"
+                            )
+                        } else {
+                            // No default available — hard error, server will reject
+                            warnings.append(
+                                "Step \(i + 1) (\(step.type)): " +
+                                "missing required '\(paramSpec.name)' with no default — " +
+                                "server will reject this pipeline"
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Write repaired params back if changed
+            if params.count != step.params.count {
+                steps[i] = PipelineStep(
+                    id: step.id,
+                    type: step.type,
+                    params: params
+                )
+            }
+        }
+
+        localPipeline = steps
+        pipelineWarnings = warnings
     }
 
     private func anyCodableValue(from value: Any) -> AnyCodableValue {
@@ -336,6 +398,14 @@ final class PricingViewModel {
         guard let model = pricingModel,
               let endpointString = target.mcpEndpointURL,
               let endpointURL = URL(string: endpointString) else { return }
+
+        // Pre-flight: validate and repair pipeline before sending to server
+        validateAndRepairPipeline()
+        let hardErrors = pipelineWarnings.filter { $0.contains("server will reject") }
+        if !hardErrors.isEmpty {
+            state = .error("Pipeline validation failed:\n" + hardErrors.joined(separator: "\n"))
+            return
+        }
 
         state = .loading(step: "Saving pricing...")
 
