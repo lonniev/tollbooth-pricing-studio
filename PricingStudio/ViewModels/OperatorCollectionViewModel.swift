@@ -26,9 +26,12 @@ final class OperatorCollectionViewModel {
     var showingCompareFromSidebar = false
     var deployedCampaignJSON: String?
 
-    // Campaign delete confirmation
+    // Campaign delete confirmation — captures the target at request time (avoids TOCTOU).
     var showingCampaignDeleteConfirmation = false
     var campaignToDelete: Campaign?
+
+    /// Set to true to suppress autoSave during a delete cycle.
+    var suppressAutoSave = false
 
     func addOperator(npub: String, displayName: String, context: ModelContext) {
         let op = Operator(npub: npub, displayName: displayName)
@@ -99,34 +102,61 @@ final class OperatorCollectionViewModel {
         try? context.save()
     }
 
-    /// Put away a campaign: deselect it and remove from compare, but keep in DB.
-    func putAwayCampaign(_ campaign: Campaign) {
+    /// Put away a campaign: remove from sidebar workspace slots but keep in persistent store.
+    /// If the campaign is deployed, clears the deployed state first.
+    func putAwayCampaign(_ campaign: Campaign, for op: Operator?, context: ModelContext) {
+        // Clear deployed state if this campaign is live
+        if campaign.isDeployed, let op {
+            campaign.isDeployed = false
+            op.deployedCampaignName = nil
+        }
+        campaign.isHidden = true
         campaignsForCompare.remove(campaign.persistentModelID)
         if selectedCampaign?.persistentModelID == campaign.persistentModelID {
             selectedCampaign = nil
         }
+        try? context.save()
+    }
+
+    /// Load a put-away campaign back into a sidebar slot.
+    func loadCampaignIntoSlot(_ campaign: Campaign, context: ModelContext) {
+        campaign.isHidden = false
+        try? context.save()
     }
 
     /// Request deletion of a campaign (shows confirmation alert).
+    /// Captures the campaign reference at request time to avoid TOCTOU with selectedCampaign.
     func requestCampaignDelete(_ campaign: Campaign) {
         campaignToDelete = campaign
         showingCampaignDeleteConfirmation = true
     }
 
     /// Confirm and delete the campaign from SwiftData.
-    func confirmCampaignDelete(context: ModelContext) {
-        if let campaign = campaignToDelete {
-            // Remove from compare queue if present
-            campaignsForCompare.remove(campaign.persistentModelID)
-            // Clear selection if this was the active campaign
-            if selectedCampaign?.persistentModelID == campaign.persistentModelID {
-                selectedCampaign = nil
-            }
-            context.delete(campaign)
-            try? context.save()
+    /// Clears deployed state if needed, suppresses autoSave during the cycle.
+    func confirmCampaignDelete(for op: Operator?, context: ModelContext) {
+        guard let campaign = campaignToDelete else {
+            showingCampaignDeleteConfirmation = false
+            return
         }
+
+        suppressAutoSave = true
+
+        // Clear deployed state if this campaign is live
+        if campaign.isDeployed, let op {
+            op.deployedCampaignName = nil
+        }
+
+        campaignsForCompare.remove(campaign.persistentModelID)
+        if selectedCampaign?.persistentModelID == campaign.persistentModelID {
+            selectedCampaign = nil
+        }
+
+        context.delete(campaign)
+        try? context.save()
+
         campaignToDelete = nil
         showingCampaignDeleteConfirmation = false
+        suppressAutoSave = false
     }
 
     /// Cancel campaign deletion.

@@ -41,6 +41,10 @@ final class Campaign {
     /// Whether this campaign is the one currently deployed to its operator.
     var isDeployed: Bool = false
 
+    /// Whether this campaign has been put away (removed from the sidebar workspace slots).
+    /// Put-away campaigns remain in the persistent store and can be loaded back into a slot.
+    var isHidden: Bool = false
+
     init(
         name: String,
         operatorNpub: String,

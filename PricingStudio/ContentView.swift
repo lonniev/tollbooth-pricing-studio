@@ -50,10 +50,8 @@ struct ContentView: View {
                                     pricingVM.applyConsultantJSON(json, for: op)
                                     showingPushConfirmation = true
                                 },
-                                onDeleteCampaign: {
-                                    if let campaign = operatorVM.selectedCampaign {
-                                        operatorVM.requestCampaignDelete(campaign)
-                                    }
+                                onDeleteCampaign: { campaign in
+                                    operatorVM.requestCampaignDelete(campaign)
                                 }
                             )
                         }
@@ -144,7 +142,7 @@ struct ContentView: View {
                 operatorVM.cancelCampaignDelete()
             }
             Button("Delete", role: .destructive) {
-                operatorVM.confirmCampaignDelete(context: modelContext)
+                operatorVM.confirmCampaignDelete(for: operatorVM.selectedOperator, context: modelContext)
             }
         } message: { campaign in
             Text("Permanently delete \"\(campaign.name)\"? This campaign and its interview history cannot be recovered.")
@@ -213,8 +211,9 @@ struct ContentView: View {
             operatorVM.selectedCampaign = nil
         }
         .onChange(of: operatorVM.selectedCampaign) { old, new in
-            // Auto-save outgoing campaign
-            if let old, consultantVM.currentCampaign?.persistentModelID == old.persistentModelID {
+            // Auto-save outgoing campaign (skip during delete to avoid writing to a doomed object)
+            if let old, !operatorVM.suppressAutoSave,
+               consultantVM.currentCampaign?.persistentModelID == old.persistentModelID {
                 consultantVM.autoSave(context: modelContext)
             }
             // Load incoming campaign
@@ -345,12 +344,12 @@ private struct SidebarView: View {
     }
 
     private func campaigns(for op: Operator) -> [Campaign] {
-        Array(allCampaigns.filter { $0.operatorNpub == op.npub }.prefix(3))
+        Array(allCampaigns.filter { $0.operatorNpub == op.npub && !$0.isHidden }.prefix(3))
     }
 
     /// Resolve campaigns selected for comparison from their PersistentIdentifiers.
     private var campaignsToCompare: [Campaign] {
-        allCampaigns.filter { operatorVM.campaignsForCompare.contains($0.persistentModelID) }
+        allCampaigns.filter { !$0.isHidden && operatorVM.campaignsForCompare.contains($0.persistentModelID) }
     }
 
     var body: some View {
@@ -577,7 +576,7 @@ private struct SidebarView: View {
                         Divider()
 
                         Button {
-                            operatorVM.putAwayCampaign(campaign)
+                            operatorVM.putAwayCampaign(campaign, for: op, context: modelContext)
                         } label: {
                             Label("Put Away", systemImage: "tray.and.arrow.down")
                         }
