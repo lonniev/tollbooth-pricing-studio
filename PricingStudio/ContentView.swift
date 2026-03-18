@@ -297,7 +297,7 @@ struct ContentView: View {
                 let pipelineDesc = pipeline.enumerated().map { (i, step) in
                     "  \(i + 1). \(step.type)" + (step.params.isEmpty ? "" : " — \(step.params)")
                 }.joined(separator: "\n")
-                ctx.currentPipeline = pipelineDesc
+                ctx.currentPipeline = "[EXISTING server model — may be outdated]\n" + pipelineDesc
             }
         }
 

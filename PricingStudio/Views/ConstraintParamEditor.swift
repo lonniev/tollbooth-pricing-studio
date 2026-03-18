@@ -241,6 +241,7 @@ struct ConstraintParamEditor: View {
         case .double(let d): return "\(d)"
         case .bool(let b): return b ? "true" : "false"
         case .array(let a): return "[\(a.map(\.description).joined(separator: ", "))]"
+        case .dictionary(let d): return d.description
         case .null: return ""
         }
     }

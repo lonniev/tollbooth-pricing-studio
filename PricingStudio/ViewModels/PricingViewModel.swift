@@ -179,6 +179,9 @@ final class PricingViewModel {
         if let i = value as? Int { return .int(i) }
         if let d = value as? Double { return .double(d) }
         if let b = value as? Bool { return .bool(b) }
+        if let dict = value as? [String: Any] {
+            return .dictionary(dict.mapValues { anyCodableValue(from: $0) })
+        }
         if let arr = value as? [Any] { return .array(arr.map { anyCodableValue(from: $0) }) }
         return .null
     }

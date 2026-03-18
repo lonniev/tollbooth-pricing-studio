@@ -163,9 +163,7 @@ final class NostrRelayService: Sendable {
             logger.info("Fetched \(events.count) events from \(relay.absoluteString)")
             return events
         } catch {
-            await MainActor.run {
-                TrafficLogger.shared.log(.error, label: "Relay \(host) Failed", detail: error.localizedDescription)
-            }
+            // Individual relay failures are normal — only log to OS debug, not traffic log
             logger.debug("Relay fetch \(relay.absoluteString) failed: \(error.localizedDescription)")
             return []
         }
@@ -204,7 +202,7 @@ final class NostrRelayService: Sendable {
                    arr.count >= 3, let ok = arr[2] as? Bool {
                     let detail = arr.count > 3 ? (arr[3] as? String ?? "") : ""
                     await MainActor.run {
-                        TrafficLogger.shared.log(ok ? .inbound : .error, label: "Relay Publish \(ok ? "OK" : "Fail")", detail: "\(host): \(detail)")
+                        TrafficLogger.shared.log(.inbound, label: "Relay Publish \(ok ? "OK" : "Rejected")", detail: "\(host): \(detail)")
                     }
                     return (relay, ok, detail)
                 }
@@ -218,9 +216,7 @@ final class NostrRelayService: Sendable {
                 return (relay, true, "")
             }
         } catch {
-            await MainActor.run {
-                TrafficLogger.shared.log(.error, label: "Relay Publish Fail", detail: "\(host): \(error.localizedDescription)")
-            }
+            // Individual relay failures are normal — only log to OS debug, not traffic log
             logger.debug("Relay publish \(relay.absoluteString) failed: \(error.localizedDescription)")
             return (relay, false, error.localizedDescription)
         }

@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.5.1] — 2026-03-18
+
+Five bug fixes and UX improvements from campaign design testing.
+
+### Fixed
+- **Bulk Discount tiers showing `[null, null]`** — `AnyCodableValue` lacked a
+  `.dictionary([String: AnyCodableValue])` case, causing tier objects from JSON
+  to fall through to `.null`. Added dictionary support to the enum, decoder,
+  encoder, description, and the `anyCodableValue(from:)` bridge in PricingViewModel.
+- **Existing server pipeline mislabeled in consultant context** — `buildConsultantContext()`
+  now labels the server model's pipeline as `[EXISTING server model — may be outdated]`
+  so it cannot be confused with the proposed campaign in the Grok second opinion transcript.
+
+### Added
+- **Auto-feed Grok feedback to Claude** — dismissing the Second Opinion sheet now
+  automatically sends Grok's suggested changes to Claude as a follow-up message,
+  so Claude can adjust the proposal without requiring the user to manually tap "Revise."
+  The manual fork-based "Revise Campaign" button remains for explicit revision control.
+- **Second opinion availability hint** — the Second Opinion button now appears (disabled
+  with `.help()` tooltip) as soon as messages exist, explaining "Available after Synthesis
+  stage (stage 6 of 6)." Previously the button was completely hidden until stage 6.
+
+### Changed
+- **Relay error logging quieted** — individual relay failures no longer appear in the
+  traffic log (removed `TrafficLogger.shared.log(.error, ...)` from `fetchFromRelay` and
+  `publishToRelay`). Relay OK=false rejections downgraded from `.error` to `.inbound`.
+  Only OS-level `logger.debug` remains for individual failures. Aggregate "all relays
+  failed" logging by callers (e.g. `NostrDMService.sendDM`) is unchanged.
+- **`ConstraintParamEditor` switch exhaustiveness** — added `.dictionary` case to the
+  `stringFrom(_:)` helper to match updated `AnyCodableValue` enum.
+
 ## [1.5.0] — 2026-03-16
 
 Per-stage isolated conversations, MCP push-on-apply, patron alias

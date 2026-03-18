@@ -158,6 +158,7 @@ enum AnyCodableValue: Codable, Sendable, CustomStringConvertible {
     case double(Double)
     case bool(Bool)
     case array([AnyCodableValue])
+    case dictionary([String: AnyCodableValue])
     case null
 
     var description: String {
@@ -167,13 +168,20 @@ enum AnyCodableValue: Codable, Sendable, CustomStringConvertible {
         case .double(let d): return "\(d)"
         case .bool(let b): return b ? "true" : "false"
         case .array(let a): return "[\(a.map(\.description).joined(separator: ", "))]"
+        case .dictionary(let d):
+            let pairs = d.map { "\($0.key): \($0.value.description)" }.joined(separator: ", ")
+            return "{\(pairs)}"
         case .null: return "null"
         }
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let s = try? container.decode(String.self) {
+        if let d = try? container.decode([String: AnyCodableValue].self) {
+            self = .dictionary(d)
+        } else if let a = try? container.decode([AnyCodableValue].self) {
+            self = .array(a)
+        } else if let s = try? container.decode(String.self) {
             self = .string(s)
         } else if let i = try? container.decode(Int.self) {
             self = .int(i)
@@ -181,8 +189,6 @@ enum AnyCodableValue: Codable, Sendable, CustomStringConvertible {
             self = .double(d)
         } else if let b = try? container.decode(Bool.self) {
             self = .bool(b)
-        } else if let a = try? container.decode([AnyCodableValue].self) {
-            self = .array(a)
         } else {
             self = .null
         }
@@ -196,6 +202,7 @@ enum AnyCodableValue: Codable, Sendable, CustomStringConvertible {
         case .double(let d): try container.encode(d)
         case .bool(let b): try container.encode(b)
         case .array(let a): try container.encode(a)
+        case .dictionary(let d): try container.encode(d)
         case .null: try container.encodeNil()
         }
     }

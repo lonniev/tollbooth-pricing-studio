@@ -116,7 +116,21 @@ struct PricingConsultantView: View {
         .sheet(isPresented: $showingCompareSheet) {
             CampaignComparisonSheet()
         }
-        .sheet(isPresented: $showingSecondOpinion) {
+        .sheet(isPresented: $showingSecondOpinion, onDismiss: {
+            // Auto-feed Grok's suggestions to Claude so it can adjust the proposal
+            if secondOpinionVM.hasSuggestedChanges,
+               !secondOpinionVM.suggestedChangesText.isEmpty,
+               !consultantVM.isStreaming {
+                let feedbackPrompt = """
+                A peer reviewer (\(secondOpinionVM.providerName)) has reviewed the campaign and offered this feedback:
+
+                \(secondOpinionVM.suggestedChangesText)
+
+                Please consider this feedback and adjust the pricing recommendation where the suggestions make sense within the DPYC economic model. Briefly note what you changed and why. Ignore any suggestions that conflict with DPYC principles.
+                """
+                consultantVM.send(feedbackPrompt, context: context)
+            }
+        }) {
             SecondOpinionSheet(
                 viewModel: secondOpinionVM,
                 onSave: { reviewText in
@@ -253,9 +267,10 @@ struct PricingConsultantView: View {
                 }
             }
 
-            // Second Opinion
-            if consultantVM.interviewProgress.stageNumber >= 6
-                || consultantVM.currentCampaign?.secondOpinionText != nil {
+            // Second Opinion — available once the interview reaches Synthesis (stage 6)
+            if !consultantVM.messages.isEmpty {
+                let canReview = consultantVM.interviewProgress.stageNumber >= 6
+                    || consultantVM.currentCampaign?.secondOpinionText != nil
                 Button {
                     if let existingReview = consultantVM.currentCampaign?.secondOpinionText,
                        !existingReview.isEmpty {
@@ -276,7 +291,10 @@ struct PricingConsultantView: View {
                     Label("Second Opinion", systemImage: "person.2.wave.2")
                         .labelStyle(.iconOnly)
                 }
-                .disabled(consultantVM.isStreaming)
+                .disabled(!canReview || consultantVM.isStreaming)
+                .help(canReview
+                    ? "Get a peer review from \(secondOpinionVM.providerName)"
+                    : "Available after Synthesis stage (stage 6 of 6)")
             }
 
             // Campaign actions
