@@ -108,6 +108,14 @@ struct ChatView: View {
             RelayHeartbeat(polling: polling)
                 .padding(8)
         }
+        .onChange(of: polling.lastPollAt) {
+            // Auto-refresh conversations when polling detects new messages
+            if let npub = chatVM.currentIdentity?.npub,
+               polling.hasUnread(for: npub) {
+                polling.markRead(npub: npub)
+                Task { await chatVM.refreshConversations() }
+            }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -115,6 +123,7 @@ struct ChatView: View {
                 } label: {
                     Label("New Message", systemImage: "square.and.pencil")
                 }
+                .accessibilityIdentifier("composeMessageButton")
 
                 Button {
                     showingFontPicker.toggle()
@@ -137,6 +146,20 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingCompose) {
             ComposeMessageSheet(chatVM: chatVM)
+        }
+        .alert("Relay Fetch Issue", isPresented: .init(
+            get: { chatVM.fetchError != nil },
+            set: { if !$0 { chatVM.fetchError = nil } }
+        )) {
+            Button("OK") { chatVM.fetchError = nil }
+            Button("Retry") {
+                chatVM.fetchError = nil
+                Task { await chatVM.refreshConversations() }
+            }
+        } message: {
+            if let error = chatVM.fetchError {
+                Text(error)
+            }
         }
         .alert("Send Failed", isPresented: .init(
             get: { chatVM.sendError != nil },

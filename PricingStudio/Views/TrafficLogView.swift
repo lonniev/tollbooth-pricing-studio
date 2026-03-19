@@ -2,12 +2,29 @@ import SwiftUI
 
 struct TrafficLogView: View {
     let logger: TrafficLogger
+    var filterNpub: String?
+
+    /// Show entries where:
+    /// - the entry is tagged for the selected npub (sender or receiver)
+    /// - the entry has no npub tag (general app-level traffic like relay connects)
+    /// - the entry is an error (always visible)
+    /// This hides only traffic explicitly tagged for a *different* npub.
+    private var filteredEntries: [TrafficLogEntry] {
+        guard let npub = filterNpub, !npub.isEmpty else {
+            return logger.entries
+        }
+        return logger.entries.filter { entry in
+            entry.associatedNpub == nil           // general app traffic
+                || entry.associatedNpub == npub   // tagged for this npub
+                || entry.direction == .error       // always show errors
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            if logger.entries.isEmpty {
+            if filteredEntries.isEmpty {
                 emptyState
             } else {
                 logList
@@ -19,8 +36,17 @@ struct TrafficLogView: View {
         HStack {
             Label("Traffic Log", systemImage: "antenna.radiowaves.left.and.right")
                 .font(.headline)
+            if let npub = filterNpub, !npub.isEmpty {
+                Text(String(npub.prefix(12)) + "...")
+                    .font(.caption)
+                    .monospaced()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                    .foregroundStyle(.blue)
+            }
             Spacer()
-            Text("\(logger.entries.count) entries")
+            Text("\(filteredEntries.count) entries")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button {
@@ -56,14 +82,15 @@ struct TrafficLogView: View {
 
     private var logList: some View {
         ScrollViewReader { proxy in
-            List(logger.entries) { entry in
+            List(filteredEntries) { entry in
                 TrafficLogRow(entry: entry)
                     .id(entry.id)
+                    .accessibilityIdentifier("trafficLogRow_\(entry.id.uuidString)")
                     .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
             .onChange(of: logger.entries.count) {
-                if let last = logger.entries.last {
+                if let last = filteredEntries.last {
                     withAnimation {
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AddOperatorSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -11,6 +12,7 @@ struct AddOperatorSheet: View {
     @State private var derivedNpub: String?
     @State private var keyError: String?
     @State private var generatedKeys = false
+    @State private var copiedNsec = false
 
     private var effectiveNpub: String {
         derivedNpub ?? npub
@@ -29,6 +31,7 @@ struct AddOperatorSheet: View {
                     } label: {
                         Label("Generate Nostr Keys", systemImage: "key.fill")
                     }
+                    .accessibilityIdentifier("generateKeysButton")
                     .disabled(generatedKeys)
                 } footer: {
                     if generatedKeys {
@@ -40,22 +43,41 @@ struct AddOperatorSheet: View {
                 }
 
                 Section {
-                    SecureField("nsec1... (optional)", text: $nsec)
-                        .textContentType(.password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .monospaced()
-                        .font(.callout)
-                        .onChange(of: nsec) { _, newValue in
-                            if !generatedKeys {
-                                deriveNpubFromNsec(newValue)
+                    HStack {
+                        SecureField("nsec1... (optional)", text: $nsec)
+                            .textContentType(.password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .monospaced()
+                            .font(.callout)
+                            .onChange(of: nsec) { _, newValue in
+                                if !generatedKeys {
+                                    deriveNpubFromNsec(newValue)
+                                }
                             }
+                        if generatedKeys && !nsec.isEmpty {
+                            Button {
+                                UIPasteboard.general.string = nsec
+                                copiedNsec = true
+                            } label: {
+                                Image(systemName: copiedNsec ? "checkmark" : "doc.on.doc")
+                                    .foregroundStyle(copiedNsec ? .green : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("copyNsecButton")
                         }
+                    }
                 } header: {
                     Text("Operator nsec")
                 } footer: {
                     if let error = keyError {
                         Text(error).foregroundStyle(.red)
+                    } else if copiedNsec {
+                        Label("Copied to clipboard — save this nsec in your vault now", systemImage: "exclamationmark.shield.fill")
+                            .foregroundStyle(.orange)
+                    } else if generatedKeys {
+                        Label("npub derived from nsec — copy and save before dismissing", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
                     } else if derivedNpub != nil {
                         Label("npub derived from nsec", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)

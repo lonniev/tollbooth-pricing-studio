@@ -95,6 +95,9 @@ final class DMPollingService {
 
             if newCount > 0 {
                 unreadCounts[npub] = (unreadCounts[npub] ?? 0) + newCount
+                await MainActor.run {
+                    TrafficLogger.shared.log(.inbound, label: "DM Poll", detail: "\(npub.prefix(12))… \(newCount) new DM(s)", npub: npub)
+                }
                 logger.info("Found \(newCount) new DM(s) for \(npub.prefix(12))")
             }
 

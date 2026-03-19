@@ -40,6 +40,28 @@
                ReferencedContainer = "container:PricingStudio.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "BB0000010000000000000E5A"
+               BuildableName = "PricingStudioUITests.xctest"
+               BlueprintName = "PricingStudioUITests"
+               ReferencedContainer = "container:PricingStudio.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "CC0000010000000000000E5A"
+               BuildableName = "PricingStudioBDDTests.xctest"
+               BlueprintName = "PricingStudioBDDTests"
+               ReferencedContainer = "container:PricingStudio.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

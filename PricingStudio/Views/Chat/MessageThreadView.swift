@@ -1,9 +1,15 @@
 import SwiftUI
+import SwiftData
 
 /// Displays a message timeline for a single conversation with a reply composer at the bottom.
 struct MessageThreadView: View {
     let conversation: DMConversation
     @Bindable var chatVM: ChatViewModel
+
+    @Query(sort: \Authority.addedAt) private var authorities: [Authority]
+    @Query(sort: \Operator.addedAt) private var operators: [Operator]
+    @Query(sort: \Patron.addedAt) private var patrons: [Patron]
+    @Query(sort: \Contact.addedAt) private var contacts: [Contact]
 
     @State private var selectedMessageIds: Set<String> = []
     @State private var showDeleteConfirmation = false
@@ -13,9 +19,20 @@ struct MessageThreadView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text(conversation.counterpartyDisplayName)
-                    .font(.headline)
-                    .monospaced()
+                VStack(alignment: .leading, spacing: 2) {
+                    if let name = displayName(for: conversation.counterpartyPubkeyHex) {
+                        Text(name)
+                            .font(.headline)
+                        Text(conversation.counterpartyDisplayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospaced()
+                    } else {
+                        Text(conversation.counterpartyDisplayName)
+                            .font(.headline)
+                            .monospaced()
+                    }
+                }
 
                 Spacer()
 
@@ -127,5 +144,24 @@ struct MessageThreadView: View {
         } else {
             selectedMessageIds.insert(id)
         }
+    }
+
+    /// Resolve a pubkey hex to a known entity's display name.
+    private func displayName(for pubkeyHex: String) -> String? {
+        let npub = try? NostrKeyService.npubFromHex(pubkeyHex)
+
+        for auth in authorities where auth.npub == npub {
+            return auth.displayName
+        }
+        for op in operators where op.npub == npub {
+            return op.displayName
+        }
+        for patron in patrons where patron.npub == npub {
+            return patron.displayName
+        }
+        for contact in contacts where contact.npub == npub {
+            return contact.displayName
+        }
+        return nil
     }
 }

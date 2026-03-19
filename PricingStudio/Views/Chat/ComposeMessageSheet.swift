@@ -15,6 +15,7 @@ struct ComposeMessageSheet: View {
     @State private var recipientNpub = ""
     @State private var messageText = ""
     @State private var validationError: String?
+    @State private var isSending = false
     @State private var showingSaveContact = false
     @State private var contactDisplayName = ""
 
@@ -69,6 +70,7 @@ struct ComposeMessageSheet: View {
                         .monospaced()
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("recipientNpubField")
 
                     if let error = validationError {
                         Text(error)
@@ -104,19 +106,27 @@ struct ComposeMessageSheet: View {
                 }
 
                 Section("Message") {
-                    ZStack(alignment: .bottomTrailing) {
-                        TextEditor(text: $messageText)
-                            .font(.custom(chatVM.messageFontName, size: chatVM.messageFontSize))
-                            .frame(minHeight: 100)
+                    TextEditor(text: $messageText)
+                        .font(.custom(chatVM.messageFontName, size: chatVM.messageFontSize))
+                        .frame(minHeight: 100)
+                        .accessibilityIdentifier("composeMessageBody")
 
+                    HStack {
+                        Spacer()
                         Button {
                             send()
                         } label: {
-                            Image(systemName: "paperplane.fill")
-                                .font(.title3)
+                            if isSending {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Send", systemImage: "paperplane.fill")
+                                    .foregroundStyle(.white)
+                            }
                         }
-                        .disabled(recipientNpub.isEmpty || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .padding(8)
+                        .accessibilityIdentifier("sendMessageButton")
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isSending || recipientNpub.isEmpty || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }
@@ -147,6 +157,8 @@ struct ComposeMessageSheet: View {
     }
 
     private func send() {
+        guard !isSending else { return }
+
         let npub = recipientNpub.trimmingCharacters(in: .whitespacesAndNewlines)
         guard npub.hasPrefix("npub1") else {
             validationError = "Must start with npub1"
@@ -157,9 +169,11 @@ struct ComposeMessageSheet: View {
             return
         }
 
+        isSending = true
         let message = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
             await chatVM.sendMessage(to: pubHex, content: message)
+            isSending = false
             chatVM.selectedConversationId = pubHex
             if !isKnownNpub {
                 showingSaveContact = true

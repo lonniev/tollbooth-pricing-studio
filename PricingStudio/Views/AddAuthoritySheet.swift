@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AddAuthoritySheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -10,6 +11,8 @@ struct AddAuthoritySheet: View {
     @State private var displayName = ""
     @State private var derivedNpub: String?
     @State private var keyError: String?
+    @State private var generatedKeys = false
+    @State private var copiedNsec = false
 
     private var effectiveNpub: String {
         derivedNpub ?? npub
@@ -23,25 +26,63 @@ struct AddAuthoritySheet: View {
         NavigationStack {
             Form {
                 Section {
-                    SecureField("nsec1... (optional)", text: $nsec)
-                        .textContentType(.password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .monospaced()
-                        .font(.callout)
-                        .onChange(of: nsec) { _, newValue in
-                            deriveNpubFromNsec(newValue)
+                    Button {
+                        generateNewKeys()
+                    } label: {
+                        Label("Generate Nostr Keys", systemImage: "key.fill")
+                    }
+                    .accessibilityIdentifier("generateKeysButton")
+                    .disabled(generatedKeys)
+                } footer: {
+                    if generatedKeys {
+                        Label("Keys generated — nsec and npub filled in below", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("Create a brand-new Nostr identity for this authority.")
+                    }
+                }
+
+                Section {
+                    HStack {
+                        SecureField("nsec1... (optional)", text: $nsec)
+                            .textContentType(.password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .monospaced()
+                            .font(.callout)
+                            .onChange(of: nsec) { _, newValue in
+                                if !generatedKeys {
+                                    deriveNpubFromNsec(newValue)
+                                }
+                            }
+                        if generatedKeys && !nsec.isEmpty {
+                            Button {
+                                UIPasteboard.general.string = nsec
+                                copiedNsec = true
+                            } label: {
+                                Image(systemName: copiedNsec ? "checkmark" : "doc.on.doc")
+                                    .foregroundStyle(copiedNsec ? .green : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("copyNsecButton")
                         }
+                    }
                 } header: {
                     Text("Authority nsec")
                 } footer: {
                     if let error = keyError {
                         Text(error).foregroundStyle(.red)
+                    } else if copiedNsec {
+                        Label("Copied to clipboard — save this nsec in your vault now", systemImage: "exclamationmark.shield.fill")
+                            .foregroundStyle(.orange)
+                    } else if generatedKeys {
+                        Label("npub derived from nsec — copy and save before dismissing", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
                     } else if derivedNpub != nil {
                         Label("npub derived from nsec", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     } else {
-                        Text("Provide the nsec to act as this authority. The npub will be derived automatically.")
+                        Text("Provide the nsec to act as this authority, or generate keys above.")
                     }
                 }
 
@@ -101,6 +142,19 @@ struct AddAuthoritySheet: View {
                     .disabled(!isValid)
                 }
             }
+        }
+    }
+
+    private func generateNewKeys() {
+        do {
+            let keys = try NostrKeyService.generateKeyPair()
+            nsec = keys.nsec
+            npub = keys.npub
+            derivedNpub = keys.npub
+            keyError = nil
+            generatedKeys = true
+        } catch {
+            keyError = "Key generation failed: \(error.localizedDescription)"
         }
     }
 

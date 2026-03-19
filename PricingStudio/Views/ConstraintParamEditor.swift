@@ -7,6 +7,7 @@ struct ConstraintParamEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var values: [String: String] = [:]
     @State private var boolValues: [String: Bool] = [:]
+    @State private var daySetValues: [String: Set<Int>] = [:]
 
     var body: some View {
         NavigationStack {
@@ -14,6 +15,7 @@ struct ConstraintParamEditor: View {
                 ForEach(spec.params, id: \.name) { param in
                     Section {
                         paramField(for: param)
+                            .accessibilityIdentifier("constraintParamField_\(param.name)")
                     } header: {
                         Text(param.name.replacingOccurrences(of: "_", with: " ").capitalized)
                     } footer: {
@@ -101,6 +103,20 @@ struct ConstraintParamEditor: View {
                             .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                     )
             }
+
+        case .daysOfWeek:
+            let days = daySetBinding(for: param.name)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(0..<7, id: \.self) { dayIndex in
+                    Toggle(Self.dayLabels[dayIndex], isOn: Binding(
+                        get: { days.wrappedValue.contains(dayIndex) },
+                        set: { isOn in
+                            if isOn { days.wrappedValue.insert(dayIndex) }
+                            else { days.wrappedValue.remove(dayIndex) }
+                        }
+                    ))
+                }
+            }
         }
     }
 
@@ -117,6 +133,13 @@ struct ConstraintParamEditor: View {
         Binding(
             get: { boolValues[key, default: false] },
             set: { boolValues[key] = $0 }
+        )
+    }
+
+    private func daySetBinding(for key: String) -> Binding<Set<Int>> {
+        Binding(
+            get: { daySetValues[key, default: []] },
+            set: { daySetValues[key] = $0 }
         )
     }
 
@@ -166,6 +189,23 @@ struct ConstraintParamEditor: View {
                     values[param.name] = stringFrom(def)
                 } else {
                     values[param.name] = "[]"
+                }
+
+            case .daysOfWeek:
+                if let existing = existingParams?[param.name],
+                   case .array(let arr) = existing {
+                    daySetValues[param.name] = Set(arr.compactMap { val -> Int? in
+                        if case .int(let i) = val { return i }
+                        return nil
+                    })
+                } else if let def = param.defaultValue,
+                          case .array(let arr) = def {
+                    daySetValues[param.name] = Set(arr.compactMap { val -> Int? in
+                        if case .int(let i) = val { return i }
+                        return nil
+                    })
+                } else {
+                    daySetValues[param.name] = Set(0...4) // weekdays default
                 }
 
             default:
@@ -226,6 +266,10 @@ struct ConstraintParamEditor: View {
                 let raw = values[param.name, default: "[]"]
                 // Store as raw string; the server will parse the JSON
                 result[param.name] = .string(raw)
+
+            case .daysOfWeek:
+                let days = daySetValues[param.name, default: []]
+                result[param.name] = .array(days.sorted().map { .int($0) })
             }
         }
 
@@ -256,6 +300,10 @@ struct ConstraintParamEditor: View {
     }
 
     // MARK: - Constants
+
+    private static let dayLabels: [String] = [
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+    ]
 
     private static let commonTimezones: [String] = [
         "US/Eastern",

@@ -88,7 +88,10 @@ struct ToolPriceRow: View {
             case .flat:
                 return tool.priceSats == 0 ? "FREE" : "\(tool.priceSats) sat\(tool.priceSats == 1 ? "" : "s")"
             case .percent:
-                return tool.priceFormula ?? "\(tool.priceSats)%"
+                if let param = tool.priceFormula, !param.isEmpty, !param.hasSuffix("%") {
+                    return "\(tool.priceSats)% of \(param)"
+                }
+                return "\(tool.priceSats)%"
             case .formula:
                 return tool.priceFormula ?? "formula"
             }
@@ -112,6 +115,7 @@ private struct ToolPriceEditor: View {
     @State private var editType: PriceType
     @State private var editSats: String
     @State private var editPercent: String
+    @State private var editRateParam: String
     @State private var editFormula: String
     @State private var editMinCost: String
     @State private var editMaxCost: String
@@ -132,7 +136,18 @@ private struct ToolPriceEditor: View {
         self._isPresented = isPresented
         self._editType = State(initialValue: tool.priceType)
         self._editSats = State(initialValue: "\(tool.priceSats)")
-        self._editPercent = State(initialValue: tool.priceFormula ?? "\(tool.priceSats)")
+        self._editPercent = State(initialValue: "\(tool.priceSats)")
+
+        // For percent type, price_formula holds the rate_param (tool argument name).
+        // Legacy data may store "5%" — strip the suffix for the rate param field.
+        let rateParam: String
+        if tool.priceType == .percent, let formula = tool.priceFormula {
+            rateParam = formula.hasSuffix("%") ? "" : formula
+        } else {
+            rateParam = ""
+        }
+        self._editRateParam = State(initialValue: rateParam)
+
         self._editFormula = State(initialValue: tool.priceFormula ?? "")
         self._editMinCost = State(initialValue: tool.minCost == 0 ? "" : "\(tool.minCost)")
         self._editMaxCost = State(initialValue: tool.maxCost.map { "\($0)" } ?? "")
@@ -152,9 +167,9 @@ private struct ToolPriceEditor: View {
             }
 
             Picker("Type", selection: $editType) {
-                ForEach(PriceType.allCases, id: \.self) { type in
-                    Text(type.rawValue.capitalized).tag(type)
-                }
+                Text("Flat").tag(PriceType.flat)
+                Text("Ad Valorem").tag(PriceType.percent)
+                Text("Formula").tag(PriceType.formula)
             }
             .pickerStyle(.segmented)
 
@@ -168,12 +183,21 @@ private struct ToolPriceEditor: View {
                         .foregroundStyle(.secondary)
                 }
             case .percent:
-                HStack {
-                    TextField("Percent", text: $editPercent)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
-                    Text("%")
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        TextField("Rate", text: $editPercent)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                        Text("% of")
+                            .foregroundStyle(.secondary)
+                        TextField("param name", text: $editRateParam)
+                            .textFieldStyle(.roundedBorder)
+                            .autocorrectionDisabled()
+                            .monospaced()
+                    }
+                    Text("Ad valorem: percentage of a tool call argument (e.g. amount_sats)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             case .formula:
                 TextField("Formula", text: $editFormula)
@@ -208,8 +232,10 @@ private struct ToolPriceEditor: View {
                         sats = Int(editSats) ?? 0
                         formula = nil
                     case .percent:
+                        // price_sats = the rate percentage, price_formula = the tool argument name
                         sats = Int(editPercent) ?? 0
-                        formula = editPercent + "%"
+                        let param = editRateParam.trimmingCharacters(in: .whitespaces)
+                        formula = param.isEmpty ? nil : param
                     case .formula:
                         sats = 0
                         formula = editFormula
@@ -239,6 +265,6 @@ private struct ToolPriceEditor: View {
             }
         }
         .padding()
-        .frame(width: 260)
+        .frame(width: 320)
     }
 }

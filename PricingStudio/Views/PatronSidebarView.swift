@@ -70,6 +70,7 @@ private struct PatronRow: View {
                 Image(systemName: "message.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
+                    .accessibilityIdentifier("dmIndicator_\(patron.npub)")
             }
         }
         .padding(.vertical, 2)

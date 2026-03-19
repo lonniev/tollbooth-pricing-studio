@@ -71,7 +71,7 @@ struct ContentView: View {
 
                 if showingTrafficLog {
                     Divider()
-                    TrafficLogView(logger: TrafficLogger.shared)
+                    TrafficLogView(logger: TrafficLogger.shared, filterNpub: selectedEntityNpub)
                         .frame(height: 260)
                 }
             }
@@ -319,6 +319,13 @@ struct ContentView: View {
         return ctx
     }
 
+    /// The npub of the currently selected sidebar entity, used for traffic log filtering.
+    private var selectedEntityNpub: String? {
+        authorityVM.selectedAuthority?.npub
+            ?? operatorVM.selectedOperator?.npub
+            ?? patronVM.selectedPatron?.npub
+    }
+
     // MARK: - Graph Node Selection
 
     private func selectEntity(npub: String, tier: NetworkTier) {
@@ -480,6 +487,7 @@ private struct SidebarView: View {
                     isSelected: authorityVM.selectedAuthority?.npub == auth.npub,
                     onIconTapped: { authorityVM.requestEdit(auth) }
                 )
+                    .accessibilityIdentifier("modelListItem_\(auth.npub)")
                     .contentShape(Rectangle())
                     .onTapGesture { authorityVM.selectedAuthority = auth }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -524,6 +532,7 @@ private struct SidebarView: View {
                     deployedCampaignName: op.deployedCampaignName,
                     onIconTapped: { operatorVM.requestEdit(op) }
                 )
+                    .accessibilityIdentifier("modelListItem_\(op.npub)")
                     .contentShape(Rectangle())
                     .onTapGesture {
                         operatorVM.selectedOperator = op
@@ -674,6 +683,7 @@ private struct AuthorityRowInline: View {
                 Image(systemName: "message.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
+                    .accessibilityIdentifier("dmIndicator_\(authority.npub)")
             }
         }
         .padding(.vertical, 2)
@@ -777,6 +787,7 @@ private struct OperatorRowInline: View {
                 Image(systemName: "message.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
+                    .accessibilityIdentifier("dmIndicator_\(op.npub)")
             }
         }
         .padding(.vertical, 2)

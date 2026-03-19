@@ -32,6 +32,7 @@ final class PricingViewModel {
     // MARK: - Local Edits
 
     var localEdits: [String: ToolPrice] = [:]
+    var localRemovals: Set<String> = []
     var localPipeline: [PipelineStep]? = nil
 
     /// Warnings from client-side pipeline validation (displayed before save).
@@ -71,6 +72,7 @@ final class PricingViewModel {
 
     func resetAllEdits() {
         localEdits.removeAll()
+        localRemovals.removeAll()
         localPipeline = nil
     }
 
@@ -187,7 +189,7 @@ final class PricingViewModel {
     }
 
     var hasEdits: Bool {
-        !localEdits.isEmpty || hasPipelineEdits
+        !localEdits.isEmpty || !localRemovals.isEmpty || hasPipelineEdits
     }
 
     // MARK: - Pipeline Edits
@@ -268,6 +270,13 @@ final class PricingViewModel {
     func loadPricing(for target: any PricingTarget) async {
         // Already showing this target and not in error? Skip.
         guard currentOperatorNpub != target.npub || errorMessage != nil else { return }
+
+        // Clear reconciliation state from previous target to prevent cross-contamination
+        localEdits.removeAll()
+        localRemovals.removeAll()
+        localPipeline = nil
+        resolvedOperatorNpub = nil
+
         currentOperatorNpub = target.npub
 
         // Check cache first
@@ -285,6 +294,10 @@ final class PricingViewModel {
     /// Bypass cache — always does a full network round-trip.
     func forceRefresh(for target: any PricingTarget) {
         cache.removeValue(forKey: target.npub)
+        localEdits.removeAll()
+        localRemovals.removeAll()
+        localPipeline = nil
+        resolvedOperatorNpub = nil
         currentOperatorNpub = nil  // allow loadPricing guard to pass
         startLoading(for: target)
     }
@@ -430,6 +443,7 @@ final class PricingViewModel {
 
         // Clear local edits after successful save
         localEdits.removeAll()
+        localRemovals.removeAll()
         localPipeline = nil
 
         // Invalidate cache and reload
@@ -455,16 +469,25 @@ final class PricingViewModel {
     }
 
     private func mergeEdits(into model: PricingModelResponse) -> PricingModelResponse {
-        var tools = model.tools
-        if let modelTools = tools, !localEdits.isEmpty {
-            var merged = modelTools
+        var tools = model.tools ?? []
+
+        // Replace edited tools in-place
+        if !localEdits.isEmpty {
             for (name, edited) in localEdits {
-                if let idx = merged.firstIndex(where: { $0.toolName == name }) {
-                    merged[idx] = edited
+                if let idx = tools.firstIndex(where: { $0.toolName == name }) {
+                    tools[idx] = edited
+                } else {
+                    // New tool from reconciliation — append
+                    tools.append(edited)
                 }
             }
-            tools = merged
         }
+
+        // Remove stale tools
+        if !localRemovals.isEmpty {
+            tools.removeAll { localRemovals.contains($0.toolName) }
+        }
+
         let pipeline = localPipeline ?? model.pipeline
         return PricingModelResponse(
             status: model.status,
@@ -480,6 +503,27 @@ final class PricingViewModel {
     /// Return a preview of the model with local edits applied, for diff comparison.
     func mergedPreview(from model: PricingModelResponse) -> PricingModelResponse {
         mergeEdits(into: model)
+    }
+
+    /// Stage reconciliation results: new/changed tools into localEdits, stale tools into localRemovals.
+    func applyReconciliation(suggestedTools: [ToolPrice], mismatch: MCPService.ToolMismatch) {
+        for tool in suggestedTools {
+            localEdits[tool.toolName] = tool
+        }
+        for stale in mismatch.staleTools {
+            localRemovals.insert(stale.toolName)
+        }
+    }
+
+    /// Resolve the MCP endpoint URL and bearer token for the current target.
+    func resolveEndpointAndToken(for target: any PricingTarget) async throws -> (URL, String) {
+        guard let endpointString = target.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            throw MCPError.connectionFailed("No MCP endpoint found for this entity")
+        }
+        let targetHost = endpointURL.host ?? target.npub
+        let token = try await resolveToken(for: endpointURL, host: targetHost)
+        return (endpointURL, token)
     }
 
     #if DEBUG

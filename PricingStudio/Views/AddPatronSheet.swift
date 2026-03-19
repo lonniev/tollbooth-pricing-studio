@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AddPatronSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -10,6 +11,8 @@ struct AddPatronSheet: View {
     @State private var showNsec = false
     @State private var derivedNpub: String?
     @State private var keyError: String?
+    @State private var generatedKeys = false
+    @State private var copiedNsec = false
 
     private var isValid: Bool {
         !displayName.isEmpty && derivedNpub != nil
@@ -18,6 +21,23 @@ struct AddPatronSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Button {
+                        generateNewKeys()
+                    } label: {
+                        Label("Generate Nostr Keys", systemImage: "key.fill")
+                    }
+                    .accessibilityIdentifier("generateKeysButton")
+                    .disabled(generatedKeys)
+                } footer: {
+                    if generatedKeys {
+                        Label("Keys generated — nsec and npub filled in below", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("Create a brand-new Nostr identity for this patron.")
+                    }
+                }
+
                 Section {
                     TextField("Display Name", text: $displayName)
                 } header: {
@@ -48,6 +68,17 @@ struct AddPatronSheet: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        if generatedKeys && !nsec.isEmpty {
+                            Button {
+                                UIPasteboard.general.string = nsec
+                                copiedNsec = true
+                            } label: {
+                                Image(systemName: copiedNsec ? "checkmark" : "doc.on.doc")
+                                    .foregroundStyle(copiedNsec ? .green : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("copyNsecButton")
+                        }
                     }
                     if let error = keyError {
                         Label(error, systemImage: "exclamationmark.triangle")
@@ -57,7 +88,15 @@ struct AddPatronSheet: View {
                 } header: {
                     Text("Secret Key (nsec)")
                 } footer: {
-                    Text("Required. The npub will be derived automatically. Stored securely in the device Keychain.")
+                    if copiedNsec {
+                        Label("Copied to clipboard — save this nsec in your vault now", systemImage: "exclamationmark.shield.fill")
+                            .foregroundStyle(.orange)
+                    } else if generatedKeys {
+                        Label("Copy and save the nsec before dismissing", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("Required. The npub will be derived automatically. Stored securely in the device Keychain.")
+                    }
                 }
 
                 if let npub = derivedNpub {
@@ -93,8 +132,22 @@ struct AddPatronSheet: View {
                 }
             }
             .onChange(of: nsec) { _, newValue in
-                deriveNpub(from: newValue)
+                if !generatedKeys {
+                    deriveNpub(from: newValue)
+                }
             }
+        }
+    }
+
+    private func generateNewKeys() {
+        do {
+            let keys = try NostrKeyService.generateKeyPair()
+            nsec = keys.nsec
+            derivedNpub = keys.npub
+            keyError = nil
+            generatedKeys = true
+        } catch {
+            keyError = "Key generation failed: \(error.localizedDescription)"
         }
     }
 

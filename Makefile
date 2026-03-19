@@ -4,10 +4,13 @@ ARCHIVE_PATH := build/PricingStudio.xcarchive
 EXPORT_DIR   := build/export
 EXPORT_OPTS  := ExportOptions.plist
 DESTINATION  := generic/platform=iOS
+SIM_ID       := 49BB7923-1618-4808-8A94-B056855778EA
+SIM_DEST     := platform=iOS Simulator,id=$(SIM_ID)
 DEVICE_ID    := DA64BB63-AA0D-578F-A394-033A5E719864
 DEV_BUILD    := build/Build/Products/Debug-iphoneos/PricingStudio.app
+FAST_FLAGS   := ONLY_ACTIVE_ARCH=YES SWIFT_OPTIMIZATION_LEVEL='-Onone' DEBUG_INFORMATION_FORMAT=dwarf GCC_OPTIMIZATION_LEVEL=0
 
-.PHONY: archive export ipa install clean dev dev-install dev-wifi help
+.PHONY: archive export ipa install clean dev dev-install dev-wifi help test-ui test-bdd test-bdd-sim test-ui-sim
 
 # ============================================================
 # FAST DEVELOPMENT BUILDS (debug, incremental, ~30s after first)
@@ -22,7 +25,8 @@ dev:
 		-configuration Debug \
 		-derivedDataPath build \
 		-allowProvisioningUpdates \
-		CODE_SIGN_STYLE=Automatic
+		CODE_SIGN_STYLE=Automatic \
+		$(FAST_FLAGS)
 
 ## dev-install: Dev build + install to connected device
 dev-install: dev
@@ -40,6 +44,56 @@ dev-install: dev
 dev-wifi: dev
 	@echo "Installing dev build over WiFi..."
 	xcrun devicectl device install app --device $(DEVICE_ID) $(DEV_BUILD)
+
+# ============================================================
+# UI & BDD TESTS (real backend, real credentials)
+# ============================================================
+
+## test-ui: Run XCUITests against a connected device
+test-ui: dev
+	xcodebuild test \
+		-project $(WORKSPACE) \
+		-scheme $(SCHEME) \
+		-destination '$(DESTINATION)' \
+		-only-testing:PricingStudioUITests \
+		-derivedDataPath build \
+		-allowProvisioningUpdates \
+		CODE_SIGN_STYLE=Automatic \
+		$(FAST_FLAGS)
+
+## test-bdd: Run BDD feature tests against a connected device
+test-bdd: dev
+	xcodebuild test \
+		-project $(WORKSPACE) \
+		-scheme $(SCHEME) \
+		-destination '$(DESTINATION)' \
+		-only-testing:PricingStudioBDDTests \
+		-derivedDataPath build \
+		-allowProvisioningUpdates \
+		CODE_SIGN_STYLE=Automatic \
+		$(FAST_FLAGS)
+
+## test-ui-sim: Run XCUITests on iPad simulator (fast debug build)
+test-ui-sim:
+	xcodebuild test \
+		-project $(WORKSPACE) \
+		-scheme $(SCHEME) \
+		-destination '$(SIM_DEST)' \
+		-configuration Debug \
+		-only-testing:PricingStudioUITests \
+		-derivedDataPath build \
+		$(FAST_FLAGS)
+
+## test-bdd-sim: Run BDD feature tests on iPad simulator (fast debug build)
+test-bdd-sim:
+	xcodebuild test \
+		-project $(WORKSPACE) \
+		-scheme $(SCHEME) \
+		-destination '$(SIM_DEST)' \
+		-configuration Debug \
+		-only-testing:PricingStudioBDDTests \
+		-derivedDataPath build \
+		$(FAST_FLAGS)
 
 # ============================================================
 # PRODUCTION BUILDS (release archive, optimized, signed IPA)
@@ -102,6 +156,12 @@ help:
 	@echo "  make dev          — Debug build for device"
 	@echo "  make dev-install  — Dev build + install (USB)"
 	@echo "  make dev-wifi     — Dev build + install (WiFi)"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test-ui      — Run XCUITests on device (real backend)"
+	@echo "  make test-bdd     — Run BDD feature tests on device"
+	@echo "  make test-ui-sim  — Run XCUITests on iPad simulator (fast)"
+	@echo "  make test-bdd-sim — Run BDD feature tests on simulator (fast)"
 	@echo ""
 	@echo "Production (optimized, signed IPA):"
 	@echo "  make archive      — Release .xcarchive"
