@@ -24,6 +24,7 @@ struct AddConstraintSheet: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .accessibilityIdentifier("constraintTypeRow_\(spec.type.rawValue)")
                         }
                     }
                 }

@@ -7,9 +7,10 @@ enum ParamType {
     case float
     case string
     case bool
-    case schedule   // "HH:MM-HH:MM" time range
-    case timezone   // IANA timezone identifier
-    case tiers      // array of tier dictionaries
+    case schedule      // "HH:MM-HH:MM" time range
+    case timezone      // IANA timezone identifier
+    case tiers         // array of tier dictionaries
+    case daysOfWeek    // array of day indices (0=Mon..6=Sun, ISO 8601)
 }
 
 // MARK: - Parameter specification
@@ -189,6 +190,13 @@ struct ConstraintCatalog {
                     required: false,
                     defaultValue: .bool(false),
                     description: "If true, the tool call is free during the happy hour window."
+                ),
+                ParamSpec(
+                    name: "days_of_week",
+                    type: .daysOfWeek,
+                    required: false,
+                    defaultValue: .array([.int(0), .int(1), .int(2), .int(3), .int(4)]),
+                    description: "Days when the happy hour is active (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun)."
                 ),
             ]
         ),

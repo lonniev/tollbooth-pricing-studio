@@ -777,6 +777,53 @@ actor MCPService {
         return ("read", 1)
     }
 
+    // MARK: - Tool Mismatch Detection
+
+    struct ToolMismatch: Sendable {
+        let newTools: [Tool]          // in live endpoint, not in stored model
+        let staleTools: [ToolPrice]   // in stored model, not in live endpoint
+        let matchedTools: [ToolPrice] // in both
+        var hasMismatch: Bool { !newTools.isEmpty || !staleTools.isEmpty }
+    }
+
+    /// Connect to the live MCP endpoint, list tools, and compare against the stored pricing model.
+    func detectToolMismatch(
+        endpointURL: URL,
+        bearerToken: String,
+        storedModel: PricingModelResponse
+    ) async throws -> ToolMismatch {
+        await traffic(.outbound, label: "Mismatch Detection", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let liveTools = try await listAllTools(client: client)
+        let liveNames = Set(liveTools.map(\.name))
+        let storedTools = storedModel.tools ?? []
+        let storedNames = Set(storedTools.map(\.toolName))
+
+        let newTools = liveTools.filter { !storedNames.contains($0.name) }
+        let staleTools = storedTools.filter { !liveNames.contains($0.toolName) }
+        let matchedTools = storedTools.filter { liveNames.contains($0.toolName) }
+
+        await traffic(.inbound, label: "Mismatch Detection",
+                       detail: "Live: \(liveTools.count), Stored: \(storedTools.count), New: \(newTools.count), Stale: \(staleTools.count)")
+
+        return ToolMismatch(newTools: newTools, staleTools: staleTools, matchedTools: matchedTools)
+    }
+
     // MARK: - Helpers
 
     /// List all tools with cursor-based pagination.

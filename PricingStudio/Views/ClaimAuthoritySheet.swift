@@ -172,7 +172,10 @@ struct ClaimAuthoritySheet: View {
     private func startClaim() {
         guard let candidateNpub = effectiveNpub,
               let endpointStr = authority.mcpEndpointURL,
-              let endpointURL = URL(string: endpointStr) else { return }
+              let endpointURL = URL(string: endpointStr) else {
+            viewModel.claimStatus = .failed("Authority has no MCP endpoint URL. Edit the authority to set one, or wait for auto-discovery.")
+            return
+        }
 
         // Save nsec to keychain for the candidate operator
         let trimmedNsec = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -185,17 +188,50 @@ struct ClaimAuthoritySheet: View {
             }
         }
 
-        guard let token = KeychainService.loadToken(forOperator: authority.npub), !token.isEmpty else {
-            viewModel.claimStatus = .failed("No bearer token found for this Authority. Add one in the Authority edit sheet first.")
-            return
+        Task {
+            do {
+                let host = endpointURL.host ?? authority.npub
+                let token = try await resolveToken(for: endpointURL, host: host)
+                await viewModel.initiateAuthorityClaim(
+                    authorityEndpoint: endpointURL,
+                    candidateNpub: candidateNpub,
+                    bearerToken: token
+                )
+            } catch {
+                viewModel.claimStatus = .failed("OAuth authentication failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Resolve a valid access token: cached bundle → refresh → full OAuth.
+    /// Mirrors the pattern in PricingViewModel.resolveToken.
+    private func resolveToken(for endpoint: URL, host: String) async throws -> String {
+        let oauthService = OAuthService()
+
+        // 1. Check for a cached bundle
+        if let bundle = KeychainService.loadTokenBundle(forOperator: host) {
+            if !bundle.isExpired {
+                return bundle.accessToken
+            }
+
+            // 2. Token expired — try refresh
+            if bundle.refreshToken != nil {
+                do {
+                    let refreshed = try await oauthService.refresh(bundle: bundle)
+                    try KeychainService.saveTokenBundle(refreshed, forOperator: host)
+                    return refreshed.accessToken
+                } catch {
+                    // Fall through to full re-auth
+                }
+            }
+
+            KeychainService.deleteTokenBundle(forOperator: host)
         }
 
-        Task {
-            await viewModel.initiateAuthorityClaim(
-                authorityEndpoint: endpointURL,
-                candidateNpub: candidateNpub,
-                bearerToken: token
-            )
-        }
+        // 3. No valid cached token — full OAuth dance
+        viewModel.claimStatus = .connecting
+        let bundle = try await oauthService.authenticate(mcpEndpoint: endpoint)
+        try KeychainService.saveTokenBundle(bundle, forOperator: host)
+        return bundle.accessToken
     }
 }

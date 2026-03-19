@@ -43,6 +43,7 @@ struct ChatContainerView<PricingContent: View, ConsultantContent: View>: View {
             .pickerStyle(.segmented)
             .padding(.horizontal)
             .padding(.vertical, 8)
+            .accessibilityIdentifier("detailTabPicker")
 
             switch selectedTab {
             case .pricing:

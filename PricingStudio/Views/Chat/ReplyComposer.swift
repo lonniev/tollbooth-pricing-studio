@@ -27,6 +27,7 @@ struct ReplyComposer: View {
                 Image(systemName: "paperplane.fill")
                     .font(.title3)
             }
+            .accessibilityIdentifier("replySendButton")
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(.horizontal)

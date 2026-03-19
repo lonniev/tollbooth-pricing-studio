@@ -44,9 +44,10 @@ actor NostrDMService {
             dmsByCounterparty[key]?.sort { $0.createdAt < $1.createdAt }
         }
 
+        let senderNpub = try? NostrKeyService.npubFromHex(publicKeyHex)
         await MainActor.run {
             let parties = dmsByCounterparty.keys.map { String($0.prefix(8)) }.joined(separator: ", ")
-            TrafficLogger.shared.log(.inbound, label: "DM Decrypt", detail: "\(decryptedCount)/\(events.count) OK, counterparties: \(parties)")
+            TrafficLogger.shared.log(.inbound, label: "DM Decrypt", detail: "\(decryptedCount)/\(events.count) OK, counterparties: \(parties)", npub: senderNpub)
         }
 
         return dmsByCounterparty
@@ -103,15 +104,17 @@ actor NostrDMService {
             errors.append("NIP-04: \(error.localizedDescription)")
         }
 
+        let senderNpub = try? NostrKeyService.npubFromHex(publicKeyHex)
+
         if !nip17OK && !nip04OK {
             await MainActor.run {
-                TrafficLogger.shared.log(.error, label: "DM Send Failed", detail: errors.joined(separator: "; "))
+                TrafficLogger.shared.log(.error, label: "DM Send Failed", detail: errors.joined(separator: "; "), npub: senderNpub)
             }
             throw DMError.allSendsFailed(errors.joined(separator: "; "))
         }
 
         await MainActor.run {
-            TrafficLogger.shared.log(.outbound, label: "DM Sent", detail: "\(publicKeyHex.prefix(8))\u{2192}\(recipientPubkeyHex.prefix(8)) NIP-17: \(nip17OK ? "OK" : "fail"), NIP-04: \(nip04OK ? "OK" : "fail")")
+            TrafficLogger.shared.log(.outbound, label: "DM Sent", detail: "\(publicKeyHex.prefix(8))\u{2192}\(recipientPubkeyHex.prefix(8)) NIP-17: \(nip17OK ? "OK" : "fail"), NIP-04: \(nip04OK ? "OK" : "fail")", npub: senderNpub)
         }
         logger.info("Sent DM (NIP-17: \(nip17OK), NIP-04: \(nip04OK))")
     }

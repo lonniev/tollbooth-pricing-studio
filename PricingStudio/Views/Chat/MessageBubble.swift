@@ -46,6 +46,7 @@ struct MessageBubble: View {
 
             if !dm.isFromMe { Spacer(minLength: 60) }
         }
+        .accessibilityIdentifier("messageBubble_\(dm.id)")
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.accentColor, lineWidth: isSelected ? 2 : 0)

@@ -38,7 +38,28 @@ struct ToolPriceListView: View {
                         .textCase(.uppercase)
 
                     ForEach(categoryTools) { tool in
-                        ToolPriceRow(tool: tool, viewModel: viewModel)
+                        let isRemoved = viewModel?.localRemovals.contains(tool.toolName) ?? false
+                        if isRemoved {
+                            HStack(spacing: 12) {
+                                Text(tool.toolName)
+                                    .font(.subheadline.monospaced())
+                                    .strikethrough()
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("REMOVED")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.red, in: Capsule())
+                            }
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 12)
+                            .background(.quaternary.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+                            .opacity(0.5)
+                        } else {
+                            ToolPriceRow(tool: tool, viewModel: viewModel)
+                        }
                     }
                 }
             }

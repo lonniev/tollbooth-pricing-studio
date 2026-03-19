@@ -28,6 +28,7 @@ struct PipelineView: View {
                     Label("Add Constraint", systemImage: "plus.circle.fill")
                         .font(.subheadline)
                 }
+                .accessibilityIdentifier("addConstraintButton")
                 .padding(.top, 12)
             }
         }
@@ -95,6 +96,7 @@ struct PipelineView: View {
                         .buttonStyle(.plain)
                     }
                 }
+                .accessibilityIdentifier("pipelineStepRow_\(index)")
             }
         }
         .onMove { source, destination in

@@ -8,6 +8,8 @@ struct PricingDetailView: View {
     @State private var showSaveSuccess = false
     @State private var showingSaveConfirmation = false
     @State private var showingDiff = false
+    @State private var showingReconciliation = false
+    @State private var reconciliationVM = ReconciliationViewModel()
 
     var body: some View {
         Group {
@@ -49,6 +51,10 @@ struct PricingDetailView: View {
         if !viewModel.localEdits.isEmpty {
             let n = viewModel.localEdits.count
             parts.append("\(n) tool \(n == 1 ? "edit" : "edits")")
+        }
+        if !viewModel.localRemovals.isEmpty {
+            let n = viewModel.localRemovals.count
+            parts.append("\(n) \(n == 1 ? "removal" : "removals")")
         }
         if viewModel.hasPipelineEdits {
             parts.append("pipeline changes")
@@ -94,6 +100,15 @@ struct PricingDetailView: View {
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $showingReconciliation) {
+                ReconciliationSheet(
+                    viewModel: reconciliationVM,
+                    storedModel: model,
+                    onApply: { suggested, mismatch in
+                        viewModel.applyReconciliation(suggestedTools: suggested, mismatch: mismatch)
+                    }
+                )
             }
             .alert("Save Failed", isPresented: Binding(
                 get: { saveError != nil },
@@ -146,6 +161,7 @@ struct PricingDetailView: View {
             Button("Save to Operator") {
                 showingSaveConfirmation = true
             }
+            .accessibilityIdentifier("applyButton")
             .font(.caption)
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -168,7 +184,9 @@ struct PricingDetailView: View {
                         }
                     }
                 }
+                .accessibilityIdentifier("confirmApplyButton")
                 Button("Cancel", role: .cancel) { }
+                    .accessibilityIdentifier("cancelApplyButton")
             } message: {
                 Text("This will overwrite the operator's active pricing model with your \(editSummary). This action cannot be undone.")
             }
@@ -248,6 +266,27 @@ struct PricingDetailView: View {
                 }
             }
             Spacer()
+            if source == .stored {
+                Button {
+                    reconciliationVM = ReconciliationViewModel()
+                    showingReconciliation = true
+                    Task {
+                        if let (url, token) = try? await viewModel.resolveEndpointAndToken(for: target),
+                           let model = viewModel.pricingModel {
+                            reconciliationVM.detectMismatch(
+                                endpointURL: url,
+                                bearerToken: token,
+                                storedModel: model
+                            )
+                        }
+                    }
+                } label: {
+                    Label("Reconcile", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
             Button {
                 viewModel.forceRefresh(for: target)
             } label: {

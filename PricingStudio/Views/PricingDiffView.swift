@@ -45,10 +45,12 @@ struct PricingDiffView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 modelBadge(labelA, color: .blue)
+                    .accessibilityIdentifier("diffModelALabel")
                 Text("vs")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 modelBadge(labelB, color: .orange)
+                    .accessibilityIdentifier("diffModelBLabel")
             }
 
             HStack(spacing: 24) {
@@ -121,12 +123,34 @@ struct PricingDiffView: View {
         let satsA = a?.priceSats ?? 0
         let satsB = b?.priceSats ?? 0
         let delta = satsB - satsA
+        let isNew = a == nil && b != nil
+        let isRemoved = a != nil && b == nil
 
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                    .font(.caption)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    if isNew {
+                        Text("NEW")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(.green, in: Capsule())
+                    }
+                    if isRemoved {
+                        Text("REMOVED")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(.red, in: Capsule())
+                    }
+                    Text(name)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .strikethrough(isRemoved)
+                        .foregroundStyle(isRemoved ? .secondary : .primary)
+                }
                 if let cat = a?.category ?? b?.category, !cat.isEmpty {
                     Text(cat)
                         .font(.caption2)
@@ -150,7 +174,12 @@ struct PricingDiffView: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
-        .background(delta != 0 ? Color.yellow.opacity(0.05) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+        .background(
+            isNew ? Color.green.opacity(0.05) :
+            isRemoved ? Color.red.opacity(0.05) :
+            delta != 0 ? Color.yellow.opacity(0.05) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 6)
+        )
     }
 
     @ViewBuilder

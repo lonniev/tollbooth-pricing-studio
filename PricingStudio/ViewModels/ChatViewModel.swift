@@ -107,7 +107,7 @@ final class ChatViewModel {
         let pubHex = identity.publicKeyHex
 
         await MainActor.run {
-            TrafficLogger.shared.log(.outbound, label: "DM Fetch", detail: "Fetching conversations for \(identity.npub.prefix(12))…")
+            TrafficLogger.shared.log(.outbound, label: "DM Fetch", detail: "Fetching conversations for \(identity.npub.prefix(12))…", npub: identity.npub)
         }
 
         do {
@@ -124,7 +124,7 @@ final class ChatViewModel {
 
             let msgCount = convos.reduce(0) { $0 + $1.messages.count }
             await MainActor.run {
-                TrafficLogger.shared.log(.inbound, label: "DM Fetch", detail: "\(convos.count) conversations, \(msgCount) messages")
+                TrafficLogger.shared.log(.inbound, label: "DM Fetch", detail: "\(convos.count) conversations, \(msgCount) messages", npub: identity.npub)
             }
 
             conversations = convos
@@ -133,21 +133,34 @@ final class ChatViewModel {
                 fetchedAt: Date()
             )
             state = .loaded
+            fetchError = nil
 
             logger.info("Loaded \(convos.count) conversations for \(identity.npub.prefix(12))")
         } catch is ChatTimeoutError {
             let msg = "Relay fetch timed out after 30 seconds. Check your network connection."
             await MainActor.run {
-                TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg)
+                TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg, npub: identity.npub)
             }
-            state = .error(msg)
+            // If we already have conversations (e.g. from optimistic sends or prior fetch),
+            // show a non-destructive banner instead of replacing the whole view with an error.
+            if conversations.isEmpty {
+                state = .error(msg)
+            } else {
+                state = .loaded
+                fetchError = msg
+            }
             logger.error("DM fetch timed out for \(identity.npub.prefix(12))")
         } catch {
             let msg = error.localizedDescription
             await MainActor.run {
-                TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg)
+                TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg, npub: identity.npub)
             }
-            state = .error(msg)
+            if conversations.isEmpty {
+                state = .error(msg)
+            } else {
+                state = .loaded
+                fetchError = msg
+            }
             logger.error("DM fetch failed: \(msg)")
         }
     }
@@ -164,6 +177,9 @@ final class ChatViewModel {
 
     /// Last send error, surfaced as an alert instead of replacing the chat view.
     var sendError: String?
+
+    /// Last fetch error, shown as a non-destructive banner when conversations are already loaded.
+    var fetchError: String?
 
     /// Send a DM to the given counterparty via dual protocol.
     func sendMessage(to counterpartyPubkeyHex: String, content: String) async {
