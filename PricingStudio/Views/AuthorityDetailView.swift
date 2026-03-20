@@ -18,6 +18,16 @@ struct AuthorityDetailView: View {
             pricingSection
         }
         .navigationTitle(authority.displayName)
+        .sheet(isPresented: Binding(
+            get: { authorityVM?.showingAdoptSheet ?? false },
+            set: { authorityVM?.showingAdoptSheet = $0 }
+        )) {
+            AdoptOperatorSheet(
+                authority: authority,
+                authorityVM: authorityVM!,
+                pricingVM: pricingVM
+            )
+        }
     }
 
     // MARK: - Claim Authority
@@ -69,7 +79,13 @@ struct AuthorityDetailView: View {
     // MARK: - Connected Operators
 
     private var connectedOperatorsSection: some View {
-        ConnectedOperatorsList(authorityNpub: authority.npub, onOperatorSelected: onOperatorSelected)
+        ConnectedOperatorsList(
+            authorityNpub: authority.npub,
+            onOperatorSelected: onOperatorSelected,
+            onAdopt: authority.mcpEndpointURL != nil && authorityVM != nil
+                ? { authorityVM?.requestAdopt(authority) }
+                : nil
+        )
     }
 
     // MARK: - Pricing
@@ -96,11 +112,13 @@ struct AuthorityDetailView: View {
 private struct ConnectedOperatorsList: View {
     let authorityNpub: String
     var onOperatorSelected: ((Operator) -> Void)?
+    var onAdopt: (() -> Void)?
     @Query private var allOperators: [Operator]
 
-    init(authorityNpub: String, onOperatorSelected: ((Operator) -> Void)? = nil) {
+    init(authorityNpub: String, onOperatorSelected: ((Operator) -> Void)? = nil, onAdopt: (() -> Void)? = nil) {
         self.authorityNpub = authorityNpub
         self.onOperatorSelected = onOperatorSelected
+        self.onAdopt = onAdopt
         self._allOperators = Query(sort: \Operator.addedAt)
     }
 
@@ -109,19 +127,33 @@ private struct ConnectedOperatorsList: View {
     }
 
     var body: some View {
-        if connectedOperators.isEmpty {
-            Text("No connected operators")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 8)
-        } else {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
                 Text("Connected Operators")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                Spacer()
+                if let onAdopt {
+                    Button {
+                        onAdopt()
+                    } label: {
+                        Label("Adopt Operator", systemImage: "plus")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
 
+            if connectedOperators.isEmpty {
+                Text("No connected operators")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+            } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(connectedOperators) { op in
@@ -147,6 +179,96 @@ private struct ConnectedOperatorsList: View {
                     .padding(.horizontal)
                 }
                 .padding(.bottom, 8)
+            }
+        }
+    }
+}
+
+// MARK: - Adopt Operator Sheet
+
+private struct AdoptOperatorSheet: View {
+    let authority: Authority
+    @Bindable var authorityVM: AuthorityCollectionViewModel
+    @Bindable var pricingVM: PricingViewModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Operator.addedAt) private var allOperators: [Operator]
+    @State private var selectedOperator: Operator?
+
+    /// Operators not yet linked to any authority.
+    private var unclaimedOperators: [Operator] {
+        allOperators.filter { $0.authorityNpub == nil }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    if unclaimedOperators.isEmpty {
+                        Text("All operators are already claimed.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("Operator", selection: $selectedOperator) {
+                            Text("Select an operator…").tag(nil as Operator?)
+                            ForEach(unclaimedOperators) { op in
+                                Text(op.displayName).tag(op as Operator?)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Choose an unclaimed operator to register with \(authority.displayName)")
+                }
+
+                if case .registering = authorityVM.adoptionStatus {
+                    Section {
+                        HStack {
+                            ProgressView()
+                            Text("Registering operator…")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if case .success(let message) = authorityVM.adoptionStatus {
+                    Section {
+                        Label("Registration successful", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if case .failed(let error) = authorityVM.adoptionStatus {
+                    Section {
+                        Label("Registration failed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.red)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Adopt Operator")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Adopt") {
+                        guard let op = selectedOperator else { return }
+                        Task {
+                            let (_, token) = try await pricingVM.resolveEndpointAndToken(for: authority)
+                            await authorityVM.adoptOperator(
+                                authority: authority,
+                                operatorToAdopt: op,
+                                bearerToken: token,
+                                context: modelContext
+                            )
+                        }
+                    }
+                    .disabled(selectedOperator == nil || authorityVM.adoptionStatus == .registering)
+                }
             }
         }
     }

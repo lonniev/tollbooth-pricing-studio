@@ -10,6 +10,7 @@ final class PricingViewModel {
         case loading(step: String)
         case loaded(PricingModelResponse)
         case error(String)
+        case notRegistered
         case cancelled
     }
 
@@ -311,6 +312,8 @@ final class PricingViewModel {
             if case .loading = state { state = .idle }
         } catch let urlError as URLError where urlError.code == .cancelled {
             if case .loading = state { state = .idle }
+        } catch RegistryError.operatorNotFound {
+            state = .notRegistered
         } catch {
             let detail = "\(error.localizedDescription)\n\nUnderlying: \(String(describing: error))"
             TrafficLogger.shared.log(.error, label: "Load Failed: \(target.displayName)", detail: detail)

@@ -683,6 +683,57 @@ actor MCPService {
         return text
     }
 
+    // MARK: - Register Operator (Adopt)
+
+    /// Call `register_operator` on an Authority's MCP endpoint to adopt an operator.
+    /// Returns the text response from the tool.
+    func callRegisterOperator(
+        endpointURL: URL,
+        bearerToken: String,
+        operatorNpub: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Register Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let registerTool = allTools.first(where: { $0.name.contains("register_operator") }) else {
+            await traffic(.error, label: "Register Operator", detail: "No register_operator tool found")
+            throw MCPError.toolCallFailed("No register_operator tool found on this Authority")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: registerTool.name,
+            arguments: ["npub": .string(operatorNpub)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Register Operator Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Register Operator", detail: String(text.prefix(500)))
+        return text
+    }
+
     // MARK: - Pricing Synthesis
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model

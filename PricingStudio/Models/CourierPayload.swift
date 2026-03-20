@@ -12,11 +12,11 @@ struct CourierPayload: Sendable {
         let id = UUID()
         let key: String
         var value: String
-        let isPlaceholder: Bool
 
-        /// Whether the value looks like it still needs user input.
+        /// Whether the current value still looks like a placeholder or is empty.
         var needsInput: Bool {
-            isPlaceholder || value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty || (trimmed.hasPrefix("PASTE_YOUR_") && trimmed.hasSuffix("_HERE"))
         }
     }
 
@@ -64,53 +64,67 @@ struct CourierPayload: Sendable {
     /// Try to parse a raw DM string as a Secure Courier payload.
     /// Returns `nil` if no `@@@` fields are found.
     static func parse(_ text: String) -> CourierPayload? {
-        let nsText = text as NSString
-        let fullRange = NSRange(location: 0, length: nsText.length)
-        let matches = fieldPattern.matches(in: text, range: fullRange)
+        // Extract greeting (text before "--- Credential Payload ---")
+        let greeting: String
+        let fieldSearchText: String  // only search for fields in the payload section
+
+        if let payloadHeader = text.range(of: "--- Credential Payload ---") {
+            greeting = String(text[text.startIndex..<payloadHeader.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Restrict field extraction to text after the header (and before provenance)
+            let afterHeader = String(text[payloadHeader.upperBound...])
+            if let provenanceHeader = afterHeader.range(of: "--- Message Provenance ---") {
+                fieldSearchText = String(afterHeader[afterHeader.startIndex..<provenanceHeader.lowerBound])
+            } else {
+                fieldSearchText = afterHeader
+            }
+        } else {
+            // No section header — fall back to searching the full text
+            greeting = ""
+            fieldSearchText = text
+        }
+
+        let nsFieldText = fieldSearchText as NSString
+        let fieldRange = NSRange(location: 0, length: nsFieldText.length)
+        let matches = fieldPattern.matches(in: fieldSearchText, range: fieldRange)
 
         guard !matches.isEmpty else { return nil }
 
-        // Extract all key=@@@value@@@ fields
+        // Extract all key=@@@value@@@ fields from the payload section only
         var allFields: [Field] = []
         for match in matches {
-            guard let keyRange = Range(match.range(at: 1), in: text),
-                  let valueRange = Range(match.range(at: 2), in: text) else { continue }
+            guard let keyRange = Range(match.range(at: 1), in: fieldSearchText),
+                  let valueRange = Range(match.range(at: 2), in: fieldSearchText) else { continue }
 
-            let key = String(text[keyRange]).trimmingCharacters(in: .whitespaces)
-            let rawValue = String(text[valueRange])
+            let key = String(fieldSearchText[keyRange]).trimmingCharacters(in: .whitespaces)
+            let rawValue = String(fieldSearchText[valueRange])
             // Strip newlines that mobile clients may inject
             let value = rawValue
                 .replacingOccurrences(of: "\r\n", with: "")
                 .replacingOccurrences(of: "\n", with: "")
                 .trimmingCharacters(in: .whitespaces)
 
-            let isPlaceholder = value.hasPrefix("PASTE_YOUR_") && value.hasSuffix("_HERE")
-
-            allFields.append(Field(key: key, value: value, isPlaceholder: isPlaceholder))
+            allFields.append(Field(key: key, value: value))
         }
 
         // Separate poison from editable fields
         let poison = allFields.first(where: { $0.key == "poison" })
         let fields = allFields.filter { $0.key != "poison" }
 
-        // Extract greeting (text before "--- Credential Payload ---")
-        let greeting: String
-        if let payloadHeader = text.range(of: "--- Credential Payload ---") {
-            greeting = String(text[text.startIndex..<payloadHeader.lowerBound])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if let firstMatch = matches.first {
-            // Fall back to text before first field
-            let beforeField = nsText.substring(to: firstMatch.range.location)
-            greeting = beforeField.trimmingCharacters(in: .whitespacesAndNewlines)
-        } else {
-            greeting = ""
+        // If no header was found, derive greeting from text before first field in full text
+        var finalGreeting = greeting
+        if greeting.isEmpty, let firstMatch = fieldPattern.firstMatch(
+            in: text, range: NSRange(location: 0, length: (text as NSString).length)
+        ) {
+            let beforeField = (text as NSString).substring(to: firstMatch.range.location)
+            finalGreeting = beforeField.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         // Extract provenance metadata
         let provenance = parseProvenance(from: text)
 
         return CourierPayload(
-            greeting: greeting,
+            greeting: finalGreeting,
             fields: fields,
             poison: poison,
             provenance: provenance,
