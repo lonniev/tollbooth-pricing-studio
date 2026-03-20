@@ -1,5 +1,17 @@
 import SwiftUI
 
+extension Bundle {
+    var appName: String { infoDictionary?["CFBundleName"] as? String ?? "–" }
+    var appVersion: String { infoDictionary?["CFBundleShortVersionString"] as? String ?? "–" }
+    var buildNumber: String { infoDictionary?["CFBundleVersion"] as? String ?? "–" }
+    var buildTimestamp: String {
+        guard let url = self.url(forResource: "BuildTimestamp", withExtension: "txt"),
+              let stamp = try? String(contentsOf: url).trimmingCharacters(in: .whitespacesAndNewlines)
+        else { return "–" }
+        return stamp
+    }
+}
+
 struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     var relaySettings = RelaySettings.shared
@@ -19,6 +31,17 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                // MARK: - About
+
+                Section {
+                    LabeledContent("App", value: Bundle.main.appName)
+                    LabeledContent("Version", value: Bundle.main.appVersion)
+                    LabeledContent("Build", value: Bundle.main.buildNumber)
+                    LabeledContent("Built", value: Bundle.main.buildTimestamp)
+                } header: {
+                    Label("About", systemImage: "info.circle")
+                }
+
                 // MARK: - AI Agent Keys
 
                 Section {
@@ -134,6 +157,7 @@ struct SettingsSheet: View {
                         }
                     }
                 }
+
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

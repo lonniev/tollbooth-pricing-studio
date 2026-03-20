@@ -3,6 +3,8 @@ import SwiftUI
 struct TrafficLogView: View {
     let logger: TrafficLogger
     var filterNpub: String?
+    @State private var filterEnabled = false
+    @State private var autoscroll = true
 
     /// Show entries where:
     /// - the entry is tagged for the selected npub (sender or receiver)
@@ -10,7 +12,7 @@ struct TrafficLogView: View {
     /// - the entry is an error (always visible)
     /// This hides only traffic explicitly tagged for a *different* npub.
     private var filteredEntries: [TrafficLogEntry] {
-        guard let npub = filterNpub, !npub.isEmpty else {
+        guard filterEnabled, let npub = filterNpub, !npub.isEmpty else {
             return logger.entries
         }
         return logger.entries.filter { entry in
@@ -36,6 +38,7 @@ struct TrafficLogView: View {
         HStack {
             Label("Traffic Log", systemImage: "antenna.radiowaves.left.and.right")
                 .font(.headline)
+            pollHeartbeat
             if let npub = filterNpub, !npub.isEmpty {
                 Text(String(npub.prefix(12)) + "...")
                     .font(.caption)
@@ -49,6 +52,24 @@ struct TrafficLogView: View {
             Text("\(filteredEntries.count) entries")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if filterNpub != nil && !filterNpub!.isEmpty {
+                Toggle(isOn: $filterEnabled) {
+                    Text("Filter")
+                        .font(.caption)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .fixedSize()
+            }
+            Button {
+                autoscroll.toggle()
+            } label: {
+                Label(autoscroll ? "Pause" : "Resume",
+                      systemImage: autoscroll ? "pause.fill" : "play.fill")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
             Button {
                 logger.clear()
             } label: {
@@ -61,6 +82,24 @@ struct TrafficLogView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    private var pollHeartbeat: some View {
+        let polling = DMPollingService.shared
+        let cycle = polling.pollCycle
+        let running = polling.isPolling
+        return HStack(spacing: 3) {
+            Image(systemName: running ? "heart.fill" : "heart.slash")
+                .font(.caption2)
+                .foregroundStyle(running ? .red : .gray)
+                .symbolEffect(.pulse, isActive: running && cycle > 0)
+            if cycle > 0 {
+                Text("#\(cycle)")
+                    .font(.caption2)
+                    .monospaced()
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var emptyState: some View {
@@ -90,7 +129,7 @@ struct TrafficLogView: View {
             }
             .listStyle(.plain)
             .onChange(of: logger.entries.count) {
-                if let last = filteredEntries.last {
+                if autoscroll, let last = filteredEntries.last {
                     withAnimation {
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }

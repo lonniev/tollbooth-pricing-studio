@@ -1,37 +1,25 @@
 import Foundation
-import OSLog
 import SwiftData
 
-private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "DMPolling")
-
 /// Polls Nostr relays for new DMs across all entities with stored nsec keys.
-///
-/// Tracks per-npub unread counts and persists "last seen" timestamps in UserDefaults.
-/// Designed as a singleton; start polling once the model context is available.
 @MainActor @Observable
 final class DMPollingService {
     static let shared = DMPollingService()
 
-    private(set) var unreadCounts: [String: Int] = [:]        // npub -> unread count
-    private(set) var lastPollAt: Date?                         // set after each poll cycle completes
-    private var lastSeenTimestamps: [String: Int] = [:]       // npub -> latest seen event timestamp
+    private(set) var unreadCounts: [String: Int] = [:]
+    private(set) var lastPollAt: Date?
+    private(set) var pollCycle: Int = 0
+    private var lastSeenTimestamps: [String: Int] = [:]
     private var pollingTask: Task<Void, Never>?
-    private let dmService = NostrDMService()
     private let pollInterval: TimeInterval = 10
 
-    private init() {
-        loadLastSeen()
-    }
+    private init() { loadLastSeen() }
 
     // MARK: - Public API
 
-    func hasUnread(for npub: String) -> Bool {
-        (unreadCounts[npub] ?? 0) > 0
-    }
-
-    func unreadCount(for npub: String) -> Int {
-        unreadCounts[npub] ?? 0
-    }
+    func hasUnread(for npub: String) -> Bool { (unreadCounts[npub] ?? 0) > 0 }
+    func unreadCount(for npub: String) -> Int { unreadCounts[npub] ?? 0 }
+    var isPolling: Bool { pollingTask != nil }
 
     func markRead(npub: String) {
         unreadCounts[npub] = 0
@@ -40,11 +28,39 @@ final class DMPollingService {
     }
 
     func startPolling(modelContext: ModelContext) {
-        guard pollingTask == nil else { return }
-        pollingTask = Task { [weak self] in
+        if pollingTask != nil { return }
+        TrafficLogger.shared.log(.outbound, label: "DM Poll Start", detail: "Background polling started (\(Int(pollInterval))s interval)")
+
+        pollingTask = Task {
             while !Task.isCancelled {
-                await self?.pollAll(modelContext: modelContext)
-                try? await Task.sleep(for: .seconds(self?.pollInterval ?? 60))
+                self.pollCycle += 1
+                let cycle = self.pollCycle
+
+                let entities = self.gatherEntities(modelContext: modelContext)
+                let timestamps = self.lastSeenTimestamps
+                let withKeys = entities.filter { $0.hasKeys }.count
+
+                TrafficLogger.shared.log(.outbound, label: "DM Poll Cycle \(cycle)", detail: "\(entities.count) entities (\(withKeys) with nsec)")
+
+                if !entities.isEmpty {
+                    // Use Task.detached to GUARANTEE no MainActor inheritance
+                    let results = await Task.detached {
+                        await dmPollEntities(
+                            entities: entities,
+                            timestamps: timestamps,
+                            cycle: cycle
+                        )
+                    }.value
+
+                    self.applyResults(results)
+                }
+
+                self.lastPollAt = Date()
+                TrafficLogger.shared.log(.inbound, label: "DM Poll Done \(cycle)", detail: "Cycle complete")
+
+                do {
+                    try await Task.sleep(for: .seconds(self.pollInterval))
+                } catch { break }
             }
         }
     }
@@ -54,55 +70,32 @@ final class DMPollingService {
         pollingTask = nil
     }
 
-    // MARK: - Polling
+    // MARK: - Gather entities (MainActor)
 
-    private func pollAll(modelContext: ModelContext) async {
-        defer { lastPollAt = Date() }
-
+    private func gatherEntities(modelContext: ModelContext) -> [DMPollEntity] {
         let operators = (try? modelContext.fetch(FetchDescriptor<Operator>())) ?? []
         let patrons = (try? modelContext.fetch(FetchDescriptor<Patron>())) ?? []
         let authorities = (try? modelContext.fetch(FetchDescriptor<Authority>())) ?? []
-
         let allNpubs = operators.map(\.npub) + patrons.map(\.npub) + authorities.map(\.npub)
 
-        for npub in allNpubs {
-            guard let nsec = KeychainService.loadNsec(forNpub: npub),
-                  let privKeyHex = try? NostrKeyService.privateKeyHexFromNsec(nsec),
-                  let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub) else {
-                continue
+        return allNpubs.map { npub in
+            let nsec = KeychainService.loadNsec(forNpub: npub)
+            let privKeyHex = nsec.flatMap { try? NostrKeyService.privateKeyHexFromNsec($0) }
+            let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub)
+            return DMPollEntity(npub: npub, privKeyHex: privKeyHex, pubKeyHex: pubKeyHex)
+        }
+    }
+
+    // MARK: - Apply results (MainActor)
+
+    private func applyResults(_ results: [DMPollResult]) {
+        for r in results {
+            if r.newCount > 0 {
+                unreadCounts[r.npub] = (unreadCounts[r.npub] ?? 0) + r.newCount
             }
-
-            let since = lastSeenTimestamps[npub]
-            let conversations = await dmService.fetchConversations(
-                privateKeyHex: privKeyHex,
-                publicKeyHex: pubKeyHex,
-                since: since
-            )
-
-            let lastSeen = lastSeenTimestamps[npub] ?? 0
-            var newCount = 0
-            var latestTimestamp = lastSeen
-
-            for (_, dms) in conversations {
-                for dm in dms where !dm.isFromMe {
-                    let ts = Int(dm.createdAt.timeIntervalSince1970)
-                    if ts > lastSeen {
-                        newCount += 1
-                    }
-                    latestTimestamp = max(latestTimestamp, ts)
-                }
-            }
-
-            if newCount > 0 {
-                unreadCounts[npub] = (unreadCounts[npub] ?? 0) + newCount
-                await MainActor.run {
-                    TrafficLogger.shared.log(.inbound, label: "DM Poll", detail: "\(npub.prefix(12))… \(newCount) new DM(s)", npub: npub)
-                }
-                logger.info("Found \(newCount) new DM(s) for \(npub.prefix(12))")
-            }
-
-            if latestTimestamp > lastSeen {
-                lastSeenTimestamps[npub] = latestTimestamp
+            let lastSeen = lastSeenTimestamps[r.npub] ?? 0
+            if r.latestTimestamp > lastSeen {
+                lastSeenTimestamps[r.npub] = r.latestTimestamp
                 saveLastSeen()
             }
         }
@@ -111,14 +104,170 @@ final class DMPollingService {
     // MARK: - Persistence
 
     private static let storageKey = "dm.lastSeenTimestamps"
-
-    private func saveLastSeen() {
-        UserDefaults.standard.set(lastSeenTimestamps, forKey: Self.storageKey)
-    }
-
+    private func saveLastSeen() { UserDefaults.standard.set(lastSeenTimestamps, forKey: Self.storageKey) }
     private func loadLastSeen() {
         if let saved = UserDefaults.standard.dictionary(forKey: Self.storageKey) as? [String: Int] {
             lastSeenTimestamps = saved
         }
+    }
+}
+
+// MARK: - Free functions & types (NO actor isolation)
+
+struct DMPollEntity: Sendable {
+    let npub: String
+    let privKeyHex: String?
+    let pubKeyHex: String?
+    var hasKeys: Bool { privKeyHex != nil && pubKeyHex != nil }
+}
+
+struct DMPollResult: Sendable {
+    let npub: String
+    let newCount: Int
+    let totalEvents: Int
+    let latestTimestamp: Int
+}
+
+private struct PollTimeoutError: Error {}
+
+/// Runs entirely off MainActor — free function guarantees no actor isolation.
+/// All npubs are polled in parallel; each npub fans out across relays in parallel
+/// (via NostrRelayService.fetchDMs), so npubs × relays run concurrently per cycle.
+private func dmPollEntities(
+    entities: [DMPollEntity],
+    timestamps: [String: Int],
+    cycle: Int
+) async -> [DMPollResult] {
+    let dmService = NostrDMService()
+    let total = entities.count
+
+    return await withTaskGroup(of: DMPollResult?.self) { group in
+        for (index, entity) in entities.enumerated() {
+            group.addTask {
+                await dmPollSingleEntity(
+                    entity: entity,
+                    index: index,
+                    total: total,
+                    timestamps: timestamps,
+                    dmService: dmService
+                )
+            }
+        }
+        var results: [DMPollResult] = []
+        for await result in group {
+            if let r = result { results.append(r) }
+        }
+        return results
+    }
+}
+
+/// Poll a single npub — extracted so the task group stays clean.
+private func dmPollSingleEntity(
+    entity: DMPollEntity,
+    index: Int,
+    total: Int,
+    timestamps: [String: Int],
+    dmService: NostrDMService
+) async -> DMPollResult? {
+    if Task.isCancelled { return nil }
+
+    let tag = "\(entity.npub.prefix(12))…"
+    let label = "DM Poll [\(index+1)/\(total)]"
+
+    guard let privKeyHex = entity.privKeyHex,
+          let pubKeyHex = entity.pubKeyHex else {
+        return nil
+    }
+
+    let since = timestamps[entity.npub]
+    await MainActor.run {
+        TrafficLogger.shared.log(.outbound, label: label, detail: "\(tag) relay fetch starting (since=\(since ?? 0))", npub: entity.npub)
+    }
+
+    let fetchResult: [String: [DecryptedDM]]
+    let didTimeout: Bool
+    do {
+        fetchResult = try await withThrowingTimeout(seconds: 15) {
+            await dmService.fetchConversations(
+                privateKeyHex: privKeyHex,
+                publicKeyHex: pubKeyHex,
+                since: since
+            )
+        }
+        didTimeout = false
+    } catch {
+        fetchResult = [:]
+        didTimeout = true
+    }
+
+    if didTimeout {
+        await MainActor.run {
+            TrafficLogger.shared.log(.error, label: label, detail: "\(tag) timed out after 15s", npub: entity.npub)
+        }
+        return nil
+    }
+
+    if fetchResult.isEmpty {
+        await MainActor.run {
+            TrafficLogger.shared.log(.inbound, label: label, detail: "\(tag) 0 events", npub: entity.npub)
+        }
+        return nil
+    }
+
+    let lastSeen = timestamps[entity.npub] ?? 0
+    var newCount = 0
+    var latestTimestamp = lastSeen
+    for (_, dms) in fetchResult {
+        for dm in dms where !dm.isFromMe {
+            let ts = Int(dm.createdAt.timeIntervalSince1970)
+            if ts > lastSeen { newCount += 1 }
+            latestTimestamp = max(latestTimestamp, ts)
+        }
+    }
+
+    let totalEvents = fetchResult.values.flatMap { $0 }.count
+    await MainActor.run {
+        TrafficLogger.shared.log(.inbound, label: label, detail: "\(tag) \(totalEvents) events, \(newCount) new", npub: entity.npub)
+    }
+
+    return DMPollResult(npub: entity.npub, newCount: newCount, totalEvents: totalEvents, latestTimestamp: latestTimestamp)
+}
+
+/// Timeout that actually works: uses a detached timeout task + continuation.
+/// Guaranteed no actor inheritance.
+private func withThrowingTimeout<T: Sendable>(
+    seconds: TimeInterval,
+    operation: @Sendable @escaping () async -> T
+) async throws -> T {
+    let result: T = try await withUnsafeThrowingContinuation { continuation in
+        let state = TimeoutState()
+
+        Task.detached {
+            let value = await operation()
+            if state.claim() {
+                continuation.resume(returning: value)
+            }
+        }
+
+        Task.detached {
+            try? await Task.sleep(for: .seconds(seconds))
+            if state.claim() {
+                continuation.resume(throwing: PollTimeoutError())
+            }
+        }
+    }
+    return result
+}
+
+/// Thread-safe one-shot flag for timeout racing.
+private final class TimeoutState: @unchecked Sendable {
+    private var _claimed = false
+    private let _lock = NSLock()
+    func claim() -> Bool {
+        _lock.lock()
+        defer { _lock.unlock() }
+        if _claimed { return false }
+        _claimed = true
+        return true
     }
 }

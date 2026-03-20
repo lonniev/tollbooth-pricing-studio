@@ -8,8 +8,8 @@ class RelaySettings {
     nonisolated static let defaultRelayStrings = [
         "wss://relay.primal.net",
         "wss://nos.lol",
-        "wss://relay.damus.io",
         "wss://relay.0xchat.com",
+        "wss://relay.nostr.band",
     ]
 
     var relays: [String] {

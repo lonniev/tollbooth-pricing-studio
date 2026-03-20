@@ -10,14 +10,27 @@ DEVICE_ID    := DA64BB63-AA0D-578F-A394-033A5E719864
 DEV_BUILD    := build/Build/Products/Debug-iphoneos/PricingStudio.app
 FAST_FLAGS   := ONLY_ACTIVE_ARCH=YES SWIFT_OPTIMIZATION_LEVEL='-Onone' DEBUG_INFORMATION_FORMAT=dwarf GCC_OPTIMIZATION_LEVEL=0
 
-.PHONY: archive export ipa install clean dev dev-install dev-wifi help test-ui test-bdd test-bdd-sim test-ui-sim
+.PHONY: archive export ipa install clean dev dev-install dev-wifi help test-ui test-bdd test-bdd-sim test-ui-sim stamp
+
+TIMESTAMP_FILE := PricingStudio/BuildTimestamp.txt
+
+# ============================================================
+# BUILD STAMPING (auto-increment build number + timestamp)
+# ============================================================
+
+## stamp: Bump CURRENT_PROJECT_VERSION and write build timestamp
+stamp:
+	@NEW=$$(( $$(grep -m1 'CURRENT_PROJECT_VERSION' $(WORKSPACE)/project.pbxproj | sed 's/[^0-9]//g') + 1 )); \
+	sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*/CURRENT_PROJECT_VERSION = $$NEW/g" $(WORKSPACE)/project.pbxproj; \
+	echo "Build $$NEW — $$(date '+%Y-%m-%d %H:%M:%S %Z')" > $(TIMESTAMP_FILE); \
+	echo "Stamped build $$NEW"
 
 # ============================================================
 # FAST DEVELOPMENT BUILDS (debug, incremental, ~30s after first)
 # ============================================================
 
 ## dev: Debug build for device (incremental, no archive overhead)
-dev:
+dev: stamp
 	xcodebuild build \
 		-project $(WORKSPACE) \
 		-scheme $(SCHEME) \
