@@ -65,9 +65,7 @@ final class CourierPayloadTests: XCTestCase {
         let text = "nsec = @@@PASTE_YOUR_NSEC_HERE@@@\nclaim = @@@PASTE_YOUR_CLAIM_HERE@@@"
         let payload = CourierPayload.parse(text)!
 
-        XCTAssertTrue(payload.fields[0].isPlaceholder)
         XCTAssertTrue(payload.fields[0].needsInput)
-        XCTAssertTrue(payload.fields[1].isPlaceholder)
         XCTAssertTrue(payload.fields[1].needsInput)
     }
 
@@ -77,9 +75,7 @@ final class CourierPayloadTests: XCTestCase {
         let text = "nsec = @@@nsec1realkey@@@\nclaim = @@@yes@@@"
         let payload = CourierPayload.parse(text)!
 
-        XCTAssertFalse(payload.fields[0].isPlaceholder)
         XCTAssertFalse(payload.fields[0].needsInput)
-        XCTAssertFalse(payload.fields[1].isPlaceholder)
         XCTAssertFalse(payload.fields[1].needsInput)
     }
 
@@ -165,6 +161,58 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertEqual(payload.provenance.operatorNpub, "npub1operator")
         XCTAssertEqual(payload.provenance.sent, "2026-03-15T12:00:00Z")
         XCTAssertEqual(payload.provenance.protocolVersion, "secure-courier/2.0")
+    }
+
+    // MARK: - Greeting Fields Not Duplicated
+
+    func testGreetingFieldsNotDuplicated() {
+        // The challenge DM has @@@yes@@@ in the instruction text AND in the payload section.
+        // Only the payload section fields should be extracted.
+        let text = """
+        You are requesting to become the curator of this Authority. Reply with: claim = @@@yes@@@ and include the poison slug.
+
+        --- Credential Payload ---
+          claim = @@@yes@@@
+          poison = @@@keen-nest-44@@@
+
+        --- Message Provenance ---
+        Service: tollbooth-authority
+        Operator: npub1example
+        Sent: 2026-03-20T16:00:00Z
+        Protocol: secure-courier/1.0
+        """
+
+        let payload = CourierPayload.parse(text)!
+
+        XCTAssertEqual(payload.fields.count, 1, "Only one 'claim' field from the payload section, not the greeting")
+        XCTAssertEqual(payload.fields[0].key, "claim")
+        XCTAssertEqual(payload.fields[0].value, "yes")
+        XCTAssertNotNil(payload.poison)
+        XCTAssertEqual(payload.poison?.value, "keen-nest-44")
+        XCTAssertTrue(payload.greeting.contains("Reply with"))
+    }
+
+    // MARK: - Editing Placeholder Clears needsInput
+
+    func testEditingPlaceholderClearsNeedsInput() {
+        let text = """
+        --- Credential Payload ---
+          nsec = @@@PASTE_YOUR_NSEC_HERE@@@
+          claim = @@@PASTE_YOUR_CLAIM_HERE@@@
+        """
+        var payload = CourierPayload.parse(text)!
+
+        XCTAssertTrue(payload.fields[0].needsInput)
+        XCTAssertTrue(payload.fields[1].needsInput)
+        XCTAssertFalse(payload.isComplete)
+
+        // Simulate user editing
+        payload.fields[0].value = "nsec1realkey123"
+        payload.fields[1].value = "yes"
+
+        XCTAssertFalse(payload.fields[0].needsInput)
+        XCTAssertFalse(payload.fields[1].needsInput)
+        XCTAssertTrue(payload.isComplete)
     }
 
     // MARK: - No Fields Returns Nil

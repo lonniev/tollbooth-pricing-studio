@@ -112,6 +112,54 @@ final class AuthorityCollectionViewModel {
         claimStatus = .idle
     }
 
+    // MARK: - Adopt Operator
+
+    enum AdoptionStatus: Equatable {
+        case idle
+        case registering
+        case success(String)
+        case failed(String)
+    }
+
+    var showingAdoptSheet = false
+    var adoptionStatus: AdoptionStatus = .idle
+
+    func requestAdopt(_ auth: Authority) {
+        authorityToClaim = auth  // reuse to track which authority
+        adoptionStatus = .idle
+        showingAdoptSheet = true
+    }
+
+    /// Call `register_operator` on the Authority's MCP endpoint to adopt an operator.
+    func adoptOperator(
+        authority: Authority,
+        operatorToAdopt: Operator,
+        bearerToken: String,
+        context: ModelContext
+    ) async {
+        guard let endpointString = authority.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            adoptionStatus = .failed("Authority has no MCP endpoint")
+            return
+        }
+
+        adoptionStatus = .registering
+        let mcpService = MCPService()
+
+        do {
+            let result = try await mcpService.callRegisterOperator(
+                endpointURL: endpointURL,
+                bearerToken: bearerToken,
+                operatorNpub: operatorToAdopt.npub
+            )
+            operatorToAdopt.authorityNpub = authority.npub
+            try? context.save()
+            adoptionStatus = .success(result)
+        } catch {
+            adoptionStatus = .failed(error.localizedDescription)
+        }
+    }
+
     // MARK: - Sheet / Alert Triggers
 
     func requestEdit(_ auth: Authority) {

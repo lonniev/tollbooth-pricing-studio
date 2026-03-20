@@ -27,6 +27,9 @@ struct PricingDetailView: View {
             case .error(let message):
                 errorContent(message)
 
+            case .notRegistered:
+                notRegisteredContent
+
             case .cancelled:
                 ContentUnavailableView {
                     Label("Loading Cancelled", systemImage: "stop.circle")
@@ -308,6 +311,40 @@ struct PricingDetailView: View {
                 viewModel.retry(for: target)
             }
             .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var notRegisteredContent: some View {
+        ContentUnavailableView {
+            Label("Not Registered", systemImage: "person.crop.circle.badge.questionmark")
+        } description: {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("**\(target.displayName)** is not yet registered with the DPYC community.")
+
+                Text("To register this operator:")
+                    .fontWeight(.medium)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Connect to a sponsoring Authority's MCP endpoint", systemImage: "1.circle")
+                    Label("Authenticate via Horizon OAuth", systemImage: "2.circle")
+                    Label("The Authority calls register_operator with this npub", systemImage: "3.circle")
+                    Label("Retry here once registration is confirmed", systemImage: "4.circle")
+                }
+                .font(.subheadline)
+            }
+        } actions: {
+            VStack(spacing: 12) {
+                Text(target.npub)
+                    .font(.caption)
+                    .monospaced()
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+
+                Button("Retry") {
+                    viewModel.retry(for: target)
+                }
+                .buttonStyle(.borderedProminent)
+            }
         }
     }
 }

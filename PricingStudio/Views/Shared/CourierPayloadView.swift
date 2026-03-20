@@ -116,7 +116,7 @@ struct CourierPayloadView: View {
     }
 
     private func placeholderText(for field: CourierPayload.Field) -> String {
-        field.isPlaceholder ? "Paste your \(field.key) here" : field.key
+        field.needsInput ? "Paste your \(field.key) here" : field.key
     }
 
     // MARK: - Provenance

@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.5.3] — 2026-03-20
+
+Adopt Operator feature, Courier challenge fixes, and unregistered operator UX.
+
+### Added
+- **Adopt Operator** — Authority detail view gains a [+ Adopt Operator] button
+  that presents a sheet with a dropdown of unclaimed operators. Selecting one
+  calls `register_operator` on the Authority's MCP endpoint to register the
+  operator with the DPYC community.
+- **`MCPService.callRegisterOperator()`** — new MCP tool call for operator
+  registration via Authority SSE endpoint with Bearer auth.
+- **`AdoptionStatus` state machine** on `AuthorityCollectionViewModel` —
+  tracks idle/registering/success/failed for the adoption flow.
+- **"Not Registered" UX** — operators not yet in the DPYC registry now show
+  a helpful `ContentUnavailableView` with 4-step registration guidance instead
+  of a generic "Connection Error."
+- **Two new `CourierPayloadTests`** — `testGreetingFieldsNotDuplicated` and
+  `testEditingPlaceholderClearsNeedsInput` covering both parser fixes.
+
+### Fixed
+- **Courier challenge duplicate fields** — the `@@@` field regex was running
+  against the full DM text including instruction text ("Reply with: claim =
+  @@@yes@@@"), producing a duplicate "claim" row. Parser now restricts field
+  extraction to the `--- Credential Payload ---` section only.
+- **Courier placeholder fields permanently stuck** — `isPlaceholder` was an
+  immutable `let` set at parse time; editing the value never cleared
+  `needsInput`, so the "Send Credentials" button stayed permanently disabled.
+  `needsInput` now checks the current value instead of the original parse flag.
+
+## [1.5.2] — 2026-03-20
+
+Nostr relay WebSocket fix, parallel DM polling, About screen.
+
 ## [1.5.1] — 2026-03-18
 
 Five bug fixes and UX improvements from campaign design testing.
