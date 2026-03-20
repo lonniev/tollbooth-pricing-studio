@@ -11,6 +11,7 @@
 		AA000001000000000000001B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000000B /* ContentView.swift */; };
 		AA000001000000000000001C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000000C /* Assets.xcassets */; };
 		AA000001000000000000001D /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000000D /* Preview Assets.xcassets */; };
+		BB00000100000000DEAD0001 /* BuildTimestamp.txt in Resources */ = {isa = PBXBuildFile; fileRef = BB00000100000000DEAD0002 /* BuildTimestamp.txt */; };
 		AA00000100000000000000B1 /* Operator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E1 /* Operator.swift */; };
 		AA00000100000000000000B2 /* PricingModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E2 /* PricingModel.swift */; };
 		AA00000100000000000000B3 /* MemberRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E3 /* MemberRecord.swift */; };
@@ -145,6 +146,7 @@
 		AA000001000000000000000A /* PricingStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingStudioApp.swift; sourceTree = "<group>"; };
 		AA000001000000000000000B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		AA000001000000000000000C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BB00000100000000DEAD0002 /* BuildTimestamp.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = BuildTimestamp.txt; sourceTree = "<group>"; };
 		AA000001000000000000000D /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		AA00000100000000000000FF /* PricingStudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PricingStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA00000100000000000000E1 /* Operator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Operator.swift; sourceTree = "<group>"; };
@@ -347,6 +349,7 @@
 				AA00000100000000000000D3 /* ViewModels */,
 				AA00000100000000000000D4 /* Views */,
 				AA000001000000000000000C /* Assets.xcassets */,
+				BB00000100000000DEAD0002 /* BuildTimestamp.txt */,
 				AA000001000000000000004D /* Preview Content */,
 			);
 			path = PricingStudio;
@@ -609,6 +612,7 @@
 			packageProductDependencies = (
 				AA00000100000000000000A2 /* MCP */,
 				AA00000100000000000000A4 /* P256K */,
+				BB00000100000000STAR0002 /* Starscream */,
 			);
 			productName = PricingStudio;
 			productReference = AA00000100000000000000FF /* PricingStudio.app */;
@@ -705,6 +709,7 @@
 			packageReferences = (
 				AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */,
 				AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */,
+				BB00000100000000STAR0001 /* XCRemoteSwiftPackageReference "Starscream" */,
 			);
 			productRefGroup = AA000001000000000000004C /* Products */;
 			projectDirPath = "";
@@ -767,6 +772,7 @@
 			files = (
 				AA000001000000000000001D /* Preview Assets.xcassets in Resources */,
 				AA000001000000000000001C /* Assets.xcassets in Resources */,
+				BB00000100000000DEAD0001 /* BuildTimestamp.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1080,7 +1086,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.1;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1111,7 +1117,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.1;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1305,6 +1311,14 @@
 				version = 0.21.1;
 			};
 		};
+		BB00000100000000STAR0001 /* XCRemoteSwiftPackageReference "Starscream" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/daltoniam/Starscream.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.8;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1317,6 +1331,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */;
 			productName = P256K;
+		};
+		BB00000100000000STAR0002 /* Starscream */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BB00000100000000STAR0001 /* XCRemoteSwiftPackageReference "Starscream" */;
+			productName = Starscream;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

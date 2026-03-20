@@ -1,9 +1,9 @@
 import Foundation
-import OSLog
-
-private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "NostrRelay")
+import Starscream
 
 /// Manages WebSocket connections to Nostr relays for fetching and publishing events.
+/// Uses Starscream instead of URLSessionWebSocketTask to avoid iOS compression
+/// negotiation failures (permessage-deflate) that cause -1011 on real devices.
 final class NostrRelayService: Sendable {
 
     static var defaultRelays: [URL] {
@@ -13,13 +13,9 @@ final class NostrRelayService: Sendable {
     }
 
     let relays: [URL]
-    private let session: URLSession
 
     init(relays: [URL] = defaultRelays) {
         self.relays = relays
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
-        self.session = URLSession(configuration: config)
     }
 
     // MARK: - Fetch DMs
@@ -49,7 +45,6 @@ final class NostrRelayService: Sendable {
 
         let filters = [filterNIP04Inbound, filterNIP04Outbound, filterGiftWrap]
 
-        // Pre-build the REQ JSON string so we can pass a Sendable String into task group
         let subId = UUID().uuidString.prefix(16).lowercased()
         var reqArray: [Any] = ["REQ", String(subId)]
         reqArray.append(contentsOf: filters)
@@ -59,12 +54,11 @@ final class NostrRelayService: Sendable {
         }
 
         let relayURLs = relays
-        let urlSession = session
 
         return await withTaskGroup(of: [NostrEvent].self) { group in
             for relay in relayURLs {
                 group.addTask {
-                    await Self.fetchFromRelay(relay, reqString: reqString, subId: String(subId), session: urlSession)
+                    await Self.fetchFromRelay(relay, reqString: reqString, subId: String(subId))
                 }
             }
             var allEvents: [String: NostrEvent] = [:]
@@ -86,12 +80,11 @@ final class NostrRelayService: Sendable {
         }
 
         let relayURLs = relays
-        let urlSession = session
 
         return await withTaskGroup(of: (URL, Bool, String).self) { group in
             for relay in relayURLs {
                 group.addTask {
-                    await Self.publishToRelay(relay, message: message, session: urlSession)
+                    await Self.publishToRelay(relay, message: message)
                 }
             }
             var results: [(URL, Bool, String)] = []
@@ -102,11 +95,11 @@ final class NostrRelayService: Sendable {
         }
     }
 
-    // MARK: - Static Relay Communication (Sendable-safe)
+    // MARK: - Starscream Relay Communication
 
-    /// Fetch events from a single relay using a one-shot WebSocket connection.
+    /// Fetch events from a single relay using a one-shot Starscream WebSocket.
     private static func fetchFromRelay(
-        _ relay: URL, reqString: String, subId: String, session: URLSession
+        _ relay: URL, reqString: String, subId: String
     ) async -> [NostrEvent] {
         let host = relay.host ?? relay.absoluteString
         await MainActor.run {
@@ -114,64 +107,72 @@ final class NostrRelayService: Sendable {
         }
 
         do {
-            let ws = session.webSocketTask(with: relay)
-            ws.resume()
-            defer { ws.cancel(with: .normalClosure, reason: nil) }
-
-            try await ws.send(.string(reqString))
+            let conn = RelayConnection(url: relay)
+            try await conn.connect(timeout: 10)
+            conn.send(reqString)
 
             var events: [NostrEvent] = []
             let deadline = Date().addingTimeInterval(15)
 
             while Date() < deadline {
-                let message = try await withTimeout(seconds: 15) {
-                    try await ws.receive()
-                }
+                guard let text = try await conn.receive(timeout: 15) else { break }
 
-                switch message {
-                case .string(let text):
-                    guard let data = text.data(using: .utf8),
-                          let arr = try? JSONSerialization.jsonObject(with: data) as? [Any],
-                          let type = arr.first as? String else { continue }
+                guard let data = text.data(using: .utf8),
+                      let arr = try? JSONSerialization.jsonObject(with: data) as? [Any],
+                      let type = arr.first as? String else { continue }
 
-                    if type == "EVENT", arr.count >= 3,
-                       let eventObj = arr[2] as? [String: Any] {
-                        if let event = parseEvent(eventObj) {
-                            events.append(event)
-                        }
-                    } else if type == "EOSE" {
-                        break
-                    } else if type == "CLOSED" || type == "NOTICE" {
-                        logger.debug("Relay \(relay.absoluteString): \(text)")
-                        break
+                if type == "EVENT", arr.count >= 3,
+                   let eventObj = arr[2] as? [String: Any] {
+                    if let event = parseEvent(eventObj) {
+                        events.append(event)
                     }
-                case .data:
-                    continue
-                @unknown default:
-                    continue
+                } else if type == "EOSE" {
+                    break
+                } else if type == "AUTH" {
+                    await MainActor.run {
+                        TrafficLogger.shared.log(.error, label: "Relay AUTH", detail: "\(host): NIP-42 required — skipping")
+                    }
+                    break
+                } else if type == "CLOSED" || type == "NOTICE" {
+                    break
                 }
             }
 
+            // Send CLOSE and disconnect
             let closeData = try JSONSerialization.data(withJSONObject: ["CLOSE", subId])
             if let closeString = String(data: closeData, encoding: .utf8) {
-                try? await ws.send(.string(closeString))
+                conn.send(closeString)
             }
+            conn.disconnect()
 
             await MainActor.run {
                 TrafficLogger.shared.log(.inbound, label: "Relay \(host)", detail: "\(events.count) events")
             }
-            logger.info("Fetched \(events.count) events from \(relay.absoluteString)")
             return events
         } catch {
-            // Individual relay failures are normal — only log to OS debug, not traffic log
-            logger.debug("Relay fetch \(relay.absoluteString) failed: \(error.localizedDescription)")
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "Relay Fetch Failed", detail: "\(host): \(Self.describeError(error))")
+            }
             return []
         }
     }
 
+    /// Extract actionable info from Starscream errors.
+    private static func describeError(_ error: Error) -> String {
+        if let upgrade = error as? HTTPUpgradeError {
+            switch upgrade {
+            case .notAnUpgrade(let statusCode, _):
+                return "HTTP \(statusCode) — upgrade rejected"
+            case .invalidData:
+                return "Invalid upgrade response"
+            }
+        }
+        return error.localizedDescription
+    }
+
     /// Publish a message to a single relay.
     private static func publishToRelay(
-        _ relay: URL, message: String, session: URLSession
+        _ relay: URL, message: String
     ) async -> (URL, Bool, String) {
         let host = relay.host ?? relay.absoluteString
         await MainActor.run {
@@ -179,45 +180,39 @@ final class NostrRelayService: Sendable {
         }
 
         do {
-            let ws = session.webSocketTask(with: relay)
-            ws.resume()
-            defer { ws.cancel(with: .normalClosure, reason: nil) }
+            let conn = RelayConnection(url: relay)
+            try await conn.connect(timeout: 10)
+            conn.send(message)
 
-            try await ws.send(.string(message))
-
-            let response = try await withTimeout(seconds: 10) {
-                try await ws.receive()
+            guard let text = try await conn.receive(timeout: 10) else {
+                conn.disconnect()
+                return (relay, true, "no response")
             }
+            conn.disconnect()
 
-            switch response {
-            case .string(let text):
-                guard let data = text.data(using: .utf8),
-                      let arr = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
-                    await MainActor.run {
-                        TrafficLogger.shared.log(.inbound, label: "Relay Publish OK", detail: host)
-                    }
-                    return (relay, true, text)
-                }
-                if let type = arr.first as? String, type == "OK",
-                   arr.count >= 3, let ok = arr[2] as? Bool {
-                    let detail = arr.count > 3 ? (arr[3] as? String ?? "") : ""
-                    await MainActor.run {
-                        TrafficLogger.shared.log(.inbound, label: "Relay Publish \(ok ? "OK" : "Rejected")", detail: "\(host): \(detail)")
-                    }
-                    return (relay, ok, detail)
-                }
+            guard let data = text.data(using: .utf8),
+                  let arr = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
                 await MainActor.run {
                     TrafficLogger.shared.log(.inbound, label: "Relay Publish OK", detail: host)
                 }
                 return (relay, true, text)
-            case .data:
-                return (relay, true, "")
-            @unknown default:
-                return (relay, true, "")
             }
+            if let type = arr.first as? String, type == "OK",
+               arr.count >= 3, let ok = arr[2] as? Bool {
+                let detail = arr.count > 3 ? (arr[3] as? String ?? "") : ""
+                await MainActor.run {
+                    TrafficLogger.shared.log(.inbound, label: "Relay Publish \(ok ? "OK" : "Rejected")", detail: "\(host): \(detail)")
+                }
+                return (relay, ok, detail)
+            }
+            await MainActor.run {
+                TrafficLogger.shared.log(.inbound, label: "Relay Publish OK", detail: host)
+            }
+            return (relay, true, text)
         } catch {
-            // Individual relay failures are normal — only log to OS debug, not traffic log
-            logger.debug("Relay publish \(relay.absoluteString) failed: \(error.localizedDescription)")
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "Relay Publish Failed", detail: "\(host): \(Self.describeError(error))")
+            }
             return (relay, false, error.localizedDescription)
         }
     }
@@ -239,22 +234,149 @@ final class NostrRelayService: Sendable {
             kind: kind, tags: tags, content: content, sig: sig
         )
     }
+}
 
-    private static func withTimeout<T: Sendable>(
-        seconds: TimeInterval,
-        operation: @Sendable @escaping () async throws -> T
-    ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await operation() }
-            group.addTask {
-                try await Task.sleep(for: .seconds(seconds))
-                throw CancellationError()
+// MARK: - Starscream WebSocket Wrapper
+
+/// Wraps a Starscream WebSocket in async/await for one-shot relay connections.
+private final class RelayConnection: @unchecked Sendable {
+    private let socket: WebSocket
+    private let delegate: RelayDelegate
+
+    init(url: URL) {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        // Headers required to pass Cloudflare bot protection on relay frontends.
+        // Without Origin + User-Agent, CF returns 403 and blocks the WS upgrade.
+        let origin = "https://\(url.host ?? url.absoluteString)"
+        request.setValue(origin, forHTTPHeaderField: "Origin")
+        request.setValue("PricingStudio/1.0", forHTTPHeaderField: "User-Agent")
+        self.delegate = RelayDelegate()
+        self.socket = WebSocket(request: request)
+        self.socket.delegate = delegate
+    }
+
+    /// Connect and wait for the WebSocket to open.
+    func connect(timeout: TimeInterval) async throws {
+        try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<Void, Error>) in
+            let state = OneShotState()
+
+            delegate.onConnect = {
+                if state.claim() {
+                    continuation.resume()
+                }
             }
-            guard let result = try await group.next() else {
-                throw CancellationError()
+            delegate.onError = { error in
+                if state.claim() {
+                    continuation.resume(throwing: error ?? RelayError.connectionFailed)
+                }
             }
-            group.cancelAll()
-            return result
+
+            socket.connect()
+
+            // Timeout
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                if state.claim() {
+                    self.socket.disconnect()
+                    continuation.resume(throwing: RelayError.timeout)
+                }
+            }
+        }
+    }
+
+    /// Send a text message.
+    func send(_ text: String) {
+        socket.write(string: text)
+    }
+
+    /// Wait for the next text message, or nil on disconnect/timeout.
+    func receive(timeout: TimeInterval) async throws -> String? {
+        try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<String?, Error>) in
+            let state = OneShotState()
+
+            delegate.onText = { text in
+                if state.claim() {
+                    continuation.resume(returning: text)
+                }
+            }
+            delegate.onDisconnect = { error in
+                if state.claim() {
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+            delegate.onError = { error in
+                if state.claim() {
+                    continuation.resume(throwing: error ?? RelayError.unknown)
+                }
+            }
+
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                if state.claim() {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+
+    func disconnect() {
+        socket.disconnect()
+    }
+}
+
+/// Delegate that bridges Starscream callbacks to closures.
+private final class RelayDelegate: @unchecked Sendable, WebSocketDelegate {
+    var onConnect: (() -> Void)?
+    var onText: ((String) -> Void)?
+    var onDisconnect: ((Error?) -> Void)?
+    var onError: ((Error?) -> Void)?
+
+    func didReceive(event: WebSocketEvent, client: any WebSocketClient) {
+        switch event {
+        case .connected:
+            onConnect?()
+        case .text(let text):
+            onText?(text)
+        case .disconnected(_, _):
+            onDisconnect?(nil)
+        case .error(let error):
+            onError?(error)
+        case .cancelled:
+            onDisconnect?(nil)
+        case .viabilityChanged, .reconnectSuggested, .peerClosed:
+            break
+        case .binary, .ping, .pong:
+            break
+        }
+    }
+}
+
+/// Thread-safe one-shot flag for continuation racing.
+private final class OneShotState: @unchecked Sendable {
+    private var _claimed = false
+    private let _lock = NSLock()
+    func claim() -> Bool {
+        _lock.lock()
+        defer { _lock.unlock() }
+        if _claimed { return false }
+        _claimed = true
+        return true
+    }
+}
+
+private enum RelayError: LocalizedError {
+    case connectionFailed
+    case timeout
+    case unknown
+
+    var errorDescription: String? {
+        switch self {
+        case .connectionFailed: "WebSocket connection failed"
+        case .timeout: "WebSocket connection timed out"
+        case .unknown: "Unknown WebSocket error"
         }
     }
 }
