@@ -606,6 +606,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA000001000000000000007B /* Build configuration list for PBXNativeTarget "PricingStudio" */;
 			buildPhases = (
+				DD00000100000000STAMP01 /* Update Build Timestamp */,
 				AA000001000000000000003B /* Sources */,
 				AA000001000000000000003A /* Frameworks */,
 				AA000001000000000000003C /* Resources */,
@@ -798,6 +799,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		DD00000100000000STAMP01 /* Update Build Timestamp */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Update Build Timestamp";
+			outputPaths = (
+				"$(SRCROOT)/PricingStudio/BuildTimestamp.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "echo \"Build ${CURRENT_PROJECT_VERSION} (${MARKETING_VERSION}) — $(date '+%Y-%m-%d %H:%M:%S %Z')\" > \"${SRCROOT}/PricingStudio/BuildTimestamp.txt\"\n";
+			alwaysOutOfDate = 1;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		AA000001000000000000003B /* Sources */ = {
