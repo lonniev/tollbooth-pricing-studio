@@ -648,6 +648,7 @@ private struct SVGWebView: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
+        webView.overrideUserInterfaceStyle = .light
         return webView
     }
 
