@@ -16,7 +16,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.app
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE_PATH" ]; then
+            echo "No Xcode 16.x found, using default"
+            xcodebuild -version
+          else
+            sudo xcode-select -s "$XCODE_PATH"
+            xcodebuild -version
+          fi
 
       - name: Resolve Swift packages
         run: |
@@ -99,6 +107,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          API_PRIVATE_KEYS_DIR: ${{ runner.temp }}
         run: |
           echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode \
             > $RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8
@@ -108,8 +117,6 @@ jobs:
             --file "$(ls $RUNNER_TEMP/export/*.ipa)" \
             --apiKey "$ASC_KEY_ID" \
             --apiIssuer "$ASC_ISSUER_ID"
-        env:
-          API_PRIVATE_KEYS_DIR: ${{ runner.temp }}
 
       - name: Clean up secrets
         if: always()
