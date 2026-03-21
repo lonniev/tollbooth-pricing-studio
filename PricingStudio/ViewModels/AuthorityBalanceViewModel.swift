@@ -30,6 +30,12 @@ final class AuthorityBalanceViewModel {
         do {
             let host = endpointURL.host ?? authority.npub
             let token = try await resolveToken(host: host, endpointURL: endpointURL, patron: authority.npub)
+            // Ensure DPYC session is active — _dpyc_sessions is in-memory and resets on deploy
+            _ = try? await mcpService.callRegisterOperator(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                operatorNpub: authority.npub
+            )
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,
                 bearerToken: token
