@@ -348,12 +348,8 @@ actor MCPService {
 
         await traffic(.inbound, label: "Statement Infographic", detail: "Text response (\(text.count) chars)")
 
-        // If it's raw SVG
-        if text.contains("<svg") {
-            return InfographicResult(svgContent: text, pngBase64: nil, generatedAt: nil)
-        }
-
-        // Try JSON with svg/png fields
+        // Try JSON with svg/png fields first (most common response format)
+        // Must check JSON before raw SVG since JSON may contain embedded <svg
         if let data = text.data(using: .utf8),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             let responseDict: [String: Any]
@@ -367,6 +363,12 @@ actor MCPService {
                 pngBase64: responseDict["png_base64"] as? String ?? responseDict["image_base64"] as? String,
                 generatedAt: responseDict["generated_at"] as? String
             )
+        }
+
+        // Fall back to raw SVG if text starts with <svg or <?xml
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("<svg") || trimmed.hasPrefix("<?xml") {
+            return InfographicResult(svgContent: text, pngBase64: nil, generatedAt: nil)
         }
 
         throw MCPError.invalidResponse
