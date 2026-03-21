@@ -9,6 +9,7 @@ struct PricingDetailView: View {
     @State private var showingSaveConfirmation = false
     @State private var showingDiff = false
     @State private var showingReconciliation = false
+    @State private var showingReconcileConfirmation = false
     @State private var reconciliationVM = ReconciliationViewModel()
 
     var body: some View {
@@ -271,24 +272,32 @@ struct PricingDetailView: View {
             Spacer()
             if source == .stored {
                 Button {
-                    reconciliationVM = ReconciliationViewModel()
-                    showingReconciliation = true
-                    Task {
-                        if let (url, token) = try? await viewModel.resolveEndpointAndToken(for: target),
-                           let model = viewModel.pricingModel {
-                            reconciliationVM.detectMismatch(
-                                endpointURL: url,
-                                bearerToken: token,
-                                storedModel: model
-                            )
-                        }
-                    }
+                    showingReconcileConfirmation = true
                 } label: {
                     Label("Reconcile", systemImage: "arrow.triangle.2.circlepath")
                         .font(.subheadline)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .alert("Reconcile Tools", isPresented: $showingReconcileConfirmation) {
+                    Button("Cancel", role: .cancel) { }
+                    Button("OK") {
+                        reconciliationVM = ReconciliationViewModel()
+                        showingReconciliation = true
+                        Task {
+                            if let (url, token) = try? await viewModel.resolveEndpointAndToken(for: target),
+                               let model = viewModel.pricingModel {
+                                reconciliationVM.detectMismatch(
+                                    endpointURL: url,
+                                    bearerToken: token,
+                                    storedModel: model
+                                )
+                            }
+                        }
+                    }
+                } message: {
+                    Text("Reconcile compares your stored pricing model against the live MCP endpoint and suggests updates for new, changed, or removed tools.\n\nThe suggestions are advisory only — no changes are applied unless you choose to accept them.")
+                }
             }
             Button {
                 viewModel.forceRefresh(for: target)

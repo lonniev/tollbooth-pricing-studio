@@ -356,11 +356,15 @@ private struct TopOffSheet: View {
                             qrCodeImage(for: bolt11)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 8)
+                        } else if !result.checkoutLink.isEmpty {
+                            qrCodeImage(for: result.checkoutLink)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
                         }
 
                         if !result.checkoutLink.isEmpty, let url = URL(string: result.checkoutLink) {
                             Link(destination: url) {
-                                Label("Open in Wallet", systemImage: "arrow.up.right.square")
+                                Label("Open Payment Page", systemImage: "arrow.up.right.square")
                             }
                         }
 
@@ -369,6 +373,14 @@ private struct TopOffSheet: View {
                                 .font(.caption2.monospaced())
                                 .textSelection(.enabled)
                                 .lineLimit(3)
+                        }
+
+                        if !result.invoiceId.isEmpty {
+                            LabeledContent("Invoice ID") {
+                                Text(result.invoiceId)
+                                    .font(.caption2.monospaced())
+                                    .textSelection(.enabled)
+                            }
                         }
                     }
 

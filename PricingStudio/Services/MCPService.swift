@@ -203,11 +203,16 @@ actor MCPService {
 
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let isoFallback = ISO8601DateFormatter()
+        isoFallback.formatOptions = [.withInternetDateTime]
+
+        func parseISO(_ str: String) -> Date? {
+            isoFormatter.date(from: str) ?? isoFallback.date(from: str)
+        }
 
         var nextExpiration: Date? = nil
         if let isoStr = balanceDict["next_expiration_iso"] as? String {
-            nextExpiration = isoFormatter.date(from: isoStr)
-                ?? ISO8601DateFormatter().date(from: isoStr)  // fallback without fractional seconds
+            nextExpiration = parseISO(isoStr)
         }
 
         var trancheDetails: [PatronAccountViewModel.TrancheDetail] = []
@@ -215,9 +220,8 @@ actor MCPService {
             for (index, t) in trancheArray.enumerated() {
                 let amount = (t["amount_sats"] as? Int) ?? 0
                 let remaining = (t["remaining_sats"] as? Int) ?? amount
-                let isoFallback = ISO8601DateFormatter()  // without fractional seconds
-                let expiresAt = (t["expires_at"] as? String).flatMap { isoFormatter.date(from: $0) ?? isoFallback.date(from: $0) }
-                let createdAt = (t["created_at"] as? String).flatMap { isoFormatter.date(from: $0) ?? isoFallback.date(from: $0) }
+                let expiresAt = (t["expires_at"] as? String).flatMap { parseISO($0) }
+                let createdAt = (t["created_at"] as? String).flatMap { parseISO($0) }
                 let id = (t["id"] as? String) ?? "\(index)"
                 trancheDetails.append(PatronAccountViewModel.TrancheDetail(
                     id: id,

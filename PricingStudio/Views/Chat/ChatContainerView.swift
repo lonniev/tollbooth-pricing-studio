@@ -27,18 +27,18 @@ struct ChatContainerView<PricingContent: View, ConsultantContent: View>: View {
 
     enum Tab: String, CaseIterable {
         case pricing = "Pricing"
+        case consultant = "Campaign Advisor"
         case messages = "Messages"
-        case consultant = "Consultant"
     }
 
     var body: some View {
         VStack(spacing: 0) {
             Picker("View", selection: $selectedTab) {
                 Text(firstTabLabel).tag(Tab.pricing)
-                Text("Messages").tag(Tab.messages)
                 if consultantContent != nil {
-                    Text("Consultant").tag(Tab.consultant)
+                    Text("Campaign Advisor").tag(Tab.consultant)
                 }
+                Text("Messages").tag(Tab.messages)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)

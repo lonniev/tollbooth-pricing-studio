@@ -26,9 +26,9 @@ struct TrafficLogEntry: Identifiable, Sendable {
         case error = "ERR"
     }
 
-    /// Whether this entry is a Nostr messaging event (DM poll, fetch, send, decrypt).
+    /// Whether this entry is a Nostr messaging or relay event.
     var isNostrEvent: Bool {
-        label.hasPrefix("DM ")
+        label.hasPrefix("DM ") || label.hasPrefix("Relay ")
     }
 
     init(
