@@ -49,6 +49,7 @@ jobs:
             -s -k "" $KEYCHAIN_PATH
 
       - name: Install provisioning profile
+        id: profile
         env:
           PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
         run: |
@@ -57,7 +58,11 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           PP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin \
             <<< $(security cms -D -i $PP_PATH))
+          PP_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin \
+            <<< $(security cms -D -i $PP_PATH))
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
+          echo "uuid=$PP_UUID" >> $GITHUB_OUTPUT
+          echo "name=$PP_NAME" >> $GITHUB_OUTPUT
 
       - name: Build and archive
         run: |
@@ -67,7 +72,9 @@ jobs:
             -archivePath $RUNNER_TEMP/PricingStudio.xcarchive \
             -clonedSourcePackagesDirPath $RUNNER_TEMP/spm \
             CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }}
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
+            PROVISIONING_PROFILE_SPECIFIER="${{ steps.profile.outputs.name }}" \
+            CODE_SIGN_IDENTITY="Apple Distribution"
 
       - name: Export IPA
         run: |
