@@ -578,6 +578,19 @@ private struct InfographicSheet: View {
     let operatorNpub: String
     let accountVM: PatronAccountViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showingShareSheet = false
+
+    /// The current SVG string (if loaded).
+    private var svgString: String? {
+        if case .loaded(.svg(let s)) = accountVM.infographicStates[operatorNpub] { return s }
+        return nil
+    }
+
+    /// The current PNG data (if loaded).
+    private var pngData: Data? {
+        if case .loaded(.png(let d)) = accountVM.infographicStates[operatorNpub] { return d }
+        return nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -628,9 +641,44 @@ private struct InfographicSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
+                if svgString != nil || pngData != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            showingShareSheet = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showingShareSheet) {
+                if let svg = svgString {
+                    let filename = "\(operatorName)-statement.svg"
+                    let svgData = Data(svg.utf8)
+                    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+                    let _ = try? svgData.write(to: tempURL)
+                    ShareSheet(items: [tempURL])
+                } else if let data = pngData {
+                    if let image = UIImage(data: data) {
+                        ShareSheet(items: [image])
+                    }
+                }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
+}
+
+/// UIActivityViewController wrapper for share sheet.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - SVG Web View
