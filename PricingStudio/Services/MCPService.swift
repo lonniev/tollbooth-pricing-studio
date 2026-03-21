@@ -683,6 +683,110 @@ actor MCPService {
         return text
     }
 
+    // MARK: - Confirm Authority Claim (Step 2/3)
+
+    /// Call `confirm_authority_claim` on an Authority's MCP endpoint.
+    /// This triggers the MCP to poll Nostr for the candidate's DM reply,
+    /// verify it, and escalate to the Prime Authority for approval.
+    func callConfirmAuthorityClaim(
+        endpointURL: URL,
+        bearerToken: String,
+        candidateNpub: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Confirm Claim", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("confirm_authority_claim") }) else {
+            await traffic(.error, label: "Confirm Claim", detail: "No confirm_authority_claim tool found")
+            throw MCPError.toolCallFailed("No confirm_authority_claim tool found on this Authority")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: tool.name,
+            arguments: ["candidate_npub": .string(candidateNpub)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Confirm Claim Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Confirm Claim", detail: String(text.prefix(500)))
+        return text
+    }
+
+    // MARK: - Check Authority Approval (Step 3/3)
+
+    /// Call `check_authority_approval` on an Authority's MCP endpoint.
+    /// This triggers the MCP to poll Nostr for the Prime Authority's approval,
+    /// and on success activates the Authority and registers it in the community.
+    func callCheckAuthorityApproval(
+        endpointURL: URL,
+        bearerToken: String,
+        candidateNpub: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Check Approval", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("check_authority_approval") }) else {
+            await traffic(.error, label: "Check Approval", detail: "No check_authority_approval tool found")
+            throw MCPError.toolCallFailed("No check_authority_approval tool found on this Authority")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: tool.name,
+            arguments: ["candidate_npub": .string(candidateNpub)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Check Approval Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Check Approval", detail: String(text.prefix(500)))
+        return text
+    }
+
     // MARK: - Register Operator (Adopt)
 
     /// Call `register_operator` on an Authority's MCP endpoint to adopt an operator.

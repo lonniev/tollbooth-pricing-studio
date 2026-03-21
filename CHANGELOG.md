@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.5.4] — 2026-03-20
+
+Authority claim UX overhaul, traffic log filtering, and rolling buffer.
+
+### Added
+- **Quick claim path** — when the entered nsec derives to the Authority's
+  npub, a primary "Claim Authority" button saves the nsec locally without
+  invoking the full MCP DM challenge protocol.
+- **Full MCP claim protocol (4-phase)** — ClaimAuthoritySheet rewritten as
+  a guided multi-phase flow: Form → Challenge → Verifying → Result. Inline
+  `CourierPayloadView` for challenge DM handling without leaving the modal.
+- **MCP claim verification** — after sending credentials, the app
+  automatically calls `confirm_authority_claim` and `check_authority_approval`
+  to complete the 3-step MCP protocol and show approval/denial result.
+- **`MCPService.callConfirmAuthorityClaim()`** — step 2/3 of Authority claim.
+- **`MCPService.callCheckAuthorityApproval()`** — step 3/3 of Authority claim.
+- **Traffic Log: Nostr toggle** — toggle in header to show/hide Nostr DM
+  events (DM Poll, DM Fetch, DM Sent, DM Decrypt). Off by default to reduce
+  noise.
+- **Traffic Log: regex filter** — search bar with regex pattern matching
+  against entry labels, details, URLs, and request/response bodies.
+  Invalid patterns show a warning icon.
+- **Traffic Log: rolling buffer** — capped at 2,000 entries with oldest-first
+  eviction. In-memory only; resets on app restart.
+
+### Fixed
+- **Send Credentials double-click** — button now disables after click and
+  shows "Sending..." progress indicator to prevent duplicate submissions.
+- **MCP JSON response shown as success** — `{"success":false,"error":"..."}`
+  was displayed with a green checkmark. Added `parseResponse()` that parses
+  JSON first and checks the `success` field before falling back to keyword
+  heuristics.
+- **Courier provenance placement** — moved from DisclosureGroup at bottom
+  (looked like a next-action chevron) to compact service badge with info
+  popover at top of the payload view.
+
 ## [1.5.3] — 2026-03-20
 
 Adopt Operator feature, Courier challenge fixes, and unregistered operator UX.

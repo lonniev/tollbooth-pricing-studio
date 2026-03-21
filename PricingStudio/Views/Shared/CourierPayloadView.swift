@@ -14,22 +14,38 @@ struct CourierPayloadView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // Provenance (compact, at top — metadata, not an action)
+            HStack(spacing: 8) {
+                if let service = payload.provenance.service {
+                    Label(service, systemImage: "lock.shield")
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.orange.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+                Spacer()
+                Button {
+                    showProvenance.toggle()
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showProvenance) {
+                    provenanceSection
+                        .padding()
+                        .presentationCompactAdaptation(.popover)
+                }
+            }
+
             // Greeting
             if !payload.greeting.isEmpty {
                 Text(payload.greeting)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-            }
-
-            // Service badge
-            if let service = payload.provenance.service {
-                Label(service, systemImage: "lock.shield")
-                    .font(.caption.bold())
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.12))
-                    .clipShape(Capsule())
             }
 
             // Credential fields
@@ -74,13 +90,6 @@ struct CourierPayloadView: View {
                 .tint(payload.isComplete ? .accentColor : .gray)
                 .disabled(!payload.isComplete)
             }
-
-            // Provenance disclosure
-            DisclosureGroup("Message Provenance", isExpanded: $showProvenance) {
-                provenanceSection
-            }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
         }
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
