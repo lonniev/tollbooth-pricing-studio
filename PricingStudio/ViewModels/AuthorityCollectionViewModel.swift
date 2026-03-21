@@ -71,14 +71,17 @@ final class AuthorityCollectionViewModel {
         case connecting
         case registering
         case challengeSent
+        case confirming
+        case awaitingApproval
+        case checkingApproval
+        case approved(String)
+        case denied(String)
         case failed(String)
     }
 
     var claimStatus: ClaimStatus = .idle
 
-    /// Initiate the Authority claim protocol by calling `register_authority_npub`
-    /// on the Authority's MCP endpoint. The Authority will send a challenge DM
-    /// to the candidate npub via the Secure Courier channel.
+    /// Step 1/3: Initiate the Authority claim protocol by calling `register_authority_npub`.
     func initiateAuthorityClaim(
         authorityEndpoint: URL,
         candidateNpub: String,
@@ -90,20 +93,88 @@ final class AuthorityCollectionViewModel {
         do {
             claimStatus = .registering
 
-            let result = try await mcpService.callRegisterAuthorityNpub(
+            _ = try await mcpService.callRegisterAuthorityNpub(
                 endpointURL: authorityEndpoint,
                 bearerToken: bearerToken,
                 candidateNpub: candidateNpub
             )
 
-            if result.contains("challenge") || result.contains("sent") || result.contains("ok") {
-                claimStatus = .challengeSent
-            } else {
-                claimStatus = .challengeSent
-            }
+            claimStatus = .challengeSent
         } catch {
             claimStatus = .failed(error.localizedDescription)
         }
+    }
+
+    /// Steps 2–3: After the user sends credentials, confirm the claim and check approval.
+    func confirmAndCheckApproval(
+        authorityEndpoint: URL,
+        candidateNpub: String,
+        bearerToken: String
+    ) async {
+        let mcpService = MCPService()
+
+        // Step 2: confirm_authority_claim — MCP reads the Nostr stream, verifies reply
+        claimStatus = .confirming
+        do {
+            let confirmResult = try await mcpService.callConfirmAuthorityClaim(
+                endpointURL: authorityEndpoint,
+                bearerToken: bearerToken,
+                candidateNpub: candidateNpub
+            )
+
+            let parsed = Self.parseResponse(confirmResult)
+            if !parsed.success {
+                claimStatus = .denied(parsed.message)
+                return
+            }
+
+            claimStatus = .awaitingApproval
+        } catch {
+            claimStatus = .failed("Claim confirmation failed: \(error.localizedDescription)")
+            return
+        }
+
+        // Step 3: check_authority_approval — polls for Prime Authority approval
+        claimStatus = .checkingApproval
+        do {
+            let approvalResult = try await mcpService.callCheckAuthorityApproval(
+                endpointURL: authorityEndpoint,
+                bearerToken: bearerToken,
+                candidateNpub: candidateNpub
+            )
+
+            let parsed = Self.parseResponse(approvalResult)
+            if parsed.success {
+                claimStatus = .approved(parsed.message)
+            } else {
+                claimStatus = .denied(parsed.message)
+            }
+        } catch {
+            claimStatus = .failed("Approval check failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Parse an MCP response that may be JSON with `success` and `error`/`message` fields,
+    /// or plain text. Returns a human-readable message and success flag.
+    private static func parseResponse(_ text: String) -> (success: Bool, message: String) {
+        // Try JSON parsing first
+        if let data = text.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let success = json["success"] as? Bool ?? false
+            let message = (json["message"] as? String)
+                ?? (json["error"] as? String)
+                ?? (json["detail"] as? String)
+                ?? text
+            return (success, message)
+        }
+
+        // Plain text heuristics
+        let lower = text.lowercased()
+        let isFailure = lower.contains("denied") || lower.contains("rejected")
+            || lower.contains("not approved") || lower.contains("invalid")
+            || lower.contains("not found") || lower.contains("no reply")
+            || lower.contains("no active")
+        return (!isFailure, text)
     }
 
     func requestClaim(_ auth: Authority) {

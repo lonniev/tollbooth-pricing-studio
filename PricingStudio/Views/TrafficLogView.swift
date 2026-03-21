@@ -5,21 +5,52 @@ struct TrafficLogView: View {
     var filterNpub: String?
     @State private var filterEnabled = false
     @State private var autoscroll = true
+    @State private var showNostrEvents = false
+    @State private var searchPattern = ""
 
-    /// Show entries where:
-    /// - the entry is tagged for the selected npub (sender or receiver)
-    /// - the entry has no npub tag (general app-level traffic like relay connects)
-    /// - the entry is an error (always visible)
-    /// This hides only traffic explicitly tagged for a *different* npub.
     private var filteredEntries: [TrafficLogEntry] {
-        guard filterEnabled, let npub = filterNpub, !npub.isEmpty else {
-            return logger.entries
+        var result = logger.entries
+
+        // Npub filter
+        if filterEnabled, let npub = filterNpub, !npub.isEmpty {
+            result = result.filter { entry in
+                entry.associatedNpub == nil
+                    || entry.associatedNpub == npub
+                    || entry.direction == .error
+            }
         }
-        return logger.entries.filter { entry in
-            entry.associatedNpub == nil           // general app traffic
-                || entry.associatedNpub == npub   // tagged for this npub
-                || entry.direction == .error       // always show errors
+
+        // Hide Nostr/DM events unless toggled on
+        if !showNostrEvents {
+            result = result.filter { !$0.isNostrEvent }
         }
+
+        // Regex search
+        if !searchPattern.isEmpty, let regex = try? NSRegularExpression(pattern: searchPattern, options: .caseInsensitive) {
+            result = result.filter { entry in
+                entry.direction == .error || entryMatchesRegex(entry, regex)
+            }
+        }
+
+        return result
+    }
+
+    private func entryMatchesRegex(_ entry: TrafficLogEntry, _ regex: NSRegularExpression) -> Bool {
+        let fields = [
+            entry.label,
+            entry.detail,
+            entry.url,
+            entry.requestBody,
+            entry.responseBody,
+            entry.method
+        ]
+        for field in fields {
+            guard let text = field, !text.isEmpty else { continue }
+            if regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil {
+                return true
+            }
+        }
+        return false
     }
 
     var body: some View {
@@ -35,50 +66,87 @@ struct TrafficLogView: View {
     }
 
     private var header: some View {
-        HStack {
-            Label("Traffic Log", systemImage: "antenna.radiowaves.left.and.right")
-                .font(.headline)
-            pollHeartbeat
-            if let npub = filterNpub, !npub.isEmpty {
-                Text(String(npub.prefix(12)) + "...")
+        VStack(spacing: 6) {
+            HStack {
+                Label("Traffic Log", systemImage: "antenna.radiowaves.left.and.right")
+                    .font(.headline)
+                pollHeartbeat
+                if let npub = filterNpub, !npub.isEmpty {
+                    Text(String(npub.prefix(12)) + "...")
+                        .font(.caption)
+                        .monospaced()
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                        .foregroundStyle(.blue)
+                }
+                Spacer()
+                Text("\(filteredEntries.count) entries")
                     .font(.caption)
-                    .monospaced()
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-                    .foregroundStyle(.blue)
-            }
-            Spacer()
-            Text("\(filteredEntries.count) entries")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if filterNpub != nil && !filterNpub!.isEmpty {
-                Toggle(isOn: $filterEnabled) {
-                    Text("Filter")
+                    .foregroundStyle(.secondary)
+                if filterNpub != nil && !filterNpub!.isEmpty {
+                    Toggle(isOn: $filterEnabled) {
+                        Text("Filter")
+                            .font(.caption)
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .fixedSize()
+                }
+                Toggle(isOn: $showNostrEvents) {
+                    Label("Nostr", systemImage: "message")
                         .font(.caption)
                 }
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .fixedSize()
+                Button {
+                    autoscroll.toggle()
+                } label: {
+                    Label(autoscroll ? "Pause" : "Resume",
+                          systemImage: autoscroll ? "pause.fill" : "play.fill")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button {
+                    logger.clear()
+                } label: {
+                    Label("Clear", systemImage: "trash")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(logger.entries.isEmpty)
             }
-            Button {
-                autoscroll.toggle()
-            } label: {
-                Label(autoscroll ? "Pause" : "Resume",
-                      systemImage: autoscroll ? "pause.fill" : "play.fill")
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
                     .font(.caption)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            Button {
-                logger.clear()
-            } label: {
-                Label("Clear", systemImage: "trash")
+                    .foregroundStyle(.secondary)
+                TextField("Regex filter (label, detail, body)", text: $searchPattern)
                     .font(.caption)
+                    .textFieldStyle(.plain)
+                    .autocorrectionDisabled()
+                if !searchPattern.isEmpty {
+                    Button {
+                        searchPattern = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    if (try? NSRegularExpression(pattern: searchPattern)) == nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .help("Invalid regex pattern")
+                    }
+                }
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(logger.entries.isEmpty)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

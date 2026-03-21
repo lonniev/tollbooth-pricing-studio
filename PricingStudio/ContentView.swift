@@ -159,7 +159,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $authorityVM.showingClaimSheet) {
             if let auth = authorityVM.authorityToClaim {
-                ClaimAuthoritySheet(authority: auth, viewModel: authorityVM)
+                ClaimAuthoritySheet(authority: auth, viewModel: authorityVM, chatVM: chatVM)
             }
         }
         .sheet(isPresented: $operatorVM.showingAddSheet) {

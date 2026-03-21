@@ -26,6 +26,11 @@ struct TrafficLogEntry: Identifiable, Sendable {
         case error = "ERR"
     }
 
+    /// Whether this entry is a Nostr messaging event (DM poll, fetch, send, decrypt).
+    var isNostrEvent: Bool {
+        label.hasPrefix("DM ")
+    }
+
     init(
         timestamp: Date,
         direction: Direction,
@@ -59,11 +64,14 @@ struct TrafficLogEntry: Identifiable, Sendable {
 final class TrafficLogger {
     static let shared = TrafficLogger()
 
+    /// Maximum entries retained in memory. Oldest entries are evicted first.
+    static let maxEntries = 2000
+
     private(set) var entries: [TrafficLogEntry] = []
 
     /// Simple log (MCP protocol-level events).
     func log(_ direction: TrafficLogEntry.Direction, label: String, detail: String, npub: String? = nil) {
-        entries.append(TrafficLogEntry(
+        append(TrafficLogEntry(
             timestamp: Date(),
             direction: direction,
             label: label,
@@ -87,7 +95,7 @@ final class TrafficLogger {
     ) {
         let direction: TrafficLogEntry.Direction = error != nil ? .error : (statusCode != nil ? .inbound : .outbound)
         let detail = error ?? (statusCode.map { "HTTP \($0)" } ?? "\(method) \(url)")
-        entries.append(TrafficLogEntry(
+        append(TrafficLogEntry(
             timestamp: Date(),
             direction: direction,
             label: redactSecrets(label),
@@ -105,6 +113,15 @@ final class TrafficLogger {
 
     func clear() {
         entries.removeAll()
+    }
+
+    // MARK: - Rolling Buffer
+
+    private func append(_ entry: TrafficLogEntry) {
+        entries.append(entry)
+        if entries.count > Self.maxEntries {
+            entries.removeFirst(entries.count - Self.maxEntries)
+        }
     }
 
     // MARK: - Redaction
