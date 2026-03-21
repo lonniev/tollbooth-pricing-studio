@@ -43,12 +43,12 @@ struct AuthorityDetailView: View {
             Button {
                 vm.requestClaim(authority)
             } label: {
-                Label("Claim Authority", systemImage: "person.badge.plus")
+                Label("Link Identity", systemImage: "person.badge.key.fill")
+                    .font(.caption)
             }
             .buttonStyle(.bordered)
-            .tint(.orange)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .tint(.secondary)
+            .controlSize(.small)
         }
     }
 

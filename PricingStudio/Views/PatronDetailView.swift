@@ -457,11 +457,7 @@ private struct TopOffSheet: View {
                                     .font(.caption2.monospaced())
                                     .textSelection(.enabled)
                             }
-                        }
-                    }
 
-                    Section {
-                        if !result.invoiceId.isEmpty {
                             Button {
                                 checkPayment(invoiceId: result.invoiceId)
                             } label: {
@@ -474,18 +470,18 @@ private struct TopOffSheet: View {
                             .disabled(paymentCheckState.isChecking)
                         }
 
-                        Button("Done") {
-                            dismiss()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-
-                    if case .checked(let msg) = paymentCheckState {
-                        Section {
+                        if case .checked(let msg) = paymentCheckState {
                             Text(msg)
                                 .font(.caption)
                                 .foregroundStyle(.green)
                         }
+                    }
+
+                    Section {
+                        Button("Done") {
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
 
                 case .error(let message):

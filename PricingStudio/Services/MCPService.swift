@@ -201,18 +201,44 @@ actor MCPService {
         let tranches = (balanceDict["active_tranches"] as? Int) ?? 0
         let expiring24h = (balanceDict["expiring_within_24h_sats"] as? Int) ?? 0
 
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let isoFallback = ISO8601DateFormatter()
-        isoFallback.formatOptions = [.withInternetDateTime]
-
-        func parseISO(_ str: String) -> Date? {
-            isoFormatter.date(from: str) ?? isoFallback.date(from: str)
+        func parseFlexibleDate(_ str: String) -> Date? {
+            let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+            // ISO8601 with fractional seconds
+            let iso1 = ISO8601DateFormatter()
+            iso1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let d = iso1.date(from: trimmed) { return d }
+            // ISO8601 standard
+            let iso2 = ISO8601DateFormatter()
+            iso2.formatOptions = [.withInternetDateTime]
+            if let d = iso2.date(from: trimmed) { return d }
+            // Common date formats
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "en_US_POSIX")
+            for fmt in [
+                "yyyy-MM-dd'T'HH:mm:ss",
+                "yyyy-MM-dd HH:mm:ss Z",
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd",
+                "MM-dd-yyyy",
+                "MM/dd/yyyy",
+                "M-d",
+                "MMM d, yyyy",
+                "MMMM d, yyyy",
+            ] {
+                df.dateFormat = fmt
+                if let d = df.date(from: trimmed) { return d }
+            }
+            // Natural language: "tomorrow", "Wednesday", etc.
+            let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
+            if let match = detector?.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) {
+                return match.date
+            }
+            return nil
         }
 
         var nextExpiration: Date? = nil
         if let isoStr = balanceDict["next_expiration_iso"] as? String {
-            nextExpiration = parseISO(isoStr)
+            nextExpiration = parseFlexibleDate(isoStr)
         }
 
         var trancheDetails: [PatronAccountViewModel.TrancheDetail] = []
@@ -220,8 +246,8 @@ actor MCPService {
             for (index, t) in trancheArray.enumerated() {
                 let amount = (t["amount_sats"] as? Int) ?? 0
                 let remaining = (t["remaining_sats"] as? Int) ?? amount
-                let expiresAt = (t["expires_at"] as? String).flatMap { parseISO($0) }
-                let createdAt = (t["created_at"] as? String).flatMap { parseISO($0) }
+                let expiresAt = (t["expires_at"] as? String).flatMap { parseFlexibleDate($0) }
+                let createdAt = (t["created_at"] as? String).flatMap { parseFlexibleDate($0) }
                 let id = (t["id"] as? String) ?? "\(index)"
                 trancheDetails.append(PatronAccountViewModel.TrancheDetail(
                     id: id,

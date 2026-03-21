@@ -225,22 +225,30 @@ struct ClaimAuthoritySheet: View {
         .navigationTitle("Claim Challenge")
     }
 
-    /// Scan conversations for the first inbound courier payload and extract it.
+    /// Scan conversations for the most recent inbound courier payload and extract it.
     private func extractChallengePayload() {
+        var latest: (payload: CourierPayload, senderHex: String, date: Date)?
         for conversation in chatVM.conversations {
             for dm in conversation.messages where !dm.isFromMe {
                 if let payload = CourierPayload.parse(dm.content) {
-                    challengePayload = payload
-                    if let opNpub = payload.provenance.operatorNpub,
-                       opNpub.hasPrefix("npub1"),
-                       let hex = try? NostrKeyService.publicKeyHexFromNpub(opNpub) {
-                        challengeSenderHex = hex
-                    } else {
-                        challengeSenderHex = dm.senderPubkeyHex
+                    let dmDate = dm.createdAt
+                    if latest == nil || dmDate > latest!.date {
+                        let hex: String
+                        if let opNpub = payload.provenance.operatorNpub,
+                           opNpub.hasPrefix("npub1"),
+                           let h = try? NostrKeyService.publicKeyHexFromNpub(opNpub) {
+                            hex = h
+                        } else {
+                            hex = dm.senderPubkeyHex
+                        }
+                        latest = (payload, hex, dmDate)
                     }
-                    return
                 }
             }
+        }
+        if let latest {
+            challengePayload = latest.payload
+            challengeSenderHex = latest.senderHex
         }
     }
 

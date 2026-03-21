@@ -13,6 +13,7 @@ final class ReconciliationViewModel {
     var isDetecting = false
     var isReconciling = false
     var error: String?
+    var noMismatchMessage: String?
     var providerName: String = "Grok"
 
     private let mcpService = MCPService()
@@ -39,7 +40,7 @@ final class ReconciliationViewModel {
                 )
                 mismatch = result
                 if !result.hasMismatch {
-                    error = "No mismatch detected — live tools match the stored pricing model."
+                    noMismatchMessage = "All good — live tools match the stored pricing model."
                 }
             } catch {
                 self.error = error.localizedDescription

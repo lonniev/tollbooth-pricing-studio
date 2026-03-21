@@ -17,6 +17,8 @@ struct ReconciliationSheet: View {
                     reviewPhase(suggested: suggested, mismatch: mismatch)
                 } else if let mismatch = viewModel.mismatch, mismatch.hasMismatch {
                     diagnosticPhase(mismatch: mismatch)
+                } else if let msg = viewModel.noMismatchMessage {
+                    successPhase(msg)
                 } else if let error = viewModel.error {
                     errorPhase(error)
                 } else {
@@ -223,6 +225,20 @@ struct ReconciliationSheet: View {
                 }
             }
             .padding()
+        }
+    }
+
+    // MARK: - All Good
+
+    private func successPhase(_ message: String) -> some View {
+        ContentUnavailableView {
+            Label("Tools in Sync", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        } description: {
+            Text(message)
+        } actions: {
+            Button("Done") { dismiss() }
+                .buttonStyle(.borderedProminent)
         }
     }
 
