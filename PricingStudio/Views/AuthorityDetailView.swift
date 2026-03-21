@@ -114,6 +114,15 @@ struct AuthorityDetailView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
+                    showingTopOff = true
+                } label: {
+                    Label("Top Off", systemImage: "bolt.fill")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .tint(.green)
+                Button {
                     Task { await balanceVM.loadBalance(for: authority) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
@@ -179,16 +188,6 @@ struct AuthorityDetailView: View {
                         .font(.caption2)
                         .foregroundStyle(.red)
                 }
-
-                Button {
-                    showingTopOff = true
-                } label: {
-                    Label("Top Off", systemImage: "bolt.fill")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .tint(.green)
 
                 if let rr = balanceVM.reconcileResult {
                     HStack(spacing: 6) {

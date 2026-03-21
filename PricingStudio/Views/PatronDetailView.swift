@@ -641,10 +641,9 @@ private struct SVGWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: config)
-        webView.isOpaque = false
-        webView.backgroundColor = .clear
-        webView.scrollView.backgroundColor = .clear
-        webView.overrideUserInterfaceStyle = .light
+        webView.isOpaque = true
+        webView.backgroundColor = UIColor(red: 0.051, green: 0.067, blue: 0.09, alpha: 1) // #0d1117
+        webView.scrollView.backgroundColor = webView.backgroundColor
         return webView
     }
 
@@ -654,11 +653,13 @@ private struct SVGWebView: UIViewRepresentable {
         <html>
         <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0">
+        <meta name="color-scheme" content="dark">
         <style>
-            body {
+            html, body {
                 margin: 0; padding: 16px;
                 display: flex; justify-content: center; align-items: flex-start;
-                background: transparent;
+                background: #0d1117;
+                color-scheme: dark;
                 -webkit-user-select: none;
             }
             svg { max-width: 100%; height: auto; }

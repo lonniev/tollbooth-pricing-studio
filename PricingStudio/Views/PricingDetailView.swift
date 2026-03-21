@@ -202,27 +202,6 @@ struct PricingDetailView: View {
 
     @ViewBuilder
     private func pipelineSection(_ serverPipeline: [PipelineStep]) -> some View {
-        HStack {
-            Spacer()
-            if isEditingPipeline {
-                Button("Done") {
-                    isEditingPipeline = false
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            } else {
-                Button {
-                    viewModel.beginPipelineEditing()
-                    isEditingPipeline = true
-                } label: {
-                    Label("Edit Pipeline", systemImage: "pencil")
-                        .font(.subheadline)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
-
         PipelineView(
             steps: isEditingPipeline
                 ? Binding(
@@ -271,6 +250,23 @@ struct PricingDetailView: View {
             }
             Spacer()
             if source == .stored {
+                if isEditingPipeline {
+                    Button("Done Editing") {
+                        isEditingPipeline = false
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                } else {
+                    Button {
+                        viewModel.beginPipelineEditing()
+                        isEditingPipeline = true
+                    } label: {
+                        Label("Edit Pipeline", systemImage: "pencil")
+                            .font(.subheadline)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
                 Button {
                     showingReconcileConfirmation = true
                 } label: {
