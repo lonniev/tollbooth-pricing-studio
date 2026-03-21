@@ -547,6 +547,13 @@ struct ClaimAuthoritySheet: View {
             do {
                 let host = endpointURL.host ?? authority.npub
                 let token = try await resolveToken(for: endpointURL, host: host)
+                // Establish DPYC session before claim — server requires npub in _dpyc_sessions
+                let mcpService = MCPService()
+                _ = try await mcpService.callRegisterOperator(
+                    endpointURL: endpointURL,
+                    bearerToken: token,
+                    operatorNpub: candidateNpub
+                )
                 await viewModel.initiateAuthorityClaim(
                     authorityEndpoint: endpointURL,
                     candidateNpub: candidateNpub,
