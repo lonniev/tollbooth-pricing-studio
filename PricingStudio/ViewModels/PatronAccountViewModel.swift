@@ -41,6 +41,17 @@ final class PatronAccountViewModel {
         let expiringWithin24h: Int
         let nextExpiration: Date?
         var tranches: [TrancheDetail] = []
+        var pendingInvoiceCount: Int = 0
+        var pendingInvoiceIds: [String] = []
+        var invoiceSummary: InvoiceSummary?
+    }
+
+    struct InvoiceSummary {
+        let totalInvoices: Int
+        let settledCount: Int
+        let pendingCount: Int
+        let totalRealSats: Int
+        let totalApiSatsCredited: Int
     }
 
     struct TrancheDetail: Identifiable {
@@ -189,6 +200,64 @@ final class PatronAccountViewModel {
             endpointURL: endpointURL,
             bearerToken: token,
             amountSats: amountSats
+        )
+    }
+
+    // MARK: - Invoice Reconciliation
+
+    struct ReconcileResult {
+        let settled: Int
+        let expired: Int
+        let stillPending: Int
+        let creditsGained: Int
+    }
+
+    func reconcilePendingInvoices(
+        patronNpub: String,
+        operatorEndpoint: String,
+        pendingInvoiceIds: [String]
+    ) async throws -> ReconcileResult {
+        guard let endpointURL = URL(string: operatorEndpoint) else {
+            throw MCPError.connectionFailed("Invalid endpoint URL")
+        }
+        let host = endpointURL.host ?? operatorEndpoint
+        let token = try await resolvePatronToken(
+            patronNpub: patronNpub,
+            operatorHost: host,
+            endpointURL: endpointURL
+        )
+
+        var settled = 0, expired = 0, stillPending = 0, creditsGained = 0
+
+        for invoiceId in pendingInvoiceIds {
+            do {
+                let result = try await mcpService.callCheckPayment(
+                    endpointURL: endpointURL,
+                    bearerToken: token,
+                    invoiceId: invoiceId
+                )
+                switch result.status {
+                case "Settled":
+                    settled += 1
+                    creditsGained += result.creditsGranted
+                case "Expired", "Invalid":
+                    expired += 1
+                default:
+                    stillPending += 1
+                }
+            } catch {
+                stillPending += 1
+            }
+        }
+
+        // Invalidate cache so next balance load picks up changes
+        balanceCache.removeAll()
+
+        return ReconcileResult(
+            settled: settled,
+            expired: expired,
+            stillPending: stillPending,
+            creditsGained: creditsGained
         )
     }
 

@@ -233,6 +233,20 @@ actor MCPService {
             }
         }
 
+        let pendingCount = (balanceDict["pending_invoices"] as? Int) ?? 0
+        let pendingIds = (balanceDict["pending_invoice_ids"] as? [String]) ?? []
+
+        var invoiceSummary: PatronAccountViewModel.InvoiceSummary?
+        if let summary = balanceDict["invoice_summary"] as? [String: Any] {
+            invoiceSummary = PatronAccountViewModel.InvoiceSummary(
+                totalInvoices: (summary["total_invoices"] as? Int) ?? 0,
+                settledCount: (summary["settled_count"] as? Int) ?? 0,
+                pendingCount: (summary["pending_count"] as? Int) ?? 0,
+                totalRealSats: (summary["total_real_sats"] as? Int) ?? 0,
+                totalApiSatsCredited: (summary["total_api_sats_credited"] as? Int) ?? 0
+            )
+        }
+
         return PatronAccountViewModel.BalanceResult(
             balanceApiSats: balance,
             totalDeposited: deposited,
@@ -241,7 +255,10 @@ actor MCPService {
             activeTranches: tranches,
             expiringWithin24h: expiring24h,
             nextExpiration: nextExpiration,
-            tranches: trancheDetails
+            tranches: trancheDetails,
+            pendingInvoiceCount: pendingCount,
+            pendingInvoiceIds: pendingIds,
+            invoiceSummary: invoiceSummary
         )
     }
 
@@ -409,6 +426,82 @@ actor MCPService {
             checkoutLink: checkoutLink,
             lightningInvoice: bolt11,
             amountSats: amountSats
+        )
+    }
+
+    // MARK: - Check Payment
+
+    struct CheckPaymentResult: Sendable {
+        let invoiceId: String
+        let status: String
+        let creditsGranted: Int
+        let balanceApiSats: Int
+        let message: String
+    }
+
+    func callCheckPayment(
+        endpointURL: URL,
+        bearerToken: String,
+        invoiceId: String
+    ) async throws -> CheckPaymentResult {
+        await traffic(.outbound, label: "Check Payment", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let paymentTool = allTools.first(where: { $0.name.contains("check_payment") }) else {
+            await traffic(.error, label: "Check Payment", detail: "No check_payment tool found")
+            throw MCPError.toolCallFailed("No check_payment tool found")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: paymentTool.name,
+            arguments: ["invoice_id": .string(invoiceId)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Check Payment Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Check Payment", detail: String(text.prefix(500)))
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw MCPError.invalidResponse
+        }
+
+        let responseDict: [String: Any]
+        if let result = json["result"] as? [String: Any] {
+            responseDict = result
+        } else {
+            responseDict = json
+        }
+
+        return CheckPaymentResult(
+            invoiceId: (responseDict["invoice_id"] as? String) ?? invoiceId,
+            status: (responseDict["status"] as? String) ?? "Unknown",
+            creditsGranted: (responseDict["credits_granted"] as? Int) ?? 0,
+            balanceApiSats: (responseDict["balance_api_sats"] as? Int) ?? 0,
+            message: (responseDict["message"] as? String) ?? ""
         )
     }
 

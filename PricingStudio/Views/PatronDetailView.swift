@@ -97,6 +97,8 @@ private struct OperatorBalanceCard: View {
     @State private var isExpanded = false
     @State private var showingTopOff = false
     @State private var showingInfographic = false
+    @State private var isReconciling = false
+    @State private var reconcileResult: PatronAccountViewModel.ReconcileResult?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -162,9 +164,19 @@ private struct OperatorBalanceCard: View {
                 Text("Brr\u{2026}").font(.caption).foregroundStyle(.secondary)
             }
         case .loaded(let result):
-            Text("\(result.balanceApiSats) sats")
-                .font(.subheadline.monospacedDigit())
-                .foregroundColor(result.balanceApiSats > 0 ? .primary : .red)
+            HStack(spacing: 6) {
+                Text("\(result.balanceApiSats) sats")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundColor(result.balanceApiSats > 0 ? .primary : .red)
+                if result.pendingInvoiceCount > 0 {
+                    Text("\(result.pendingInvoiceCount) pending")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.orange.opacity(0.2), in: Capsule())
+                        .foregroundStyle(.orange)
+                }
+            }
         case .error(let msg):
             Label("Error", systemImage: "exclamationmark.triangle.fill")
                 .font(.caption)
@@ -256,7 +268,59 @@ private struct OperatorBalanceCard: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+
+            if !result.pendingInvoiceIds.isEmpty {
+                Button {
+                    Task { await reconcilePending(result) }
+                } label: {
+                    if isReconciling {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Label("Reconcile", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption.bold())
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isReconciling)
+            }
         }
+
+        if let rr = reconcileResult {
+            HStack(spacing: 8) {
+                if rr.settled > 0 {
+                    Label("\(rr.settled) settled (+\(rr.creditsGained) sats)", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+                if rr.expired > 0 {
+                    Label("\(rr.expired) expired", systemImage: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                }
+                if rr.stillPending > 0 {
+                    Label("\(rr.stillPending) still pending", systemImage: "clock")
+                        .foregroundStyle(.orange)
+                }
+            }
+            .font(.caption2)
+            .padding(.top, 4)
+        }
+    }
+
+    private func reconcilePending(_ result: PatronAccountViewModel.BalanceResult) async {
+        isReconciling = true
+        reconcileResult = nil
+        do {
+            reconcileResult = try await accountVM.reconcilePendingInvoices(
+                patronNpub: patron.npub,
+                operatorEndpoint: balance.endpoint,
+                pendingInvoiceIds: result.pendingInvoiceIds
+            )
+        } catch {
+            reconcileResult = PatronAccountViewModel.ReconcileResult(
+                settled: 0, expired: 0, stillPending: result.pendingInvoiceIds.count, creditsGained: 0
+            )
+        }
+        isReconciling = false
     }
 
     @ViewBuilder
@@ -287,6 +351,7 @@ private struct TopOffSheet: View {
     @State private var selectedAmount = 500
     @State private var customAmount = ""
     @State private var purchaseState: PurchaseState = .idle
+    @State private var paymentCheckState: PaymentCheckState = .idle
 
     private let presets = [100, 500, 1000, 5000]
 
@@ -295,6 +360,17 @@ private struct TopOffSheet: View {
         case purchasing
         case success(MCPService.PurchaseResult)
         case error(String)
+    }
+
+    private enum PaymentCheckState {
+        case idle
+        case checking
+        case checked(String)
+
+        var isChecking: Bool {
+            if case .checking = self { return true }
+            return false
+        }
     }
 
     var body: some View {
@@ -385,10 +461,31 @@ private struct TopOffSheet: View {
                     }
 
                     Section {
+                        if !result.invoiceId.isEmpty {
+                            Button {
+                                checkPayment(invoiceId: result.invoiceId)
+                            } label: {
+                                if case .checking = paymentCheckState {
+                                    HStack { ProgressView().controlSize(.small); Text("Checking...") }
+                                } else {
+                                    Label("Check Payment", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            }
+                            .disabled(paymentCheckState.isChecking)
+                        }
+
                         Button("Done") {
                             dismiss()
                         }
                         .buttonStyle(.borderedProminent)
+                    }
+
+                    if case .checked(let msg) = paymentCheckState {
+                        Section {
+                            Text(msg)
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
                     }
 
                 case .error(let message):
@@ -430,6 +527,28 @@ private struct TopOffSheet: View {
                 purchaseState = .success(result)
             } catch {
                 purchaseState = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    private func checkPayment(invoiceId: String) {
+        paymentCheckState = .checking
+        Task {
+            do {
+                let result = try await accountVM.reconcilePendingInvoices(
+                    patronNpub: patronNpub,
+                    operatorEndpoint: endpoint,
+                    pendingInvoiceIds: [invoiceId]
+                )
+                if result.settled > 0 {
+                    paymentCheckState = .checked("Settled! +\(result.creditsGained) sats credited.")
+                } else if result.expired > 0 {
+                    paymentCheckState = .checked("Invoice expired.")
+                } else {
+                    paymentCheckState = .checked("Not yet paid — try again after paying.")
+                }
+            } catch {
+                paymentCheckState = .checked("Check failed: \(error.localizedDescription)")
             }
         }
     }

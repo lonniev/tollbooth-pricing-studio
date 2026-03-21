@@ -6,12 +6,17 @@ struct AuthorityDetailView: View {
     @Bindable var pricingVM: PricingViewModel
     var authorityVM: AuthorityCollectionViewModel?
     var onOperatorSelected: ((Operator) -> Void)?
+    @State private var balanceVM = AuthorityBalanceViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
             authorityHeader
             Divider()
             claimAuthorityButton
+            if authority.mcpEndpointURL != nil {
+                Divider()
+                authorityBalanceSection
+            }
             Divider()
             connectedOperatorsSection
             Divider()
@@ -74,6 +79,108 @@ struct AuthorityDetailView: View {
             }
         }
         .padding()
+    }
+
+    // MARK: - Authority Balance
+
+    @ViewBuilder
+    private var authorityBalanceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Authority Balance", systemImage: "creditcard.fill")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    Task { await balanceVM.loadBalance(for: authority) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
+
+            switch balanceVM.balanceState {
+            case .idle:
+                Text("Tap refresh to check balance")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .onAppear {
+                        Task { await balanceVM.loadBalance(for: authority) }
+                    }
+            case .loading:
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading...").font(.caption).foregroundStyle(.secondary)
+                }
+            case .loaded(let result):
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(result.balanceApiSats) sats")
+                            .font(.subheadline.monospacedDigit().bold())
+                            .foregroundStyle(result.balanceApiSats < 50 ? .red : .primary)
+                        Text("tax reserve")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if result.pendingInvoiceCount > 0 {
+                        Text("\(result.pendingInvoiceCount) pending")
+                            .font(.caption2.bold())
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.orange.opacity(0.2), in: Capsule())
+                            .foregroundStyle(.orange)
+                    }
+
+                    Spacer()
+
+                    if !result.pendingInvoiceIds.isEmpty {
+                        Button {
+                            Task { await balanceVM.reconcile(authority: authority, pendingIds: result.pendingInvoiceIds) }
+                        } label: {
+                            if balanceVM.isReconciling {
+                                ProgressView().controlSize(.mini)
+                            } else {
+                                Label("Reconcile", systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.caption2)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .disabled(balanceVM.isReconciling)
+                    }
+                }
+
+                if result.balanceApiSats < 50 {
+                    Label("Low balance — operators may fail to certify purchases", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                }
+
+                if let rr = balanceVM.reconcileResult {
+                    HStack(spacing: 6) {
+                        if rr.settled > 0 {
+                            Label("+\(rr.creditsGained)", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        if rr.expired > 0 {
+                            Label("\(rr.expired) expired", systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .font(.caption2)
+                }
+
+            case .error(let msg):
+                Label(msg, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Connected Operators
