@@ -216,7 +216,7 @@ struct ClaimAuthoritySheet: View {
             }
             .padding()
         }
-        .onChange(of: chatVM.conversations.count) { _, _ in
+        .onChange(of: chatVM.conversations.flatMap(\.messages).count) { _, _ in
             extractChallengePayload()
         }
         .onAppear {
@@ -227,7 +227,6 @@ struct ClaimAuthoritySheet: View {
 
     /// Scan conversations for the first inbound courier payload and extract it.
     private func extractChallengePayload() {
-        guard challengePayload == nil else { return }
         for conversation in chatVM.conversations {
             for dm in conversation.messages where !dm.isFromMe {
                 if let payload = CourierPayload.parse(dm.content) {

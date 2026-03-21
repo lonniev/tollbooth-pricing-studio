@@ -60,6 +60,8 @@ struct ContentView: View {
                     } else if let patron = patronVM.selectedPatron {
                         ChatContainerView(identity: ChatIdentity(from: patron), chatVM: chatVM, firstTabLabel: "Account") {
                             PatronDetailView(patron: patron, accountVM: patronAccountVM)
+                        } invoicesContent: {
+                            InvoiceListView(patron: patron, accountVM: patronAccountVM)
                         }
                     } else {
                         NetworkTopologyView(onNodeSelected: { npub, tier in

@@ -29,7 +29,7 @@ final class AuthorityBalanceViewModel {
 
         do {
             let host = endpointURL.host ?? authority.npub
-            let token = try await resolveToken(host: host, endpointURL: endpointURL)
+            let token = try await resolveToken(host: host, endpointURL: endpointURL, patron: authority.npub)
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,
                 bearerToken: token
@@ -49,7 +49,7 @@ final class AuthorityBalanceViewModel {
 
         do {
             let host = endpointURL.host ?? authority.npub
-            let token = try await resolveToken(host: host, endpointURL: endpointURL)
+            let token = try await resolveToken(host: host, endpointURL: endpointURL, patron: authority.npub)
 
             var settled = 0, expired = 0, stillPending = 0, creditsGained = 0
 
@@ -92,22 +92,22 @@ final class AuthorityBalanceViewModel {
 
     // MARK: - Private
 
-    private func resolveToken(host: String, endpointURL: URL) async throws -> String {
-        if let bundle = KeychainService.loadTokenBundle(forPatron: "authority", operator: host) {
+    private func resolveToken(host: String, endpointURL: URL, patron: String) async throws -> String {
+        if let bundle = KeychainService.loadTokenBundle(forPatron: patron, operator: host) {
             if !bundle.isExpired {
                 return bundle.accessToken
             }
             if bundle.refreshToken != nil {
                 do {
                     let refreshed = try await oauthService.refresh(bundle: bundle)
-                    try KeychainService.saveTokenBundle(refreshed, forPatron: "authority", operator: host)
+                    try KeychainService.saveTokenBundle(refreshed, forPatron: patron, operator: host)
                     return refreshed.accessToken
                 } catch { /* fall through */ }
             }
-            KeychainService.deleteTokenBundle(forPatron: "authority", operator: host)
+            KeychainService.deleteTokenBundle(forPatron: patron, operator: host)
         }
         let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-        try KeychainService.saveTokenBundle(bundle, forPatron: "authority", operator: host)
+        try KeychainService.saveTokenBundle(bundle, forPatron: patron, operator: host)
         return bundle.accessToken
     }
 }

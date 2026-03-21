@@ -44,7 +44,6 @@ struct AuthorityDetailView: View {
                 vm.requestClaim(authority)
             } label: {
                 Label("Claim Authority", systemImage: "person.badge.plus")
-                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .tint(.orange)
