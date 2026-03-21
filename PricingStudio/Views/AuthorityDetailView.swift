@@ -7,12 +7,17 @@ struct AuthorityDetailView: View {
     var authorityVM: AuthorityCollectionViewModel?
     var onOperatorSelected: ((Operator) -> Void)?
     @State private var balanceVM = AuthorityBalanceViewModel()
+    @State private var showingTopOff = false
+
+    private var isLinked: Bool {
+        KeychainService.loadNsec(forNpub: authority.npub) != nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             authorityHeader
             Divider()
-            claimAuthorityButton
+            if !isLinked { claimAuthorityButton }
             if authority.mcpEndpointURL != nil {
                 Divider()
                 authorityBalanceSection
@@ -32,6 +37,17 @@ struct AuthorityDetailView: View {
                 authorityVM: authorityVM!,
                 pricingVM: pricingVM
             )
+        }
+        .sheet(isPresented: $showingTopOff) {
+            if let endpoint = authority.mcpEndpointURL {
+                AuthorityTopOffSheet(
+                    authorityName: authority.displayName,
+                    authorityNpub: authority.npub,
+                    endpoint: endpoint,
+                    balanceVM: balanceVM,
+                    authority: authority
+                )
+            }
         }
     }
 
@@ -71,10 +87,17 @@ struct AuthorityDetailView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
 
-            if authority.isAutoDiscovered {
-                Label("Auto-discovered", systemImage: "sparkles")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                if authority.isAutoDiscovered {
+                    Label("Auto-discovered", systemImage: "sparkles")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if isLinked {
+                    Label("Identity Linked", systemImage: "checkmark.seal.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                }
             }
         }
         .padding()
@@ -156,6 +179,16 @@ struct AuthorityDetailView: View {
                         .font(.caption2)
                         .foregroundStyle(.red)
                 }
+
+                Button {
+                    showingTopOff = true
+                } label: {
+                    Label("Top Off", systemImage: "bolt.fill")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(.green)
 
                 if let rr = balanceVM.reconcileResult {
                     HStack(spacing: 6) {
@@ -377,5 +410,197 @@ private struct AdoptOperatorSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Authority Top Off Sheet
+
+private struct AuthorityTopOffSheet: View {
+    let authorityName: String
+    let authorityNpub: String
+    let endpoint: String
+    let balanceVM: AuthorityBalanceViewModel
+    let authority: Authority
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedAmount = 1000
+    @State private var customAmount = ""
+    @State private var purchaseState: PurchaseState = .idle
+    @State private var paymentCheckState: PaymentCheckState = .idle
+
+    private let presets = [500, 1000, 5000, 10000]
+    private let mcpService = MCPService()
+
+    private enum PurchaseState {
+        case idle, purchasing
+        case success(MCPService.PurchaseResult)
+        case error(String)
+    }
+
+    private enum PaymentCheckState {
+        case idle, checking, checked(String)
+        var isChecking: Bool { if case .checking = self { return true }; return false }
+    }
+
+    private var effectiveAmount: Int {
+        if let val = Int(customAmount), val > 0 { return val }
+        return selectedAmount
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Authority") {
+                    Text(authorityName).font(.headline)
+                }
+
+                Section("Amount (sats)") {
+                    HStack(spacing: 8) {
+                        ForEach(presets, id: \.self) { amount in
+                            Button("\(amount)") {
+                                selectedAmount = amount
+                                customAmount = ""
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(selectedAmount == amount && customAmount.isEmpty ? .accentColor : .secondary)
+                            .controlSize(.small)
+                        }
+                    }
+                    TextField("Custom amount", text: $customAmount)
+                        .keyboardType(.numberPad)
+                        .onChange(of: customAmount) { _, newValue in
+                            if let val = Int(newValue), val > 0 { selectedAmount = val }
+                        }
+                }
+
+                switch purchaseState {
+                case .idle:
+                    Section {
+                        Button {
+                            purchase()
+                        } label: {
+                            Label("Purchase \(effectiveAmount) sats", systemImage: "bolt.fill")
+                        }
+                        .disabled(effectiveAmount < 100)
+                    }
+
+                case .purchasing:
+                    Section {
+                        HStack { ProgressView(); Text("Creating invoice...").foregroundStyle(.secondary) }
+                    }
+
+                case .success(let result):
+                    Section("Invoice") {
+                        if !result.checkoutLink.isEmpty, let url = URL(string: result.checkoutLink) {
+                            Link(destination: url) {
+                                Label("Open Payment Page", systemImage: "arrow.up.right.square")
+                            }
+                        }
+
+                        if let bolt11 = result.lightningInvoice {
+                            Text(bolt11)
+                                .font(.caption2.monospaced())
+                                .textSelection(.enabled)
+                                .lineLimit(3)
+                        }
+
+                        if !result.invoiceId.isEmpty {
+                            LabeledContent("Invoice ID") {
+                                Text(result.invoiceId)
+                                    .font(.caption2.monospaced())
+                                    .textSelection(.enabled)
+                            }
+                            Button {
+                                checkPayment(invoiceId: result.invoiceId)
+                            } label: {
+                                if case .checking = paymentCheckState {
+                                    HStack { ProgressView().controlSize(.small); Text("Checking...") }
+                                } else {
+                                    Label("Check Payment", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            }
+                            .disabled(paymentCheckState.isChecking)
+                        }
+
+                        if case .checked(let msg) = paymentCheckState {
+                            Text(msg).font(.caption).foregroundStyle(.green)
+                        }
+                    }
+
+                    Section {
+                        Button("Done") { dismiss() }.buttonStyle(.borderedProminent)
+                    }
+
+                case .error(let message):
+                    Section {
+                        Label(message, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red).font(.caption)
+                        Button("Retry") { purchase() }
+                    }
+                }
+            }
+            .navigationTitle("Top Off Authority")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func purchase() {
+        purchaseState = .purchasing
+        Task {
+            do {
+                guard let endpointURL = URL(string: endpoint) else {
+                    throw MCPError.connectionFailed("Invalid endpoint")
+                }
+                let host = endpointURL.host ?? authorityNpub
+                let token = try await resolveToken(host: host, endpointURL: endpointURL)
+                let result = try await mcpService.callPurchaseCredits(
+                    endpointURL: endpointURL,
+                    bearerToken: token,
+                    amountSats: effectiveAmount
+                )
+                purchaseState = .success(result)
+            } catch {
+                purchaseState = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    private func checkPayment(invoiceId: String) {
+        paymentCheckState = .checking
+        Task {
+            do {
+                guard let endpointURL = URL(string: endpoint) else { return }
+                let host = endpointURL.host ?? authorityNpub
+                let token = try await resolveToken(host: host, endpointURL: endpointURL)
+                let result = try await mcpService.callCheckPayment(
+                    endpointURL: endpointURL,
+                    bearerToken: token,
+                    invoiceId: invoiceId
+                )
+                if result.status == "Settled" || result.creditsGranted > 0 {
+                    paymentCheckState = .checked("Settled! +\(result.creditsGranted) sats credited.")
+                    Task { await balanceVM.loadBalance(for: authority) }
+                } else if result.status == "Expired" {
+                    paymentCheckState = .checked("Invoice expired.")
+                } else {
+                    paymentCheckState = .checked(result.message.isEmpty ? "Not yet paid." : result.message)
+                }
+            } catch {
+                paymentCheckState = .checked("Error: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func resolveToken(host: String, endpointURL: URL) async throws -> String {
+        if let bundle = KeychainService.loadTokenBundle(forPatron: authorityNpub, operator: host) {
+            if !bundle.isExpired { return bundle.accessToken }
+        }
+        let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
+        try KeychainService.saveTokenBundle(bundle, forPatron: authorityNpub, operator: host)
+        return bundle.accessToken
     }
 }
