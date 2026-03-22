@@ -76,6 +76,10 @@ struct PricingDetailView: View {
                             modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord, source: model.source)
                         }
 
+                        if let endpoint = target.mcpEndpointURL {
+                            NotarizationStatusView(operatorNpub: target.npub, endpointURL: endpoint)
+                        }
+
                         pipelineSection(model.pipeline ?? [])
 
                         ToolPriceListView(tools: tools, viewModel: viewModel, target: target)

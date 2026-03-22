@@ -26,6 +26,7 @@
 		AA00000100000000000000BC /* PricingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EC /* PricingDetailView.swift */; };
 		AA00000100000000000000BD /* ToolPriceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000ED /* ToolPriceListView.swift */; };
 		AA00000100000000000000BE /* ToolPriceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EE /* ToolPriceRow.swift */; };
+				NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTA000100000000000000A1 /* NotarizationStatusView.swift */; };
 		AA00000100000000000000BF /* PipelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EF /* PipelineView.swift */; };
 		AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F0 /* PipelineStepCard.swift */; };
 		AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F1 /* ConnectionStatusView.swift */; };
@@ -169,6 +170,7 @@
 		AA00000100000000000000EC /* PricingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingDetailView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000ED /* ToolPriceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPriceListView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000EE /* ToolPriceRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPriceRow.swift; sourceTree = "<group>"; };
+		NOTA000100000000000000A1 /* NotarizationStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotarizationStatusView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000EF /* PipelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F0 /* PipelineStepCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStepCard.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F1 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
@@ -485,6 +487,7 @@
 				AA00000100000000000000EC /* PricingDetailView.swift */,
 				AA00000100000000000000ED /* ToolPriceListView.swift */,
 				AA00000100000000000000EE /* ToolPriceRow.swift */,
+				NOTA000100000000000000A1 /* NotarizationStatusView.swift */,
 				AA00000100000000000000EF /* PipelineView.swift */,
 				AA00000100000000000000F0 /* PipelineStepCard.swift */,
 				AA00000100000000000000F1 /* ConnectionStatusView.swift */,
@@ -864,6 +867,7 @@
 				AA00000100000000000000BC /* PricingDetailView.swift in Sources */,
 				AA00000100000000000000BD /* ToolPriceListView.swift in Sources */,
 				AA00000100000000000000BE /* ToolPriceRow.swift in Sources */,
+				NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */,
 				AA00000100000000000000BF /* PipelineView.swift in Sources */,
 				AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */,
 				AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */,
