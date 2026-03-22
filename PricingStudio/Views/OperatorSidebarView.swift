@@ -5,6 +5,7 @@ struct OperatorSidebarView: View {
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: OperatorCollectionViewModel
+    @State private var testCallOperator: Operator?
 
     var body: some View {
         List(selection: $viewModel.selectedOperator) {
@@ -28,6 +29,13 @@ struct OperatorSidebarView: View {
                             viewModel.requestStats(op)
                         } label: {
                             Label("View Details", systemImage: "info.circle")
+                        }
+                        if op.mcpEndpointURL != nil {
+                            Button {
+                                testCallOperator = op
+                            } label: {
+                                Label("Test Call", systemImage: "play.circle")
+                            }
                         }
                         Divider()
                         Button(role: .destructive) {
@@ -70,6 +78,9 @@ struct OperatorSidebarView: View {
             }
         } message: { op in
             Text("Delete \"\(op.displayName)\"? Any saved OAuth token for this operator will also be removed.")
+        }
+        .sheet(item: $testCallOperator) { op in
+            TestCallView(preselectedOperator: op)
         }
     }
 }

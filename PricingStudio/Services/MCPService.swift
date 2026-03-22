@@ -1104,10 +1104,72 @@ actor MCPService {
         return ToolMismatch(newTools: newTools, staleTools: staleTools, matchedTools: matchedTools)
     }
 
+    // MARK: - Generic Tool Call
+
+    /// Call any MCP tool by name and return the text response.
+    /// Handles SSE connect/call/disconnect lifecycle.
+    func callToolGeneric(
+        endpointURL: URL,
+        bearerToken: String,
+        toolName: String,
+        arguments: [String: Value] = [:]
+    ) async throws -> String {
+        await traffic(.outbound, label: "Test Call", detail: "\(toolName) → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let (content, isError) = try await client.callTool(name: toolName, arguments: arguments)
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Test Call Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        let text = content.compactMap { extractText($0) }.joined(separator: "\n")
+        await traffic(.inbound, label: "Test Call Result", detail: String(text.prefix(500)))
+        return text
+    }
+
+    /// Fetch the tool list from an operator endpoint (connect, list, disconnect).
+    func fetchToolList(
+        endpointURL: URL,
+        bearerToken: String
+    ) async throws -> [Tool] {
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+        return try await listAllTools(client: client)
+    }
+
     // MARK: - Helpers
 
     /// List all tools with cursor-based pagination.
-    private func listAllTools(client: Client) async throws -> [Tool] {
+    func listAllTools(client: Client) async throws -> [Tool] {
         var allTools: [Tool] = []
         var cursor: String? = nil
 

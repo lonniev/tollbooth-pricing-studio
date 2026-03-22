@@ -60,6 +60,8 @@
 		AA0000010000000000000221 /* ChatIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000231 /* ChatIdentity.swift */; };
 		AA0000010000000000000222 /* DMConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000232 /* DMConversation.swift */; };
 		AA0000010000000000000223 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000233 /* ChatViewModel.swift */; };
+		AA0000010000000000000224 /* TestCallViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000234 /* TestCallViewModel.swift */; };
+		AA0000010000000000000225 /* TestCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000235 /* TestCallView.swift */; };
 		AA0000010000000000000241 /* ChatContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000251 /* ChatContainerView.swift */; };
 		AA0000010000000000000242 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000252 /* ChatView.swift */; };
 		AA0000010000000000000243 /* ConversationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000253 /* ConversationListView.swift */; };
@@ -201,6 +203,8 @@
 		AA0000010000000000000231 /* ChatIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatIdentity.swift; sourceTree = "<group>"; };
 		AA0000010000000000000232 /* DMConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMConversation.swift; sourceTree = "<group>"; };
 		AA0000010000000000000233 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
+		AA0000010000000000000234 /* TestCallViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestCallViewModel.swift; sourceTree = "<group>"; };
+		AA0000010000000000000235 /* TestCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestCallView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000251 /* ChatContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatContainerView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000252 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000253 /* ConversationListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationListView.swift; sourceTree = "<group>"; };
@@ -455,6 +459,7 @@
 				AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */,
 				AA00000100000000000001A7 /* TopologyViewModel.swift */,
 				AA0000010000000000000233 /* ChatViewModel.swift */,
+				AA0000010000000000000234 /* TestCallViewModel.swift */,
 				AA0000010000000000000301 /* PatronAccountViewModel.swift */,
 				AA0000010000000000000413 /* AssistantViewModel.swift */,
 				AA0000010000000000000901 /* PricingConsultantViewModel.swift */,
@@ -473,6 +478,7 @@
 				D9844C99A73C4999A2235C1B /* PricingDiffView.swift */,
 				CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */,
 				AA00000100000000000000EA /* OperatorSidebarView.swift */,
+				AA0000010000000000000235 /* TestCallView.swift */,
 				AA00000100000000000000EB /* AddOperatorSheet.swift */,
 				AA00000100000000000000F5 /* EditOperatorSheet.swift */,
 				AA00000100000000000000F6 /* OperatorStatsSheet.swift */,
@@ -892,6 +898,8 @@
 				AA0000010000000000000221 /* ChatIdentity.swift in Sources */,
 				AA0000010000000000000222 /* DMConversation.swift in Sources */,
 				AA0000010000000000000223 /* ChatViewModel.swift in Sources */,
+				AA0000010000000000000224 /* TestCallViewModel.swift in Sources */,
+				AA0000010000000000000225 /* TestCallView.swift in Sources */,
 				AA0000010000000000000241 /* ChatContainerView.swift in Sources */,
 				AA0000010000000000000242 /* ChatView.swift in Sources */,
 				AA0000010000000000000243 /* ConversationListView.swift in Sources */,
