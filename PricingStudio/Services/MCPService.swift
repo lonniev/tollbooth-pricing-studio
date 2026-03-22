@@ -1011,7 +1011,7 @@ actor MCPService {
         return PricingModelResponse(
             status: "ok",
             modelId: "synthesized",
-            name: "Live Tool Pricing",
+            name: "Discovered Pricing",
             isActive: true,
             tools: toolPrices,
             pipeline: nil
