@@ -73,11 +73,15 @@ final class ChatViewModel {
             return
         }
 
-        // Check cache
-        if let cached = conversationCache[identity.npub],
-           Date().timeIntervalSince(cached.fetchedAt) < Self.cacheDuration {
+        // Check cache — use immediately if available (subscriptions keep it fresh)
+        if let cached = conversationCache[identity.npub] {
             conversations = cached.conversations
             state = .loaded
+            // If cache is stale and no subscriptions, refresh in background
+            if Date().timeIntervalSince(cached.fetchedAt) > Self.cacheDuration,
+               !DMPollingService.shared.subscriptionsActive {
+                Task { await loadConversations() }
+            }
             return
         }
 
@@ -219,7 +223,8 @@ final class ChatViewModel {
                 recipientPubkeyHex: counterpartyPubkeyHex,
                 message: content
             )
-            // Relay accepted — pending state clears on next poll
+            // Relay accepted — clear pending state immediately
+            pendingMessageIds.remove(optimisticId)
             if let npub = currentIdentity?.npub {
                 conversationCache[npub] = CachedConversations(
                     conversations: conversations,

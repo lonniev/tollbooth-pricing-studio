@@ -826,7 +826,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "echo \"Build ${CURRENT_PROJECT_VERSION} (${MARKETING_VERSION}) — $(date '+%Y-%m-%d %H:%M:%S %Z')\" > \"${SRCROOT}/PricingStudio/BuildTimestamp.txt\"\n";
+			shellScript = "BUILD_NUM=${CURRENT_PROJECT_VERSION}\nif [ -d \"${SRCROOT}/.git\" ]; then\n  GIT_COUNT=$(git -C \"${SRCROOT}\" rev-list --count HEAD 2>/dev/null || echo \"\")\n  if [ -n \"$GIT_COUNT\" ]; then BUILD_NUM=$GIT_COUNT; fi\nfi\necho \"Build ${BUILD_NUM} (${MARKETING_VERSION}) — $(date '+%Y-%m-%d %H:%M:%S %Z')\" > \"${SRCROOT}/PricingStudio/BuildTimestamp.txt\"\n";
 			alwaysOutOfDate = 1;
 		};
 /* End PBXShellScriptBuildPhase section */

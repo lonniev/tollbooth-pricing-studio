@@ -17,9 +17,9 @@ struct MessageBubble: View {
 
     var body: some View {
         HStack {
-            if dm.isFromMe { Spacer(minLength: 60) }
+            if !dm.isFromMe { Spacer(minLength: 60) }
 
-            VStack(alignment: dm.isFromMe ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: dm.isFromMe ? .leading : .trailing, spacing: 4) {
                 if let _ = courierPayload {
                     courierContent
                 } else {
@@ -51,7 +51,7 @@ struct MessageBubble: View {
                 .foregroundStyle(.tertiary)
             }
 
-            if !dm.isFromMe { Spacer(minLength: 60) }
+            if dm.isFromMe { Spacer(minLength: 60) }
         }
         .opacity(isPending ? 0.6 : 1.0)
         .accessibilityIdentifier("messageBubble_\(dm.id)")

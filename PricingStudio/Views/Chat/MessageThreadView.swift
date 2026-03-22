@@ -17,9 +17,22 @@ struct MessageThreadView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header: sender (me) on left, receiver (them) on right
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
+                    Text(myDisplayName)
+                        .font(.headline)
+                    if let npub = chatVM.currentIdentity?.npub {
+                        Text(String(npub.prefix(16)) + "…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospaced()
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
                     if let name = displayName(for: conversation.counterpartyPubkeyHex) {
                         Text(name)
                             .font(.headline)
@@ -34,7 +47,7 @@ struct MessageThreadView: View {
                     }
                 }
 
-                Spacer()
+                Spacer().frame(width: 0)
 
                 if !selectedMessageIds.isEmpty {
                     Button(role: .destructive) {
@@ -149,6 +162,15 @@ struct MessageThreadView: View {
         } else {
             selectedMessageIds.insert(id)
         }
+    }
+
+    /// My display name (the currently selected identity).
+    private var myDisplayName: String {
+        guard let npub = chatVM.currentIdentity?.npub,
+              let hex = try? NostrKeyService.publicKeyHexFromNpub(npub) else {
+            return "Me"
+        }
+        return displayName(for: hex) ?? "Me"
     }
 
     /// Resolve a pubkey hex to a known entity's display name.

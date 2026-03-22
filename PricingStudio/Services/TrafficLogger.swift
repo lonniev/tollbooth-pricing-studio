@@ -28,7 +28,7 @@ struct TrafficLogEntry: Identifiable, Sendable {
 
     /// Whether this entry is a Nostr messaging or relay event.
     var isNostrEvent: Bool {
-        label.hasPrefix("DM ") || label.hasPrefix("Relay ")
+        label.hasPrefix("DM ") || label.hasPrefix("Relay ") || label.hasPrefix("Sub ") || label.hasPrefix("Subscriptions")
     }
 
     init(

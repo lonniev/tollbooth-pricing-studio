@@ -112,11 +112,18 @@ struct ChatView: View {
             // Auto-refresh conversations when polling detects new messages
             if let npub = chatVM.currentIdentity?.npub,
                (polling.unreadCounts[npub] ?? 0) > 0 {
-                // Only clear unread if user is actively viewing a conversation
                 if chatVM.selectedConversationId != nil {
                     polling.markRead(npub: npub)
                 }
                 Task { await chatVM.refreshConversations() }
+            }
+        }
+        .onChange(of: chatVM.selectedConversationId) {
+            // Clear badge immediately when user selects a conversation
+            if chatVM.selectedConversationId != nil,
+               let npub = chatVM.currentIdentity?.npub,
+               (polling.unreadCounts[npub] ?? 0) > 0 {
+                polling.markRead(npub: npub)
             }
         }
         .toolbar {
