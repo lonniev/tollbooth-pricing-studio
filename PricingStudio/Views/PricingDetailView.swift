@@ -45,6 +45,13 @@ struct PricingDetailView: View {
             }
         }
         .navigationTitle(target.displayName)
+        .onAppear {
+            // Ensure we're showing the right target's data — shared VM may
+            // still hold data from a previously viewed operator/authority
+            if viewModel.currentOperatorNpub != target.npub {
+                viewModel.startLoading(for: target)
+            }
+        }
         .onChange(of: target.npub) { _, _ in
             viewModel.startLoading(for: target)
         }
