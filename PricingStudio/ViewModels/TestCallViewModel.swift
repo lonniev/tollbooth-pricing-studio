@@ -180,27 +180,26 @@ final class TestCallViewModel {
     // MARK: - Helpers
 
     /// Get available identity npubs filtered by the selected tool's role requirement.
-    func availableIdentities(operators: [Operator], patrons: [Patron]) -> [(npub: String, displayName: String, role: ToolRole)] {
-        guard let tool = selectedTool else { return [] }
-        let role = ToolRoleClassifier.classify(tool.toolName)
-
+    func availableIdentities(operators: [Operator], patrons: [Patron], authorities: [Authority] = []) -> [(npub: String, displayName: String, role: ToolRole)] {
+        var seen = Set<String>()
         var identities: [(npub: String, displayName: String, role: ToolRole)] = []
 
-        switch role {
-        case .operator:
-            for op in operators where KeychainService.loadNsec(forNpub: op.npub) != nil {
-                identities.append((op.npub, op.displayName, .operator))
-            }
-        case .patron:
-            for patron in patrons where KeychainService.loadNsec(forNpub: patron.npub) != nil {
+        // Patrons first (alias names are most specific)
+        for patron in patrons where KeychainService.loadNsec(forNpub: patron.npub) != nil {
+            if seen.insert(patron.npub).inserted {
                 identities.append((patron.npub, patron.displayName, .patron))
             }
-        case .ambiguous:
-            for op in operators where KeychainService.loadNsec(forNpub: op.npub) != nil {
+        }
+        // Operators
+        for op in operators where KeychainService.loadNsec(forNpub: op.npub) != nil {
+            if seen.insert(op.npub).inserted {
                 identities.append((op.npub, op.displayName, .operator))
             }
-            for patron in patrons where KeychainService.loadNsec(forNpub: patron.npub) != nil {
-                identities.append((patron.npub, patron.displayName, .patron))
+        }
+        // Authorities (they're also operators)
+        for auth in authorities where KeychainService.loadNsec(forNpub: auth.npub) != nil {
+            if seen.insert(auth.npub).inserted {
+                identities.append((auth.npub, auth.displayName, .operator))
             }
         }
 

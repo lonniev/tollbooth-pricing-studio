@@ -5,7 +5,8 @@ struct TrafficLogView: View {
     var filterNpub: String?
     @State private var filterEnabled = false
     @State private var autoscroll = true
-    @State private var showNostrEvents = false
+    enum NostrFilter: String, CaseIterable { case exclude, include, only }
+    @State private var nostrFilter: NostrFilter = .exclude
     @State private var searchPattern = ""
 
     private var filteredEntries: [TrafficLogEntry] {
@@ -20,9 +21,14 @@ struct TrafficLogView: View {
             }
         }
 
-        // Hide Nostr/DM events unless toggled on
-        if !showNostrEvents {
+        // Nostr event filter: exclude (default), include (show all), only (nostr only)
+        switch nostrFilter {
+        case .exclude:
             result = result.filter { !$0.isNostrEvent }
+        case .include:
+            break // show everything
+        case .only:
+            result = result.filter { $0.isNostrEvent || $0.direction == .error }
         }
 
         // Regex search
@@ -93,12 +99,13 @@ struct TrafficLogView: View {
                     .controlSize(.mini)
                     .fixedSize()
                 }
-                Toggle(isOn: $showNostrEvents) {
-                    Label("Nostr", systemImage: "message")
-                        .font(.caption)
+                Picker("Nostr", selection: $nostrFilter) {
+                    Text("Exclude").tag(NostrFilter.exclude)
+                    Text("Include").tag(NostrFilter.include)
+                    Text("Only").tag(NostrFilter.only)
                 }
-                .toggleStyle(.switch)
-                .controlSize(.mini)
+                .pickerStyle(.segmented)
+                .frame(width: 200)
                 .fixedSize()
                 Button {
                     autoscroll.toggle()

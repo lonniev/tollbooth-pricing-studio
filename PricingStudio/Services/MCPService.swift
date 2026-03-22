@@ -1011,7 +1011,7 @@ actor MCPService {
         return PricingModelResponse(
             status: "ok",
             modelId: "synthesized",
-            name: "Discovered Pricing",
+            name: "Live Tool Pricing",
             isActive: true,
             tools: toolPrices,
             pipeline: nil
@@ -1032,7 +1032,7 @@ actor MCPService {
         // Explicitly free tools (oracle delegation, balance)
         if name.contains("how_to_join") || name.contains("lookup_member")
             || name.contains("dpyc_about") || name.contains("network_advisory")
-            || name.contains("check_balance") || name.contains("get_tax_rate") {
+            || name.contains("check_balance") || name.contains("list_notarizations") {
             return ("free", 0)
         }
 

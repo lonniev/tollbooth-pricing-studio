@@ -265,7 +265,7 @@ struct PricingDetailView: View {
                         viewModel.beginPipelineEditing()
                         isEditingPipeline = true
                     } label: {
-                        Label("Edit Pipeline", systemImage: "pencil")
+                        Label("Manage Constraints", systemImage: "pencil")
                             .font(.subheadline)
                     }
                     .buttonStyle(.bordered)

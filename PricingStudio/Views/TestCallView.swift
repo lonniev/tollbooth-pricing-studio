@@ -169,7 +169,7 @@ struct TestCallView: View {
 
     @ViewBuilder
     private var identitySection: some View {
-        let identities = vm.availableIdentities(operators: operators, patrons: patrons)
+        let identities = vm.availableIdentities(operators: operators, patrons: patrons, authorities: authorities)
         Section("Call as Identity") {
             if identities.isEmpty {
                 Text("No identities with nsec keys for this tool role")

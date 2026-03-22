@@ -69,12 +69,64 @@ struct ChatView: View {
                 }
 
             case .error(let message):
-                ContentUnavailableView {
-                    Label("Connection Error", systemImage: "wifi.exclamationmark")
-                } description: {
-                    Text(message)
-                } actions: {
-                    Button {
+                VStack(spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wifi.exclamationmark")
+                            .foregroundStyle(.orange)
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            Task { await chatVM.refreshConversations() }
+                        } label: {
+                            Label("Retry", systemImage: "arrow.clockwise")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
+                    // Still show conversation list even in error state
+                    HStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            HStack {
+                                Text("Conversations")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button { showingCompose = true } label: {
+                                    Image(systemName: "square.and.pencil")
+                                        .font(.title3)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+
+                            ConversationListView(
+                                conversations: chatVM.conversations,
+                                selectedId: $chatVM.selectedConversationId
+                            )
+                        }
+                        .frame(width: 280)
+
+                        Divider()
+
+                        if let convo = chatVM.selectedConversation {
+                            MessageThreadView(conversation: convo, chatVM: chatVM)
+                        } else {
+                            ContentUnavailableView(
+                                "Select a Conversation",
+                                systemImage: "bubble.left.and.text.bubble.right",
+                                description: Text("Relay connection failed but cached conversations may be available.")
+                            )
+                        }
+                    }
+                }
+                // Legacy error view removed — replaced by inline warning + conversation list
+                if false { Button {
                         Task { await chatVM.refreshConversations() }
                     } label: {
                         Label("Retry", systemImage: "arrow.clockwise")

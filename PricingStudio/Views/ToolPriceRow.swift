@@ -31,7 +31,7 @@ struct ToolPriceRow: View {
                         Button {
                             showingTestCall = true
                         } label: {
-                            Label("Test Call as Npub…", systemImage: "play.circle")
+                            Label("Execute Request as Identity…", systemImage: "play.circle")
                         }
                     }
                 }
