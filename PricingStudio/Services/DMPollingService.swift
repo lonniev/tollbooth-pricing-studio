@@ -21,6 +21,9 @@ final class DMPollingService {
     // MARK: - Public API
 
     func hasUnread(for npub: String) -> Bool { (unreadCounts[npub] ?? 0) > 0 }
+
+    /// Signal that something changed — triggers onChange watchers.
+    func notifyUpdate() { lastPollAt = Date() }
     func unreadCount(for npub: String) -> Int { unreadCounts[npub] ?? 0 }
     var isPolling: Bool { pollingTask != nil }
 

@@ -19,23 +19,11 @@ struct ConversationListView: View {
                         Text(name)
                             .font(.headline)
                             .lineLimit(1)
-                        if let npub = convo.counterpartyNpub {
-                            let unread = (DMPollingService.shared.unreadCounts[npub] ?? 0)
-                            if unread > 0 {
-                                Image(systemName: "envelope.badge.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                                Text("\(unread)")
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
-                                    .background(.blue, in: Capsule())
-                            } else {
-                                Image(systemName: "envelope")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                        if let npub = convo.counterpartyNpub,
+                           (DMPollingService.shared.unreadCounts[npub] ?? 0) > 0 {
+                            Circle()
+                                .fill(.blue)
+                                .frame(width: 8, height: 8)
                         }
                     }
                     Text(convo.counterpartyDisplayName)
@@ -49,23 +37,11 @@ struct ConversationListView: View {
                             .font(.headline)
                             .monospaced()
                             .lineLimit(1)
-                        if let npub = convo.counterpartyNpub {
-                            let unread = (DMPollingService.shared.unreadCounts[npub] ?? 0)
-                            if unread > 0 {
-                                Image(systemName: "envelope.badge.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                                Text("\(unread)")
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
-                                    .background(.blue, in: Capsule())
-                            } else {
-                                Image(systemName: "envelope")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                        if let npub = convo.counterpartyNpub,
+                           (DMPollingService.shared.unreadCounts[npub] ?? 0) > 0 {
+                            Circle()
+                                .fill(.blue)
+                                .frame(width: 8, height: 8)
                         }
                     }
                 }

@@ -206,18 +206,31 @@ struct AuthorityDetailView: View {
                 }
 
             case .error(let msg):
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("??? sats")
-                            .font(.subheadline.monospacedDigit().bold())
-                            .foregroundStyle(.secondary)
-                        Text("authority balance")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+                let isAuthIssue = msg.localizedCaseInsensitiveContains("auth")
+                    || msg.localizedCaseInsensitiveContains("token")
+                    || msg.localizedCaseInsensitiveContains("401")
+                    || msg.localizedCaseInsensitiveContains("403")
+                    || msg.localizedCaseInsensitiveContains("OAuth")
+                HStack(spacing: 8) {
+                    Text("??? sats")
+                        .font(.subheadline.monospacedDigit().bold())
+                        .foregroundStyle(.secondary)
                     Spacer()
+                    if isAuthIssue {
+                        Label("Authenticating…", systemImage: "key.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                    Button {
+                        Task { await balanceVM.loadBalance(for: authority) }
+                    } label: {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
                 }
-                Text(msg)
+                Text(isAuthIssue ? "Authentication in progress — tap Retry after signing in." : msg)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)

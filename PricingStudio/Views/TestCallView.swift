@@ -203,7 +203,7 @@ struct TestCallView: View {
                 Button {
                     Task { await vm.executeCall() }
                 } label: {
-                    Label("Execute", systemImage: "bolt.fill")
+                    Label("🚀 Execute", systemImage: "bolt.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!estimate.canAfford && estimate.requiredRole != .operator)

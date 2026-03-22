@@ -230,7 +230,7 @@ final class ChatViewModel {
                 recipientPubkeyHex: counterpartyPubkeyHex,
                 message: content
             )
-            // Relay accepted — clear pending state immediately
+            // Relay accepted — clear pending state and update cache immediately
             pendingMessageIds.remove(optimisticId)
             if let npub = currentIdentity?.npub {
                 conversationCache[npub] = CachedConversations(
@@ -238,6 +238,8 @@ final class ChatViewModel {
                     fetchedAt: Date()
                 )
             }
+            // Signal poll watchers so UI refreshes without waiting for next cycle
+            DMPollingService.shared.notifyUpdate()
         } catch {
             // Send failed — remove optimistic message and show error
             pendingMessageIds.remove(optimisticId)
