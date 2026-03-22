@@ -74,6 +74,7 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath $RUNNER_TEMP/PricingStudio.xcarchive \
             -clonedSourcePackagesDirPath $RUNNER_TEMP/spm \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
