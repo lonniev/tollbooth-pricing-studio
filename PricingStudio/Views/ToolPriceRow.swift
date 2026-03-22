@@ -62,7 +62,7 @@ struct ToolPriceRow: View {
         .padding(.horizontal, 12)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
         .sheet(isPresented: $showingTestCall) {
-            TestCallView(preselectedOperator: target as? Operator, preselectedTool: tool)
+            TestCallView(preselectedTarget: target, preselectedTool: tool)
         }
     }
 

@@ -132,10 +132,11 @@ struct AuthorityDetailView: View {
                 Button {
                     Task { await balanceVM.loadBalance(for: authority) }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Label("Refresh", systemImage: "arrow.clockwise")
                         .font(.caption)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
             }
 
             switch balanceVM.balanceState {

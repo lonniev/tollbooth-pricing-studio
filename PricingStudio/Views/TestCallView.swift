@@ -8,14 +8,17 @@ struct TestCallView: View {
 
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
     @Query(sort: \Patron.addedAt) private var patrons: [Patron]
+    @Query(sort: \Authority.addedAt) private var authorities: [Authority]
 
     /// Pre-selected operator (when launched from operator detail or tool row).
     var preselectedOperator: Operator?
+    /// Pre-selected target (PricingTarget — Operator or Authority).
+    var preselectedTarget: (any PricingTarget)?
     /// Pre-selected tool (when launched from a specific tool row long-press).
     var preselectedTool: ToolPrice?
 
-    /// When both operator and tool are pre-selected, lead with identity + execute.
-    private var isDirectMode: Bool { preselectedOperator != nil && preselectedTool != nil }
+    /// When both operator/target and tool are pre-selected, lead with identity + execute.
+    private var isDirectMode: Bool { (preselectedOperator != nil || preselectedTarget != nil) && preselectedTool != nil }
 
     var body: some View {
         NavigationStack {
@@ -44,7 +47,12 @@ struct TestCallView: View {
                 }
             }
             .task {
-                if let op = preselectedOperator, vm.selectedOperator == nil {
+                guard vm.selectedOperator == nil else { return }
+                // Resolve pre-selected operator from either direct operator or PricingTarget
+                let op: Operator? = preselectedOperator
+                    ?? (preselectedTarget as? Operator)
+                    ?? resolveAuthorityAsOperator()
+                if let op {
                     vm.selectedOperator = op
                     await vm.loadTools()
                     if let tool = preselectedTool {
@@ -162,7 +170,7 @@ struct TestCallView: View {
     @ViewBuilder
     private var identitySection: some View {
         let identities = vm.availableIdentities(operators: operators, patrons: patrons)
-        Section("Call as Npub") {
+        Section("Call as Identity") {
             if identities.isEmpty {
                 Text("No identities with nsec keys for this tool role")
                     .foregroundStyle(.secondary)
@@ -203,7 +211,7 @@ struct TestCallView: View {
                 Button {
                     Task { await vm.executeCall() }
                 } label: {
-                    Label("🚀 Execute", systemImage: "bolt.fill")
+                    Text("🚀 Execute")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!estimate.canAfford && estimate.requiredRole != .operator)
@@ -284,6 +292,25 @@ struct TestCallView: View {
     }
 
     // MARK: - Helpers
+
+    /// Resolve a pre-selected Authority target as an Operator (for the VM).
+    /// Looks for a matching Operator by npub, or creates a synthetic match
+    /// from the Authority's endpoint info.
+    private func resolveAuthorityAsOperator() -> Operator? {
+        guard let target = preselectedTarget else { return nil }
+        // Check if there's already an Operator with this npub
+        if let match = operators.first(where: { $0.npub == target.npub }) {
+            return match
+        }
+        // For authorities, also check authorities list — Authority is a PricingTarget
+        // with mcpEndpointURL, so we can construct a temporary operator-like object
+        if let auth = target as? Authority,
+           let _ = auth.mcpEndpointURL {
+            // Find or synthesize — authorities ARE in the operators query if added as operators too
+            return operators.first(where: { $0.mcpEndpointURL == auth.mcpEndpointURL })
+        }
+        return nil
+    }
 
     /// Pretty-print JSON response. Does NOT follow embedded URLs.
     private func prettyPrintJSON(_ text: String) -> String {
