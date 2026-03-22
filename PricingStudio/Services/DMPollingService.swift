@@ -13,8 +13,16 @@ final class DMPollingService {
     private var lastSeenTimestamps: [String: Int] = [:]
     private var pollingTask: Task<Void, Never>?
 
-    /// Poll interval: 10s normally, 60s when subscriptions are active (catch-up only).
-    private var pollInterval: TimeInterval { subscriptionsActive ? 60 : 10 }
+    /// User-configurable poll interval in seconds. Persisted in UserDefaults.
+    var pollIntervalSeconds: Double {
+        get {
+            let v = UserDefaults.standard.double(forKey: "dm.pollIntervalSeconds")
+            return v > 0 ? min(max(v, 2), 120) : 5  // default 5s, range 2-120s
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "dm.pollIntervalSeconds") }
+    }
+
+    private var pollInterval: TimeInterval { pollIntervalSeconds }
 
     private init() { loadLastSeen() }
 

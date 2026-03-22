@@ -157,6 +157,30 @@ struct SettingsSheet: View {
                     }
                 }
 
+                // MARK: - Nostr Polling
+
+                Section {
+                    HStack {
+                        Text("Poll Interval")
+                        Spacer()
+                        Text("\(Int(DMPollingService.shared.pollIntervalSeconds))s")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { DMPollingService.shared.pollIntervalSeconds },
+                            set: { DMPollingService.shared.pollIntervalSeconds = $0 }
+                        ),
+                        in: 2...60,
+                        step: 1
+                    )
+                } header: {
+                    Label("Nostr Polling", systemImage: "timer")
+                } footer: {
+                    Text("How often to check relays for new messages. Lower = faster updates, more bandwidth.")
+                }
+
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
