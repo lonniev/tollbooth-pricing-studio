@@ -193,6 +193,29 @@ final class ChatViewModel {
             return
         }
 
+        // Show optimistic message immediately — before the relay round-trip
+        let optimisticId = UUID().uuidString
+        let dm = DecryptedDM(
+            rawEventId: optimisticId,
+            senderPubkeyHex: identity.publicKeyHex,
+            recipientPubkeyHex: counterpartyPubkeyHex,
+            content: content,
+            createdAt: Date(),
+            encryption: .nip04,
+            isFromMe: true
+        )
+        pendingMessageIds.insert(optimisticId)
+
+        if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyPubkeyHex }) {
+            conversations[idx].messages.append(dm)
+        } else {
+            conversations.insert(
+                DMConversation(counterpartyPubkeyHex: counterpartyPubkeyHex, messages: [dm]),
+                at: 0
+            )
+        }
+
+        // Send to relay in background — message is already visible as pending
         do {
             try await dmService.sendDM(
                 privateKeyHex: privHex,
@@ -200,30 +223,7 @@ final class ChatViewModel {
                 recipientPubkeyHex: counterpartyPubkeyHex,
                 message: content
             )
-
-            // Append optimistic local message
-            let optimisticId = UUID().uuidString
-            let dm = DecryptedDM(
-                rawEventId: optimisticId,
-                senderPubkeyHex: identity.publicKeyHex,
-                recipientPubkeyHex: counterpartyPubkeyHex,
-                content: content,
-                createdAt: Date(),
-                encryption: .nip04,
-                isFromMe: true
-            )
-            pendingMessageIds.insert(optimisticId)
-
-            if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyPubkeyHex }) {
-                conversations[idx].messages.append(dm)
-            } else {
-                conversations.insert(
-                    DMConversation(counterpartyPubkeyHex: counterpartyPubkeyHex, messages: [dm]),
-                    at: 0
-                )
-            }
-
-            // Update cache with current conversations (includes optimistic message)
+            // Relay accepted — pending state clears on next poll
             if let npub = currentIdentity?.npub {
                 conversationCache[npub] = CachedConversations(
                     conversations: conversations,
@@ -231,6 +231,11 @@ final class ChatViewModel {
                 )
             }
         } catch {
+            // Send failed — remove optimistic message and show error
+            pendingMessageIds.remove(optimisticId)
+            if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyPubkeyHex }) {
+                conversations[idx].messages.removeAll { $0.rawEventId == optimisticId }
+            }
             sendError = error.localizedDescription
             logger.error("Send failed: \(error.localizedDescription)")
         }
