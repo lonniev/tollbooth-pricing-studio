@@ -24,6 +24,9 @@ final class ChatViewModel {
     var conversations: [DMConversation] = []
     var selectedConversationId: String?
 
+    /// IDs of optimistically-added messages not yet confirmed by relay.
+    private(set) var pendingMessageIds: Set<String> = []
+
     var isLoading: Bool {
         if case .loading = state { return true }
         return false
@@ -128,6 +131,7 @@ final class ChatViewModel {
             }
 
             conversations = convos
+            pendingMessageIds.removeAll()
             conversationCache[identity.npub] = CachedConversations(
                 conversations: convos,
                 fetchedAt: Date()
@@ -198,8 +202,9 @@ final class ChatViewModel {
             )
 
             // Append optimistic local message
+            let optimisticId = UUID().uuidString
             let dm = DecryptedDM(
-                rawEventId: UUID().uuidString,
+                rawEventId: optimisticId,
                 senderPubkeyHex: identity.publicKeyHex,
                 recipientPubkeyHex: counterpartyPubkeyHex,
                 content: content,
@@ -207,6 +212,7 @@ final class ChatViewModel {
                 encryption: .nip04,
                 isFromMe: true
             )
+            pendingMessageIds.insert(optimisticId)
 
             if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyPubkeyHex }) {
                 conversations[idx].messages.append(dm)

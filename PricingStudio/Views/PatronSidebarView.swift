@@ -49,6 +49,11 @@ private struct PatronRow: View {
                         .font(.caption)
                     Text(patron.displayName)
                         .font(.headline)
+                    if DMPollingService.shared.hasUnread(for: patron.npub) {
+                        Image(systemName: "envelope.badge.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
                 }
                 Text(truncatedNpub(patron.npub))
                     .font(.caption)
@@ -65,12 +70,6 @@ private struct PatronRow: View {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
-            }
-            if DMPollingService.shared.hasUnread(for: patron.npub) {
-                Image(systemName: "message.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.green)
-                    .accessibilityIdentifier("dmIndicator_\(patron.npub)")
             }
         }
         .padding(.vertical, 2)

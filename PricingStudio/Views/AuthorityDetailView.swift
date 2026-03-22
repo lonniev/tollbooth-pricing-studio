@@ -76,8 +76,15 @@ struct AuthorityDetailView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.blue)
 
-            Text(authority.displayName)
-                .font(.title2.bold())
+            HStack(spacing: 4) {
+                Text(authority.displayName)
+                    .font(.title2.bold())
+                if DMPollingService.shared.hasUnread(for: authority.npub) {
+                    Image(systemName: "envelope.badge.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
 
             Text(authority.npub)
                 .font(.caption)

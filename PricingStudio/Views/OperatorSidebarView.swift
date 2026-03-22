@@ -79,8 +79,15 @@ private struct OperatorRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(op.displayName)
-                .font(.headline)
+            HStack(spacing: 4) {
+                Text(op.displayName)
+                    .font(.headline)
+                if DMPollingService.shared.hasUnread(for: op.npub) {
+                    Image(systemName: "envelope.badge.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
             Text(truncatedNpub(op.npub))
                 .font(.caption)
                 .foregroundStyle(.secondary)

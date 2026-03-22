@@ -65,12 +65,17 @@ struct MessageThreadView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(conversation.messages) { dm in
+                        ForEach(Array(conversation.messages.enumerated()), id: \.element.id) { index, dm in
+                            if shouldShowDateDivider(at: index) {
+                                dateDivider(for: dm.createdAt)
+                            }
+
                             MessageBubble(
                                 dm: dm,
                                 fontName: chatVM.messageFontName,
                                 fontSize: chatVM.messageFontSize,
                                 isSelected: selectedMessageIds.contains(dm.id),
+                                isPending: chatVM.pendingMessageIds.contains(dm.id),
                                 onSendReply: { recipientHex, content in
                                     Task {
                                         await chatVM.sendMessage(
@@ -163,5 +168,51 @@ struct MessageThreadView: View {
             return contact.displayName
         }
         return nil
+    }
+
+    // MARK: - Date Dividers
+
+    private func shouldShowDateDivider(at index: Int) -> Bool {
+        let messages = conversation.messages
+        guard index < messages.count else { return false }
+        if index == 0 { return true }
+        let calendar = Calendar.current
+        return !calendar.isDate(messages[index].createdAt, inSameDayAs: messages[index - 1].createdAt)
+    }
+
+    private func dateDivider(for date: Date) -> some View {
+        HStack {
+            line
+            Text(informalDateLabel(for: date))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+            line
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(.quaternary)
+            .frame(height: 1)
+    }
+
+    private func informalDateLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else if let sixDaysAgo = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: .now)),
+                  date >= sixDaysAgo {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: date)
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEE, MMM d"
+            return formatter.string(from: date)
+        }
     }
 }

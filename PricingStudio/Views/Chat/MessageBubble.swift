@@ -9,6 +9,7 @@ struct MessageBubble: View {
     let fontName: String
     let fontSize: CGFloat
     let isSelected: Bool
+    var isPending: Bool = false
     var onSendReply: ((String, String) -> Void)?
 
     @State private var courierPayload: CourierPayload?
@@ -35,6 +36,12 @@ struct MessageBubble: View {
                     Text(dm.createdAt, style: .time)
                         .font(.caption2)
 
+                    if isPending {
+                        Image(systemName: "clock")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
                     if courierPayload != nil {
                         Image(systemName: "lock.shield")
                             .font(.caption2)
@@ -46,6 +53,7 @@ struct MessageBubble: View {
 
             if !dm.isFromMe { Spacer(minLength: 60) }
         }
+        .opacity(isPending ? 0.6 : 1.0)
         .accessibilityIdentifier("messageBubble_\(dm.id)")
         .overlay(
             RoundedRectangle(cornerRadius: 14)

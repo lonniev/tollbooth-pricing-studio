@@ -15,19 +15,33 @@ struct ConversationListView: View {
         List(conversations, selection: $selectedId) { convo in
             VStack(alignment: .leading, spacing: 4) {
                 if let name = displayName(for: convo.counterpartyPubkeyHex) {
-                    Text(name)
-                        .font(.headline)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text(name)
+                            .font(.headline)
+                            .lineLimit(1)
+                        if let npub = convo.counterpartyNpub, DMPollingService.shared.hasUnread(for: npub) {
+                            Image(systemName: "envelope.badge.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                     Text(convo.counterpartyDisplayName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospaced()
                         .lineLimit(1)
                 } else {
-                    Text(convo.counterpartyDisplayName)
-                        .font(.headline)
-                        .monospaced()
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text(convo.counterpartyDisplayName)
+                            .font(.headline)
+                            .monospaced()
+                            .lineLimit(1)
+                        if let npub = convo.counterpartyNpub, DMPollingService.shared.hasUnread(for: npub) {
+                            Image(systemName: "envelope.badge.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                 }
 
                 if let latest = convo.latestMessage {
