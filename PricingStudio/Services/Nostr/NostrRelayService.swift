@@ -291,16 +291,22 @@ private final class RelayConnection: @unchecked Sendable {
 
     /// Wait for the next text message, or nil on disconnect/timeout.
     func receive(timeout: TimeInterval) async throws -> String? {
-        try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<String?, Error>) in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String?, Error>) in
             let state = OneShotState()
 
-            delegate.onText = { text in
+            delegate.onText = { [weak delegate] text in
                 if state.claim() {
+                    delegate?.onText = nil
+                    delegate?.onDisconnect = nil
+                    delegate?.onError = nil
                     continuation.resume(returning: text)
                 }
             }
-            delegate.onDisconnect = { error in
+            delegate.onDisconnect = { [weak delegate] error in
                 if state.claim() {
+                    delegate?.onText = nil
+                    delegate?.onDisconnect = nil
+                    delegate?.onError = nil
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -308,14 +314,20 @@ private final class RelayConnection: @unchecked Sendable {
                     }
                 }
             }
-            delegate.onError = { error in
+            delegate.onError = { [weak delegate] error in
                 if state.claim() {
+                    delegate?.onText = nil
+                    delegate?.onDisconnect = nil
+                    delegate?.onError = nil
                     continuation.resume(throwing: error ?? RelayError.unknown)
                 }
             }
 
-            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { [weak delegate] in
                 if state.claim() {
+                    delegate?.onText = nil
+                    delegate?.onDisconnect = nil
+                    delegate?.onError = nil
                     continuation.resume(returning: nil)
                 }
             }
