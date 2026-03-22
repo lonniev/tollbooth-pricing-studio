@@ -9,9 +9,12 @@ final class DMPollingService {
     private(set) var unreadCounts: [String: Int] = [:]
     private(set) var lastPollAt: Date?
     private(set) var pollCycle: Int = 0
+    private(set) var subscriptionsActive: Bool = false
     private var lastSeenTimestamps: [String: Int] = [:]
     private var pollingTask: Task<Void, Never>?
-    private let pollInterval: TimeInterval = 10
+
+    /// Poll interval: 10s normally, 60s when subscriptions are active (catch-up only).
+    private var pollInterval: TimeInterval { subscriptionsActive ? 60 : 10 }
 
     private init() { loadLastSeen() }
 
@@ -31,7 +34,8 @@ final class DMPollingService {
 
     func startPolling(modelContext: ModelContext) {
         if pollingTask != nil { return }
-        TrafficLogger.shared.log(.outbound, label: "DM Poll Start", detail: "Background polling started (\(Int(pollInterval))s interval)")
+        startSubscriptions(modelContext: modelContext)
+        TrafficLogger.shared.log(.outbound, label: "DM Poll Start", detail: "Background polling started (\(Int(pollInterval))s interval, subs=\(subscriptionsActive))")
 
         pollingTask = Task {
             while !Task.isCancelled {
@@ -70,6 +74,59 @@ final class DMPollingService {
     func stopPolling() {
         pollingTask?.cancel()
         pollingTask = nil
+        RelaySubscriptionManager.shared.disconnectAll()
+        subscriptionsActive = false
+    }
+
+    // MARK: - Subscriptions
+
+    private func startSubscriptions(modelContext: ModelContext) {
+        let subManager = RelaySubscriptionManager.shared
+        let dmService = NostrDMService()
+
+        // Wire event callback: decrypt incoming events and update unread counts
+        subManager.onNewEvent = { [weak self] npub, event in
+            guard let self else { return }
+            // Attempt decryption using the npub's keys
+            guard let privKeyHex = KeychainService.loadNsec(forNpub: npub)
+                    .flatMap({ try? NostrKeyService.privateKeyHexFromNsec($0) }),
+                  let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub) else { return }
+
+            Task.detached {
+                let decrypted = await dmService.decryptEvent(
+                    event, privateKeyHex: privKeyHex, publicKeyHex: pubKeyHex
+                )
+                if let dm = decrypted, !dm.isFromMe {
+                    await MainActor.run {
+                        var updated = self.unreadCounts
+                        updated[npub] = (updated[npub] ?? 0) + 1
+                        self.unreadCounts = updated
+                        self.lastPollAt = Date()
+                        TrafficLogger.shared.log(.inbound, label: "Sub Event",
+                                                 detail: "\(npub.prefix(12))… new DM via subscription")
+                    }
+                }
+            }
+        }
+
+        // Wire relay settings changes
+        RelaySettings.shared.onRelaysChanged = { [weak subManager] newURLs in
+            subManager?.updateRelays(newURLs)
+        }
+
+        // Subscribe all entities with nsecs
+        let entities = gatherEntities(modelContext: modelContext)
+        let keyed = entities.filter { $0.hasKeys }
+        if !keyed.isEmpty {
+            subManager.connectAll()
+            for entity in keyed {
+                if let pubKeyHex = entity.pubKeyHex, let privKeyHex = entity.privKeyHex {
+                    subManager.subscribe(npub: entity.npub, pubkeyHex: pubKeyHex, privkeyHex: privKeyHex)
+                }
+            }
+            subscriptionsActive = true
+            TrafficLogger.shared.log(.outbound, label: "Subscriptions", detail: "Started for \(keyed.count) npubs")
+        }
     }
 
     // MARK: - Gather entities (MainActor)

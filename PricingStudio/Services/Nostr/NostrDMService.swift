@@ -224,7 +224,7 @@ actor NostrDMService {
     // MARK: - Decrypt Events
 
     /// Try to decrypt a single event, returning nil on failure.
-    private func decryptEvent(
+    func decryptEvent(
         _ event: NostrEvent,
         privateKeyHex: String,
         publicKeyHex: String

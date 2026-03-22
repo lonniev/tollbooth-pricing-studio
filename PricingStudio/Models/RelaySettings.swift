@@ -12,8 +12,13 @@ class RelaySettings {
         "wss://relay.nostr.band",
     ]
 
+    var onRelaysChanged: (([URL]) -> Void)?
+
     var relays: [String] {
-        didSet { save() }
+        didSet {
+            save()
+            onRelaysChanged?(relayURLs)
+        }
     }
 
     var relayURLs: [URL] {

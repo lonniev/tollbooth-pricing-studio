@@ -54,6 +54,8 @@
 		AA0000010000000000000212 /* NIP04Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000202 /* NIP04Service.swift */; };
 		AA0000010000000000000213 /* NIP44Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000203 /* NIP44Service.swift */; };
 		AA0000010000000000000214 /* NostrRelayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000204 /* NostrRelayService.swift */; };
+		AA0000010000000000000216 /* PersistentRelayConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000206 /* PersistentRelayConnection.swift */; };
+		AA0000010000000000000217 /* RelaySubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000207 /* RelaySubscriptionManager.swift */; };
 		AA0000010000000000000215 /* NostrDMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000205 /* NostrDMService.swift */; };
 		AA0000010000000000000221 /* ChatIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000231 /* ChatIdentity.swift */; };
 		AA0000010000000000000222 /* DMConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000232 /* DMConversation.swift */; };
@@ -193,6 +195,8 @@
 		AA0000010000000000000202 /* NIP04Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP04Service.swift; sourceTree = "<group>"; };
 		AA0000010000000000000203 /* NIP44Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP44Service.swift; sourceTree = "<group>"; };
 		AA0000010000000000000204 /* NostrRelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayService.swift; sourceTree = "<group>"; };
+		AA0000010000000000000206 /* PersistentRelayConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentRelayConnection.swift; sourceTree = "<group>"; };
+		AA0000010000000000000207 /* RelaySubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySubscriptionManager.swift; sourceTree = "<group>"; };
 		AA0000010000000000000205 /* NostrDMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrDMService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000231 /* ChatIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatIdentity.swift; sourceTree = "<group>"; };
 		AA0000010000000000000232 /* DMConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMConversation.swift; sourceTree = "<group>"; };
@@ -435,6 +439,8 @@
 				AA0000010000000000000202 /* NIP04Service.swift */,
 				AA0000010000000000000203 /* NIP44Service.swift */,
 				AA0000010000000000000204 /* NostrRelayService.swift */,
+				AA0000010000000000000206 /* PersistentRelayConnection.swift */,
+				AA0000010000000000000207 /* RelaySubscriptionManager.swift */,
 				AA0000010000000000000205 /* NostrDMService.swift */,
 			);
 			path = Nostr;
@@ -880,6 +886,8 @@
 				AA0000010000000000000212 /* NIP04Service.swift in Sources */,
 				AA0000010000000000000213 /* NIP44Service.swift in Sources */,
 				AA0000010000000000000214 /* NostrRelayService.swift in Sources */,
+				AA0000010000000000000216 /* PersistentRelayConnection.swift in Sources */,
+				AA0000010000000000000217 /* RelaySubscriptionManager.swift in Sources */,
 				AA0000010000000000000215 /* NostrDMService.swift in Sources */,
 				AA0000010000000000000221 /* ChatIdentity.swift in Sources */,
 				AA0000010000000000000222 /* DMConversation.swift in Sources */,
