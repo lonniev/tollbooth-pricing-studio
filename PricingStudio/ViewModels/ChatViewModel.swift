@@ -85,14 +85,9 @@ final class ChatViewModel {
             return
         }
 
-        // No cache: if subscriptions are active, show empty loaded state
-        // immediately and fetch in background (no spinner).
-        if DMPollingService.shared.subscriptionsActive {
-            state = .loaded
-            Task { await loadConversations(silent: true) }
-        } else {
-            Task { await loadConversations() }
-        }
+        // No cache — always do a blocking fetch to seed conversations.
+        // Even with subscriptions, we need historical messages from relays.
+        Task { await loadConversations() }
     }
 
     // MARK: - Load Conversations

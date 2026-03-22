@@ -21,6 +21,22 @@ struct ChatView: View {
             case .loading, .loaded:
                 HStack(spacing: 0) {
                     VStack(spacing: 0) {
+                        HStack {
+                            Text("Conversations")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button {
+                                showingCompose = true
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.title3)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+
                         ConversationListView(
                             conversations: chatVM.conversations,
                             selectedId: $chatVM.selectedConversationId

@@ -152,10 +152,12 @@ struct AuthorityDetailView: View {
                     Text("Loading...").font(.caption).foregroundStyle(.secondary)
                 }
             case .loaded(let result):
+                let isUnknown = result.balanceApiSats == 0 && result.totalDeposited == 0
+                let balanceColor: Color = isUnknown ? .secondary : (result.balanceApiSats < 50 ? .red : .primary)
                 HStack(spacing: 16) {
-                    Text("\(result.balanceApiSats) sats")
+                    Text(isUnknown ? "N/A" : "\(result.balanceApiSats) sats")
                         .font(.subheadline.monospacedDigit().bold())
-                        .foregroundStyle(result.balanceApiSats < 50 ? .red : .primary)
+                        .foregroundStyle(balanceColor)
 
                     if result.pendingInvoiceCount > 0 {
                         Text("\(result.pendingInvoiceCount) pending")
@@ -185,7 +187,7 @@ struct AuthorityDetailView: View {
                     }
                 }
 
-                if result.balanceApiSats < 50 {
+                if !isUnknown && result.balanceApiSats < 50 {
                     Label("Low balance — operators may fail to certify purchases", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption2)
                         .foregroundStyle(.red)

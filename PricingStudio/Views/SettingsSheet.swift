@@ -36,8 +36,7 @@ struct SettingsSheet: View {
                 Section {
                     LabeledContent("App", value: Bundle.main.appName)
                     LabeledContent("Version", value: Bundle.main.appVersion)
-                    LabeledContent("Build", value: Bundle.main.buildNumber)
-                    LabeledContent("Built", value: Bundle.main.buildTimestamp)
+                    LabeledContent("Build", value: Bundle.main.buildTimestamp)
                 } header: {
                     Label("About", systemImage: "info.circle")
                 }
