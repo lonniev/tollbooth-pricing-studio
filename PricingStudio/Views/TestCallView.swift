@@ -14,16 +14,30 @@ struct TestCallView: View {
     /// Pre-selected tool (when launched from a specific tool row long-press).
     var preselectedTool: ToolPrice?
 
+    /// When both operator and tool are pre-selected, lead with identity + execute.
+    private var isDirectMode: Bool { preselectedOperator != nil && preselectedTool != nil }
+
     var body: some View {
         NavigationStack {
             Form {
-                operatorSection
-                if !vm.availableTools.isEmpty { toolSection }
-                if vm.selectedTool != nil { identitySection }
-                actionSection
-                resultSection
+                if isDirectMode {
+                    // Direct mode: identity first, then execute, then details
+                    identitySection
+                    actionSection
+                    resultSection
+                    toolSummarySection
+                    operatorSection
+                    if !vm.availableTools.isEmpty { toolSection }
+                } else {
+                    // Browse mode: operator → tool → identity → execute
+                    operatorSection
+                    if !vm.availableTools.isEmpty { toolSection }
+                    if vm.selectedTool != nil { identitySection }
+                    actionSection
+                    resultSection
+                }
             }
-            .navigationTitle("Test Call")
+            .navigationTitle(isDirectMode ? (vm.selectedTool?.toolName ?? "Test Call") : "Test Call")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -36,6 +50,32 @@ struct TestCallView: View {
                     if let tool = preselectedTool {
                         vm.selectedTool = vm.availableTools.first(where: { $0.toolName == tool.toolName }) ?? tool
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: - Tool Summary (direct mode)
+
+    @ViewBuilder
+    private var toolSummarySection: some View {
+        if let tool = vm.selectedTool {
+            Section("Tool") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(tool.toolName)
+                        .font(.subheadline.monospaced().bold())
+                    if !tool.intent.isEmpty {
+                        Text(tool.intent)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Cost:")
+                        Text("\(tool.priceSats) sats")
+                            .bold()
+                            .foregroundStyle(tool.priceSats == 0 ? .green : .orange)
+                    }
+                    .font(.caption)
                 }
             }
         }
@@ -122,7 +162,7 @@ struct TestCallView: View {
     @ViewBuilder
     private var identitySection: some View {
         let identities = vm.availableIdentities(operators: operators, patrons: patrons)
-        Section("Identity") {
+        Section("Call as Npub") {
             if identities.isEmpty {
                 Text("No identities with nsec keys for this tool role")
                     .foregroundStyle(.secondary)
@@ -158,9 +198,17 @@ struct TestCallView: View {
 
     @ViewBuilder
     private var actionSection: some View {
-        Section("Action") {
+        Section {
             if case .ready(let estimate) = vm.state {
-                VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    Task { await vm.executeCall() }
+                } label: {
+                    Label("Execute", systemImage: "bolt.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!estimate.canAfford && estimate.requiredRole != .operator)
+
+                VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("Tool Cost:")
                         Spacer()
@@ -178,23 +226,14 @@ struct TestCallView: View {
                         }
 
                         HStack {
-                            Text("Can Afford:")
+                            Text("Affordable:")
                             Spacer()
                             Image(systemName: estimate.canAfford ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .foregroundStyle(estimate.canAfford ? .green : .red)
-                            Text(estimate.canAfford ? "Yes" : "No")
                                 .foregroundStyle(estimate.canAfford ? .green : .red)
                         }
                     }
                 }
-
-                Button {
-                    Task { await vm.executeCall() }
-                } label: {
-                    Label("Execute Call", systemImage: "play.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!estimate.canAfford && estimate.requiredRole != .operator)
+                .font(.caption)
             } else {
                 Button {
                     Task { await vm.checkAffordability() }
@@ -226,7 +265,7 @@ struct TestCallView: View {
         case .result(let text):
             Section("Result") {
                 ScrollView {
-                    Text(text)
+                    Text(prettyPrintJSON(text))
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -242,5 +281,18 @@ struct TestCallView: View {
         default:
             EmptyView()
         }
+    }
+
+    // MARK: - Helpers
+
+    /// Pretty-print JSON response. Does NOT follow embedded URLs.
+    private func prettyPrintJSON(_ text: String) -> String {
+        guard let data = text.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data),
+              let pretty = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
+              let result = String(data: pretty, encoding: .utf8) else {
+            return text
+        }
+        return result
     }
 }

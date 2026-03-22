@@ -99,6 +99,13 @@ struct MessageThreadView: View {
                                 }
                             )
                             .id(dm.id)
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    Task { await chatVM.requestDeletion(eventIds: [dm.rawEventId]) }
+                                } label: {
+                                    Label("Delete from Relays", systemImage: "trash")
+                                }
+                            }
                             .onLongPressGesture {
                                 toggleSelection(dm.id)
                             }

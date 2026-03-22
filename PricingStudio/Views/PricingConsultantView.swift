@@ -111,7 +111,7 @@ struct PricingConsultantView: View {
             PromptEditorSheet(consultantVM: consultantVM)
         }
         .sheet(isPresented: $showingLoadSheet) {
-            CampaignListSheet(consultantVM: consultantVM, showingCompareSheet: $showingCompareSheet)
+            CampaignListSheet(consultantVM: consultantVM, showingCompareSheet: $showingCompareSheet, operatorNpub: operatorNpub)
         }
         .sheet(isPresented: $showingCompareSheet) {
             CampaignComparisonSheet()
@@ -741,9 +741,14 @@ struct PricingConsultantView: View {
 private struct CampaignListSheet: View {
     @Bindable var consultantVM: PricingConsultantViewModel
     @Binding var showingCompareSheet: Bool
+    let operatorNpub: String
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Campaign.updatedAt, order: .reverse) private var campaigns: [Campaign]
+    @Query(sort: \Campaign.updatedAt, order: .reverse) private var allCampaigns: [Campaign]
+
+    private var campaigns: [Campaign] {
+        allCampaigns.filter { $0.operatorNpub == operatorNpub }
+    }
     @State private var selectedForCompare: Set<PersistentIdentifier> = []
     @State private var isMultiSelectMode = false
 

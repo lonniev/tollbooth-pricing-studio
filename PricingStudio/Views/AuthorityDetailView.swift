@@ -153,14 +153,9 @@ struct AuthorityDetailView: View {
                 }
             case .loaded(let result):
                 HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(result.balanceApiSats) sats")
-                            .font(.subheadline.monospacedDigit().bold())
-                            .foregroundStyle(result.balanceApiSats < 50 ? .red : .primary)
-                        Text("authority balance")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("\(result.balanceApiSats) sats")
+                        .font(.subheadline.monospacedDigit().bold())
+                        .foregroundStyle(result.balanceApiSats < 50 ? .red : .primary)
 
                     if result.pendingInvoiceCount > 0 {
                         Text("\(result.pendingInvoiceCount) pending")

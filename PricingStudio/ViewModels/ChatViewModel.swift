@@ -108,13 +108,14 @@ final class ChatViewModel {
 
         state = .loading
         let pubHex = identity.publicKeyHex
+        let timeout: TimeInterval = DMPollingService.shared.subscriptionsActive ? 10 : 30
 
         await MainActor.run {
-            TrafficLogger.shared.log(.outbound, label: "DM Fetch", detail: "Fetching conversations for \(identity.npub.prefix(12))…", npub: identity.npub)
+            TrafficLogger.shared.log(.outbound, label: "DM Fetch", detail: "Fetching conversations for \(identity.npub.prefix(12))… (timeout=\(Int(timeout))s)", npub: identity.npub)
         }
 
         do {
-            let dmsByCounterparty = try await withOverallTimeout(seconds: 30) {
+            let dmsByCounterparty = try await withOverallTimeout(seconds: timeout) {
                 await self.dmService.fetchConversations(
                     privateKeyHex: privHex,
                     publicKeyHex: pubHex
