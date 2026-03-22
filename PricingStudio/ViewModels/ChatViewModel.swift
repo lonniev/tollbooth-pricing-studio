@@ -73,11 +73,11 @@ final class ChatViewModel {
             return
         }
 
-        // Check cache — use immediately if available (subscriptions keep it fresh)
+        // Check cache — use immediately if available
         if let cached = conversationCache[identity.npub] {
             conversations = cached.conversations
             state = .loaded
-            // If cache is stale and no subscriptions, refresh in background
+            // Background refresh only when no subscriptions and cache is stale
             if Date().timeIntervalSince(cached.fetchedAt) > Self.cacheDuration,
                !DMPollingService.shared.subscriptionsActive {
                 Task { await loadConversations() }
@@ -85,13 +85,21 @@ final class ChatViewModel {
             return
         }
 
-        Task { await loadConversations() }
+        // No cache: if subscriptions are active, show empty loaded state
+        // immediately and fetch in background (no spinner).
+        if DMPollingService.shared.subscriptionsActive {
+            state = .loaded
+            Task { await loadConversations(silent: true) }
+        } else {
+            Task { await loadConversations() }
+        }
     }
 
     // MARK: - Load Conversations
 
     /// Fetch and decrypt conversations from relays.
-    func loadConversations() async {
+    /// When `silent` is true, doesn't show the loading spinner (for background refreshes).
+    func loadConversations(silent: Bool = false) async {
         guard let identity = currentIdentity,
               let privHex = identity.privateKeyHex else {
             state = .idle
@@ -106,7 +114,7 @@ final class ChatViewModel {
             return
         }
 
-        state = .loading
+        if !silent { state = .loading }
         let pubHex = identity.publicKeyHex
         let timeout: TimeInterval = DMPollingService.shared.subscriptionsActive ? 10 : 30
 
@@ -142,17 +150,15 @@ final class ChatViewModel {
 
             logger.info("Loaded \(convos.count) conversations for \(identity.npub.prefix(12))")
         } catch is ChatTimeoutError {
-            let msg = "Relay fetch timed out after 30 seconds. Check your network connection."
+            let msg = "Relay fetch timed out. Subscription events will populate conversations."
             await MainActor.run {
                 TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg, npub: identity.npub)
             }
-            // If we already have conversations (e.g. from optimistic sends or prior fetch),
-            // show a non-destructive banner instead of replacing the whole view with an error.
-            if conversations.isEmpty {
+            if !silent && conversations.isEmpty {
                 state = .error(msg)
             } else {
                 state = .loaded
-                fetchError = msg
+                fetchError = silent ? nil : msg
             }
             logger.error("DM fetch timed out for \(identity.npub.prefix(12))")
         } catch {
@@ -160,22 +166,22 @@ final class ChatViewModel {
             await MainActor.run {
                 TrafficLogger.shared.log(.error, label: "DM Fetch", detail: msg, npub: identity.npub)
             }
-            if conversations.isEmpty {
+            if !silent && conversations.isEmpty {
                 state = .error(msg)
             } else {
                 state = .loaded
-                fetchError = msg
+                fetchError = silent ? nil : msg
             }
             logger.error("DM fetch failed: \(msg)")
         }
     }
 
-    /// Force refresh — bypasses cache.
+    /// Force refresh — bypasses cache. Silent when subscriptions are active.
     func refreshConversations() async {
         if let npub = currentIdentity?.npub {
             conversationCache.removeValue(forKey: npub)
         }
-        await loadConversations()
+        await loadConversations(silent: DMPollingService.shared.subscriptionsActive)
     }
 
     // MARK: - Send Message
