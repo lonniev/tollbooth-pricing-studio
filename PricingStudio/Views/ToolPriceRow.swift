@@ -3,12 +3,15 @@ import SwiftUI
 struct ToolPriceRow: View {
     let tool: ToolPrice
     let viewModel: PricingViewModel?
+    var target: (any PricingTarget)?
     @State private var showingInfo = false
     @State private var showingEditor = false
+    @State private var showingTestCall = false
 
-    init(tool: ToolPrice, viewModel: PricingViewModel? = nil) {
+    init(tool: ToolPrice, viewModel: PricingViewModel? = nil, target: (any PricingTarget)? = nil) {
         self.tool = tool
         self.viewModel = viewModel
+        self.target = target
     }
 
     private var effectiveTool: ToolPrice {
@@ -23,6 +26,15 @@ struct ToolPriceRow: View {
         HStack(spacing: 12) {
             Text(tool.toolName)
                 .font(.subheadline.monospaced())
+                .contextMenu {
+                    if target?.mcpEndpointURL != nil {
+                        Button {
+                            showingTestCall = true
+                        } label: {
+                            Label("Test Call as Npub…", systemImage: "play.circle")
+                        }
+                    }
+                }
 
             if !tool.intent.isEmpty {
                 Button {
@@ -49,6 +61,9 @@ struct ToolPriceRow: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 12)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+        .sheet(isPresented: $showingTestCall) {
+            TestCallView(preselectedOperator: target as? Operator, preselectedTool: tool)
+        }
     }
 
     @ViewBuilder

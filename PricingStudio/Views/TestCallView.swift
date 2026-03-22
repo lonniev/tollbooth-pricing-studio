@@ -9,8 +9,10 @@ struct TestCallView: View {
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
     @Query(sort: \Patron.addedAt) private var patrons: [Patron]
 
-    /// Pre-selected operator (when launched from operator detail).
+    /// Pre-selected operator (when launched from operator detail or tool row).
     var preselectedOperator: Operator?
+    /// Pre-selected tool (when launched from a specific tool row long-press).
+    var preselectedTool: ToolPrice?
 
     var body: some View {
         NavigationStack {
@@ -27,10 +29,13 @@ struct TestCallView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .onAppear {
+            .task {
                 if let op = preselectedOperator, vm.selectedOperator == nil {
                     vm.selectedOperator = op
-                    Task { await vm.loadTools() }
+                    await vm.loadTools()
+                    if let tool = preselectedTool {
+                        vm.selectedTool = vm.availableTools.first(where: { $0.toolName == tool.toolName }) ?? tool
+                    }
                 }
             }
         }

@@ -58,7 +58,7 @@ struct ToolPriceListView: View {
                             .background(.quaternary.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
                             .opacity(0.5)
                         } else {
-                            ToolPriceRow(tool: tool, viewModel: viewModel)
+                            ToolPriceRow(tool: tool, viewModel: viewModel, target: target)
                         }
                     }
                 }
