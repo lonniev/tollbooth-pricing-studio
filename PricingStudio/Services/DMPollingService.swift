@@ -22,7 +22,9 @@ final class DMPollingService {
     var isPolling: Bool { pollingTask != nil }
 
     func markRead(npub: String) {
-        unreadCounts[npub] = 0
+        var updated = unreadCounts
+        updated[npub] = 0
+        unreadCounts = updated
         lastSeenTimestamps[npub] = Int(Date().timeIntervalSince1970)
         saveLastSeen()
     }
@@ -89,9 +91,10 @@ final class DMPollingService {
     // MARK: - Apply results (MainActor)
 
     private func applyResults(_ results: [DMPollResult]) {
+        var updated = unreadCounts
         for r in results {
             if r.newCount > 0 {
-                unreadCounts[r.npub] = (unreadCounts[r.npub] ?? 0) + r.newCount
+                updated[r.npub] = (updated[r.npub] ?? 0) + r.newCount
             }
             let lastSeen = lastSeenTimestamps[r.npub] ?? 0
             if r.latestTimestamp > lastSeen {
@@ -99,6 +102,7 @@ final class DMPollingService {
                 saveLastSeen()
             }
         }
+        unreadCounts = updated
     }
 
     // MARK: - Persistence

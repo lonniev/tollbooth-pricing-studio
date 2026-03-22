@@ -79,7 +79,7 @@ struct AuthorityDetailView: View {
             HStack(spacing: 4) {
                 Text(authority.displayName)
                     .font(.title2.bold())
-                if DMPollingService.shared.hasUnread(for: authority.npub) {
+                if (DMPollingService.shared.unreadCounts[authority.npub] ?? 0) > 0 {
                     Image(systemName: "envelope.badge.fill")
                         .font(.caption2)
                         .foregroundStyle(.orange)

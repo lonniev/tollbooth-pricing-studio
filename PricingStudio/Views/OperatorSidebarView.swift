@@ -82,7 +82,7 @@ private struct OperatorRow: View {
             HStack(spacing: 4) {
                 Text(op.displayName)
                     .font(.headline)
-                if DMPollingService.shared.hasUnread(for: op.npub) {
+                if (DMPollingService.shared.unreadCounts[op.npub] ?? 0) > 0 {
                     Image(systemName: "envelope.badge.fill")
                         .font(.caption2)
                         .foregroundStyle(.orange)

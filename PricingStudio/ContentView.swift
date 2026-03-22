@@ -681,7 +681,7 @@ private struct AuthorityRowInline: View {
                     .font(.caption2)
                     .foregroundStyle(.green)
             }
-            if DMPollingService.shared.hasUnread(for: authority.npub) {
+            if (DMPollingService.shared.unreadCounts[authority.npub] ?? 0) > 0 {
                 Image(systemName: "message.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
@@ -785,7 +785,7 @@ private struct OperatorRowInline: View {
                     .font(.caption2)
                     .foregroundStyle(.green)
             }
-            if DMPollingService.shared.hasUnread(for: op.npub) {
+            if (DMPollingService.shared.unreadCounts[op.npub] ?? 0) > 0 {
                 Image(systemName: "message.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)

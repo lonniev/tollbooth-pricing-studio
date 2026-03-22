@@ -19,7 +19,7 @@ struct ConversationListView: View {
                         Text(name)
                             .font(.headline)
                             .lineLimit(1)
-                        if let npub = convo.counterpartyNpub, DMPollingService.shared.hasUnread(for: npub) {
+                        if let npub = convo.counterpartyNpub, (DMPollingService.shared.unreadCounts[npub] ?? 0) > 0 {
                             Image(systemName: "envelope.badge.fill")
                                 .font(.caption2)
                                 .foregroundStyle(.orange)
@@ -36,7 +36,7 @@ struct ConversationListView: View {
                             .font(.headline)
                             .monospaced()
                             .lineLimit(1)
-                        if let npub = convo.counterpartyNpub, DMPollingService.shared.hasUnread(for: npub) {
+                        if let npub = convo.counterpartyNpub, (DMPollingService.shared.unreadCounts[npub] ?? 0) > 0 {
                             Image(systemName: "envelope.badge.fill")
                                 .font(.caption2)
                                 .foregroundStyle(.orange)

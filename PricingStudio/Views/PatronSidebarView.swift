@@ -49,7 +49,7 @@ private struct PatronRow: View {
                         .font(.caption)
                     Text(patron.displayName)
                         .font(.headline)
-                    if DMPollingService.shared.hasUnread(for: patron.npub) {
+                    if (DMPollingService.shared.unreadCounts[patron.npub] ?? 0) > 0 {
                         Image(systemName: "envelope.badge.fill")
                             .font(.caption2)
                             .foregroundStyle(.orange)

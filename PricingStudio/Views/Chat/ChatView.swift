@@ -111,8 +111,11 @@ struct ChatView: View {
         .onChange(of: polling.lastPollAt) {
             // Auto-refresh conversations when polling detects new messages
             if let npub = chatVM.currentIdentity?.npub,
-               polling.hasUnread(for: npub) {
-                polling.markRead(npub: npub)
+               (polling.unreadCounts[npub] ?? 0) > 0 {
+                // Only clear unread if user is actively viewing a conversation
+                if chatVM.selectedConversationId != nil {
+                    polling.markRead(npub: npub)
+                }
                 Task { await chatVM.refreshConversations() }
             }
         }
