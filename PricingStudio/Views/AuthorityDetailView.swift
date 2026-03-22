@@ -157,7 +157,7 @@ struct AuthorityDetailView: View {
                         Text("\(result.balanceApiSats) sats")
                             .font(.subheadline.monospacedDigit().bold())
                             .foregroundStyle(result.balanceApiSats < 50 ? .red : .primary)
-                        Text("tax reserve")
+                        Text("authority balance")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -211,9 +211,20 @@ struct AuthorityDetailView: View {
                 }
 
             case .error(let msg):
-                Label(msg, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("??? sats")
+                            .font(.subheadline.monospacedDigit().bold())
+                            .foregroundStyle(.secondary)
+                        Text("authority balance")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                Text(msg)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
         }

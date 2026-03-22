@@ -148,6 +148,7 @@ private struct OperatorBalanceCard: View {
         }
         .sheet(isPresented: $showingInfographic) {
             InfographicSheet(
+                patronName: patron.displayName,
                 operatorName: balance.operatorName,
                 operatorNpub: balance.id,
                 accountVM: accountVM
@@ -574,6 +575,7 @@ private struct TopOffSheet: View {
 // MARK: - Infographic Sheet
 
 private struct InfographicSheet: View {
+    let patronName: String
     let operatorName: String
     let operatorNpub: String
     let accountVM: PatronAccountViewModel
@@ -635,7 +637,7 @@ private struct InfographicSheet: View {
                     )
                 }
             }
-            .navigationTitle("\(operatorName) Statement")
+            .navigationTitle("\(patronName) with \(operatorName) Statement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
