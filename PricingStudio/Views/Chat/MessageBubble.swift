@@ -74,15 +74,23 @@ struct MessageBubble: View {
     private var plainContent: some View {
         Text(dm.content)
             .font(.custom(fontName, size: fontSize))
+            .italic(isPending)
             .textSelection(.enabled)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
                 dm.isFromMe
-                    ? Color.accentColor.opacity(0.2)
+                    ? Color.accentColor.opacity(isPending ? 0.1 : 0.2)
                     : Color(.secondarySystemBackground)
             )
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                isPending
+                    ? RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                        .foregroundStyle(.secondary)
+                    : nil
+            )
     }
 
     // MARK: - Courier Payload Content
