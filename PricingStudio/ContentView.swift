@@ -244,7 +244,7 @@ struct ContentView: View {
                 patronAccountVM.reset()
             }
         }
-        .onAppear {
+        .task {
             pricingVM.onAuthorityDiscovered = { npub, displayName, endpointURL in
                 authorityVM.ensureAuthority(
                     npub: npub,
