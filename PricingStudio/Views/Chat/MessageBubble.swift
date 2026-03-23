@@ -103,7 +103,7 @@ struct MessageBubble: View {
                     get: { courierPayload! },
                     set: { courierPayload = $0 }
                 ),
-                onSend: dm.isFromMe ? nil : { serialized in
+                onSend: { serialized in
                     let replyTarget = replyTargetHex
                     onSendReply?(replyTarget, serialized)
                 }
