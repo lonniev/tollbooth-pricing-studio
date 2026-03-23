@@ -8,6 +8,7 @@ struct TrafficLogView: View {
     @State private var autoscroll = true
     @State private var isPaused = false
     @State private var frozenEntries: [TrafficLogEntry]?
+    @State private var scrollToEnd = false
     enum NostrFilter: String, CaseIterable { case exclude, include, only }
     @State private var nostrFilter: NostrFilter = .exclude
     @State private var searchPattern = ""
@@ -132,6 +133,14 @@ struct TrafficLogView: View {
                 .frame(width: 180)
                 .fixedSize()
                 Button {
+                    scrollToEnd = true
+                } label: {
+                    Label("End", systemImage: "arrow.down.to.line")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button {
                     isPaused.toggle()
                     if isPaused {
                         frozenEntries = filteredEntries
@@ -239,6 +248,14 @@ struct TrafficLogView: View {
                     withAnimation {
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }
+                }
+            }
+            .onChange(of: scrollToEnd) {
+                if scrollToEnd, let last = displayedEntries.last {
+                    withAnimation {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                    scrollToEnd = false
                 }
             }
         }
