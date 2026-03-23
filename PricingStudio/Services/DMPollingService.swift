@@ -146,7 +146,7 @@ final class DMPollingService {
                         }
                         self.lastPollAt = Date()
                         TrafficLogger.shared.log(.inbound, label: "Sub Event",
-                                                 detail: "\(npub.prefix(12))… kind=\(event.kind) isNew=\(isNew) isFromMe=\(dm.isFromMe)")
+                                                 detail: "\(npub.prefix(12))… kind=\(event.kind) isNew=\(isNew) isFromMe=\(dm.isFromMe) from=\(dm.senderPubkeyHex.prefix(8))… content=\(String(dm.content.prefix(40)))")
                     }
                 }
             }
