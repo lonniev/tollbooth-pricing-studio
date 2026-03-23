@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UserNotifications
 
 /// Polls Nostr relays for new DMs across all entities with stored nsec keys.
 @MainActor @Observable
@@ -46,6 +47,7 @@ final class DMPollingService {
 
     func startPolling(modelContext: ModelContext) {
         if pollingTask != nil { return }
+        requestNotificationPermission()
         startSubscriptions(modelContext: modelContext)
         TrafficLogger.shared.log(.outbound, label: "DM Poll Start", detail: "Background polling started (\(Int(pollInterval))s interval, subs=\(subscriptionsActive))")
 
@@ -126,6 +128,7 @@ final class DMPollingService {
                         updated[npub] = (updated[npub] ?? 0) + 1
                         self.unreadCounts = updated
                         self.lastPollAt = Date()
+                        self.postLocalNotification(npub: npub, preview: String(dm.content.prefix(80)))
                         TrafficLogger.shared.log(.inbound, label: "Sub Event",
                                                  detail: "\(npub.prefix(12))… new DM via subscription")
                     }
@@ -196,6 +199,26 @@ final class DMPollingService {
             }
         }
         saveLastSeen()
+    }
+
+    // MARK: - OS Notifications
+
+    func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+
+    private func postLocalNotification(npub: String, preview: String? = nil) {
+        let content = UNMutableNotificationContent()
+        content.title = "New Nostr DM"
+        content.body = preview ?? "Message from \(String(npub.prefix(16)))…"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "dm-\(npub)-\(Int(Date().timeIntervalSince1970))",
+            content: content,
+            trigger: nil  // deliver immediately
+        )
+        UNUserNotificationCenter.current().add(request)
     }
 
     // MARK: - Persistence

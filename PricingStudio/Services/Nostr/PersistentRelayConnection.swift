@@ -51,7 +51,7 @@ final class PersistentRelayConnection: @unchecked Sendable {
         state = .connecting
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = 30
         let origin = "https://\(url.host ?? url.absoluteString)"
         request.setValue(origin, forHTTPHeaderField: "Origin")
         request.setValue("PricingStudio/1.0", forHTTPHeaderField: "User-Agent")
@@ -81,7 +81,7 @@ final class PersistentRelayConnection: @unchecked Sendable {
 
             ws.connect()
 
-            DispatchQueue.global().asyncAfter(deadline: .now() + 15) { [weak self] in
+            DispatchQueue.global().asyncAfter(deadline: .now() + 30) { [weak self] in
                 if oneShot.claim() {
                     ws.disconnect()
                     self?.state = .disconnected
