@@ -109,21 +109,17 @@ final class ChatViewModel {
             return
         }
 
-        // Check cache — use immediately if available
-        if let cached = conversationCache[identity.npub] {
+        // Show cached conversations immediately (if any), then always
+        // do a background relay fetch for full history.
+        if let cached = conversationCache[identity.npub], !cached.conversations.isEmpty {
             conversations = cached.conversations
             state = .loaded
-            // Background refresh only when no subscriptions and cache is stale
-            if Date().timeIntervalSince(cached.fetchedAt) > Self.cacheDuration,
-               !DMPollingService.shared.subscriptionsActive {
-                Task { await loadConversations() }
-            }
-            return
         }
 
-        // No cache — always do a blocking fetch to seed conversations.
-        // Even with subscriptions, we need historical messages from relays.
-        Task { await loadConversations() }
+        // Always fetch from relays — subscription cache is partial (only recent DMs).
+        // Silent when we already have something to show; blocking otherwise.
+        let hasCachedContent = !conversations.isEmpty
+        Task { await loadConversations(silent: hasCachedContent) }
     }
 
     // MARK: - Load Conversations
