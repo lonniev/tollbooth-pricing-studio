@@ -284,7 +284,7 @@ private func dmPollSingleEntity(
     let fetchResult: [String: [DecryptedDM]]
     let didTimeout: Bool
     do {
-        fetchResult = try await withThrowingTimeout(seconds: 15) {
+        fetchResult = try await withThrowingTimeout(seconds: 45) {
             await dmService.fetchConversations(
                 privateKeyHex: privKeyHex,
                 publicKeyHex: pubKeyHex,

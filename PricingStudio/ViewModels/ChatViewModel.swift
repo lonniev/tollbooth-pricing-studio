@@ -111,7 +111,7 @@ final class ChatViewModel {
 
         if !silent { state = .loading }
         let pubHex = identity.publicKeyHex
-        let timeout: TimeInterval = DMPollingService.shared.subscriptionsActive ? 10 : 30
+        let timeout: TimeInterval = 45  // relays can be slow — give them time
 
         await MainActor.run {
             TrafficLogger.shared.log(.outbound, label: "DM Fetch", detail: "Fetching conversations for \(identity.npub.prefix(12))… (timeout=\(Int(timeout))s)", npub: identity.npub)

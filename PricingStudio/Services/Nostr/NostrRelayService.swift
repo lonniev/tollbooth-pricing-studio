@@ -108,14 +108,14 @@ final class NostrRelayService: Sendable {
 
         do {
             let conn = RelayConnection(url: relay)
-            try await conn.connect(timeout: 10)
+            try await conn.connect(timeout: 30)
             conn.send(reqString)
 
             var events: [NostrEvent] = []
-            let deadline = Date().addingTimeInterval(15)
+            let deadline = Date().addingTimeInterval(45)
 
             while Date() < deadline {
-                guard let text = try await conn.receive(timeout: 15) else { break }
+                guard let text = try await conn.receive(timeout: 30) else { break }
 
                 guard let data = text.data(using: .utf8),
                       let arr = try? JSONSerialization.jsonObject(with: data) as? [Any],
@@ -181,10 +181,10 @@ final class NostrRelayService: Sendable {
 
         do {
             let conn = RelayConnection(url: relay)
-            try await conn.connect(timeout: 10)
+            try await conn.connect(timeout: 30)
             conn.send(message)
 
-            guard let text = try await conn.receive(timeout: 10) else {
+            guard let text = try await conn.receive(timeout: 30) else {
                 conn.disconnect()
                 return (relay, true, "no response")
             }
@@ -245,7 +245,7 @@ private final class RelayConnection: @unchecked Sendable {
 
     init(url: URL) {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = 30
         // Headers required to pass Cloudflare bot protection on relay frontends.
         // Without Origin + User-Agent, CF returns 403 and blocks the WS upgrade.
         let origin = "https://\(url.host ?? url.absoluteString)"
