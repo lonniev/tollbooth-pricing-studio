@@ -121,12 +121,6 @@ final class DMPollingService {
         subManager.onNewEvent = { [weak self] npub, event in
             guard let self else { return }
 
-            // Ignore historical events — only react to genuinely new ones
-            if let startedAt = self.subscriptionsStartedAt {
-                let eventTime = Date(timeIntervalSince1970: TimeInterval(event.created_at))
-                if eventTime < startedAt { return }
-            }
-
             guard let privKeyHex = KeychainService.loadNsec(forNpub: npub)
                     .flatMap({ try? NostrKeyService.privateKeyHexFromNsec($0) }),
                   let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub) else { return }
@@ -137,18 +131,22 @@ final class DMPollingService {
                 )
                 if let dm = decrypted {
                     await MainActor.run {
-                        // Deliver to ChatViewModel for live conversation update
+                        // Always deliver to ChatViewModel for live conversation update
                         self.onLiveDM?(npub, dm)
 
-                        if !dm.isFromMe {
+                        // Only badge + notify for genuinely new inbound messages
+                        // (not historical backfill, not our own sent messages)
+                        let isNew = self.subscriptionsStartedAt == nil
+                            || dm.createdAt > (self.subscriptionsStartedAt! - 60)  // 60s grace for clock skew
+                        if !dm.isFromMe && isNew {
                             var updated = self.unreadCounts
                             updated[npub] = (updated[npub] ?? 0) + 1
                             self.unreadCounts = updated
                             self.postLocalNotification(npub: npub, preview: String(dm.content.prefix(80)))
-                            TrafficLogger.shared.log(.inbound, label: "Sub Event",
-                                                     detail: "\(npub.prefix(12))… new DM via subscription")
                         }
                         self.lastPollAt = Date()
+                        TrafficLogger.shared.log(.inbound, label: "Sub Event",
+                                                 detail: "\(npub.prefix(12))… kind=\(event.kind) isNew=\(isNew) isFromMe=\(dm.isFromMe)")
                     }
                 }
             }

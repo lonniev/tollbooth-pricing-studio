@@ -148,7 +148,12 @@ final class PersistentRelayConnection: @unchecked Sendable {
             self?.handleMessage(text)
         }
         delegate.onDisconnect = { [weak self] _ in
-            self?.scheduleReconnect()
+            guard let self else { return }
+            Task { @MainActor in
+                TrafficLogger.shared.log(.error, label: "Sub Disconnect",
+                                         detail: "\(self.url.host ?? "?") — will reconnect")
+            }
+            self.scheduleReconnect()
         }
     }
 
@@ -179,9 +184,17 @@ final class PersistentRelayConnection: @unchecked Sendable {
         reconnectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard let self, !Task.isCancelled else { return }
+            await MainActor.run {
+                TrafficLogger.shared.log(.outbound, label: "Sub Reconnect",
+                                         detail: "\(self.url.host ?? "?") attempt #\(attempt + 1) after \(Int(delay))s")
+            }
             do {
                 try await self.connect()
                 self.resubscribeAll()
+                await MainActor.run {
+                    TrafficLogger.shared.log(.inbound, label: "Sub Reconnected",
+                                             detail: "\(self.url.host ?? "?") — resubscribed")
+                }
             } catch {
                 self.scheduleReconnect()
             }
