@@ -61,21 +61,27 @@ final class DMPollingService {
                 TrafficLogger.shared.log(.outbound, label: "DM Poll Cycle \(cycle)", detail: "\(entities.count) entities (\(withKeys) with nsec)")
 
                 if !entities.isEmpty {
-                    // Use Task.detached to GUARANTEE no MainActor inheritance
-                    let results = await Task.detached {
-                        await dmPollEntities(
-                            entities: entities,
-                            timestamps: timestamps,
-                            cycle: cycle
-                        )
-                    }.value
-
-                    if self.isFirstPoll {
-                        // First poll: just establish baseline timestamps, no unread badges
-                        self.applyTimestampsOnly(results)
-                        self.isFirstPoll = false
+                    // When subscriptions are active, skip relay fetches to avoid
+                    // duplicate connections that cause timeouts. Subscriptions
+                    // deliver new events; polling just maintains the heartbeat.
+                    if self.subscriptionsActive {
+                        if self.isFirstPoll { self.isFirstPoll = false }
                     } else {
-                        self.applyResults(results)
+                        // Use Task.detached to GUARANTEE no MainActor inheritance
+                        let results = await Task.detached {
+                            await dmPollEntities(
+                                entities: entities,
+                                timestamps: timestamps,
+                                cycle: cycle
+                            )
+                        }.value
+
+                        if self.isFirstPoll {
+                            self.applyTimestampsOnly(results)
+                            self.isFirstPoll = false
+                        } else {
+                            self.applyResults(results)
+                        }
                     }
                 }
 
