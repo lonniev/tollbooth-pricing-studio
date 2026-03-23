@@ -47,8 +47,15 @@ struct PricingDetailView: View {
         .navigationTitle(target.displayName)
         .onAppear {
             // Ensure we're showing the right target's data — shared VM may
-            // still hold data from a previously viewed operator/authority
-            if viewModel.currentOperatorNpub != target.npub {
+            // still hold data from a previously viewed operator/authority.
+            // Also restart if stuck in .loading from a previous cancelled navigation.
+            let needsLoad: Bool = {
+                if viewModel.currentOperatorNpub != target.npub { return true }
+                if case .loading = viewModel.state { return true }  // stuck spinner
+                if case .cancelled = viewModel.state { return true }
+                return false
+            }()
+            if needsLoad {
                 viewModel.startLoading(for: target)
             }
         }
