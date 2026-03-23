@@ -17,7 +17,6 @@ struct PricingDetailView: View {
             switch viewModel.state {
             case .idle:
                 ProgressView()
-                    .task { viewModel.startLoading(for: target) }
 
             case .loading(let step):
                 ConnectionStatusView(step: step, onCancel: { viewModel.cancel() })
@@ -50,9 +49,10 @@ struct PricingDetailView: View {
             // still hold data from a previously viewed operator/authority.
             // Also restart if stuck in .loading from a previous cancelled navigation.
             let needsLoad: Bool = {
-                if viewModel.currentOperatorNpub != target.npub { return true }
-                if case .loading = viewModel.state { return true }  // stuck spinner
+                if case .idle = viewModel.state { return true }
+                if case .loading = viewModel.state { return true }
                 if case .cancelled = viewModel.state { return true }
+                if viewModel.currentOperatorNpub != target.npub { return true }
                 return false
             }()
             if needsLoad {
