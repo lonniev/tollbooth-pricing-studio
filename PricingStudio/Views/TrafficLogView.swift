@@ -3,7 +3,8 @@ import SwiftUI
 struct TrafficLogView: View {
     let logger: TrafficLogger
     var filterNpub: String?
-    @State private var filterEnabled = false
+    enum NpubFilter: String, CaseIterable { case include, exclude, only }
+    @State private var npubFilter: NpubFilter = .include
     @State private var autoscroll = true
     @State private var isPaused = false
     @State private var frozenEntries: [TrafficLogEntry]?
@@ -15,11 +16,20 @@ struct TrafficLogView: View {
         var result = logger.entries
 
         // Npub filter
-        if filterEnabled, let npub = filterNpub, !npub.isEmpty {
-            result = result.filter { entry in
-                entry.associatedNpub == nil
-                    || entry.associatedNpub == npub
-                    || entry.direction == .error
+        if let npub = filterNpub, !npub.isEmpty {
+            switch npubFilter {
+            case .include:
+                break // show everything
+            case .exclude:
+                result = result.filter { entry in
+                    entry.associatedNpub != npub || entry.direction == .error
+                }
+            case .only:
+                result = result.filter { entry in
+                    entry.associatedNpub == nil
+                        || entry.associatedNpub == npub
+                        || entry.direction == .error
+                }
             }
         }
 
@@ -93,26 +103,33 @@ struct TrafficLogView: View {
                         .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
                         .foregroundStyle(.blue)
                 }
-                Spacer()
-                Text("\(displayedEntries.count) entries\(isPaused ? " (paused)" : "")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 if filterNpub != nil && !filterNpub!.isEmpty {
-                    Toggle(isOn: $filterEnabled) {
-                        Text("Filter")
-                            .font(.caption)
+                    Picker("", selection: $npubFilter) {
+                        Text("Include").tag(NpubFilter.include)
+                        Text("Exclude").tag(NpubFilter.exclude)
+                        Text("Only").tag(NpubFilter.only)
                     }
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
+                    .pickerStyle(.segmented)
+                    .frame(width: 180)
                     .fixedSize()
                 }
+
+                Spacer()
+
+                Text("\(displayedEntries.count)\(isPaused ? " paused" : "")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("Nostr").font(.caption).foregroundStyle(.secondary)
                 Picker("Nostr", selection: $nostrFilter) {
-                    Text("Exclude").tag(NostrFilter.exclude)
                     Text("Include").tag(NostrFilter.include)
+                    Text("Exclude").tag(NostrFilter.exclude)
                     Text("Only").tag(NostrFilter.only)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 200)
+                .frame(width: 180)
                 .fixedSize()
                 Button {
                     isPaused.toggle()
