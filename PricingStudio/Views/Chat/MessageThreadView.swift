@@ -114,16 +114,13 @@ struct MessageThreadView: View {
                     .padding()
                 }
                 .onChange(of: conversation.messages.count) {
-                    if let lastId = conversation.messages.last?.id {
-                        withAnimation {
-                            proxy.scrollTo(lastId, anchor: .bottom)
-                        }
-                    }
+                    scrollToBottom(proxy)
+                }
+                .onChange(of: conversation.messages.last?.id) {
+                    scrollToBottom(proxy)
                 }
                 .onAppear {
-                    if let lastId = conversation.messages.last?.id {
-                        proxy.scrollTo(lastId, anchor: .bottom)
-                    }
+                    scrollToBottom(proxy)
                 }
             }
 
@@ -178,6 +175,12 @@ struct MessageThreadView: View {
             return "Me"
         }
         return displayName(for: hex) ?? "Me"
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        if let lastId = conversation.messages.last?.id {
+            withAnimation { proxy.scrollTo(lastId, anchor: .bottom) }
+        }
     }
 
     /// Resolve a pubkey hex to a known entity's display name.
