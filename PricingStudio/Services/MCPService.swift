@@ -33,22 +33,18 @@ actor MCPService {
 
         onStep(.fetchingPricing)
 
-        // Try stored pricing first — but skip authority default fallbacks
+        // Load the operator's pricing model — never synthesize or guess
         if let stored = try? await callGetPricingModel(endpointURL: endpointURL, bearerToken: bearerToken),
-           stored.tools != nil,
-           stored.modelId != "default" {  // "default" = authority fallback, not a real stored model
+           stored.tools != nil {
             var result = stored
             result.source = .stored
             onStep(.done)
             return result
         }
 
-        // Fall back to synthesized pricing
-        var result = try await synthesizePricingModel(endpointURL: endpointURL, bearerToken: bearerToken)
-        result.source = .synthesized
-
+        // No pricing model available — operator is out of service
         onStep(.done)
-        return result
+        throw MCPError.toolCallFailed("No pricing model available. This operator has not configured pricing and is out of service.")
     }
 
     // MARK: - Oracle Lookup
