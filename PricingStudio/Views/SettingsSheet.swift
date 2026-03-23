@@ -23,6 +23,7 @@ struct SettingsSheet: View {
     @State private var anthropicKey: String = ""
     @State private var xaiKey: String = ""
     @State private var keySaveStatus: String?
+    @State private var pollInterval: Double = DMPollingService.shared.pollIntervalSeconds
 
     private var isValidNewRelay: Bool {
         newRelayURL.hasPrefix("wss://") && newRelayURL.count > 6
@@ -163,18 +164,14 @@ struct SettingsSheet: View {
                     HStack {
                         Text("Poll Interval")
                         Spacer()
-                        Text("\(Int(DMPollingService.shared.pollIntervalSeconds))s")
+                        Text("\(Int(pollInterval))s")
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
-                    Slider(
-                        value: Binding(
-                            get: { DMPollingService.shared.pollIntervalSeconds },
-                            set: { DMPollingService.shared.pollIntervalSeconds = $0 }
-                        ),
-                        in: 2...60,
-                        step: 1
-                    )
+                    Slider(value: $pollInterval, in: 2...60, step: 1)
+                        .onChange(of: pollInterval) {
+                            DMPollingService.shared.pollIntervalSeconds = pollInterval
+                        }
                 } header: {
                     Label("Nostr Polling", systemImage: "timer")
                 } footer: {
