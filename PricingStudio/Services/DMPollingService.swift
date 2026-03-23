@@ -121,11 +121,20 @@ final class DMPollingService {
         subManager.onNewEvent = { [weak self] npub, event in
             guard let self else { return }
 
+            // Skip decryption entirely for old events — they clog the queue
+            // and delay processing of genuinely new DMs
+            if let startedAt = self.subscriptionsStartedAt {
+                let eventTime = Date(timeIntervalSince1970: TimeInterval(event.created_at))
+                // NIP-17 gift wraps can have fuzzed timestamps up to 48h back,
+                // but NIP-04 kind 4 events have accurate timestamps
+                if event.kind == 4 && eventTime < startedAt - 120 { return }
+            }
+
             guard let privKeyHex = KeychainService.loadNsec(forNpub: npub)
                     .flatMap({ try? NostrKeyService.privateKeyHexFromNsec($0) }),
                   let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub) else { return }
 
-            Task.detached {
+            Task.detached(priority: .userInitiated) {
                 let decrypted = await dmService.decryptEvent(
                     event, privateKeyHex: privKeyHex, publicKeyHex: pubKeyHex
                 )

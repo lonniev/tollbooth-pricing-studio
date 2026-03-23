@@ -110,6 +110,8 @@ struct MessageThreadView: View {
                                 toggleSelection(dm.id)
                             }
                         }
+                        // Bottom anchor — ensures last message is never hidden under compose
+                        Color.clear.frame(height: 1).id("bottom_anchor")
                     }
                     .padding()
                 }
@@ -178,9 +180,7 @@ struct MessageThreadView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        if let lastId = conversation.messages.last?.id {
-            withAnimation { proxy.scrollTo(lastId, anchor: .bottom) }
-        }
+        withAnimation { proxy.scrollTo("bottom_anchor", anchor: .bottom) }
     }
 
     /// Resolve a pubkey hex to a known entity's display name.
