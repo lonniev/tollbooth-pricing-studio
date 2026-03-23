@@ -43,10 +43,10 @@ struct TrafficLogView: View {
             result = result.filter { $0.isNostrEvent || $0.direction == .error }
         }
 
-        // Regex search
+        // Regex search — applies to ALL entries including errors
         if !searchPattern.isEmpty, let regex = try? NSRegularExpression(pattern: searchPattern, options: .caseInsensitive) {
             result = result.filter { entry in
-                entry.direction == .error || entryMatchesRegex(entry, regex)
+                entryMatchesRegex(entry, regex)
             }
         }
 
