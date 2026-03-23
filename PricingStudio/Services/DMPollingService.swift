@@ -179,6 +179,7 @@ final class DMPollingService {
         for r in results {
             if r.newCount > 0 {
                 updated[r.npub] = (updated[r.npub] ?? 0) + r.newCount
+                postLocalNotification(npub: r.npub, preview: "\(r.newCount) new message\(r.newCount == 1 ? "" : "s")")
             }
             let lastSeen = lastSeenTimestamps[r.npub] ?? 0
             if r.latestTimestamp > lastSeen {

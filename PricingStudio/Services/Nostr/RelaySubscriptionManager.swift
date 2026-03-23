@@ -66,6 +66,8 @@ final class RelaySubscriptionManager {
     /// Connect to all configured relays and start event processing.
     func connectAll() {
         let urls = RelaySettings.shared.relayURLs
+        TrafficLogger.shared.log(.outbound, label: "Sub Manager",
+                                 detail: "Connecting to \(urls.count) relays for persistent subscriptions")
         for url in urls where connections[url] == nil {
             connectRelay(url)
         }
@@ -151,17 +153,21 @@ final class RelaySubscriptionManager {
 
     /// Route an incoming event to the right npub callback.
     private func routeEvent(_ event: NostrEvent) {
-        // Determine which npub this event is for:
-        // NIP-04 (kind 4): check if event.pubkey or #p tag matches a subscribed npub
-        // NIP-17 (kind 1059): the #p tag is the recipient
         let pTags = event.tags.filter { $0.first == "p" }.compactMap { $0.count > 1 ? $0[1] : nil }
+
+        TrafficLogger.shared.log(.inbound, label: "Sub Relay Event",
+                                 detail: "kind=\(event.kind) from=\(event.pubkey.prefix(12))… pTags=\(pTags.map { String($0.prefix(12)) })")
 
         for (npub, keys) in npubKeys {
             if event.pubkey == keys.pubkeyHex || pTags.contains(keys.pubkeyHex) {
+                TrafficLogger.shared.log(.inbound, label: "Sub Matched",
+                                         detail: "→ \(npub.prefix(12))… kind=\(event.kind)")
                 onNewEvent?(npub, event)
                 return
             }
         }
+        TrafficLogger.shared.log(.inbound, label: "Sub Unmatched",
+                                 detail: "kind=\(event.kind) — no npub match")
     }
 
     // MARK: - Filter Construction
