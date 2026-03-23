@@ -56,6 +56,39 @@ final class ChatViewModel {
         self.messageFontName = UserDefaults.standard.string(forKey: "chat.fontName") ?? "SF Mono"
         let savedSize = UserDefaults.standard.double(forKey: "chat.fontSize")
         self.messageFontSize = savedSize > 0 ? savedSize : 14
+
+        // Register for live DM delivery from subscriptions
+        DMPollingService.shared.onLiveDM = { [weak self] npub, dm in
+            self?.injectLiveDM(npub: npub, dm: dm)
+        }
+    }
+
+    /// Inject a live DM from subscriptions directly into the active conversation.
+    private func injectLiveDM(npub: String, dm: DecryptedDM) {
+        // Only inject if this DM is for the currently viewed identity
+        guard let identity = currentIdentity, identity.npub == npub else { return }
+
+        let counterpartyHex = dm.isFromMe ? dm.recipientPubkeyHex : dm.senderPubkeyHex
+
+        if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
+            // Avoid duplicates
+            guard !conversations[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) else { return }
+            conversations[idx].messages.append(dm)
+        } else {
+            // New conversation
+            conversations.insert(
+                DMConversation(counterpartyPubkeyHex: counterpartyHex, messages: [dm]),
+                at: 0
+            )
+        }
+
+        // Update cache
+        conversationCache[npub] = CachedConversations(
+            conversations: conversations,
+            fetchedAt: Date()
+        )
+
+        state = .loaded
     }
 
     // MARK: - Identity Switching

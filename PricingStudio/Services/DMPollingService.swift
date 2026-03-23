@@ -12,6 +12,7 @@ final class DMPollingService {
     private(set) var pollCycle: Int = 0
     private(set) var subscriptionsActive: Bool = false
     private var isFirstPoll = true
+    private var subscriptionsStartedAt: Date?
     private var lastSeenTimestamps: [String: Int] = [:]
     private var pollingTask: Task<Void, Never>?
 
@@ -31,6 +32,10 @@ final class DMPollingService {
     // MARK: - Public API
 
     func hasUnread(for npub: String) -> Bool { (unreadCounts[npub] ?? 0) > 0 }
+
+    /// Callback for live DM delivery — ChatViewModel registers this to
+    /// inject messages directly into the active conversation without relay fetch.
+    var onLiveDM: ((String, DecryptedDM) -> Void)?
 
     /// Signal that something changed — triggers onChange watchers.
     func notifyUpdate() { lastPollAt = Date() }
@@ -110,10 +115,18 @@ final class DMPollingService {
         let subManager = RelaySubscriptionManager.shared
         let dmService = NostrDMService()
 
-        // Wire event callback: decrypt incoming events and update unread counts
+        // Wire event callback: decrypt incoming events and update unread counts.
+        // Only events created AFTER subscriptions started trigger badges/notifications.
+        // Historical backfill from the `since` window is ignored.
         subManager.onNewEvent = { [weak self] npub, event in
             guard let self else { return }
-            // Attempt decryption using the npub's keys
+
+            // Ignore historical events — only react to genuinely new ones
+            if let startedAt = self.subscriptionsStartedAt {
+                let eventTime = Date(timeIntervalSince1970: TimeInterval(event.created_at))
+                if eventTime < startedAt { return }
+            }
+
             guard let privKeyHex = KeychainService.loadNsec(forNpub: npub)
                     .flatMap({ try? NostrKeyService.privateKeyHexFromNsec($0) }),
                   let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub) else { return }
@@ -122,15 +135,20 @@ final class DMPollingService {
                 let decrypted = await dmService.decryptEvent(
                     event, privateKeyHex: privKeyHex, publicKeyHex: pubKeyHex
                 )
-                if let dm = decrypted, !dm.isFromMe {
+                if let dm = decrypted {
                     await MainActor.run {
-                        var updated = self.unreadCounts
-                        updated[npub] = (updated[npub] ?? 0) + 1
-                        self.unreadCounts = updated
+                        // Deliver to ChatViewModel for live conversation update
+                        self.onLiveDM?(npub, dm)
+
+                        if !dm.isFromMe {
+                            var updated = self.unreadCounts
+                            updated[npub] = (updated[npub] ?? 0) + 1
+                            self.unreadCounts = updated
+                            self.postLocalNotification(npub: npub, preview: String(dm.content.prefix(80)))
+                            TrafficLogger.shared.log(.inbound, label: "Sub Event",
+                                                     detail: "\(npub.prefix(12))… new DM via subscription")
+                        }
                         self.lastPollAt = Date()
-                        self.postLocalNotification(npub: npub, preview: String(dm.content.prefix(80)))
-                        TrafficLogger.shared.log(.inbound, label: "Sub Event",
-                                                 detail: "\(npub.prefix(12))… new DM via subscription")
                     }
                 }
             }
@@ -152,6 +170,7 @@ final class DMPollingService {
                 }
             }
             subscriptionsActive = true
+            subscriptionsStartedAt = Date()
             TrafficLogger.shared.log(.outbound, label: "Subscriptions", detail: "Started for \(keyed.count) npubs")
         }
     }
