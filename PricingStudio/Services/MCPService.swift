@@ -33,9 +33,10 @@ actor MCPService {
 
         onStep(.fetchingPricing)
 
-        // Try stored pricing first
+        // Try stored pricing first — but skip authority default fallbacks
         if let stored = try? await callGetPricingModel(endpointURL: endpointURL, bearerToken: bearerToken),
-           stored.tools != nil {
+           stored.tools != nil,
+           stored.modelId != "default" {  // "default" = authority fallback, not a real stored model
             var result = stored
             result.source = .stored
             onStep(.done)
