@@ -1,8 +1,10 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 @main
 struct PricingStudioApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     let modelContainer: ModelContainer
 
     init() {
@@ -22,5 +24,31 @@ struct PricingStudioApp: App {
             ContentView()
         }
         .modelContainer(modelContainer)
+    }
+}
+
+/// AppDelegate to handle foreground notification display.
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        let delegate = NotificationDelegate.shared
+        UNUserNotificationCenter.current().delegate = delegate
+        return true
+    }
+}
+
+/// Separate class to handle foreground notification display without Sendable issues.
+private final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+    nonisolated(unsafe) static let shared = NotificationDelegate()
+
+    /// Show notification banners even when app is in the foreground.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 }
