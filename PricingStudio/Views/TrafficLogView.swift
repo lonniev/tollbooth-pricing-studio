@@ -5,6 +5,8 @@ struct TrafficLogView: View {
     var filterNpub: String?
     @State private var filterEnabled = false
     @State private var autoscroll = true
+    @State private var isPaused = false
+    @State private var frozenEntries: [TrafficLogEntry]?
     enum NostrFilter: String, CaseIterable { case exclude, include, only }
     @State private var nostrFilter: NostrFilter = .exclude
     @State private var searchPattern = ""
@@ -41,6 +43,11 @@ struct TrafficLogView: View {
         return result
     }
 
+    /// What the list actually shows — frozen when paused.
+    private var displayedEntries: [TrafficLogEntry] {
+        frozenEntries ?? filteredEntries
+    }
+
     private func entryMatchesRegex(_ entry: TrafficLogEntry, _ regex: NSRegularExpression) -> Bool {
         let fields = [
             entry.label,
@@ -63,7 +70,7 @@ struct TrafficLogView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if filteredEntries.isEmpty {
+            if displayedEntries.isEmpty {
                 emptyState
             } else {
                 logList
@@ -87,7 +94,7 @@ struct TrafficLogView: View {
                         .foregroundStyle(.blue)
                 }
                 Spacer()
-                Text("\(filteredEntries.count) entries")
+                Text("\(displayedEntries.count) entries\(isPaused ? " (paused)" : "")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if filterNpub != nil && !filterNpub!.isEmpty {
@@ -108,10 +115,17 @@ struct TrafficLogView: View {
                 .frame(width: 200)
                 .fixedSize()
                 Button {
-                    autoscroll.toggle()
+                    isPaused.toggle()
+                    if isPaused {
+                        frozenEntries = filteredEntries
+                        autoscroll = false
+                    } else {
+                        frozenEntries = nil
+                        autoscroll = true
+                    }
                 } label: {
-                    Label(autoscroll ? "Pause" : "Resume",
-                          systemImage: autoscroll ? "pause.fill" : "play.fill")
+                    Label(isPaused ? "Resume" : "Pause",
+                          systemImage: isPaused ? "play.fill" : "pause.fill")
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
@@ -196,7 +210,7 @@ struct TrafficLogView: View {
 
     private var logList: some View {
         ScrollViewReader { proxy in
-            List(filteredEntries) { entry in
+            List(displayedEntries) { entry in
                 TrafficLogRow(entry: entry)
                     .id(entry.id)
                     .accessibilityIdentifier("trafficLogRow_\(entry.id.uuidString)")
@@ -204,7 +218,7 @@ struct TrafficLogView: View {
             }
             .listStyle(.plain)
             .onChange(of: logger.entries.count) {
-                if autoscroll, let last = filteredEntries.last {
+                if autoscroll, !isPaused, let last = displayedEntries.last {
                     withAnimation {
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }

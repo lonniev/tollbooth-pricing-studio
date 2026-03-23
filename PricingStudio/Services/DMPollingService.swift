@@ -10,6 +10,7 @@ final class DMPollingService {
     private(set) var lastPollAt: Date?
     private(set) var pollCycle: Int = 0
     private(set) var subscriptionsActive: Bool = false
+    private var isFirstPoll = true
     private var lastSeenTimestamps: [String: Int] = [:]
     private var pollingTask: Task<Void, Never>?
 
@@ -69,7 +70,13 @@ final class DMPollingService {
                         )
                     }.value
 
-                    self.applyResults(results)
+                    if self.isFirstPoll {
+                        // First poll: just establish baseline timestamps, no unread badges
+                        self.applyTimestampsOnly(results)
+                        self.isFirstPoll = false
+                    } else {
+                        self.applyResults(results)
+                    }
                 }
 
                 self.lastPollAt = Date()
@@ -171,6 +178,18 @@ final class DMPollingService {
             }
         }
         unreadCounts = updated
+    }
+
+    /// First poll only: update timestamps without incrementing unread counts.
+    /// This prevents stale messages from showing as "new" on app restart.
+    private func applyTimestampsOnly(_ results: [DMPollResult]) {
+        for r in results {
+            let lastSeen = lastSeenTimestamps[r.npub] ?? 0
+            if r.latestTimestamp > lastSeen {
+                lastSeenTimestamps[r.npub] = r.latestTimestamp
+            }
+        }
+        saveLastSeen()
     }
 
     // MARK: - Persistence
