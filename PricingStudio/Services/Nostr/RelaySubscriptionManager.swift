@@ -151,23 +151,29 @@ final class RelaySubscriptionManager {
         }
     }
 
-    /// Route an incoming event to the right npub callback.
+    /// Route an incoming event to ALL matching npub callbacks.
+    /// A DM where both sender and recipient are managed by the app
+    /// must be delivered to both — sender sees it as outbound,
+    /// recipient sees it as inbound.
     private func routeEvent(_ event: NostrEvent) {
         let pTags = event.tags.filter { $0.first == "p" }.compactMap { $0.count > 1 ? $0[1] : nil }
 
         TrafficLogger.shared.log(.inbound, label: "Sub Relay Event",
                                  detail: "kind=\(event.kind) from=\(event.pubkey.prefix(12))… pTags=\(pTags.map { String($0.prefix(12)) })")
 
+        var matched = false
         for (npub, keys) in npubKeys {
             if event.pubkey == keys.pubkeyHex || pTags.contains(keys.pubkeyHex) {
                 TrafficLogger.shared.log(.inbound, label: "Sub Matched",
                                          detail: "→ \(npub.prefix(12))… kind=\(event.kind)")
                 onNewEvent?(npub, event)
-                return
+                matched = true
             }
         }
-        TrafficLogger.shared.log(.inbound, label: "Sub Unmatched",
-                                 detail: "kind=\(event.kind) — no npub match")
+        if !matched {
+            TrafficLogger.shared.log(.inbound, label: "Sub Unmatched",
+                                     detail: "kind=\(event.kind) — no npub match")
+        }
     }
 
     // MARK: - Filter Construction
