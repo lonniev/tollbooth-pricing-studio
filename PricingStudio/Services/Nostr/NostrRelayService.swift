@@ -1,5 +1,5 @@
 import Foundation
-import Starscream
+@preconcurrency import Starscream
 
 /// Manages WebSocket connections to Nostr relays for fetching and publishing events.
 /// Uses Starscream instead of URLSessionWebSocketTask to avoid iOS compression

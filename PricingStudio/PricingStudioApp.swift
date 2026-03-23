@@ -40,8 +40,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 /// Separate class to handle foreground notification display without Sendable issues.
-private final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
-    nonisolated(unsafe) static let shared = NotificationDelegate()
+private final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
 
     /// Show notification banners even when app is in the foreground.
     nonisolated func userNotificationCenter(

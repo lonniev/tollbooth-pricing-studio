@@ -1,5 +1,5 @@
 import Foundation
-import Starscream
+@preconcurrency import Starscream
 
 /// Long-lived WebSocket connection to a Nostr relay that keeps REQ subscriptions
 /// open after EOSE and streams EVENT messages via AsyncStream.
