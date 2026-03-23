@@ -65,30 +65,33 @@ final class ChatViewModel {
 
     /// Inject a live DM from subscriptions directly into the active conversation.
     private func injectLiveDM(npub: String, dm: DecryptedDM) {
-        // Only inject if this DM is for the currently viewed identity
-        guard let identity = currentIdentity, identity.npub == npub else { return }
-
         let counterpartyHex = dm.isFromMe ? dm.recipientPubkeyHex : dm.senderPubkeyHex
+        let isActiveIdentity = currentIdentity?.npub == npub
 
-        if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
-            // Avoid duplicates
-            guard !conversations[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) else { return }
-            conversations[idx].messages.append(dm)
+        // Always update the cache for this npub — even if not currently viewing it.
+        // This way switchIdentity finds cached conversations and skips the relay fetch.
+        var cached = conversationCache[npub]?.conversations ?? []
+
+        if let idx = cached.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
+            guard !cached[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) else { return }
+            cached[idx].messages.append(dm)
         } else {
-            // New conversation
-            conversations.insert(
+            cached.insert(
                 DMConversation(counterpartyPubkeyHex: counterpartyHex, messages: [dm]),
                 at: 0
             )
         }
 
-        // Update cache
         conversationCache[npub] = CachedConversations(
-            conversations: conversations,
+            conversations: cached,
             fetchedAt: Date()
         )
 
-        state = .loaded
+        // If this is the active identity, also update the live view
+        if isActiveIdentity {
+            conversations = cached
+            state = .loaded
+        }
     }
 
     // MARK: - Identity Switching
