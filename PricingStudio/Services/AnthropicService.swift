@@ -50,7 +50,7 @@ final class AnthropicService: @unchecked Sendable {
     ]
 
     /// Map Oracle tool names to MCP tool names
-    nonisolated(unsafe) static let toolNameMap: [String: String] = [
+    static let toolNameMap: [String: String] = [
         "oracle_how_to_join": "how_to_join",
         "oracle_about": "about",
         "oracle_economic_model": "economic_model",
