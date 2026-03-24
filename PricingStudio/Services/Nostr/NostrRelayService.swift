@@ -75,24 +75,14 @@ final class NostrRelayService: Sendable {
 
     // MARK: - Publish
 
-    /// Publish an event to primary relay + 1 fallback for redundancy.
+    /// Publish an event to ALL relays in parallel — maximizes reach.
     func publish(_ event: NostrEvent, primaryRelay: URL? = nil) async -> [(URL, Bool, String)] {
         guard let message = try? event.toRelayMessage() else {
             return relays.map { ($0, false, "serialization failed") }
         }
 
-        // Pick primary + 1 fallback (2 relays max)
-        var targets: [URL] = []
-        if let primary = primaryRelay {
-            targets.append(primary)
-        }
-        for relay in relays where !targets.contains(relay) {
-            targets.append(relay)
-            if targets.count >= 2 { break }
-        }
-
         return await withTaskGroup(of: (URL, Bool, String).self) { group in
-            for relay in targets {
+            for relay in relays {
                 group.addTask {
                     await Self.publishToRelay(relay, message: message)
                 }
