@@ -274,6 +274,31 @@ struct ContentView: View {
                 if let a = (try? ctx.fetch(FetchDescriptor<Authority>()))?.first(where: { $0.npub == npub }) { return a.displayName }
                 return String(npub.prefix(16)) + "…"
             }
+            // Wire Oracle tool executor for AI Assistant tool_use
+            AnthropicService.executeOracleTool = { toolName, input in
+                let mcpService = MCPService()
+                let oauthService = OAuthService()
+                do {
+                    let oracleURL = try await RegistryService.resolveOracleURL()
+                    let host = oracleURL.host ?? "dpyc-oracle"
+                    let token: String
+                    if let bundle = KeychainService.loadTokenBundle(forPatron: "oracle", operator: host),
+                       !bundle.isExpired {
+                        token = bundle.accessToken
+                    } else {
+                        let bundle = try await oauthService.authenticate(mcpEndpoint: oracleURL)
+                        try? KeychainService.saveTokenBundle(bundle, forPatron: "oracle", operator: host)
+                        token = bundle.accessToken
+                    }
+                    return try await mcpService.callToolGeneric(
+                        endpointURL: oracleURL,
+                        bearerToken: token,
+                        toolName: toolName
+                    )
+                } catch {
+                    return "Oracle tool call failed: \(error.localizedDescription)"
+                }
+            }
             DMPollingService.shared.startPolling(modelContext: modelContext)
         }
         .overlay {
