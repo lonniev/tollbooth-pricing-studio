@@ -4,12 +4,14 @@ import SwiftUI
 // MARK: - Topology Data Structures
 
 enum NetworkTier: String, Sendable {
+    case oracle
     case primeAuthority
     case authority
     case `operator`
 
     var color: Color {
         switch self {
+        case .oracle: return .teal
         case .primeAuthority: return .purple
         case .authority: return .blue
         case .operator: return .orange
@@ -18,6 +20,7 @@ enum NetworkTier: String, Sendable {
 
     var iconName: String {
         switch self {
+        case .oracle: return "owl"  // SF Symbols — fallback handled in view
         case .primeAuthority: return "building.columns.fill"
         case .authority: return "building.columns"
         case .operator: return "server.rack"
@@ -26,6 +29,7 @@ enum NetworkTier: String, Sendable {
 
     var nodeRadius: CGFloat {
         switch self {
+        case .oracle: return 22
         case .primeAuthority: return 24
         case .authority: return 20
         case .operator: return 16
@@ -34,6 +38,7 @@ enum NetworkTier: String, Sendable {
 
     var depthIndex: Int {
         switch self {
+        case .oracle: return -1  // pinned, outside hierarchy
         case .primeAuthority: return 0
         case .authority: return 1
         case .operator: return 2

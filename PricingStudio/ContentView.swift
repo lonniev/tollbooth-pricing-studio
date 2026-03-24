@@ -353,6 +353,8 @@ struct ContentView: View {
             if let op = try? modelContext.fetch(descriptor).first {
                 operatorVM.selectedOperator = op
             }
+        case .oracle:
+            break  // Oracle tap handled by OracleChatView sheet in NetworkTopologyView
         }
     }
 }

@@ -6,6 +6,7 @@ struct NetworkTopologyView: View {
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
     @State private var topologyVM = TopologyViewModel()
     @State private var selectedNpub: String?
+    @State private var showingOracleChat = false
 
     var onNodeSelected: ((String, NetworkTier) -> Void)?
 
@@ -43,6 +44,7 @@ struct NetworkTopologyView: View {
 
     private var legendView: some View {
         HStack(spacing: 16) {
+            legendItem(tier: .oracle, label: "Oracle")
             legendItem(tier: .primeAuthority, label: "Prime")
             legendItem(tier: .authority, label: "Authority")
             legendItem(tier: .operator, label: "Operator")
@@ -71,6 +73,11 @@ struct NetworkTopologyView: View {
                 ScrollView([.horizontal, .vertical]) {
                     topologyCanvas(size: geometry.size)
                 }
+            }
+            .overlay(alignment: .topTrailing) {
+                oracleNode
+                    .padding(.top, 8)
+                    .padding(.trailing, 16)
             }
         }
     }
@@ -150,11 +157,35 @@ struct NetworkTopologyView: View {
                         onNodeSelected?(positioned.node.id, positioned.node.tier)
                     }
             }
+
         }
         .frame(
             width: max(size.width, layout.canvasSize.width),
             height: max(size.height, layout.canvasSize.height)
         )
+    }
+
+    private var oracleNode: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                Circle()
+                    .fill(NetworkTier.oracle.color.opacity(0.2))
+                    .frame(width: 44, height: 44)
+
+                Text("🦉")
+                    .font(.system(size: 22))
+            }
+            .onTapGesture {
+                showingOracleChat = true
+            }
+
+            Text("Oracle")
+                .font(.caption2.bold())
+                .foregroundStyle(NetworkTier.oracle.color)
+        }
+        .sheet(isPresented: $showingOracleChat) {
+            OracleChatView()
+        }
     }
 
     private func nodeView(_ node: TopologyNode, isSelected: Bool) -> some View {

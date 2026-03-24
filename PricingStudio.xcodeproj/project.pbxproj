@@ -51,6 +51,7 @@
 		AA00000100000000000001B6 /* AuthorityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A6 /* AuthorityDetailView.swift */; };
 		AA00000100000000000001B7 /* TopologyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A7 /* TopologyViewModel.swift */; };
 		AA00000100000000000001B8 /* NetworkTopologyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A8 /* NetworkTopologyView.swift */; };
+		ORCL000100000000000000B1 /* OracleChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCL000100000000000000A1 /* OracleChatView.swift */; };
 		AA0000010000000000000211 /* NostrEventService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000201 /* NostrEventService.swift */; };
 		AA0000010000000000000212 /* NIP04Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000202 /* NIP04Service.swift */; };
 		AA0000010000000000000213 /* NIP44Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000203 /* NIP44Service.swift */; };
@@ -195,6 +196,7 @@
 		AA00000100000000000001A6 /* AuthorityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorityDetailView.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A7 /* TopologyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopologyViewModel.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A8 /* NetworkTopologyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTopologyView.swift; sourceTree = "<group>"; };
+		ORCL000100000000000000A1 /* OracleChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleChatView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000201 /* NostrEventService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrEventService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000202 /* NIP04Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP04Service.swift; sourceTree = "<group>"; };
 		AA0000010000000000000203 /* NIP44Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP44Service.swift; sourceTree = "<group>"; };
@@ -500,6 +502,7 @@
 				AA00000100000000000001A4 /* EditAuthoritySheet.swift */,
 				AA00000100000000000001A6 /* AuthorityDetailView.swift */,
 				AA00000100000000000001A8 /* NetworkTopologyView.swift */,
+				ORCL000100000000000000A1 /* OracleChatView.swift */,
 				AA0000010000000000000302 /* PatronDetailView.swift */,
 				AA0000010000000000000E01 /* InvoiceListView.swift */,
 				AA0000010000000000000414 /* AssistantPanelView.swift */,
@@ -892,6 +895,7 @@
 				AA00000100000000000001B6 /* AuthorityDetailView.swift in Sources */,
 				AA00000100000000000001B7 /* TopologyViewModel.swift in Sources */,
 				AA00000100000000000001B8 /* NetworkTopologyView.swift in Sources */,
+				ORCL000100000000000000B1 /* OracleChatView.swift in Sources */,
 				AA0000010000000000000211 /* NostrEventService.swift in Sources */,
 				AA0000010000000000000212 /* NIP04Service.swift in Sources */,
 				AA0000010000000000000213 /* NIP44Service.swift in Sources */,
