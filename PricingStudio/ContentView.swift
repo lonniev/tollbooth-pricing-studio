@@ -64,9 +64,19 @@ struct ContentView: View {
                             InvoiceListView(patron: patron, accountVM: patronAccountVM)
                         }
                     } else {
-                        NetworkTopologyView(onNodeSelected: { npub, tier in
-                            selectEntity(npub: npub, tier: tier)
-                        })
+                        NetworkTopologyView(
+                            onNodeSelected: { npub, tier in
+                                selectEntity(npub: npub, tier: tier)
+                            },
+                            onOraclePrompt: { prompt in
+                                // Send Oracle prompt to the AI Assistant panel
+                                showingAssistant = true
+                                assistantVM.sendUserMessage(
+                                    "[Oracle RAG] \(prompt)",
+                                    context: buildAppContext()
+                                )
+                            }
+                        )
                     }
                 }
                 .frame(maxHeight: .infinity)

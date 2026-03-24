@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// AI chat assistant backed by the DPYC Oracle for RAG-powered answers.
-/// Pre-loaded with starter prompts for common newcomer questions.
-struct OracleChatView: View {
-    @State private var messages: [(id: UUID, role: String, text: String)] = []
-    @State private var input = ""
-    @State private var isThinking = false
+/// Prompt selector for the DPYC Oracle — tapping a prompt sends it
+/// to the existing AI Assistant view for query execution and rendering.
+/// No answers are fetched or shown here.
+struct OraclePromptPanel: View {
+    var onPromptSelected: (String) -> Void
+    @State private var customPrompt = ""
 
     private let starterPrompts = [
         "What is the DPYC?",
@@ -25,7 +25,7 @@ struct OracleChatView: View {
             HStack {
                 Text("🦉")
                     .font(.title3)
-                Text("DPYC Oracle")
+                Text("Ask the Oracle")
                     .font(.headline)
                 Spacer()
             }
@@ -35,39 +35,12 @@ struct OracleChatView: View {
 
             Divider()
 
-            if messages.isEmpty {
-                welcomeView
-            } else {
-                messageList
-            }
-
-            Divider()
-            inputBar
-        }
-        .background(.background)
-    }
-
-    // MARK: - Welcome
-
-    private var welcomeView: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Text("🦉")
-                    .font(.system(size: 64))
-
-                Text("Ask the Oracle")
-                    .font(.title2.bold())
-
-                Text("The DPYC Oracle answers questions about the Honor Chain, Tollbooth economics, membership, and how to get started.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 400)
-
-                VStack(spacing: 8) {
+            // Prompt list
+            ScrollView {
+                VStack(spacing: 6) {
                     ForEach(starterPrompts, id: \.self) { prompt in
                         Button {
-                            sendMessage(prompt)
+                            onPromptSelected(prompt)
                         } label: {
                             HStack {
                                 Text(prompt)
@@ -75,202 +48,49 @@ struct OracleChatView: View {
                                     .multilineTextAlignment(.leading)
                                 Spacer()
                                 Image(systemName: "arrow.right.circle")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.tertiary)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(.quaternary.opacity(0.5))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.quaternary.opacity(0.3))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .frame(maxWidth: 500)
-            }
-            .padding()
-        }
-    }
-
-    // MARK: - Messages
-
-    private var messageList: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(messages, id: \.id) { msg in
-                        messageBubble(role: msg.role, text: msg.text)
-                            .id(msg.id)
-                    }
-
-                    if isThinking {
-                        HStack(spacing: 8) {
-                            ProgressView().controlSize(.small)
-                            Text("Consulting the Oracle…")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .id("thinking")
-                    }
-                }
-                .padding()
-            }
-            .onChange(of: messages.count) {
-                if let last = messages.last {
-                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                }
-            }
-        }
-    }
-
-    private func messageBubble(role: String, text: String) -> some View {
-        VStack(alignment: role == "user" ? .trailing : .leading, spacing: 4) {
-            HStack {
-                if role == "user" { Spacer(minLength: 60) }
-
-                Text(text)
-                    .font(.subheadline)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        role == "user"
-                            ? Color.accentColor.opacity(0.15)
-                            : Color(.secondarySystemBackground)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                if role != "user" { Spacer(minLength: 60) }
-            }
-        }
-    }
-
-    // MARK: - Input
-
-    private var inputBar: some View {
-        HStack(spacing: 8) {
-            TextField("Ask the Oracle…", text: $input)
-                .textFieldStyle(.plain)
                 .padding(10)
-                .background(.quaternary.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .onSubmit { sendCurrentInput() }
-
-            Button {
-                sendCurrentInput()
-            } label: {
-                Image(systemName: "paperplane.fill")
-                    .font(.title3)
             }
-            .buttonStyle(.plain)
-            .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || isThinking)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-    }
 
-    // MARK: - Actions
+            Divider()
 
-    private func sendCurrentInput() {
-        let text = input.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        input = ""
-        sendMessage(text)
-    }
+            // Custom prompt input
+            HStack(spacing: 8) {
+                TextField("Or ask your own question…", text: $customPrompt)
+                    .textFieldStyle(.plain)
+                    .padding(8)
+                    .background(.quaternary.opacity(0.3))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .onSubmit { sendCustom() }
 
-    private func sendMessage(_ text: String) {
-        messages.append((id: UUID(), role: "user", text: text))
-        isThinking = true
-
-        Task {
-            let response = await queryOracle(text)
-            messages.append((id: UUID(), role: "assistant", text: response))
-            isThinking = false
-        }
-    }
-
-    /// Query the Oracle MCP tools based on the user's question.
-    /// Routes to the appropriate tool and formats the response.
-    private func queryOracle(_ question: String) async -> String {
-        let q = question.lowercased()
-        let mcpService = MCPService()
-
-        // Route to the most relevant Oracle tool
-        do {
-            if q.contains("join") || q.contains("start") || q.contains("try") || q.contains("how do i") {
-                return try await callOracleTool(mcpService, tool: "how_to_join")
-            } else if q.contains("what is") || q.contains("dpyc") || q.contains("about") || q.contains("tollbooth") || q.contains("analog") {
-                return try await callOracleTool(mcpService, tool: "about")
-            } else if q.contains("money") || q.contains("economic") || q.contains("revenue") || q.contains("pricing") || q.contains("cost") {
-                return try await callOracleTool(mcpService, tool: "economic_model")
-            } else if q.contains("authority") || q.contains("rule") || q.contains("governance") {
-                return try await callOracleTool(mcpService, tool: "get_rulebook")
-            } else if q.contains("npub") || q.contains("nostr") || q.contains("key") {
-                if q.contains("where is") || q.contains("mcp for") {
-                    // Try to extract npub from question
-                    if let npubRange = question.range(of: "npub1\\w+", options: .regularExpression) {
-                        let npub = String(question[npubRange])
-                        return try await callOracleTool(mcpService, tool: "lookup_member", args: ["npub": npub])
-                    }
+                Button {
+                    sendCustom()
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .font(.title3)
                 }
-                return try await callOracleTool(mcpService, tool: "how_to_join")
-            } else if q.contains("advisory") || q.contains("update") || q.contains("version") {
-                return try await callOracleTool(mcpService, tool: "network_advisory")
-            } else {
-                // Default: about
-                return try await callOracleTool(mcpService, tool: "about")
+                .buttonStyle(.plain)
+                .disabled(customPrompt.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-        } catch {
-            return "The Oracle is currently unreachable. Error: \(error.localizedDescription)"
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
+        .background(.background)
     }
 
-    /// Cached Oracle endpoint + token for the session
-    private static var cachedOracleURL: URL?
-    private static var cachedToken: String?
-
-    private func callOracleTool(_ mcpService: MCPService, tool: String, args: [String: String] = [:]) async throws -> String {
-        // Resolve Oracle URL from registry (cached after first call)
-        let oracleURL: URL
-        if let cached = Self.cachedOracleURL {
-            oracleURL = cached
-        } else {
-            oracleURL = try await RegistryService.resolveOracleURL()
-            Self.cachedOracleURL = oracleURL
-        }
-
-        // Resolve OAuth token (cached after first call)
-        let token: String
-        if let cached = Self.cachedToken {
-            token = cached
-        } else {
-            let oauthService = OAuthService()
-            let host = oracleURL.host ?? "dpyc-oracle"
-
-            // Check for existing token
-            if let bundle = KeychainService.loadTokenBundle(forPatron: "oracle", operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await oauthService.authenticate(mcpEndpoint: oracleURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: "oracle", operator: host)
-                token = bundle.accessToken
-            }
-            Self.cachedToken = token
-        }
-
-        let response = try await mcpService.callToolGeneric(
-            endpointURL: oracleURL,
-            bearerToken: token,
-            toolName: tool
-        )
-
-        // Try to extract readable content from JSON response
-        if let data = response.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let result = json["result"] as? String {
-            return result
-        }
-
-        return response
+    private func sendCustom() {
+        let text = customPrompt.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        customPrompt = ""
+        onPromptSelected(text)
     }
 }

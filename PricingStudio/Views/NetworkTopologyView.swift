@@ -9,6 +9,7 @@ struct NetworkTopologyView: View {
     @State private var showingOracleChat = false
 
     var onNodeSelected: ((String, NetworkTier) -> Void)?
+    var onOraclePrompt: ((String) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -79,11 +80,13 @@ struct NetworkTopologyView: View {
                     oracleNode
 
                     if showingOracleChat {
-                        OracleChatView()
-                            .frame(width: 380, height: 500)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .shadow(radius: 12)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                        OraclePromptPanel { prompt in
+                            onOraclePrompt?(prompt)
+                        }
+                        .frame(width: 340, height: 420)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .shadow(radius: 12)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
                 .padding(.top, 8)

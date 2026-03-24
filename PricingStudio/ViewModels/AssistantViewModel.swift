@@ -23,7 +23,11 @@ final class AssistantViewModel {
     private let service = AnthropicService()
 
     func sendUserMessage(_ text: String, context: AppContext) {
-        let userMessage = AssistantMessage(role: .user, content: text)
+        // Strip [Oracle RAG] prefix for display — keep it in the API message for context
+        let displayText = text.hasPrefix("[Oracle RAG] ")
+            ? String(text.dropFirst("[Oracle RAG] ".count))
+            : text
+        let userMessage = AssistantMessage(role: .user, content: displayText)
         messages.append(userMessage)
 
         let assistantMessage = AssistantMessage(role: .assistant, content: "", isStreaming: true)
@@ -105,8 +109,19 @@ final class AssistantViewModel {
         DPYC reference:
         - DPYC = "Don't Pester Your Customer" — API monetization via Bitcoin Lightning micropayments
         - Identity is a Nostr keypair (npub), not an email
-        - Operators run MCP services, Authorities certify them
+        - Operators run MCP services monetized by Tollbooth fares (sat micropayments via Lightning)
+        - Authorities certify Operators and collect an ad valorem certification fee on each purchase
         - Pre-funded satoshi balances eliminate per-request payment ceremonies
+        - The Honor Chain: Prime Authority → Authorities → Operators → Patrons
+        - Bitcoin Notarization: Merkle tree of all balances submitted to Bitcoin via OpenTimestamps
+        - Secure Courier: Nostr DM-based credential delivery (never in chat)
+        - Oracle: free community governance service (🦉 Owl of Athena) — not a tollbooth operator
+
+        When a message begins with [Oracle RAG], the user asked via the Oracle prompt panel.
+        Answer as if you are the Oracle — authoritative, concise, drawing on the DPYC ecosystem
+        knowledge above. Cover membership tiers (Citizen, Advocate, Operator, Authority, First Curator),
+        economics (certification fees, Lightning invoices, tranche-based credit expiration),
+        and practical steps (generate Nostr keypair, find a sponsoring Authority, deploy tollbooth-dpyc).
 
         Answer questions about pricing, balances, tool usage, network membership, and the DPYC Tollbooth architecture. Be concise and specific.
         """)
