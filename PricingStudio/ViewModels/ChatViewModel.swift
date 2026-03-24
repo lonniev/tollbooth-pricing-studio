@@ -79,8 +79,21 @@ final class ChatViewModel {
         var cached = conversationCache[npub]?.conversations ?? []
 
         if let idx = cached.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
+            // Check for exact duplicate by event ID
             guard !cached[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) else { return }
-            cached[idx].messages.append(dm)
+            // Check for optimistic duplicate (same content + approximate time = relay echo of our sent message)
+            if dm.isFromMe,
+               let optimisticIdx = cached[idx].messages.firstIndex(where: {
+                   $0.isFromMe && $0.content == dm.content
+                   && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 120
+                   && pendingMessageIds.contains($0.rawEventId)
+               }) {
+                // Replace optimistic with real event
+                pendingMessageIds.remove(cached[idx].messages[optimisticIdx].rawEventId)
+                cached[idx].messages[optimisticIdx] = dm
+            } else {
+                cached[idx].messages.append(dm)
+            }
         } else {
             cached.insert(
                 DMConversation(counterpartyPubkeyHex: counterpartyHex, messages: [dm]),
@@ -97,7 +110,18 @@ final class ChatViewModel {
         // the entire array — preserves scroll position and reduces SwiftUI diff work
         if isActiveIdentity {
             if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
-                if !conversations[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) {
+                if conversations[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) {
+                    // Already present — skip
+                } else if dm.isFromMe,
+                          let optIdx = conversations[idx].messages.firstIndex(where: {
+                              $0.isFromMe && $0.content == dm.content
+                              && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 120
+                              && pendingMessageIds.contains($0.rawEventId)
+                          }) {
+                    // Replace optimistic with real event
+                    pendingMessageIds.remove(conversations[idx].messages[optIdx].rawEventId)
+                    conversations[idx].messages[optIdx] = dm
+                } else {
                     conversations[idx].messages.append(dm)
                 }
             } else {
