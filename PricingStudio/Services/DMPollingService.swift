@@ -136,12 +136,22 @@ final class DMPollingService {
 
             guard let privKeyHex = KeychainService.loadNsec(forNpub: npub)
                     .flatMap({ try? NostrKeyService.privateKeyHexFromNsec($0) }),
-                  let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub) else { return }
+                  let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub) else {
+                TrafficLogger.shared.log(.error, label: "Sub Decrypt",
+                                         detail: "\(npub.prefix(12))… no nsec — cannot decrypt kind=\(event.kind)")
+                return
+            }
 
             Task.detached(priority: .userInitiated) {
                 let decrypted = await dmService.decryptEvent(
                     event, privateKeyHex: privKeyHex, publicKeyHex: pubKeyHex
                 )
+                if decrypted == nil {
+                    await MainActor.run {
+                        TrafficLogger.shared.log(.error, label: "Sub Decrypt",
+                                                 detail: "\(npub.prefix(12))… decryption failed kind=\(event.kind) from=\(event.pubkey.prefix(12))…")
+                    }
+                }
                 if let dm = decrypted {
                     await MainActor.run {
                         // Always deliver to ChatViewModel for live conversation update
