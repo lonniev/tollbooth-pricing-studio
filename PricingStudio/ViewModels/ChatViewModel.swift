@@ -66,6 +66,12 @@ final class ChatViewModel {
     /// Inject a live DM from subscriptions directly into the active conversation.
     private func injectLiveDM(npub: String, dm: DecryptedDM) {
         let counterpartyHex = dm.isFromMe ? dm.recipientPubkeyHex : dm.senderPubkeyHex
+
+        // Skip self-conversations (sender == recipient)
+        if dm.senderPubkeyHex == dm.recipientPubkeyHex { return }
+        let myPubHex = try? NostrKeyService.publicKeyHexFromNpub(npub)
+        if counterpartyHex == myPubHex { return }
+
         let isActiveIdentity = currentIdentity?.npub == npub
 
         // Always update the cache for this npub — even if not currently viewing it.
@@ -157,9 +163,11 @@ final class ChatViewModel {
                 )
             }
 
-            let convos = dmsByCounterparty.map { (counterparty, messages) in
-                DMConversation(counterpartyPubkeyHex: counterparty, messages: messages)
-            }.sorted { ($0.latestMessage?.createdAt ?? .distantPast) > ($1.latestMessage?.createdAt ?? .distantPast) }
+            let convos = dmsByCounterparty
+                .filter { counterparty, _ in counterparty != pubHex }  // exclude self-conversations
+                .map { (counterparty, messages) in
+                    DMConversation(counterpartyPubkeyHex: counterparty, messages: messages)
+                }.sorted { ($0.latestMessage?.createdAt ?? .distantPast) > ($1.latestMessage?.createdAt ?? .distantPast) }
 
             let msgCount = convos.reduce(0) { $0 + $1.messages.count }
             await MainActor.run {
