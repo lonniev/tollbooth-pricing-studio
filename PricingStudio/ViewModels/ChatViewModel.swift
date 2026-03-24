@@ -81,6 +81,13 @@ final class ChatViewModel {
         if let idx = cached.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
             // Check for exact duplicate by event ID
             guard !cached[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) else { return }
+            // Check for cross-protocol duplicate (NIP-04 + NIP-17 = same message, different event IDs)
+            // Match on: same sender + same content + timestamps within 48h (NIP-17 fuzzes up to 48h)
+            if cached[idx].messages.contains(where: {
+                $0.senderPubkeyHex == dm.senderPubkeyHex
+                && $0.content == dm.content
+                && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 48 * 60 * 60
+            }) { return }
             // Check for optimistic duplicate (same content + approximate time = relay echo of our sent message)
             if dm.isFromMe,
                let optimisticIdx = cached[idx].messages.firstIndex(where: {
@@ -112,6 +119,12 @@ final class ChatViewModel {
             if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
                 if conversations[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) {
                     // Already present — skip
+                } else if conversations[idx].messages.contains(where: {
+                    $0.senderPubkeyHex == dm.senderPubkeyHex
+                    && $0.content == dm.content
+                    && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 48 * 60 * 60
+                }) {
+                    // Cross-protocol duplicate (NIP-04 + NIP-17) — skip
                 } else if dm.isFromMe,
                           let optIdx = conversations[idx].messages.firstIndex(where: {
                               $0.isFromMe && $0.content == dm.content
