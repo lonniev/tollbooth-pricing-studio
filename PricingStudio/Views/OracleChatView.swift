@@ -15,7 +15,8 @@ struct OraclePromptPanel: View {
         "Who is making money here and how?",
         "Where do I get a Nostr npub?",
         "Can I try making a paid toll call?",
-        "Where is the MCP for npub…?",
+        "If I have an Operator's npub, can I look up its MCP URL?",
+        "How do I start a Pricing Campaign?",
         "How do I join?",
     ]
 
