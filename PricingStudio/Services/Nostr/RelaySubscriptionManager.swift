@@ -26,20 +26,32 @@ final class RelaySubscriptionManager {
     // MARK: - Subscribe / Unsubscribe
 
     /// Add relay subscriptions for an npub. Safe to call multiple times (idempotent).
-    /// Subscribe an npub on its primary relay only (with fallback on failure).
+    /// Subscribe an npub. If affinity is known, use primary relay only.
+    /// If no affinity yet (cold start), subscribe on ALL relays for discovery.
     func subscribe(npub: String, pubkeyHex: String, privkeyHex: String) {
         guard !subscribedNpubs.contains(npub) else { return }
         subscribedNpubs.insert(npub)
         npubKeys[npub] = (pubkeyHex, privkeyHex)
 
-        // Get primary relay from affinity, or assign first available
-        guard let primaryURL = RelaySettings.shared.primaryRelay(for: npub) else {
-            TrafficLogger.shared.log(.error, label: "Sub Manager",
-                                     detail: "\(npub.prefix(12))… no relays available")
-            return
+        if let existingAffinity = RelaySettings.shared.affinity(for: npub) {
+            // Known affinity — subscribe on primary relay only
+            subscribeNpubOnRelay(npub: npub, pubkeyHex: pubkeyHex, relayURL: existingAffinity)
+        } else {
+            // No affinity yet — subscribe on ALL relays for auto-discovery.
+            // Once an event arrives, routeEvent records the affinity and we
+            // can narrow down on subsequent app starts.
+            let allURLs = RelaySettings.shared.relayURLs
+            guard !allURLs.isEmpty else {
+                TrafficLogger.shared.log(.error, label: "Sub Manager",
+                                         detail: "\(npub.prefix(12))… no relays available")
+                return
+            }
+            for url in allURLs {
+                subscribeNpubOnRelay(npub: npub, pubkeyHex: pubkeyHex, relayURL: url)
+            }
+            TrafficLogger.shared.log(.outbound, label: "Sub Discovery",
+                                     detail: "\(npub.prefix(12))… subscribed on \(allURLs.count) relays for affinity discovery")
         }
-
-        subscribeNpubOnRelay(npub: npub, pubkeyHex: pubkeyHex, relayURL: primaryURL)
     }
 
     /// Subscribe a single npub on a specific relay. Connects if needed.
@@ -55,11 +67,30 @@ final class RelaySubscriptionManager {
         let filters = Self.buildFilters(pubkeyHex: pubkeyHex, since: sinceTimestamp)
         let subId = "\(npub.prefix(12))_\(relayURL.host ?? "relay")"
         conn.subscribe(subId: subId, filters: filters)
-        npubSubscriptionIds[npub] = [subId]
-        npubRelayMap[npub] = relayURL
+        var ids = npubSubscriptionIds[npub] ?? []
+        if !ids.contains(subId) { ids.append(subId) }
+        npubSubscriptionIds[npub] = ids
+        // Only set relay map for single-relay (affinity) mode, not discovery
+        if ids.count == 1 { npubRelayMap[npub] = relayURL }
 
         TrafficLogger.shared.log(.outbound, label: "Sub Manager",
                                  detail: "Subscribed \(npub.prefix(12))… on \(relayURL.host ?? "?")")
+    }
+
+    /// After affinity discovery, unsubscribe from all relays except the winning one.
+    private func narrowToAffinity(npub: String, relay: URL) {
+        guard let subIds = npubSubscriptionIds[npub], subIds.count > 1 else { return }
+        let keepSubId = "\(npub.prefix(12))_\(relay.host ?? "relay")"
+        for subId in subIds where subId != keepSubId {
+            // Find which connection has this subId and unsubscribe
+            for (url, conn) in connections where url != relay {
+                conn.unsubscribe(subId: subId)
+            }
+        }
+        npubSubscriptionIds[npub] = [keepSubId]
+        npubRelayMap[npub] = relay
+        TrafficLogger.shared.log(.inbound, label: "Sub Affinity",
+                                 detail: "\(npub.prefix(12))… narrowed to \(relay.host ?? "?")")
     }
 
     /// Rotate an npub to the next relay after its primary failed.
@@ -207,8 +238,13 @@ final class RelaySubscriptionManager {
                                          detail: "→ \(npub.prefix(12))… kind=\(event.kind)")
                 onNewEvent?(npub, event)
                 // Auto-discover affinity: record which relay delivered this event
+                // and narrow down from multi-relay discovery to single relay
                 if let relayURL {
+                    let hadAffinity = RelaySettings.shared.affinity(for: npub) != nil
                     RelaySettings.shared.updateAffinity(npub: npub, relay: relayURL)
+                    if !hadAffinity {
+                        narrowToAffinity(npub: npub, relay: relayURL)
+                    }
                 }
                 matched = true
             }
