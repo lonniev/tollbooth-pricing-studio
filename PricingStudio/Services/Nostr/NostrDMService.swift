@@ -23,7 +23,7 @@ actor NostrDMService {
         publicKeyHex: String,
         since: Int? = nil
     ) async -> [String: [DecryptedDM]] {
-        let events = await relay.fetchDMs(pubkeyHex: publicKeyHex, since: since)
+        let (events, _) = await relay.fetchDMs(pubkeyHex: publicKeyHex, since: since)
         var dmsByCounterparty: [String: [DecryptedDM]] = [:]
         var decryptedCount = 0
 
