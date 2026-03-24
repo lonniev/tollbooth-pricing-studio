@@ -43,7 +43,7 @@ final class AssistantViewModel {
         let apiKey = KeychainService.loadAnthropicAPIKey() ?? ""
 
         Task {
-            let stream = await service.sendMessage(
+            let stream = service.sendMessage(
                 messages: apiMessages,
                 systemPrompt: systemPrompt,
                 apiKey: apiKey

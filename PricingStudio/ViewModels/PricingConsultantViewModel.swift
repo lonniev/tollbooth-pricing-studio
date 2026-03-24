@@ -166,7 +166,7 @@ final class PricingConsultantViewModel {
         let apiKey = KeychainService.loadAnthropicAPIKey() ?? ""
 
         Task {
-            let stream = await service.sendMessage(
+            let stream = service.sendMessage(
                 messages: apiMessages,
                 systemPrompt: fullPrompt,
                 apiKey: apiKey
@@ -209,7 +209,7 @@ final class PricingConsultantViewModel {
         let apiKey = KeychainService.loadAnthropicAPIKey() ?? ""
 
         Task {
-            let stream = await service.sendMessage(
+            let stream = service.sendMessage(
                 messages: apiMessages,
                 systemPrompt: fullPrompt,
                 apiKey: apiKey

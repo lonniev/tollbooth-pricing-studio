@@ -17,7 +17,7 @@ struct AnthropicProvider: LLMProvider, Sendable {
     ) -> AsyncStream<String> {
         AsyncStream { continuation in
             Task {
-                let stream = await service.sendMessage(
+                let stream = service.sendMessage(
                     messages: messages,
                     systemPrompt: systemPrompt,
                     apiKey: apiKey,
