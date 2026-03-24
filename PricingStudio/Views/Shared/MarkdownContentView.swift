@@ -60,7 +60,7 @@ struct MarkdownContentView: View {
                 } else if let heading = Self.parseHeading(trimmed) {
                     Text(Self.markdownAttributed(heading.text))
                         .font(heading.font)
-                        .padding(.top, heading.level == 1 ? 8 : 4)
+                        .padding(.top, heading.level == 1 ? 12 : 8)
                 } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
                     HStack(alignment: .top, spacing: 6) {
                         Text("\u{2022}")
@@ -75,7 +75,10 @@ struct MarkdownContentView: View {
                             .foregroundStyle(.secondary)
                         Text(Self.markdownAttributed(rest))
                     }
-                } else if !trimmed.isEmpty {
+                } else if trimmed.isEmpty {
+                    // Paragraph break — add vertical space
+                    Spacer().frame(height: 8)
+                } else {
                     Text(Self.markdownAttributed(trimmed))
                 }
             }
