@@ -127,12 +127,8 @@ final class DMPollingService {
 
             // Skip decryption entirely for old events — they clog the queue
             // and delay processing of genuinely new DMs
-            if let startedAt = self.subscriptionsStartedAt {
-                let eventTime = Date(timeIntervalSince1970: TimeInterval(event.created_at))
-                // NIP-17 gift wraps can have fuzzed timestamps up to 48h back,
-                // but NIP-04 kind 4 events have accurate timestamps
-                if event.kind == 4 && eventTime < startedAt - 120 { return }
-            }
+            // No timestamp filtering — let dedup handle duplicates.
+            // Previous filter was dropping valid NIP-04 DMs from MCPs.
 
             guard let privKeyHex = KeychainService.loadNsec(forNpub: npub)
                     .flatMap({ try? NostrKeyService.privateKeyHexFromNsec($0) }),
