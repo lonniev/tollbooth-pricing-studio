@@ -224,15 +224,43 @@ struct OracleChatView: View {
         }
     }
 
+    /// Cached Oracle endpoint + token for the session
+    private static var cachedOracleURL: URL?
+    private static var cachedToken: String?
+
     private func callOracleTool(_ mcpService: MCPService, tool: String, args: [String: String] = [:]) async throws -> String {
-        // Use the Oracle's FastMCP Cloud endpoint
-        guard let oracleURL = URL(string: "https://dpyc-oracle.fastmcp.app/mcp") else {
-            return "Oracle endpoint not configured."
+        // Resolve Oracle URL from registry (cached after first call)
+        let oracleURL: URL
+        if let cached = Self.cachedOracleURL {
+            oracleURL = cached
+        } else {
+            oracleURL = try await RegistryService.resolveOracleURL()
+            Self.cachedOracleURL = oracleURL
+        }
+
+        // Resolve OAuth token (cached after first call)
+        let token: String
+        if let cached = Self.cachedToken {
+            token = cached
+        } else {
+            let oauthService = OAuthService()
+            let host = oracleURL.host ?? "dpyc-oracle"
+
+            // Check for existing token
+            if let bundle = KeychainService.loadTokenBundle(forPatron: "oracle", operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await oauthService.authenticate(mcpEndpoint: oracleURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: "oracle", operator: host)
+                token = bundle.accessToken
+            }
+            Self.cachedToken = token
         }
 
         let response = try await mcpService.callToolGeneric(
             endpointURL: oracleURL,
-            bearerToken: "",
+            bearerToken: token,
             toolName: tool
         )
 
