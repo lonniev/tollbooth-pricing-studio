@@ -11,8 +11,14 @@ struct ConversationListView: View {
     @Query(sort: \Patron.addedAt) private var patrons: [Patron]
     @Query(sort: \Contact.addedAt) private var contacts: [Contact]
 
+    /// Current identity's pubkey hex — used to filter self-conversations at the view level
+    var currentIdentityPubHex: String?
+
     var body: some View {
-        List(conversations, selection: $selectedId) { convo in
+        let filtered = currentIdentityPubHex != nil
+            ? conversations.filter { $0.counterpartyPubkeyHex != currentIdentityPubHex }
+            : conversations
+        List(filtered, selection: $selectedId) { convo in
             VStack(alignment: .leading, spacing: 4) {
                 if let name = displayName(for: convo.counterpartyPubkeyHex) {
                     HStack(spacing: 4) {

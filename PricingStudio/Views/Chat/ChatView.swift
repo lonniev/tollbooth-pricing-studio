@@ -39,7 +39,8 @@ struct ChatView: View {
 
                         ConversationListView(
                             conversations: chatVM.conversations,
-                            selectedId: $chatVM.selectedConversationId
+                            selectedId: $chatVM.selectedConversationId,
+                            currentIdentityPubHex: chatVM.currentIdentity?.publicKeyHex
                         )
 
                         if chatVM.isLoading {

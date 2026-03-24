@@ -93,11 +93,44 @@ final class ChatViewModel {
             fetchedAt: Date()
         )
 
-        // If this is the active identity, also update the live view
+        // If this is the active identity, update in-place instead of replacing
+        // the entire array — preserves scroll position and reduces SwiftUI diff work
         if isActiveIdentity {
-            conversations = cached
+            if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
+                if !conversations[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) {
+                    conversations[idx].messages.append(dm)
+                }
+            } else {
+                conversations.insert(
+                    DMConversation(counterpartyPubkeyHex: counterpartyHex, messages: [dm]),
+                    at: 0
+                )
+            }
             state = .loaded
         }
+    }
+
+    // MARK: - Merge Conversations
+
+    /// Merge relay-fetched conversations with existing ones.
+    /// Preserves existing messages (subscription-injected, optimistic sends)
+    /// and adds any new ones from the relay fetch.
+    private func mergeConversations(_ incoming: [DMConversation]) {
+        var merged = conversations
+        for convo in incoming {
+            if let idx = merged.firstIndex(where: { $0.counterpartyPubkeyHex == convo.counterpartyPubkeyHex }) {
+                // Merge messages: add any from incoming that aren't already present
+                let existingIds = Set(merged[idx].messages.map(\.rawEventId))
+                let newMessages = convo.messages.filter { !existingIds.contains($0.rawEventId) }
+                merged[idx].messages.append(contentsOf: newMessages)
+                merged[idx].messages.sort { $0.createdAt < $1.createdAt }
+            } else {
+                merged.append(convo)
+            }
+        }
+        // Sort conversations by latest message
+        merged.sort { ($0.latestMessage?.createdAt ?? .distantPast) > ($1.latestMessage?.createdAt ?? .distantPast) }
+        conversations = merged
     }
 
     // MARK: - Identity Switching
@@ -174,10 +207,12 @@ final class ChatViewModel {
                 TrafficLogger.shared.log(.inbound, label: "DM Fetch", detail: "\(convos.count) conversations, \(msgCount) messages", npub: identity.npub)
             }
 
-            conversations = convos
+            // Merge relay results with existing conversations instead of replacing.
+            // This preserves subscription-injected messages and the user's scroll position.
+            mergeConversations(convos)
             pendingMessageIds.removeAll()
             conversationCache[identity.npub] = CachedConversations(
-                conversations: convos,
+                conversations: conversations,
                 fetchedAt: Date()
             )
             state = .loaded

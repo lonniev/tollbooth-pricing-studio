@@ -83,7 +83,7 @@ struct ComposeMessageSheet: View {
                     Section(recipientNpub.trimmingCharacters(in: .whitespaces).isEmpty ? "Known Entities" : "Suggestions") {
                         ForEach(filteredSuggestions) { suggestion in
                             Button {
-                                recipientNpub = suggestion.npub
+                                startConversation(with: suggestion.npub)
                             } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -105,28 +105,15 @@ struct ComposeMessageSheet: View {
                     }
                 }
 
-                Section("Message") {
-                    TextEditor(text: $messageText)
-                        .font(.custom(chatVM.messageFontName, size: chatVM.messageFontSize))
-                        .frame(minHeight: 100)
-                        .accessibilityIdentifier("composeMessageBody")
-
-                    HStack {
-                        Spacer()
+                // Manual npub entry — start conversation button
+                if recipientNpub.hasPrefix("npub1") && !isKnownNpub {
+                    Section {
                         Button {
-                            send()
+                            startConversation(with: recipientNpub)
                         } label: {
-                            if isSending {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Label("Send", systemImage: "paperplane.fill")
-                                    .foregroundStyle(.white)
-                            }
+                            Label("Start Conversation", systemImage: "paperplane.fill")
                         }
-                        .accessibilityIdentifier("sendMessageButton")
                         .buttonStyle(.borderedProminent)
-                        .disabled(isSending || recipientNpub.isEmpty || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }
@@ -156,30 +143,34 @@ struct ComposeMessageSheet: View {
         }
     }
 
-    private func send() {
-        guard !isSending else { return }
-
-        let npub = recipientNpub.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard npub.hasPrefix("npub1") else {
+    /// Start a conversation with the given npub — creates an empty conversation
+    /// and navigates to it. The user composes their first message in the
+    /// conversation view's reply composer, not in this sheet.
+    private func startConversation(with npub: String) {
+        let cleaned = npub.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.hasPrefix("npub1") else {
             validationError = "Must start with npub1"
             return
         }
-        guard let pubHex = try? NostrKeyService.publicKeyHexFromNpub(npub) else {
+        guard let pubHex = try? NostrKeyService.publicKeyHexFromNpub(cleaned) else {
             validationError = "Invalid npub format"
             return
         }
 
-        isSending = true
-        let message = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        Task {
-            await chatVM.sendMessage(to: pubHex, content: message)
-            isSending = false
-            chatVM.selectedConversationId = pubHex
-            if !isKnownNpub {
-                showingSaveContact = true
-            } else {
-                dismiss()
-            }
+        // Add empty conversation if not already present
+        if !chatVM.conversations.contains(where: { $0.counterpartyPubkeyHex == pubHex }) {
+            chatVM.conversations.insert(
+                DMConversation(counterpartyPubkeyHex: pubHex, messages: []),
+                at: 0
+            )
+        }
+        chatVM.selectedConversationId = pubHex
+
+        if !suggestions.contains(where: { $0.npub == cleaned }) {
+            recipientNpub = cleaned
+            showingSaveContact = true
+        } else {
+            dismiss()
         }
     }
 
