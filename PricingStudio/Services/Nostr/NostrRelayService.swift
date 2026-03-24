@@ -21,7 +21,9 @@ final class NostrRelayService: Sendable {
     // MARK: - Fetch DMs
 
     /// Fetch DM events from all relays for the given pubkey.
-    func fetchDMs(pubkeyHex: String, since: Int? = nil) async -> [NostrEvent] {
+    /// Fetch DM events, trying the primary relay first with fallback rotation.
+    /// Returns (events, relay that succeeded) for affinity tracking.
+    func fetchDMs(pubkeyHex: String, since: Int? = nil, primaryRelay: URL? = nil) async -> (events: [NostrEvent], relay: URL?) {
         let sinceTimestamp = since ?? Int(Date().timeIntervalSince1970) - (7 * 24 * 60 * 60)
 
         let filterNIP04Inbound: [String: Any] = [
@@ -50,39 +52,47 @@ final class NostrRelayService: Sendable {
         reqArray.append(contentsOf: filters)
         guard let reqData = try? JSONSerialization.data(withJSONObject: reqArray),
               let reqString = String(data: reqData, encoding: .utf8) else {
-            return []
+            return ([], nil)
         }
 
-        let relayURLs = relays
-
-        return await withTaskGroup(of: [NostrEvent].self) { group in
-            for relay in relayURLs {
-                group.addTask {
-                    await Self.fetchFromRelay(relay, reqString: reqString, subId: String(subId))
-                }
-            }
-            var allEvents: [String: NostrEvent] = [:]
-            for await events in group {
-                for event in events {
-                    allEvents[event.id] = event
-                }
-            }
-            return Array(allEvents.values)
+        // Build relay order: primary first, then remaining relays
+        var orderedRelays = relays
+        if let primary = primaryRelay, let idx = orderedRelays.firstIndex(of: primary) {
+            orderedRelays.remove(at: idx)
+            orderedRelays.insert(primary, at: 0)
         }
+
+        // Try relays sequentially — return on first success
+        for relay in orderedRelays {
+            let events = await Self.fetchFromRelay(relay, reqString: reqString, subId: String(subId))
+            if !events.isEmpty {
+                return (events, relay)
+            }
+        }
+
+        return ([], nil)
     }
 
     // MARK: - Publish
 
-    /// Publish an event to all relays. Returns per-relay results.
-    func publish(_ event: NostrEvent) async -> [(URL, Bool, String)] {
+    /// Publish an event to primary relay + 1 fallback for redundancy.
+    func publish(_ event: NostrEvent, primaryRelay: URL? = nil) async -> [(URL, Bool, String)] {
         guard let message = try? event.toRelayMessage() else {
             return relays.map { ($0, false, "serialization failed") }
         }
 
-        let relayURLs = relays
+        // Pick primary + 1 fallback (2 relays max)
+        var targets: [URL] = []
+        if let primary = primaryRelay {
+            targets.append(primary)
+        }
+        for relay in relays where !targets.contains(relay) {
+            targets.append(relay)
+            if targets.count >= 2 { break }
+        }
 
         return await withTaskGroup(of: (URL, Bool, String).self) { group in
-            for relay in relayURLs {
+            for relay in targets {
                 group.addTask {
                     await Self.publishToRelay(relay, message: message)
                 }

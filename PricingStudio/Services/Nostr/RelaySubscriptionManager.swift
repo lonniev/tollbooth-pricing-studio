@@ -18,6 +18,7 @@ final class RelaySubscriptionManager {
     private var connections: [URL: PersistentRelayConnection] = [:]
     private var npubSubscriptionIds: [String: [String]] = [:]  // npub → [subIds]
     private var npubKeys: [String: (pubkeyHex: String, privkeyHex: String)] = [:]
+    private var npubRelayMap: [String: URL] = [:]  // npub → its current primary relay
     private var eventTasks: [URL: Task<Void, Never>] = [:]
 
     private init() {}
@@ -25,25 +26,57 @@ final class RelaySubscriptionManager {
     // MARK: - Subscribe / Unsubscribe
 
     /// Add relay subscriptions for an npub. Safe to call multiple times (idempotent).
+    /// Subscribe an npub on its primary relay only (with fallback on failure).
     func subscribe(npub: String, pubkeyHex: String, privkeyHex: String) {
         guard !subscribedNpubs.contains(npub) else { return }
         subscribedNpubs.insert(npub)
         npubKeys[npub] = (pubkeyHex, privkeyHex)
 
+        // Get primary relay from affinity, or assign first available
+        guard let primaryURL = RelaySettings.shared.primaryRelay(for: npub) else {
+            TrafficLogger.shared.log(.error, label: "Sub Manager",
+                                     detail: "\(npub.prefix(12))… no relays available")
+            return
+        }
+
+        subscribeNpubOnRelay(npub: npub, pubkeyHex: pubkeyHex, relayURL: primaryURL)
+    }
+
+    /// Subscribe a single npub on a specific relay. Connects if needed.
+    private func subscribeNpubOnRelay(npub: String, pubkeyHex: String, relayURL: URL) {
+        // Ensure connection exists
+        if connections[relayURL] == nil {
+            connectRelay(relayURL)
+        }
+
+        guard let conn = connections[relayURL] else { return }
+
         let sinceTimestamp = Int(Date().timeIntervalSince1970) - (7 * 24 * 60 * 60)
         let filters = Self.buildFilters(pubkeyHex: pubkeyHex, since: sinceTimestamp)
-        let subIdBase = String(npub.prefix(12))
-
-        var subIds: [String] = []
-        for (url, conn) in connections {
-            let subId = "\(subIdBase)_\(url.host ?? "relay")"
-            conn.subscribe(subId: subId, filters: filters)
-            subIds.append(subId)
-        }
-        npubSubscriptionIds[npub] = subIds
+        let subId = "\(npub.prefix(12))_\(relayURL.host ?? "relay")"
+        conn.subscribe(subId: subId, filters: filters)
+        npubSubscriptionIds[npub] = [subId]
+        npubRelayMap[npub] = relayURL
 
         TrafficLogger.shared.log(.outbound, label: "Sub Manager",
-                                 detail: "Subscribed \(npub.prefix(12))… on \(connections.count) relays")
+                                 detail: "Subscribed \(npub.prefix(12))… on \(relayURL.host ?? "?")")
+    }
+
+    /// Rotate an npub to the next relay after its primary failed.
+    func rotateRelay(for npub: String) {
+        // Unsubscribe from current
+        if let subIds = npubSubscriptionIds.removeValue(forKey: npub) {
+            if let currentURL = npubRelayMap[npub], let conn = connections[currentURL] {
+                for subId in subIds { conn.unsubscribe(subId: subId) }
+            }
+        }
+
+        guard let nextURL = RelaySettings.shared.rotateAffinity(for: npub),
+              let keys = npubKeys[npub] else { return }
+
+        TrafficLogger.shared.log(.outbound, label: "Sub Rotate",
+                                 detail: "\(npub.prefix(12))… → \(nextURL.host ?? "?")")
+        subscribeNpubOnRelay(npub: npub, pubkeyHex: keys.pubkeyHex, relayURL: nextURL)
     }
 
     /// Remove relay subscriptions for an npub.
@@ -63,12 +96,14 @@ final class RelaySubscriptionManager {
 
     // MARK: - Relay Management
 
-    /// Connect to all configured relays and start event processing.
+    /// Connect relays that are needed by current npub affinities.
+    /// Only connects relays that have at least one npub assigned.
     func connectAll() {
-        let urls = RelaySettings.shared.relayURLs
+        let neededURLs = Set(npubRelayMap.values)
+        let allURLs = neededURLs.isEmpty ? Set(RelaySettings.shared.relayURLs) : neededURLs
         TrafficLogger.shared.log(.outbound, label: "Sub Manager",
-                                 detail: "Connecting to \(urls.count) relays for persistent subscriptions")
-        for url in urls where connections[url] == nil {
+                                 detail: "Connecting to \(allURLs.count) relay(s) for subscriptions")
+        for url in allURLs where connections[url] == nil {
             connectRelay(url)
         }
     }
@@ -131,23 +166,26 @@ final class RelaySubscriptionManager {
                 connectionStates[url] = .disconnected
                 TrafficLogger.shared.log(.error, label: "Sub Manager",
                                          detail: "Failed to connect \(url.host ?? url.absoluteString): \(error.localizedDescription)")
+                // Rotate all npubs that were using this relay
+                let affected = npubRelayMap.filter { $0.value == url }.map(\.key)
+                for npub in affected {
+                    rotateRelay(for: npub)
+                }
             }
         }
     }
 
+    /// Subscribe only npubs that have affinity for this relay.
     private func subscribeAllNpubs(on conn: PersistentRelayConnection, url: URL) {
         let sinceTimestamp = Int(Date().timeIntervalSince1970) - (7 * 24 * 60 * 60)
         for (npub, keys) in npubKeys {
+            // Only subscribe if this npub's primary relay matches
+            guard npubRelayMap[npub] == url else { continue }
+
             let filters = Self.buildFilters(pubkeyHex: keys.pubkeyHex, since: sinceTimestamp)
             let subId = "\(npub.prefix(12))_\(url.host ?? "relay")"
             conn.subscribe(subId: subId, filters: filters)
-
-            // Track the sub ID
-            var ids = npubSubscriptionIds[npub] ?? []
-            if !ids.contains(subId) {
-                ids.append(subId)
-                npubSubscriptionIds[npub] = ids
-            }
+            npubSubscriptionIds[npub] = [subId]
         }
     }
 
