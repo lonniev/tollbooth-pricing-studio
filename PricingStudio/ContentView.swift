@@ -253,6 +253,17 @@ struct ContentView: View {
                     context: modelContext
                 )
             }
+            // Wire display name resolver using modelContext for OS notifications
+            let ctx = modelContext
+            DMPollingService.shared.resolveDisplayName = { key in
+                let npub = key.hasPrefix("npub1") ? key : (try? NostrKeyService.npubFromHex(key))
+                guard let npub else { return String(key.prefix(16)) + "…" }
+                // Query entities by npub — patron aliases first
+                if let p = (try? ctx.fetch(FetchDescriptor<Patron>()))?.first(where: { $0.npub == npub }) { return p.displayName }
+                if let o = (try? ctx.fetch(FetchDescriptor<Operator>()))?.first(where: { $0.npub == npub }) { return o.displayName }
+                if let a = (try? ctx.fetch(FetchDescriptor<Authority>()))?.first(where: { $0.npub == npub }) { return a.displayName }
+                return String(npub.prefix(16)) + "…"
+            }
             DMPollingService.shared.startPolling(modelContext: modelContext)
         }
         .overlay {

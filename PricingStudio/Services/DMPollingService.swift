@@ -37,6 +37,10 @@ final class DMPollingService {
     /// inject messages directly into the active conversation without relay fetch.
     var onLiveDM: ((String, DecryptedDM) -> Void)?
 
+    /// Resolve a pubkey hex or npub to a display name. Wired by ContentView
+    /// which has SwiftData access. Returns alias > displayName > npub fingerprint.
+    var resolveDisplayName: ((String) -> String)?
+
     /// Signal that something changed — triggers onChange watchers.
     func notifyUpdate() { lastPollAt = Date() }
     func unreadCount(for npub: String) -> Int { unreadCounts[npub] ?? 0 }
@@ -151,7 +155,7 @@ final class DMPollingService {
                             var updated = self.unreadCounts
                             updated[npub] = (updated[npub] ?? 0) + 1
                             self.unreadCounts = updated
-                            self.postLocalNotification(npub: npub, preview: String(dm.content.prefix(80)))
+                            self.postLocalNotification(npub: npub, preview: String(dm.content.prefix(80)), dm: dm)
                         }
                         self.lastPollAt = Date()
                         TrafficLogger.shared.log(.inbound, label: "Sub Event",
@@ -234,16 +238,31 @@ final class DMPollingService {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
-    private func postLocalNotification(npub: String, preview: String? = nil) {
+    private func postLocalNotification(npub: String, preview: String? = nil, dm: DecryptedDM? = nil) {
+        let resolve = resolveDisplayName ?? { key in String(key.prefix(16)) + "…" }
+
+        let senderName: String
+        let receiverName: String
+        if let dm {
+            senderName = resolve(dm.senderPubkeyHex)
+            receiverName = resolve(dm.recipientPubkeyHex)
+        } else {
+            senderName = "unknown"
+            receiverName = resolve(npub)
+        }
+
         let content = UNMutableNotificationContent()
         content.title = "New Nostr DM"
-        content.body = preview ?? "Message from \(String(npub.prefix(16)))…"
+        content.body = "From \(senderName) to \(receiverName)"
+        if let preview, !preview.isEmpty {
+            content.body += "\n\(preview)"
+        }
         content.sound = .default
 
         let request = UNNotificationRequest(
             identifier: "dm-\(npub)-\(Int(Date().timeIntervalSince1970))",
             content: content,
-            trigger: nil  // deliver immediately
+            trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
     }
