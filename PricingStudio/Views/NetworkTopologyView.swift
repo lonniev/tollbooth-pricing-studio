@@ -75,9 +75,19 @@ struct NetworkTopologyView: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                oracleNode
-                    .padding(.top, 8)
-                    .padding(.trailing, 16)
+                VStack(alignment: .trailing, spacing: 8) {
+                    oracleNode
+
+                    if showingOracleChat {
+                        OracleChatView()
+                            .frame(width: 380, height: 500)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .shadow(radius: 12)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+                }
+                .padding(.top, 8)
+                .padding(.trailing, 16)
             }
         }
     }
@@ -169,22 +179,19 @@ struct NetworkTopologyView: View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .fill(NetworkTier.oracle.color.opacity(0.2))
+                    .fill(NetworkTier.oracle.color.opacity(showingOracleChat ? 1.0 : 0.2))
                     .frame(width: 44, height: 44)
 
                 Text("🦉")
                     .font(.system(size: 22))
             }
             .onTapGesture {
-                showingOracleChat = true
+                withAnimation { showingOracleChat.toggle() }
             }
 
             Text("Oracle")
                 .font(.caption2.bold())
                 .foregroundStyle(NetworkTier.oracle.color)
-        }
-        .sheet(isPresented: $showingOracleChat) {
-            OracleChatView()
         }
     }
 

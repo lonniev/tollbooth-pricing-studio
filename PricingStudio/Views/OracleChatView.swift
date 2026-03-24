@@ -3,7 +3,6 @@ import SwiftUI
 /// AI chat assistant backed by the DPYC Oracle for RAG-powered answers.
 /// Pre-loaded with starter prompts for common newcomer questions.
 struct OracleChatView: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var messages: [(id: UUID, role: String, text: String)] = []
     @State private var input = ""
     @State private var isThinking = false
@@ -21,25 +20,31 @@ struct OracleChatView: View {
     ]
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if messages.isEmpty {
-                    welcomeView
-                } else {
-                    messageList
-                }
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("🦉")
+                    .font(.title3)
+                Text("DPYC Oracle")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
 
-                Divider()
-                inputBar
+            Divider()
+
+            if messages.isEmpty {
+                welcomeView
+            } else {
+                messageList
             }
-            .navigationTitle("🦉 DPYC Oracle")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+
+            Divider()
+            inputBar
         }
+        .background(.background)
     }
 
     // MARK: - Welcome
