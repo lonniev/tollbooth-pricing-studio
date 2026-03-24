@@ -145,10 +145,11 @@ final class RelaySubscriptionManager {
         connectionStates[url] = .connecting
 
         // Start event consumer
+        let relayURL = url
         let task = Task { [weak self] in
             for await event in conn.events {
                 guard let self else { break }
-                self.routeEvent(event)
+                self.routeEvent(event, from: relayURL)
             }
         }
         eventTasks[url] = task
@@ -193,7 +194,7 @@ final class RelaySubscriptionManager {
     /// A DM where both sender and recipient are managed by the app
     /// must be delivered to both — sender sees it as outbound,
     /// recipient sees it as inbound.
-    private func routeEvent(_ event: NostrEvent) {
+    private func routeEvent(_ event: NostrEvent, from relayURL: URL? = nil) {
         let pTags = event.tags.filter { $0.first == "p" }.compactMap { $0.count > 1 ? $0[1] : nil }
 
         TrafficLogger.shared.log(.inbound, label: "Sub Relay Event",
@@ -205,6 +206,10 @@ final class RelaySubscriptionManager {
                 TrafficLogger.shared.log(.inbound, label: "Sub Matched",
                                          detail: "→ \(npub.prefix(12))… kind=\(event.kind)")
                 onNewEvent?(npub, event)
+                // Auto-discover affinity: record which relay delivered this event
+                if let relayURL {
+                    RelaySettings.shared.updateAffinity(npub: npub, relay: relayURL)
+                }
                 matched = true
             }
         }
