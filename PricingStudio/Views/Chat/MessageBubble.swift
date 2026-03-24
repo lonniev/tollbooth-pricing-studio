@@ -111,15 +111,9 @@ struct MessageBubble: View {
         }
     }
 
-    /// Prefer the provenance Operator npub (converted to hex) as the reply
-    /// target — this handles ephemeral agent keypairs in self-DM onboarding.
-    /// Falls back to the DM sender's pubkey hex.
+    /// Reply to the DM sender — the server scans DMs addressed to the
+    /// key that sent the welcome, which may be an ephemeral agent keypair.
     private var replyTargetHex: String {
-        if let opNpub = courierPayload?.provenance.operatorNpub,
-           opNpub.hasPrefix("npub1"),
-           let hex = try? NostrKeyService.publicKeyHexFromNpub(opNpub) {
-            return hex
-        }
-        return dm.senderPubkeyHex
+        dm.senderPubkeyHex
     }
 }
