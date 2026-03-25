@@ -380,19 +380,48 @@ struct PricingDetailView: View {
         } description: {
             Text(message)
         } actions: {
-            HStack(spacing: 12) {
-                if let op = target as? Operator, op.authorityNpub == nil {
-                    Button {
-                        showingAdoptionRequest = true
-                    } label: {
-                        Label("Register with Authority", systemImage: "building.columns")
+            if target is Operator {
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        Button {
+                            showingAdoptionRequest = true
+                        } label: {
+                            Label("Register with Authority", systemImage: "building.columns")
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button {
+                            showingEditRegistration = true
+                        } label: {
+                            Label("Edit Registration", systemImage: "pencil.circle")
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.borderedProminent)
+                    HStack(spacing: 12) {
+                        Button("Retry") {
+                            viewModel.retry(for: target)
+                        }
+                        .buttonStyle(.bordered)
+
+                        if (target as? Operator)?.authorityNpub != nil {
+                            Button(role: .destructive) {
+                                showingDeregisterConfirm = true
+                            } label: {
+                                Label("Deregister", systemImage: "trash")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
+                    }
                 }
+                .sheet(isPresented: $showingEditRegistration) {
+                    EditOperatorRegistrationSheet(operatorTarget: target)
+                }
+            } else {
                 Button("Retry") {
                     viewModel.retry(for: target)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
             }
         }
     }
