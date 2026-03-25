@@ -206,6 +206,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheet()
         }
+        .sheet(isPresented: $showingKeypairGenerator) {
+            KeypairGeneratorSheet()
+        }
         .onChange(of: authorityVM.selectedAuthority) { _, newAuth in
             if let auth = newAuth {
                 operatorVM.selectedOperator = nil
@@ -452,6 +455,8 @@ private struct SidebarView: View {
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
+    @State private var showingKeypairGenerator = false
+
     private var sidebarToolbarContent: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Menu {
@@ -469,6 +474,14 @@ private struct SidebarView: View {
                     patronVM.showingAddSheet = true
                 } label: {
                     Label("Add Patron", systemImage: "person.badge.key")
+                }
+
+                Divider()
+
+                Button {
+                    showingKeypairGenerator = true
+                } label: {
+                    Label("Generate Nostr Keypair", systemImage: "key.fill")
                 }
             } label: {
                 Label("Add", systemImage: "plus")
