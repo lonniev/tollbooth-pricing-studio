@@ -337,37 +337,46 @@ struct PricingDetailView: View {
         }
     }
 
+    @State private var showingAdoptionRequest = false
+
     private var notRegisteredContent: some View {
-        ContentUnavailableView {
-            Label("Not Registered", systemImage: "person.crop.circle.badge.questionmark")
-        } description: {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("**\(target.displayName)** is not yet registered with the DPYC community.")
+        VStack(spacing: 24) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
 
-                Text("To register this operator:")
-                    .fontWeight(.medium)
+            Text("Ready to Be Born")
+                .font(.title2.bold())
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Connect to a sponsoring Authority's MCP endpoint", systemImage: "1.circle")
-                    Label("Authenticate via Horizon OAuth", systemImage: "2.circle")
-                    Label("The Authority calls register_operator with this npub", systemImage: "3.circle")
-                    Label("Retry here once registration is confirmed", systemImage: "4.circle")
-                }
+            Text("**\(target.displayName)** is not yet registered with the DPYC community. Choose an Authority to request adoption.")
                 .font(.subheadline)
-            }
-        } actions: {
-            VStack(spacing: 12) {
-                Text(target.npub)
-                    .font(.caption)
-                    .monospaced()
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 400)
+
+            Text(target.npub)
+                .font(.caption)
+                .monospaced()
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
+
+            HStack(spacing: 12) {
+                Button {
+                    showingAdoptionRequest = true
+                } label: {
+                    Label("Request Adoption", systemImage: "building.columns")
+                }
+                .buttonStyle(.borderedProminent)
 
                 Button("Retry") {
                     viewModel.retry(for: target)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showingAdoptionRequest) {
+            RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
         }
     }
 }

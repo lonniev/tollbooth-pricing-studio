@@ -1,0 +1,167 @@
+import SwiftUI
+import SwiftData
+
+/// Operator-initiated adoption request — the Operator picks an Authority and asks to be adopted.
+/// Mirrors the Authority-side AdoptOperatorSheet but starts from the Operator's "Not Registered" view.
+struct RequestAdoptionSheet: View {
+    let operatorTarget: any PricingTarget
+    @Bindable var pricingVM: PricingViewModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+
+    @Query(sort: \Authority.addedAt) private var authorities: [Authority]
+    @State private var selectedAuthority: Authority?
+    @State private var status: AdoptionStatus = .idle
+
+    enum AdoptionStatus: Equatable {
+        case idle
+        case registering
+        case success(String)
+        case failed(String)
+
+        static func == (lhs: AdoptionStatus, rhs: AdoptionStatus) -> Bool {
+            switch (lhs, rhs) {
+            case (.idle, .idle), (.registering, .registering): return true
+            case (.success(let a), .success(let b)): return a == b
+            case (.failed(let a), .failed(let b)): return a == b
+            default: return false
+            }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(operatorTarget.displayName)
+                            .font(.headline)
+                        Text(operatorTarget.npub)
+                            .font(.caption)
+                            .monospaced()
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Operator")
+                }
+
+                Section {
+                    if authorities.isEmpty {
+                        Text("No Authorities added yet. Add an Authority first.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(authorities) { auth in
+                            Button {
+                                selectedAuthority = auth
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(auth.displayName)
+                                            .font(.subheadline)
+                                        Text(String(auth.npub.prefix(20)) + "…")
+                                            .font(.caption)
+                                            .monospaced()
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if selectedAuthority?.npub == auth.npub {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } header: {
+                    Text("Choose an Authority to adopt this Operator")
+                }
+
+                if case .registering = status {
+                    Section {
+                        HStack {
+                            ProgressView()
+                            Text("Requesting adoption…")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if case .success(let message) = status {
+                    Section {
+                        Label("Adoption requested", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if case .failed(let error) = status {
+                    Section {
+                        Label("Request failed", systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.red)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Request Adoption")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Request") {
+                        guard let auth = selectedAuthority else { return }
+                        Task { await requestAdoption(authority: auth) }
+                    }
+                    .disabled(selectedAuthority == nil || status == .registering)
+                }
+            }
+        }
+    }
+
+    private func requestAdoption(authority: Authority) async {
+        guard let endpointString = authority.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            status = .failed("Authority has no MCP endpoint")
+            return
+        }
+
+        status = .registering
+        let mcpService = MCPService()
+        let oauthService = OAuthService()
+
+        do {
+            // Resolve OAuth token for the Authority endpoint
+            let host = endpointURL.host ?? authority.npub
+            let token: String
+            if let bundle = KeychainService.loadTokenBundle(forPatron: operatorTarget.npub, operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: operatorTarget.npub, operator: host)
+                token = bundle.accessToken
+            }
+
+            let result = try await mcpService.callRegisterOperator(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                operatorNpub: operatorTarget.npub
+            )
+
+            // Update the operator's authority link locally
+            if let op = operatorTarget as? Operator {
+                op.authorityNpub = authority.npub
+                try? modelContext.save()
+            }
+
+            status = .success(result)
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
+    }
+}
