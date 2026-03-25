@@ -103,6 +103,13 @@ private struct OperatorRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .monospaced()
+            if let url = op.mcpEndpointURL, !url.isEmpty {
+                Text(url)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
         }
         .padding(.vertical, 2)
     }

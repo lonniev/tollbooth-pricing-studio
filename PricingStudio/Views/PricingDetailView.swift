@@ -434,6 +434,14 @@ struct PricingDetailView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
 
+            if let url = target.mcpEndpointURL, !url.isEmpty {
+                Text(url)
+                    .font(.caption)
+                    .monospaced()
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 Label("Operator is in the community registry", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -487,11 +495,24 @@ struct PricingDetailView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
 
-            Text(target.npub)
-                .font(.caption)
-                .monospaced()
-                .foregroundStyle(.tertiary)
-                .textSelection(.enabled)
+            VStack(spacing: 4) {
+                Text(target.npub)
+                    .font(.caption)
+                    .monospaced()
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
+                if let url = target.mcpEndpointURL, !url.isEmpty {
+                    Text(url)
+                        .font(.caption2)
+                        .monospaced()
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                } else {
+                    Label("No MCP endpoint configured", systemImage: "exclamationmark.triangle")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
 
             HStack(spacing: 12) {
                 Button {
