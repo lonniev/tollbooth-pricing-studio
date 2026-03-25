@@ -176,6 +176,9 @@ struct RequestAdoptionSheet: View {
             }
 
             status = .success(result)
+
+            // Trigger reload of the underlying pricing view so it leaves "Not Registered"
+            pricingVM.retry(for: operatorTarget)
         } catch {
             status = .failed(error.localizedDescription)
         }
