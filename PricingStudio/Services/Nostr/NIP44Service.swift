@@ -233,32 +233,82 @@ enum NIP44Service {
     /// it with the data. The 16-byte nonce is split: first 4 bytes as counter
     /// prefix (unused by CryptoKit — it uses a 12-byte nonce), last 12 bytes
     /// as the ChaChaPoly nonce.
+    /// Raw ChaCha20 stream cipher (NOT ChaChaPoly).
+    /// NIP-44 uses ChaCha20 with counter=0. ChaChaPoly starts at counter=1
+    /// (counter=0 is used for Poly1305 key), producing wrong keystream.
+    /// This implements ChaCha20 quarter-round directly.
     private static func chacha20(data: Data, key: Data, nonce: Data) throws -> Data {
-        // NIP-44 passes a 16-byte nonce: 4 zero bytes + 12-byte chacha_nonce.
-        // ChaChaPoly uses 12-byte nonce — take the last 12.
+        guard key.count == 32 else { throw NIP44Error.encryptionFailed }
+
+        // Build 16-byte nonce: 4-byte counter (0) + 12-byte nonce
         let nonce12: Data
         if nonce.count == 16 {
-            nonce12 = nonce.suffix(12)
+            nonce12 = nonce  // already has counter prefix
         } else if nonce.count == 12 {
-            nonce12 = nonce
+            nonce12 = Data(count: 4) + nonce  // prepend counter=0
         } else {
             throw NIP44Error.encryptionFailed
         }
 
-        let symmetricKey = SymmetricKey(data: key)
-        let cryptoNonce = try ChaChaPoly.Nonce(data: nonce12)
+        let counter = UInt32(nonce12[0]) | (UInt32(nonce12[1]) << 8)
+            | (UInt32(nonce12[2]) << 16) | (UInt32(nonce12[3]) << 24)
+        let chaChaNonce = Array(nonce12[4..<16])
+        let keyBytes = Array(key)
+        let inputData = Array(data)
+        var output = [UInt8](repeating: 0, count: inputData.count)
+        var blockCounter = counter
 
-        // Encrypt zeros to get keystream, then XOR with data
-        let zeros = Data(count: data.count)
-        let sealed = try ChaChaPoly.seal(zeros, using: symmetricKey, nonce: cryptoNonce)
-        let keystream = Data(sealed.ciphertext)  // Copy to ensure zero-based indexing
-        let inputData = Data(data)               // Same for input slice safety
-
-        var output = Data(count: inputData.count)
-        for i in 0..<inputData.count {
-            output[i] = inputData[i] ^ keystream[i]
+        var offset = 0
+        while offset < inputData.count {
+            let block = chacha20Block(key: keyBytes, counter: blockCounter, nonce: chaChaNonce)
+            let remaining = min(64, inputData.count - offset)
+            for i in 0..<remaining {
+                output[offset + i] = inputData[offset + i] ^ block[i]
+            }
+            offset += 64
+            blockCounter += 1
         }
-        return output
-        
+
+        return Data(output)
+    }
+
+    /// ChaCha20 quarter-round block function.
+    private static func chacha20Block(key: [UInt8], counter: UInt32, nonce: [UInt8]) -> [UInt8] {
+        func load32(_ b: [UInt8], _ i: Int) -> UInt32 {
+            UInt32(b[i]) | (UInt32(b[i+1]) << 8) | (UInt32(b[i+2]) << 16) | (UInt32(b[i+3]) << 24)
+        }
+
+        var state: [UInt32] = [
+            0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,  // "expand 32-byte k"
+            load32(key, 0), load32(key, 4), load32(key, 8), load32(key, 12),
+            load32(key, 16), load32(key, 20), load32(key, 24), load32(key, 28),
+            counter,
+            load32(nonce, 0), load32(nonce, 4), load32(nonce, 8),
+        ]
+
+        var working = state
+
+        func qr(_ a: Int, _ b: Int, _ c: Int, _ d: Int) {
+            working[a] &+= working[b]; working[d] ^= working[a]; working[d] = (working[d] << 16) | (working[d] >> 16)
+            working[c] &+= working[d]; working[b] ^= working[c]; working[b] = (working[b] << 12) | (working[b] >> 20)
+            working[a] &+= working[b]; working[d] ^= working[a]; working[d] = (working[d] << 8) | (working[d] >> 24)
+            working[c] &+= working[d]; working[b] ^= working[c]; working[b] = (working[b] << 7) | (working[b] >> 25)
+        }
+
+        for _ in 0..<10 {
+            qr(0, 4, 8, 12); qr(1, 5, 9, 13); qr(2, 6, 10, 14); qr(3, 7, 11, 15)
+            qr(0, 5, 10, 15); qr(1, 6, 11, 12); qr(2, 7, 8, 13); qr(3, 4, 9, 14)
+        }
+
+        for i in 0..<16 { working[i] &+= state[i] }
+
+        var result = [UInt8](repeating: 0, count: 64)
+        for i in 0..<16 {
+            result[i*4] = UInt8(working[i] & 0xff)
+            result[i*4+1] = UInt8((working[i] >> 8) & 0xff)
+            result[i*4+2] = UInt8((working[i] >> 16) & 0xff)
+            result[i*4+3] = UInt8((working[i] >> 24) & 0xff)
+        }
+        return result
     }
 }
