@@ -30,6 +30,9 @@ struct PricingDetailView: View {
             case .notRegistered:
                 notRegisteredContent
 
+            case .registeredNotConfigured:
+                registeredNotConfiguredContent
+
             case .cancelled:
                 ContentUnavailableView {
                     Label("Loading Cancelled", systemImage: "stop.circle")
@@ -338,6 +341,47 @@ struct PricingDetailView: View {
     }
 
     @State private var showingAdoptionRequest = false
+
+    private var registeredNotConfiguredContent: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 48))
+                .foregroundStyle(.green)
+
+            Text("Registered")
+                .font(.title2.bold())
+
+            Text("**\(target.displayName)** is registered in the DPYC community but its MCP service is not yet configured.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 400)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Operator is in the community registry", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Label("MCP service needs to bootstrap its persistence", systemImage: "circle")
+                    .foregroundStyle(.secondary)
+                Label("Service credentials may need to be delivered via Secure Courier", systemImage: "circle")
+                    .foregroundStyle(.secondary)
+                Label("A pricing model needs to be configured", systemImage: "circle")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.subheadline)
+
+            Text(target.npub)
+                .font(.caption)
+                .monospaced()
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
+
+            Button("Check Again") {
+                viewModel.retry(for: target)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
     private var notRegisteredContent: some View {
         VStack(spacing: 24) {

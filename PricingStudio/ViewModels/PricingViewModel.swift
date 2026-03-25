@@ -11,6 +11,7 @@ final class PricingViewModel {
         case loaded(PricingModelResponse)
         case error(String)
         case notRegistered
+        case registeredNotConfigured  // In community registry but MCP not serving yet
         case cancelled
     }
 
@@ -313,7 +314,9 @@ final class PricingViewModel {
         } catch let urlError as URLError where urlError.code == .cancelled {
             if case .loading = state { state = .idle }
         } catch RegistryError.operatorNotFound {
-            state = .notRegistered
+            // Check Oracle directly — operator might be registered but MCP not serving yet
+            let isInRegistry = await checkOracleRegistration(npub: target.npub)
+            state = isInRegistry ? .registeredNotConfigured : .notRegistered
         } catch {
             let detail = "\(error.localizedDescription)\n\nUnderlying: \(String(describing: error))"
             TrafficLogger.shared.log(.error, label: "Load Failed: \(target.displayName)", detail: detail)
@@ -557,6 +560,40 @@ final class PricingViewModel {
     func retry(for target: any PricingTarget) {
         currentOperatorNpub = nil
         startLoading(for: target)
+    }
+
+    /// Check the Oracle directly for this npub's registration status.
+    private func checkOracleRegistration(npub: String) async -> Bool {
+        do {
+            let mcpService = MCPService()
+            let oracleURL = try await mcpService.resolveOracleURL(forOperator: npub)
+            let oauthService = OAuthService()
+            let host = oracleURL.host ?? "dpyc-oracle"
+            let token: String
+            if let bundle = KeychainService.loadTokenBundle(forPatron: "oracle", operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await oauthService.authenticate(mcpEndpoint: oracleURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: "oracle", operator: host)
+                token = bundle.accessToken
+            }
+            let response = try await mcpService.callToolGeneric(
+                endpointURL: oracleURL,
+                bearerToken: token,
+                toolName: "lookup_member",
+                arguments: ["npub": .string(npub)]
+            )
+            // If lookup returns a result with role, the operator is registered
+            if let data = response.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               json["role"] != nil {
+                return true
+            }
+        } catch {
+            // Oracle unreachable — can't confirm either way
+        }
+        return false
     }
 
     func reset() {
