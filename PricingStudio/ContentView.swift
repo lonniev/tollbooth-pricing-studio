@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var assistantFullScreen = false
     @State private var showingTrafficLog = false
     @State private var showingSettings = false
+    // showingKeypairGenerator moved to KeypairMenuButton
     @State private var showingPushConfirmation = false
     @State private var pushError: String?
     @State private var showingPushError = false
@@ -206,9 +207,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheet()
         }
-        .sheet(isPresented: $showingKeypairGenerator) {
-            KeypairGeneratorSheet()
-        }
+        // KeypairGeneratorSheet is self-contained in KeypairMenuButton
         .onChange(of: authorityVM.selectedAuthority) { _, newAuth in
             if let auth = newAuth {
                 operatorVM.selectedOperator = nil
@@ -455,8 +454,6 @@ private struct SidebarView: View {
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
-    @State private var showingKeypairGenerator = false
-
     private var sidebarToolbarContent: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Menu {
@@ -478,11 +475,7 @@ private struct SidebarView: View {
 
                 Divider()
 
-                Button {
-                    showingKeypairGenerator = true
-                } label: {
-                    Label("Generate Nostr Keypair", systemImage: "key.fill")
-                }
+                KeypairMenuButton()
             } label: {
                 Label("Add", systemImage: "plus")
             }

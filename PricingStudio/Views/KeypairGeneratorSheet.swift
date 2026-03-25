@@ -1,5 +1,21 @@
 import SwiftUI
 
+/// Self-contained menu button + sheet for keypair generation.
+struct KeypairMenuButton: View {
+    @State private var showingSheet = false
+
+    var body: some View {
+        Button {
+            showingSheet = true
+        } label: {
+            Label("Generate Nostr Keypair", systemImage: "key.fill")
+        }
+        .sheet(isPresented: $showingSheet) {
+            KeypairGeneratorSheet()
+        }
+    }
+}
+
 /// Generates a fresh Nostr keypair and displays it once.
 /// Nothing is saved — the user must copy the values themselves.
 struct KeypairGeneratorSheet: View {
