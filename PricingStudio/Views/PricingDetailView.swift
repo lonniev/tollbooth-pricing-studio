@@ -345,10 +345,10 @@ struct PricingDetailView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.orange)
 
-            Text("Ready to Be Born")
+            Text("Not Registered")
                 .font(.title2.bold())
 
-            Text("**\(target.displayName)** is not yet registered with the DPYC community. Choose an Authority to request adoption.")
+            Text("**\(target.displayName)** is not yet registered with the DPYC community. Select an Authority to register with.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -364,7 +364,7 @@ struct PricingDetailView: View {
                 Button {
                     showingAdoptionRequest = true
                 } label: {
-                    Label("Request Adoption", systemImage: "building.columns")
+                    Label("Register with Authority", systemImage: "building.columns")
                 }
                 .buttonStyle(.borderedProminent)
 
