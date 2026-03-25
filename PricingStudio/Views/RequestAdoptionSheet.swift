@@ -166,7 +166,8 @@ struct RequestAdoptionSheet: View {
             let result = try await mcpService.callRegisterOperator(
                 endpointURL: endpointURL,
                 bearerToken: token,
-                operatorNpub: operatorTarget.npub
+                operatorNpub: operatorTarget.npub,
+                operatorServiceURL: (operatorTarget as? Operator)?.mcpEndpointURL ?? ""
             )
 
             // Update the operator's authority link locally

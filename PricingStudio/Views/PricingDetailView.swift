@@ -11,6 +11,7 @@ struct PricingDetailView: View {
     @State private var showingReconciliation = false
     @State private var showingReconcileConfirmation = false
     @State private var reconciliationVM = ReconciliationViewModel()
+    @State private var showingEditRegistration = false
 
     var body: some View {
         Group {
@@ -316,6 +317,19 @@ struct PricingDetailView: View {
                     Text("Reconcile compares your stored pricing model against the live MCP endpoint and suggests updates for new, changed, or removed tools.\n\nThe suggestions are advisory only — no changes are applied unless you choose to accept them.")
                 }
             }
+            if target is Operator {
+                Button {
+                    showingEditRegistration = true
+                } label: {
+                    Label("Edit Registration", systemImage: "pencil.circle")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .sheet(isPresented: $showingEditRegistration) {
+                    EditOperatorRegistrationSheet(operatorTarget: target)
+                }
+            }
             Button {
                 viewModel.forceRefresh(for: target)
             } label: {
@@ -375,10 +389,22 @@ struct PricingDetailView: View {
                 .foregroundStyle(.tertiary)
                 .textSelection(.enabled)
 
-            Button("Check Again") {
-                viewModel.retry(for: target)
+            HStack(spacing: 12) {
+                Button {
+                    showingEditRegistration = true
+                } label: {
+                    Label("Edit Registration", systemImage: "pencil.circle")
+                }
+                .buttonStyle(.bordered)
+
+                Button("Check Again") {
+                    viewModel.retry(for: target)
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
+            .sheet(isPresented: $showingEditRegistration) {
+                EditOperatorRegistrationSheet(operatorTarget: target)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

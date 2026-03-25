@@ -916,7 +916,8 @@ actor MCPService {
     func callRegisterOperator(
         endpointURL: URL,
         bearerToken: String,
-        operatorNpub: String
+        operatorNpub: String,
+        operatorServiceURL: String = ""
     ) async throws -> String {
         await traffic(.outbound, label: "Register Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
@@ -943,7 +944,10 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: registerTool.name,
-            arguments: ["npub": .string(operatorNpub)]
+            arguments: [
+                "npub": .string(operatorNpub),
+                "service_url": .string(operatorServiceURL),
+            ]
         )
 
         if isError == true {
@@ -957,6 +961,107 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Register Operator", detail: String(text.prefix(500)))
+        return text
+    }
+
+    func callUpdateOperator(
+        endpointURL: URL,
+        bearerToken: String,
+        operatorNpub: String,
+        serviceURL: String = "",
+        displayName: String = ""
+    ) async throws -> String {
+        await traffic(.outbound, label: "Update Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let updateTool = allTools.first(where: { $0.name.contains("update_operator") }) else {
+            await traffic(.error, label: "Update Operator", detail: "No update_operator tool found")
+            throw MCPError.toolCallFailed("No update_operator tool found on this Authority")
+        }
+
+        // Build arguments — always include npub, optionally include changed fields
+        var args: [String: Value] = ["npub": .string(operatorNpub)]
+        if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
+        if !displayName.isEmpty { args["display_name"] = .string(displayName) }
+
+        let (content, isError) = try await client.callTool(
+            name: updateTool.name,
+            arguments: args
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Update Operator Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Update Operator", detail: String(text.prefix(500)))
+        return text
+    }
+
+    func callDeregisterOperator(
+        endpointURL: URL,
+        bearerToken: String,
+        operatorNpub: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Deregister Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("deregister_operator") }) else {
+            await traffic(.error, label: "Deregister Operator", detail: "No deregister_operator tool found")
+            throw MCPError.toolCallFailed("No deregister_operator tool found on this Authority")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: tool.name,
+            arguments: ["npub": .string(operatorNpub)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Deregister Operator Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Deregister Operator", detail: String(text.prefix(500)))
         return text
     }
 

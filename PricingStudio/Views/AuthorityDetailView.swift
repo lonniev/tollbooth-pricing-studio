@@ -248,6 +248,7 @@ struct AuthorityDetailView: View {
     private var connectedOperatorsSection: some View {
         ConnectedOperatorsList(
             authorityNpub: authority.npub,
+            authorityEndpointURL: authority.mcpEndpointURL,
             onOperatorSelected: onOperatorSelected,
             onAdopt: authority.mcpEndpointURL != nil && authorityVM != nil
                 ? { authorityVM?.requestAdopt(authority) }
@@ -278,12 +279,16 @@ struct AuthorityDetailView: View {
 /// Shows operators whose authorityNpub matches this authority.
 private struct ConnectedOperatorsList: View {
     let authorityNpub: String
+    let authorityEndpointURL: String?
     var onOperatorSelected: ((Operator) -> Void)?
     var onAdopt: (() -> Void)?
     @Query private var allOperators: [Operator]
+    @Environment(\.modelContext) private var modelContext
+    @State private var deregisterError: String?
 
-    init(authorityNpub: String, onOperatorSelected: ((Operator) -> Void)? = nil, onAdopt: (() -> Void)? = nil) {
+    init(authorityNpub: String, authorityEndpointURL: String? = nil, onOperatorSelected: ((Operator) -> Void)? = nil, onAdopt: (() -> Void)? = nil) {
         self.authorityNpub = authorityNpub
+        self.authorityEndpointURL = authorityEndpointURL
         self.onOperatorSelected = onOperatorSelected
         self.onAdopt = onAdopt
         self._allOperators = Query(sort: \Operator.addedAt)
@@ -341,6 +346,13 @@ private struct ConnectedOperatorsList: View {
                                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    Task { await deregisterOperator(op) }
+                                } label: {
+                                    Label("Disconnect from Authority", systemImage: "minus.circle")
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal)
@@ -348,6 +360,53 @@ private struct ConnectedOperatorsList: View {
                 .padding(.bottom, 8)
             }
         }
+        .alert("Disconnect Failed", isPresented: Binding(
+            get: { deregisterError != nil },
+            set: { if !$0 { deregisterError = nil } }
+        )) {
+            Button("OK") { deregisterError = nil }
+        } message: {
+            if let deregisterError { Text(deregisterError) }
+        }
+    }
+
+    private func deregisterOperator(_ op: Operator) async {
+        guard let endpointString = authorityEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            // No Authority endpoint — just clear local link
+            op.authorityNpub = nil
+            try? modelContext.save()
+            return
+        }
+
+        let mcpService = MCPService()
+        let oauthService = OAuthService()
+
+        do {
+            let host = endpointURL.host ?? authorityNpub
+            let token: String
+            if let bundle = KeychainService.loadTokenBundle(forPatron: op.npub, operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: op.npub, operator: host)
+                token = bundle.accessToken
+            }
+
+            _ = try await mcpService.callDeregisterOperator(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                operatorNpub: op.npub
+            )
+        } catch {
+            // Log but don't block — still clear the local link
+            deregisterError = "Registry removal failed: \(error.localizedDescription). Local link cleared."
+        }
+
+        // Always clear local authority link
+        op.authorityNpub = nil
+        try? modelContext.save()
     }
 }
 

@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var showingAssistant = false
     @State private var assistantFullScreen = false
     @State private var showingTrafficLog = false
+    @State private var trafficLogHeight: CGFloat = 260
     @State private var showingSettings = false
     @State private var showingPushConfirmation = false
     @State private var pushError: String?
@@ -82,9 +83,27 @@ struct ContentView: View {
                 .frame(maxHeight: .infinity)
 
                 if showingTrafficLog {
+                    // Drag handle for resizing
+                    HStack {
+                        Spacer()
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(.secondary.opacity(0.5))
+                            .frame(width: 40, height: 4)
+                            .padding(.vertical, 4)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                let newHeight = trafficLogHeight - value.translation.height
+                                trafficLogHeight = min(max(newHeight, 120), 600)
+                            }
+                    )
+
                     Divider()
                     TrafficLogView(logger: TrafficLogger.shared, filterNpub: selectedEntityNpub)
-                        .frame(height: 260)
+                        .frame(height: trafficLogHeight)
                 }
             }
             .toolbar {
