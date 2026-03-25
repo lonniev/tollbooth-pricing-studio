@@ -321,56 +321,55 @@ struct PricingDetailView: View {
                     Text("Reconcile compares your stored pricing model against the live MCP endpoint and suggests updates for new, changed, or removed tools.\n\nThe suggestions are advisory only — no changes are applied unless you choose to accept them.")
                 }
             }
-            if target is Operator {
-                Menu {
+            Menu {
+                Button {
+                    viewModel.forceRefresh(for: target)
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                if target is Operator {
+                    Divider()
                     Button {
                         showingEditRegistration = true
                     } label: {
                         Label("Edit Registration", systemImage: "pencil")
                     }
+                    Divider()
                     Button(role: .destructive) {
                         showingDeregisterConfirm = true
                     } label: {
                         Label("Deregister Operator", systemImage: "trash")
                     }
-                } label: {
-                    Label("Registration", systemImage: "ellipsis.circle")
-                        .font(.subheadline)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .sheet(isPresented: $showingEditRegistration) {
-                    EditOperatorRegistrationSheet(operatorTarget: target)
-                }
-                .confirmationDialog(
-                    "Deregister Operator",
-                    isPresented: $showingDeregisterConfirm,
-                    titleVisibility: .visible
-                ) {
-                    Button("Deregister \(target.displayName)", role: .destructive) {
-                        Task { await deregisterOperator() }
-                    }
-                    Button("Cancel", role: .cancel) { }
-                } message: {
-                    Text("This will remove the operator from the DPYC community registry. The operator will need to re-register with an Authority to resume service.")
-                }
-                .alert("Deregister Failed", isPresented: Binding(
-                    get: { deregisterError != nil },
-                    set: { if !$0 { deregisterError = nil } }
-                )) {
-                    Button("OK") { deregisterError = nil }
-                } message: {
-                    if let deregisterError { Text(deregisterError) }
-                }
-            }
-            Button {
-                viewModel.forceRefresh(for: target)
             } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                Image(systemName: "ellipsis.circle")
                     .font(.subheadline)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .sheet(isPresented: $showingEditRegistration) {
+                EditOperatorRegistrationSheet(operatorTarget: target)
+            }
+            .confirmationDialog(
+                "Deregister Operator",
+                isPresented: $showingDeregisterConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Deregister \(target.displayName)", role: .destructive) {
+                    Task { await deregisterOperator() }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This will remove the operator from the DPYC community registry. The operator will need to re-register with an Authority to resume service.")
+            }
+            .alert("Deregister Failed", isPresented: Binding(
+                get: { deregisterError != nil },
+                set: { if !$0 { deregisterError = nil } }
+            )) {
+                Button("OK") { deregisterError = nil }
+            } message: {
+                if let deregisterError { Text(deregisterError) }
+            }
         }
     }
 
@@ -380,48 +379,40 @@ struct PricingDetailView: View {
         } description: {
             Text(message)
         } actions: {
-            if target is Operator {
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Button("Retry") {
+                    viewModel.retry(for: target)
+                }
+                .buttonStyle(.borderedProminent)
+
+                if target is Operator {
+                    Menu {
                         Button {
                             showingAdoptionRequest = true
                         } label: {
                             Label("Register with Authority", systemImage: "building.columns")
                         }
-                        .buttonStyle(.borderedProminent)
-
                         Button {
                             showingEditRegistration = true
                         } label: {
-                            Label("Edit Registration", systemImage: "pencil.circle")
+                            Label("Edit Registration", systemImage: "pencil")
                         }
-                        .buttonStyle(.bordered)
-                    }
-                    HStack(spacing: 12) {
-                        Button("Retry") {
-                            viewModel.retry(for: target)
-                        }
-                        .buttonStyle(.bordered)
-
                         if (target as? Operator)?.authorityNpub != nil {
+                            Divider()
                             Button(role: .destructive) {
                                 showingDeregisterConfirm = true
                             } label: {
                                 Label("Deregister", systemImage: "trash")
                             }
-                            .buttonStyle(.bordered)
-                            .tint(.red)
                         }
+                    } label: {
+                        Label("Manage", systemImage: "ellipsis.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .sheet(isPresented: $showingEditRegistration) {
+                        EditOperatorRegistrationSheet(operatorTarget: target)
                     }
                 }
-                .sheet(isPresented: $showingEditRegistration) {
-                    EditOperatorRegistrationSheet(operatorTarget: target)
-                }
-            } else {
-                Button("Retry") {
-                    viewModel.retry(for: target)
-                }
-                .buttonStyle(.borderedProminent)
             }
         }
     }
