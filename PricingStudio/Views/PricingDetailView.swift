@@ -375,7 +375,10 @@ struct PricingDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $showingAdoptionRequest) {
+        .sheet(isPresented: $showingAdoptionRequest, onDismiss: {
+            // Reload after registration sheet closes — may have registered
+            viewModel.retry(for: target)
+        }) {
             RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
         }
     }
