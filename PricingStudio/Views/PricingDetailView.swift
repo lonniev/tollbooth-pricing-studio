@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct PricingDetailView: View {
     let target: any PricingTarget
@@ -12,6 +13,9 @@ struct PricingDetailView: View {
     @State private var showingReconcileConfirmation = false
     @State private var reconciliationVM = ReconciliationViewModel()
     @State private var showingEditRegistration = false
+    @State private var showingDeregisterConfirm = false
+    @State private var deregisterError: String?
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         Group {
@@ -318,16 +322,45 @@ struct PricingDetailView: View {
                 }
             }
             if target is Operator {
-                Button {
-                    showingEditRegistration = true
+                Menu {
+                    Button {
+                        showingEditRegistration = true
+                    } label: {
+                        Label("Edit Registration", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        showingDeregisterConfirm = true
+                    } label: {
+                        Label("Deregister Operator", systemImage: "trash")
+                    }
                 } label: {
-                    Label("Edit Registration", systemImage: "pencil.circle")
+                    Label("Registration", systemImage: "ellipsis.circle")
                         .font(.subheadline)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .sheet(isPresented: $showingEditRegistration) {
                     EditOperatorRegistrationSheet(operatorTarget: target)
+                }
+                .confirmationDialog(
+                    "Deregister Operator",
+                    isPresented: $showingDeregisterConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("Deregister \(target.displayName)", role: .destructive) {
+                        Task { await deregisterOperator() }
+                    }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("This will remove the operator from the DPYC community registry. The operator will need to re-register with an Authority to resume service.")
+                }
+                .alert("Deregister Failed", isPresented: Binding(
+                    get: { deregisterError != nil },
+                    set: { if !$0 { deregisterError = nil } }
+                )) {
+                    Button("OK") { deregisterError = nil }
+                } message: {
+                    if let deregisterError { Text(deregisterError) }
                 }
             }
             Button {
@@ -347,10 +380,20 @@ struct PricingDetailView: View {
         } description: {
             Text(message)
         } actions: {
-            Button("Retry") {
-                viewModel.retry(for: target)
+            HStack(spacing: 12) {
+                if let op = target as? Operator, op.authorityNpub == nil {
+                    Button {
+                        showingAdoptionRequest = true
+                    } label: {
+                        Label("Register with Authority", systemImage: "building.columns")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                Button("Retry") {
+                    viewModel.retry(for: target)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent)
         }
     }
 
@@ -454,6 +497,55 @@ struct PricingDetailView: View {
         }) {
             RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
         }
+    }
+
+    private func deregisterOperator() async {
+        guard let op = target as? Operator,
+              let authNpub = op.authorityNpub else {
+            // No authority link — just reset state
+            viewModel.markNotRegistered()
+            return
+        }
+
+        // Find the Authority's endpoint
+        let authorities: [Authority] = (try? modelContext.fetch(FetchDescriptor<Authority>())) ?? []
+        guard let authority = authorities.first(where: { $0.npub == authNpub }),
+              let endpointString = authority.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            // Can't reach Authority — just clear local link
+            op.authorityNpub = nil
+            try? modelContext.save()
+            viewModel.markNotRegistered()
+            return
+        }
+
+        let mcpService = MCPService()
+        let oauthService = OAuthService()
+
+        do {
+            let host = endpointURL.host ?? authNpub
+            let token: String
+            if let bundle = KeychainService.loadTokenBundle(forPatron: op.npub, operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: op.npub, operator: host)
+                token = bundle.accessToken
+            }
+
+            _ = try await mcpService.callDeregisterOperator(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                operatorNpub: op.npub
+            )
+        } catch {
+            deregisterError = "Registry removal failed: \(error.localizedDescription). Local link cleared."
+        }
+
+        op.authorityNpub = nil
+        try? modelContext.save()
+        viewModel.markNotRegistered()
     }
 }
 

@@ -305,6 +305,12 @@ final class PricingViewModel {
     }
 
     private func fetchPricing(for target: any PricingTarget) async {
+        // Operator with no Authority link → not registered (skip network)
+        if let op = target as? Operator, op.authorityNpub == nil, op.mcpEndpointURL == nil {
+            state = .notRegistered
+            return
+        }
+
         state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
 
         do {
@@ -561,6 +567,10 @@ final class PricingViewModel {
     /// Called after successful registration when the registry cache is stale.
     func markRegisteredNotConfigured() {
         state = .registeredNotConfigured
+    }
+
+    func markNotRegistered() {
+        state = .notRegistered
     }
 
     func retry(for target: any PricingTarget) {
