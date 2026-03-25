@@ -1,17 +1,15 @@
 import SwiftUI
 
-/// Self-contained menu button + sheet for keypair generation.
+/// Menu button that sets a binding to trigger a sheet from the parent view.
+/// The sheet must be on the parent — .sheet on a Button inside a Menu doesn't present.
 struct KeypairMenuButton: View {
-    @State private var showingSheet = false
+    @Binding var showingSheet: Bool
 
     var body: some View {
         Button {
             showingSheet = true
         } label: {
             Label("Generate Nostr Keypair", systemImage: "key.fill")
-        }
-        .sheet(isPresented: $showingSheet) {
-            KeypairGeneratorSheet()
         }
     }
 }

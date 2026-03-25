@@ -15,7 +15,6 @@ struct ContentView: View {
     @State private var assistantFullScreen = false
     @State private var showingTrafficLog = false
     @State private var showingSettings = false
-    // showingKeypairGenerator moved to KeypairMenuButton
     @State private var showingPushConfirmation = false
     @State private var pushError: String?
     @State private var showingPushError = false
@@ -207,7 +206,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheet()
         }
-        // KeypairGeneratorSheet is self-contained in KeypairMenuButton
+        // KeypairGeneratorSheet is in SidebarView (scoping)
         .onChange(of: authorityVM.selectedAuthority) { _, newAuth in
             if let auth = newAuth {
                 operatorVM.selectedOperator = nil
@@ -411,6 +410,7 @@ private struct SidebarView: View {
     @Binding var showingTrafficLog: Bool
     @Binding var showingSettings: Bool
     @Binding var campaignForOverview: Campaign?
+    @State private var showingKeypairGenerator = false
 
     private var hasSelection: Bool {
         authorityVM.selectedAuthority != nil
@@ -432,10 +432,21 @@ private struct SidebarView: View {
             authoritiesSection
             operatorsSection
             patronsSection
+
+            Section {
+                Button {
+                    showingKeypairGenerator = true
+                } label: {
+                    Label("Generate Nostr Keypair", systemImage: "key.fill")
+                }
+            }
         }
         .navigationTitle("Pricing Studio")
         .toolbar { sidebarToolbarContent }
         .modifier(sidebarAlerts)
+        .sheet(isPresented: $showingKeypairGenerator) {
+            KeypairGeneratorSheet()
+        }
         .sheet(isPresented: $operatorVM.showingCompareFromSidebar) {
             NavigationStack {
                 CampaignComparisonView(campaigns: campaignsToCompare)
@@ -475,7 +486,8 @@ private struct SidebarView: View {
 
                 Divider()
 
-                KeypairMenuButton()
+                // Keypair generator is in the sidebar body, not the toolbar menu
+                // (Swift 6.1 toolbar scoping prevents sheet presentation from menu buttons)
             } label: {
                 Label("Add", systemImage: "plus")
             }
