@@ -161,11 +161,15 @@ final class DMPollingService {
                             var updated = self.unreadCounts
                             updated[npub] = (updated[npub] ?? 0) + 1
                             self.unreadCounts = updated
-                            self.postLocalNotification(npub: npub, preview: String(dm.content.prefix(80)), dm: dm)
+                            // Redact courier payloads — don't leak secrets in notifications or logs
+                            let isCourier = dm.content.contains("@@@")
+                            let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
+                            self.postLocalNotification(npub: npub, preview: safePreview, dm: dm)
                         }
                         self.lastPollAt = Date()
+                        let isCourierLog = dm.content.contains("@@@")
                         TrafficLogger.shared.log(.inbound, label: "Sub Event",
-                                                 detail: "\(npub.prefix(12))… kind=\(event.kind) isNew=\(isNew) isFromMe=\(dm.isFromMe) from=\(dm.senderPubkeyHex.prefix(8))… content=\(String(dm.content.prefix(40)))")
+                                                 detail: "\(npub.prefix(12))… kind=\(event.kind) isNew=\(isNew) isFromMe=\(dm.isFromMe) from=\(dm.senderPubkeyHex.prefix(8))… \(isCourierLog ? "content=[REDACTED courier]" : "content=\(String(dm.content.prefix(40)))")")
                     }
                 }
             }
