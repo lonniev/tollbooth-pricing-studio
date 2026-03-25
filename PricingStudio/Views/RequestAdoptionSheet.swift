@@ -29,6 +29,11 @@ struct RequestAdoptionSheet: View {
         }
     }
 
+    private var isSuccess: Bool {
+        if case .success = status { return true }
+        return false
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -87,13 +92,18 @@ struct RequestAdoptionSheet: View {
                     }
                 }
 
-                if case .success(let message) = status {
+                if case .success = status {
                     Section {
-                        Label("Adoption requested", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Registered", systemImage: "checkmark.circle.fill")
+                                .font(.headline)
+                                .foregroundStyle(.green)
+                            Text("**\(operatorTarget.displayName)** is now registered with **\(selectedAuthority?.displayName ?? "Authority")**.")
+                                .font(.subheadline)
+                            Text("The operator can now purchase credits and serve toll calls.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -107,17 +117,23 @@ struct RequestAdoptionSheet: View {
                     }
                 }
             }
-            .navigationTitle("Request Adoption")
+            .navigationTitle(isSuccess ? "Registered" : "Register Operator")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Request") {
-                        guard let auth = selectedAuthority else { return }
-                        Task { await requestAdoption(authority: auth) }
+                    if isSuccess {
+                        Button("Done") { dismiss() }
+                    } else {
+                        Button("Cancel") { dismiss() }
                     }
-                    .disabled(selectedAuthority == nil || status == .registering)
+                }
+                if !isSuccess {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Request") {
+                            guard let auth = selectedAuthority else { return }
+                            Task { await requestAdoption(authority: auth) }
+                        }
+                        .disabled(selectedAuthority == nil || status == .registering)
+                    }
                 }
             }
         }
