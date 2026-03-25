@@ -278,7 +278,7 @@ enum NIP44Service {
             UInt32(b[i]) | (UInt32(b[i+1]) << 8) | (UInt32(b[i+2]) << 16) | (UInt32(b[i+3]) << 24)
         }
 
-        var state: [UInt32] = [
+        let state: [UInt32] = [
             0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,  // "expand 32-byte k"
             load32(key, 0), load32(key, 4), load32(key, 8), load32(key, 12),
             load32(key, 16), load32(key, 20), load32(key, 24), load32(key, 28),
