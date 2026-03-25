@@ -9,6 +9,7 @@ struct AddOperatorSheet: View {
     @State private var npub = ""
     @State private var nsec = ""
     @State private var displayName = ""
+    @State private var mcpEndpointURL = ""
     @State private var derivedNpub: String?
     @State private var keyError: String?
     @State private var generatedKeys = false
@@ -115,6 +116,19 @@ struct AddOperatorSheet: View {
                 } footer: {
                     Text("A friendly name for this operator.")
                 }
+
+                Section {
+                    TextField("https://my-service.fastmcp.app/mcp", text: $mcpEndpointURL)
+                        .textContentType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .monospaced()
+                        .font(.callout)
+                } header: {
+                    Text("MCP Endpoint URL")
+                } footer: {
+                    Text("The operator's public MCP endpoint. Required for registration with an Authority.")
+                }
             }
             .navigationTitle("Add Operator")
             .navigationBarTitleDisplayMode(.inline)
@@ -127,9 +141,11 @@ struct AddOperatorSheet: View {
                         let finalNpub = effectiveNpub.trimmingCharacters(in: .whitespacesAndNewlines)
                         let trimmedNsec = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
 
+                        let trimmedURL = mcpEndpointURL.trimmingCharacters(in: .whitespacesAndNewlines)
                         viewModel.addOperator(
                             npub: finalNpub,
                             displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                            mcpEndpointURL: trimmedURL.isEmpty ? nil : trimmedURL,
                             context: modelContext
                         )
 

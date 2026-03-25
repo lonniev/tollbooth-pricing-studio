@@ -33,8 +33,8 @@ final class OperatorCollectionViewModel {
     /// Set to true to suppress autoSave during a delete cycle.
     var suppressAutoSave = false
 
-    func addOperator(npub: String, displayName: String, context: ModelContext) {
-        let op = Operator(npub: npub, displayName: displayName)
+    func addOperator(npub: String, displayName: String, mcpEndpointURL: String? = nil, context: ModelContext) {
+        let op = Operator(npub: npub, displayName: displayName, mcpEndpointURL: mcpEndpointURL)
         context.insert(op)
         try? context.save()
         selectedOperator = op
