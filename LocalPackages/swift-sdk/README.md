@@ -1,3 +1,61 @@
+# ⚠️ LOCAL FORK — Temporary Patch for Swift 6.1 Concurrency Errors
+
+**This is a local fork of [modelcontextprotocol/swift-sdk](https://github.com/modelcontextprotocol/swift-sdk), patched for pricing-studio.**
+
+## Why This Fork Exists
+
+As of 2026-03-25, the upstream SDK declares `swift-tools-version: 6.1` but has data race errors in `Sources/MCP/Base/Transports/NetworkTransport.swift` that fail under Swift 6.1 strict concurrency:
+
+```
+error: sending 'sendContinuationResumed' risks causing data races
+error: sending 'receiveContinuationResumed' risks causing data races
+```
+
+## What Was Changed (2 lines)
+
+In `Sources/MCP/Base/Transports/NetworkTransport.swift`:
+
+```diff
+- var sendContinuationResumed = false        (line 564)
++ nonisolated(unsafe) var sendContinuationResumed = false
+
+- var receiveContinuationResumed = false     (line 799)
++ nonisolated(unsafe) var receiveContinuationResumed = false
+```
+
+## Upstream PRs (check weekly — revert when merged + tagged)
+
+- **PR #209**: [fix: resolve Swift 6.3 data-race errors in NetworkTransport](https://github.com/modelcontextprotocol/swift-sdk/pull/209)
+- **PR #213**: [fix: resolve CheckedContinuation deadlock in NetworkTransport](https://github.com/modelcontextprotocol/swift-sdk/pull/213)
+- **Issue #214**: [CheckedContinuation never resumed on actor dealloc](https://github.com/modelcontextprotocol/swift-sdk/issues/214)
+
+## How to Revert to Upstream
+
+When PR #209 or #213 is merged and a new version is tagged:
+
+1. In `PricingStudio.xcodeproj/project.pbxproj`, replace:
+   ```
+   isa = XCLocalSwiftPackageReference;
+   relativePath = "LocalPackages/swift-sdk";
+   ```
+   with:
+   ```
+   isa = XCRemoteSwiftPackageReference;
+   repositoryURL = "https://github.com/modelcontextprotocol/swift-sdk.git";
+   requirement = { kind = exactVersion; version = <FIXED_VERSION>; };
+   ```
+2. Delete the `LocalPackages/swift-sdk/` directory
+3. Run `xcodebuild -resolvePackageDependencies`
+4. Verify clean build — zero errors, zero warnings
+
+## Forked From
+
+- Repository: https://github.com/modelcontextprotocol/swift-sdk
+- Version: 0.10.2 (commit c0407a0)
+- License: Apache-2.0
+
+---
+
 # MCP Swift SDK
 
 Official Swift SDK for the [Model Context Protocol][mcp] (MCP).
