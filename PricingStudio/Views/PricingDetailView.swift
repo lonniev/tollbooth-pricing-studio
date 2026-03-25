@@ -420,8 +420,11 @@ struct PricingDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showingAdoptionRequest, onDismiss: {
-            // Reload after registration sheet closes — may have registered
-            viewModel.retry(for: target)
+            // If registration succeeded, go directly to registeredNotConfigured
+            // (don't retry fetchPricing — the GitHub registry cache is stale)
+            if let op = target as? Operator, op.authorityNpub != nil {
+                viewModel.markRegisteredNotConfigured()
+            }
         }) {
             RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
         }

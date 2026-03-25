@@ -557,6 +557,12 @@ final class PricingViewModel {
         loadedAt = nil
     }
 
+    /// Mark an operator as registered but not yet configured.
+    /// Called after successful registration when the registry cache is stale.
+    func markRegisteredNotConfigured() {
+        state = .registeredNotConfigured
+    }
+
     func retry(for target: any PricingTarget) {
         currentOperatorNpub = nil
         startLoading(for: target)
