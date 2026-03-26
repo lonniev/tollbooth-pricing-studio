@@ -11,6 +11,8 @@ struct OnboardingStatusSheet: View {
     @State private var loading = true
     @State private var error: String?
     @State private var courierResult: String?
+    @State private var courierPoison: String?
+    @State private var showingCourierAlert = false
 
     var body: some View {
         NavigationStack {
@@ -40,6 +42,15 @@ struct OnboardingStatusSheet: View {
                 }
             }
             .task { await loadStatus() }
+            .alert("Secure Courier Channel Opened", isPresented: $showingCourierAlert) {
+                Button("OK") { showingCourierAlert = false }
+            } message: {
+                if let poison = courierPoison {
+                    Text("Check your Nostr DMs from this operator. A secure credential form will arrive shortly.\n\nLook for the poison phrase: \"\(poison)\"\n\nThis phrase confirms the message is authentic. Fill in the requested secrets and reply via encrypted DM.")
+                } else {
+                    Text("Check your Nostr DMs from this operator. A secure credential form will arrive shortly with fields to fill in.")
+                }
+            }
         }
     }
 
@@ -192,11 +203,18 @@ struct OnboardingStatusSheet: View {
                 token = bundle.accessToken
             }
 
-            courierResult = try await MCPService().callRequestCredentialChannel(
+            let result = try await MCPService().callRequestCredentialChannel(
                 endpointURL: endpointURL,
                 bearerToken: token,
                 senderNpub: operator_.npub
             )
+            if let data = result.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let poison = json["poison"] as? String {
+                courierPoison = poison
+            }
+            courierResult = result
+            showingCourierAlert = true
         } catch {
             courierResult = "Failed: \(error.localizedDescription)"
         }

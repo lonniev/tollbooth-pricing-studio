@@ -72,6 +72,15 @@ struct PricingDetailView: View {
         .onChange(of: target.npub) { _, _ in
             viewModel.startLoading(for: target)
         }
+        .alert("Secure Courier Channel Opened", isPresented: $showingCourierAlert) {
+            Button("OK") { showingCourierAlert = false }
+        } message: {
+            if let poison = courierPoison {
+                Text("Check your Nostr DMs from this operator. A secure credential form will arrive shortly.\n\nLook for the poison phrase: \"\(poison)\"\n\nThis phrase confirms the message is authentic. Fill in the requested secrets and reply via encrypted DM.")
+            } else {
+                Text("Check your Nostr DMs from this operator. A secure credential form will arrive shortly with fields to fill in.")
+            }
+        }
     }
 
     private var editSummary: String {
@@ -517,15 +526,6 @@ struct PricingDetailView: View {
                     .font(.subheadline)
                 }
 
-                if let courierStatus {
-                    Text(courierStatus)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 400)
-                        .padding(8)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-                }
 
                 Text(target.npub)
                     .font(.caption)
@@ -634,6 +634,8 @@ struct PricingDetailView: View {
     }
 
     @State private var courierStatus: String?
+    @State private var courierPoison: String?
+    @State private var showingCourierAlert = false
 
     private func requestSecureCourier() async {
         guard let endpoint = target.mcpEndpointURL,
@@ -649,7 +651,14 @@ struct PricingDetailView: View {
                 bearerToken: token,
                 senderNpub: target.npub
             )
+            // Try to extract poison phrase from JSON response
+            if let data = result.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let poison = json["poison"] as? String {
+                courierPoison = poison
+            }
             courierStatus = result
+            showingCourierAlert = true
         } catch {
             courierStatus = "Failed: \(error.localizedDescription)"
         }
