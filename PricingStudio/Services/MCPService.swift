@@ -160,9 +160,9 @@ actor MCPService {
             throw MCPError.toolCallFailed("No check_balance tool found")
         }
 
-        var args: [String: Value] = [:]
-        if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
-        let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: args)
+        // TODO: pass npub once all operators accept it on check_balance
+        // For now, npub flows via the OAuth session cache set by register_operator
+        let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: [:])
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
