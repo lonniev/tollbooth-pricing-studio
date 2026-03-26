@@ -598,12 +598,12 @@ struct PricingDetailView: View {
                 Divider()
 
                 // Actionable buttons based on what's missing
-                VStack(spacing: 10) {
+                HStack(spacing: 10) {
                     if hasAuthority {
                         Button {
                             Task { await loadOnboardingStatus() }
                         } label: {
-                            Label("Refresh Config from Authority", systemImage: "arrow.triangle.2.circlepath")
+                            Label("Refresh Config", systemImage: "arrow.triangle.2.circlepath")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -611,23 +611,14 @@ struct PricingDetailView: View {
                     }
 
                     if hasSecrets {
-                        let missingSecretNames = status.missing
-                            .filter { $0.category == "secret" }
-                            .map { fieldLabel($0.field) }
-                            .joined(separator: ", ")
-
                         Button {
                             Task { await requestSecureCourier() }
                         } label: {
-                            Label("Deliver Secrets via Secure Courier", systemImage: "lock.shield")
+                            Label("Deliver Secrets", systemImage: "lock.shield")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .tint(.orange)
-
-                        Text("Opens a Secure Courier channel so you can deliver: \(missingSecretNames)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
