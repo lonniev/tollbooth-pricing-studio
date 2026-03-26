@@ -1174,6 +1174,56 @@ actor MCPService {
         return text
     }
 
+    func callReceiveCredentials(
+        endpointURL: URL,
+        bearerToken: String,
+        senderNpub: String,
+        service: String = "tollbooth-sample-operator"
+    ) async throws -> String {
+        await traffic(.outbound, label: "Receive Credentials", detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("receive_credentials") }) else {
+            await traffic(.error, label: "Receive Credentials", detail: "No receive_credentials tool found")
+            throw MCPError.toolCallFailed("Operator does not support receive_credentials")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: tool.name,
+            arguments: [
+                "sender_npub": .string(senderNpub),
+                "service": .string(service),
+            ]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Receive Credentials", detail: String(text.prefix(500)))
+        return text
+    }
+
     // MARK: - Pricing Synthesis
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model
