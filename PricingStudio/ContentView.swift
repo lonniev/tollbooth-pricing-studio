@@ -202,17 +202,10 @@ struct ContentView: View {
             }
         }
         .sheet(item: $operatorVM.operatorForStats) { op in
-            #if DEBUG
-            OperatorStatsSheet(
-                operator_: op,
-                stats: PreviewData.sampleOperatorStats
-            )
-            #else
             OperatorStatsSheet(
                 operator_: op,
                 stats: nil
             )
-            #endif
         }
         .sheet(isPresented: $patronVM.showingAddSheet) {
             AddPatronSheet(viewModel: patronVM)
