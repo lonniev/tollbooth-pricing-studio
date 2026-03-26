@@ -612,6 +612,9 @@ struct PricingDetailView: View {
                                         .filter { $0.category == "secret" }
                                         .map { fieldLabel($0.field) }
                                 )
+                                .presentationDetents([.medium, .large])
+                                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                                .interactiveDismissDisabled()
                             }
                         }
                     }

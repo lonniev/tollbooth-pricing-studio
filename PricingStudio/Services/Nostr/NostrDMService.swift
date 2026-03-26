@@ -320,12 +320,17 @@ actor NostrDMService {
             let recipientHex = (dmDict["tags"] as? [[String]])?
                 .first(where: { $0.first == "p" })?[safe: 1] ?? publicKeyHex
 
+            // Use the inner DM's created_at (real send time), not the gift
+            // wrap's fuzzed timestamp (NIP-17 randomizes outer timestamp
+            // for privacy, often +/- hours from actual send time).
+            let dmTimestamp = dmDict["created_at"] as? Int ?? event.created_at
+
             return DecryptedDM(
                 rawEventId: event.id,
                 senderPubkeyHex: dmPubkey,
                 recipientPubkeyHex: recipientHex,
                 content: dmContent,
-                createdAt: Date(timeIntervalSince1970: TimeInterval(event.created_at)),
+                createdAt: Date(timeIntervalSince1970: TimeInterval(dmTimestamp)),
                 encryption: .nip44,
                 isFromMe: isFromMe
             )
