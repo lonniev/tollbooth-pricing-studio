@@ -375,7 +375,7 @@ struct PricingDetailView: View {
 
     private func errorContent(_ message: String) -> some View {
         ContentUnavailableView {
-            Label("Connection Error", systemImage: "wifi.exclamationmark")
+            Label("Unable to Load", systemImage: "exclamationmark.triangle")
         } description: {
             Text(message)
         } actions: {
