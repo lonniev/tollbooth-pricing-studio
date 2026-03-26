@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var showingPushConfirmation = false
     @State private var pushError: String?
+    @State private var activeCourier: CourierParams?
     @State private var showingPushError = false
     @State private var campaignForOverview: Campaign?
 
@@ -43,7 +44,9 @@ struct ContentView: View {
                         }
                     } else if let op = operatorVM.selectedOperator {
                         ChatContainerView(identity: ChatIdentity(from: op), chatVM: chatVM) {
-                            PricingDetailView(target: op, viewModel: pricingVM)
+                            PricingDetailView(target: op, viewModel: pricingVM, onRequestCourier: { params in
+                            withAnimation { activeCourier = params }
+                        })
                         } consultantContent: {
                             PricingConsultantView(
                                 consultantVM: consultantVM,
@@ -106,6 +109,21 @@ struct ContentView: View {
                         .frame(height: trafficLogHeight)
                 }
             }
+            .overlay(alignment: .bottomTrailing) {
+                if let params = activeCourier {
+                    SecureCourierCard(
+                        operatorName: params.operatorName,
+                        operatorNpub: params.operatorNpub,
+                        endpointURL: params.endpointURL,
+                        missingSecrets: params.missingSecrets,
+                        onDismiss: { withAnimation { activeCourier = nil } }
+                    )
+                    .frame(width: 340)
+                    .padding()
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(duration: 0.3), value: activeCourier != nil)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {

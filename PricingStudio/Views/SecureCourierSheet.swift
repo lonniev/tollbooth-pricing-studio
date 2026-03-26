@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Parameters for initiating a Secure Courier flow.
+struct CourierParams {
+    let operatorName: String
+    let operatorNpub: String
+    let endpointURL: URL
+    let missingSecrets: [String]
+}
+
 /// Floating card for the Secure Courier flow — stays on screen while
 /// the user navigates to Messages and back.
 struct SecureCourierCard: View {
@@ -181,12 +189,33 @@ struct SecureCourierCard: View {
     }
 
     private var callingContent: some View {
-        HStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.small)
-            Text("Opening Secure Courier channel...")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 12) {
+            ZStack {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .stroke(.orange.opacity(0.3), lineWidth: 1.5)
+                        .frame(width: CGFloat(40 + i * 16), height: CGFloat(40 + i * 16))
+                        .scaleEffect(phase == .calling ? 1.1 : 1.0)
+                        .opacity(phase == .calling ? 0.6 : 0.3)
+                        .animation(
+                            .easeInOut(duration: 1.5)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.3),
+                            value: phase
+                        )
+                }
+                Image(systemName: "lock.shield.fill")
+                    .font(.title2)
+                    .foregroundStyle(.orange)
+            }
+            .frame(height: 80)
+
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Opening Secure Courier channel...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -228,12 +257,33 @@ struct SecureCourierCard: View {
     }
 
     private var collectingContent: some View {
-        HStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.small)
-            Text("Scanning relays for your encrypted reply...")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 12) {
+            ZStack {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .stroke(.green.opacity(0.3), lineWidth: 1.5)
+                        .frame(width: CGFloat(40 + i * 16), height: CGFloat(40 + i * 16))
+                        .scaleEffect(phase == .collecting ? 1.1 : 1.0)
+                        .opacity(phase == .collecting ? 0.6 : 0.3)
+                        .animation(
+                            .easeInOut(duration: 1.5)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.3),
+                            value: phase
+                        )
+                }
+                Image(systemName: "envelope.open.fill")
+                    .font(.title2)
+                    .foregroundStyle(.green)
+            }
+            .frame(height: 80)
+
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Scanning relays for your encrypted reply...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

@@ -4,6 +4,7 @@ import SwiftData
 struct PricingDetailView: View {
     let target: any PricingTarget
     @Bindable var viewModel: PricingViewModel
+    var onRequestCourier: ((CourierParams) -> Void)?
     @State private var isEditingPipeline = false
     @State private var saveError: String?
     @State private var showSaveSuccess = false
@@ -51,21 +52,6 @@ struct PricingDetailView: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if let params = courierParams {
-                SecureCourierCard(
-                    operatorName: params.operatorName,
-                    operatorNpub: params.operatorNpub,
-                    endpointURL: params.endpointURL,
-                    missingSecrets: params.missingSecrets,
-                    onDismiss: { courierParams = nil }
-                )
-                .frame(width: 340)
-                .padding()
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-                .animation(.spring(duration: 0.3), value: courierParams != nil)
             }
         }
         .navigationTitle(target.displayName)
@@ -611,14 +597,14 @@ struct PricingDetailView: View {
                         Button {
                             if let endpoint = target.mcpEndpointURL,
                                let url = URL(string: endpoint) {
-                                courierParams = CourierParams(
+                                onRequestCourier?(CourierParams(
                                     operatorName: target.displayName,
                                     operatorNpub: target.npub,
                                     endpointURL: url,
                                     missingSecrets: status.missing
                                         .filter { $0.category == "secret" }
                                         .map { fieldLabel($0.field) }
-                                )
+                                ))
                             }
                         } label: {
                             Label("Deliver Secrets", systemImage: "lock.shield")
@@ -640,14 +626,6 @@ struct PricingDetailView: View {
         }
     }
 
-    @State private var courierParams: CourierParams?
-
-    struct CourierParams {
-        let operatorName: String
-        let operatorNpub: String
-        let endpointURL: URL
-        let missingSecrets: [String]
-    }
 
     private func fieldLabel(_ field: String) -> String {
         field.replacingOccurrences(of: "_", with: " ")
