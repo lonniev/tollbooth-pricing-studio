@@ -22,6 +22,8 @@ struct MessageBubble: View {
             VStack(alignment: dm.isFromMe ? .leading : .trailing, spacing: 4) {
                 if let _ = courierPayload {
                     courierContent
+                } else if dm.content.hasPrefix("ncred1") {
+                    ncredContent
                 } else {
                     plainContent
                 }
@@ -70,27 +72,85 @@ struct MessageBubble: View {
 
     // MARK: - Plain Text Content
 
+    /// True if this is an outbound Secure Courier reply (contains filled @@@ fields).
+    private var isOutboundCourierReply: Bool {
+        dm.isFromMe && dm.content.contains("@@@") && !dm.content.contains("PASTE_YOUR_")
+    }
+
+    /// Count of fields in an outbound courier reply.
+    private var courierFieldCount: Int {
+        dm.content.components(separatedBy: "@@@").count / 2
+    }
+
     @ViewBuilder
     private var plainContent: some View {
-        Text(dm.content)
-            .font(.custom(fontName, size: fontSize))
-            .italic(isPending)
-            .textSelection(.enabled)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                dm.isFromMe
-                    ? Color.accentColor.opacity(isPending ? 0.1 : 0.2)
-                    : Color(.secondarySystemBackground)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                isPending
-                    ? RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                        .foregroundStyle(.secondary)
-                    : nil
-            )
+        Group {
+            if isOutboundCourierReply {
+                // Compact summary for outbound courier replies
+                HStack(spacing: 6) {
+                    Image(systemName: "lock.shield.fill")
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Secure Courier reply sent")
+                            .font(.caption.bold())
+                        Text("\(courierFieldCount) credential\(courierFieldCount == 1 ? "" : "s") delivered")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.green.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                Text(dm.content)
+                    .font(.custom(fontName, size: fontSize))
+                    .italic(isPending)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        dm.isFromMe
+                            ? Color.accentColor.opacity(isPending ? 0.1 : 0.2)
+                            : Color(.secondarySystemBackground)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        isPending
+                            ? RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                                .foregroundStyle(.secondary)
+                            : nil
+                    )
+            }
+        }
+    }
+
+    // MARK: - Credential Card (ncred)
+
+    @ViewBuilder
+    private var ncredContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "creditcard.fill")
+                    .foregroundStyle(.green)
+                Text("Credential Card")
+                    .font(.caption.bold())
+                    .foregroundStyle(.green)
+            }
+            Text("Save this card to reuse your credentials next time.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(dm.content)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+                .lineLimit(3)
+                .truncationMode(.middle)
+        }
+        .padding(10)
+        .background(Color.green.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Courier Payload Content

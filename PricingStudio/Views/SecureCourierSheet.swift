@@ -158,6 +158,10 @@ struct SecureCourierCard: View {
 
     private var explainContent: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("This operator needs secrets delivered securely.")
+                .font(.caption)
+                .foregroundStyle(.primary)
+
             ForEach(missingSecrets, id: \.self) { secret in
                 HStack(spacing: 6) {
                     Image(systemName: "key.fill")
@@ -168,7 +172,7 @@ struct SecureCourierCard: View {
                 }
             }
 
-            Text("Tap Begin to open a Secure Courier channel. The operator sends a credential form via Nostr DM. You fill in the values and reply, then come back here to collect.")
+            Text("When you tap Begin, the operator will send a credential form to your Nostr DMs. Fill in the values and reply, then come back here and tap Collect.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -190,6 +194,10 @@ struct SecureCourierCard: View {
 
     private var callingContent: some View {
         VStack(spacing: 12) {
+            Text("Asking the operator to send a credential form...")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             ZStack {
                 ForEach(0..<3, id: \.self) { i in
                     Circle()
@@ -210,23 +218,18 @@ struct SecureCourierCard: View {
             }
             .frame(height: 80)
 
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Opening Secure Courier channel...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            ProgressView().controlSize(.small)
         }
     }
 
     private func readyContent(poison: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Check your Nostr DMs for the credential form.")
+            Text("A credential form is arriving in your Nostr DMs. Open Messages, find the form, fill in each field, and send your reply.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
-                Text("Poison phrase:")
+                Text("Verify the phrase:")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Text("\"\(poison)\"")
@@ -236,7 +239,7 @@ struct SecureCourierCard: View {
             .padding(8)
             .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
-            Text("Fill in the secrets and reply via encrypted DM, then:")
+            Text("After you've sent your reply, come back here:")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -258,6 +261,10 @@ struct SecureCourierCard: View {
 
     private var collectingContent: some View {
         VStack(spacing: 12) {
+            Text("Telling the operator to pick up your encrypted reply...")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             ZStack {
                 ForEach(0..<3, id: \.self) { i in
                     Circle()
@@ -278,25 +285,24 @@ struct SecureCourierCard: View {
             }
             .frame(height: 80)
 
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Scanning relays for your encrypted reply...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            ProgressView().controlSize(.small)
         }
     }
 
     private func receivedContent(message: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Credentials securely stored.", systemImage: "checkmark.circle.fill")
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Secrets received and stored.", systemImage: "checkmark.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.green)
+
+            Text("The operator now has the credentials it needs. You may also receive a credential card (ncred) in your DMs for future reuse.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
             if !message.isEmpty {
                 Text(message)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
             }
 
             HStack {
@@ -311,11 +317,15 @@ struct SecureCourierCard: View {
 
     private func collectFailedContent(poison: String, error: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text("The operator couldn't find your reply yet.")
+                .font(.caption)
+                .foregroundStyle(.orange)
+
             Text(error)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            Text("Make sure you replied with poison phrase \"\(poison)\" and all fields filled in.")
+            Text("Check that you replied to the DM containing \"\(poison)\" with all fields filled in, then try again.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -337,9 +347,13 @@ struct SecureCourierCard: View {
 
     private func failedContent(error: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text("Couldn't reach the operator.")
+                .font(.caption)
+                .foregroundStyle(.red)
+
             Text(error)
                 .font(.caption2)
-                .foregroundStyle(.red)
+                .foregroundStyle(.secondary)
 
             HStack {
                 Spacer()
