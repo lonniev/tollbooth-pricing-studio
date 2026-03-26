@@ -6,6 +6,7 @@ struct OperatorSidebarView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: OperatorCollectionViewModel
     @State private var testCallOperator: Operator?
+    @State private var configCheckOperator: Operator?
 
     var body: some View {
         List(selection: $viewModel.selectedOperator) {
@@ -35,6 +36,11 @@ struct OperatorSidebarView: View {
                                 testCallOperator = op
                             } label: {
                                 Label("Test Call", systemImage: "play.circle")
+                            }
+                            Button {
+                                configCheckOperator = op
+                            } label: {
+                                Label("Check Configuration", systemImage: "checklist")
                             }
                         }
                         Divider()
@@ -81,6 +87,9 @@ struct OperatorSidebarView: View {
         }
         .sheet(item: $testCallOperator) { op in
             TestCallView(preselectedOperator: op)
+        }
+        .sheet(item: $configCheckOperator) { op in
+            OnboardingStatusSheet(operator_: op)
         }
     }
 }

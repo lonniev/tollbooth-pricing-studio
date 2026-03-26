@@ -376,45 +376,96 @@ struct PricingDetailView: View {
     }
 
     private func errorContent(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Unable to Load", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            HStack(spacing: 12) {
-                Button("Retry") {
-                    viewModel.retry(for: target)
-                }
-                .buttonStyle(.borderedProminent)
+        ScrollView {
+            VStack(spacing: 20) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.yellow)
 
-                if target is Operator {
-                    Menu {
-                        Button {
-                            showingAdoptionRequest = true
-                        } label: {
-                            Label("Register with Authority", systemImage: "building.columns")
+                Text("Unable to Load")
+                    .font(.title2.bold())
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 400)
+
+                if let url = target.mcpEndpointURL, !url.isEmpty {
+                    Text(url)
+                        .font(.caption)
+                        .monospaced()
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                }
+
+                // Show onboarding checklist if available
+                if target is Operator, target.mcpEndpointURL != nil {
+                    if onboardingLoading {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Checking configuration...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        Button {
-                            showingEditRegistration = true
-                        } label: {
-                            Label("Edit Registration", systemImage: "pencil")
-                        }
-                        if (target as? Operator)?.authorityNpub != nil {
-                            Divider()
-                            Button(role: .destructive) {
-                                showingDeregisterConfirm = true
-                            } label: {
-                                Label("Deregister", systemImage: "trash")
-                            }
-                        }
-                    } label: {
-                        Label("Manage", systemImage: "ellipsis.circle")
+                    } else if let status = onboardingStatus {
+                        onboardingChecklist(status)
                     }
-                    .buttonStyle(.bordered)
-                    .sheet(isPresented: $showingEditRegistration) {
-                        EditOperatorRegistrationSheet(operatorTarget: target)
+
+                    if let courierStatus {
+                        Text(courierStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 400)
+                            .padding(8)
+                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
+
+                // Actions
+                HStack(spacing: 12) {
+                    Button("Retry") {
+                        viewModel.retry(for: target)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    if target is Operator {
+                        Menu {
+                            Button {
+                                showingAdoptionRequest = true
+                            } label: {
+                                Label("Register with Authority", systemImage: "building.columns")
+                            }
+                            Button {
+                                showingEditRegistration = true
+                            } label: {
+                                Label("Edit Registration", systemImage: "pencil")
+                            }
+                            if (target as? Operator)?.authorityNpub != nil {
+                                Divider()
+                                Button(role: .destructive) {
+                                    showingDeregisterConfirm = true
+                                } label: {
+                                    Label("Deregister", systemImage: "trash")
+                                }
+                            }
+                        } label: {
+                            Label("Manage", systemImage: "ellipsis.circle")
+                        }
+                        .buttonStyle(.bordered)
+                        .sheet(isPresented: $showingEditRegistration) {
+                            EditOperatorRegistrationSheet(operatorTarget: target)
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            if target is Operator, target.mcpEndpointURL != nil, onboardingStatus == nil {
+                await loadOnboardingStatus()
             }
         }
     }
