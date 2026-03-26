@@ -1065,6 +1065,67 @@ actor MCPService {
         return text
     }
 
+    // MARK: - Onboarding Status
+
+    struct OnboardingField: Decodable {
+        let field: String
+        let category: String
+        let status: String
+        var how: String?
+        var value: String?
+    }
+
+    struct OnboardingStatus: Decodable {
+        let ready: Bool
+        let configured: [OnboardingField]
+        let missing: [OnboardingField]
+        let summary: String
+    }
+
+    func callGetOnboardingStatus(
+        endpointURL: URL,
+        bearerToken: String
+    ) async throws -> OnboardingStatus {
+        await traffic(.outbound, label: "Onboarding Status", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let onboardTool = allTools.first(where: { $0.name.contains("get_onboarding_status") }) else {
+            await traffic(.error, label: "Onboarding Status", detail: "No get_onboarding_status tool found")
+            throw MCPError.toolCallFailed("No get_onboarding_status tool found")
+        }
+
+        let (content, isError) = try await client.callTool(name: onboardTool.name, arguments: [:])
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        let status = try JSONDecoder().decode(OnboardingStatus.self, from: data)
+        await traffic(.inbound, label: "Onboarding Status", detail: status.summary)
+        return status
+    }
+
     // MARK: - Pricing Synthesis
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model
