@@ -282,7 +282,8 @@ final class PatronAccountViewModel {
             )
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,
-                bearerToken: token
+                bearerToken: token,
+                patronNpub: patronNpub
             )
             return .loaded(result)
         } catch {

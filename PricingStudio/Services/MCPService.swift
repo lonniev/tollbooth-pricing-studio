@@ -134,7 +134,8 @@ actor MCPService {
     /// Call check_balance on an operator's MCP endpoint.
     func callCheckBalance(
         endpointURL: URL,
-        bearerToken: String
+        bearerToken: String,
+        patronNpub: String = ""
     ) async throws -> PatronAccountViewModel.BalanceResult {
         await traffic(.outbound, label: "Balance Check", detail: "SSE → \(endpointURL.absoluteString)")
 
@@ -159,7 +160,9 @@ actor MCPService {
             throw MCPError.toolCallFailed("No check_balance tool found")
         }
 
-        let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: [:])
+        var args: [String: Value] = [:]
+        if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
+        let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: args)
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
