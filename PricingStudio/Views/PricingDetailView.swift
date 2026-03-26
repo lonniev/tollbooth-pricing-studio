@@ -15,6 +15,8 @@ struct PricingDetailView: View {
     @State private var showingEditRegistration = false
     @State private var showingDeregisterConfirm = false
     @State private var deregisterError: String?
+    @State private var onboardingStatus: MCPService.OnboardingStatus?
+    @State private var onboardingLoading = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
@@ -420,64 +422,156 @@ struct PricingDetailView: View {
     @State private var showingAdoptionRequest = false
 
     private var registeredNotConfiguredContent: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 48))
-                .foregroundStyle(.green)
+        ScrollView {
+            VStack(spacing: 20) {
+                Image(systemName: "checkmark.circle")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.green)
 
-            Text("Registered")
-                .font(.title2.bold())
+                Text("Registered")
+                    .font(.title2.bold())
 
-            Text("**\(target.displayName)** is registered in the DPYC community but its MCP service is not yet configured.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 400)
+                Text("**\(target.displayName)** is registered in the DPYC community but needs configuration.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 400)
 
-            if let url = target.mcpEndpointURL, !url.isEmpty {
-                Text(url)
+                if let url = target.mcpEndpointURL, !url.isEmpty {
+                    Text(url)
+                        .font(.caption)
+                        .monospaced()
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                }
+
+                // Live onboarding status
+                if onboardingLoading {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Checking configuration...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let status = onboardingStatus {
+                    onboardingChecklist(status)
+                } else {
+                    // Fallback static checklist
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Operator is in the community registry", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Label("Checking operator configuration...", systemImage: "circle.dotted")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.subheadline)
+                }
+
+                Text(target.npub)
                     .font(.caption)
                     .monospaced()
                     .foregroundStyle(.tertiary)
                     .textSelection(.enabled)
-            }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Operator is in the community registry", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Label("MCP service needs to bootstrap its persistence", systemImage: "circle")
-                    .foregroundStyle(.secondary)
-                Label("Service credentials may need to be delivered via Secure Courier", systemImage: "circle")
-                    .foregroundStyle(.secondary)
-                Label("A pricing model needs to be configured", systemImage: "circle")
-                    .foregroundStyle(.secondary)
-            }
-            .font(.subheadline)
+                HStack(spacing: 12) {
+                    Button {
+                        showingEditRegistration = true
+                    } label: {
+                        Label("Edit Registration", systemImage: "pencil.circle")
+                    }
+                    .buttonStyle(.bordered)
 
-            Text(target.npub)
-                .font(.caption)
-                .monospaced()
-                .foregroundStyle(.tertiary)
-                .textSelection(.enabled)
-
-            HStack(spacing: 12) {
-                Button {
-                    showingEditRegistration = true
-                } label: {
-                    Label("Edit Registration", systemImage: "pencil.circle")
+                    Button("Check Again") {
+                        viewModel.retry(for: target)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.bordered)
-
-                Button("Check Again") {
-                    viewModel.retry(for: target)
+                .sheet(isPresented: $showingEditRegistration) {
+                    EditOperatorRegistrationSheet(operatorTarget: target)
                 }
-                .buttonStyle(.borderedProminent)
             }
-            .sheet(isPresented: $showingEditRegistration) {
-                EditOperatorRegistrationSheet(operatorTarget: target)
-            }
+            .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            await loadOnboardingStatus()
+        }
+    }
+
+    @ViewBuilder
+    private func onboardingChecklist(_ status: MCPService.OnboardingStatus) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Operator is in the community registry", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+
+            ForEach(status.configured, id: \.field) { field in
+                Label("\(fieldLabel(field.field)) — configured", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
+
+            ForEach(status.missing, id: \.field) { field in
+                VStack(alignment: .leading, spacing: 2) {
+                    Label(fieldLabel(field.field), systemImage: categoryIcon(field.category))
+                        .foregroundStyle(categoryColor(field.category))
+                    if let how = field.how {
+                        Text(how)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 28)
+                    }
+                }
+            }
+
+            if status.ready {
+                Label("Operator is fully configured", systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+                    .fontWeight(.medium)
+            }
+        }
+        .font(.subheadline)
+    }
+
+    private func fieldLabel(_ field: String) -> String {
+        field.replacingOccurrences(of: "_", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
+    private func categoryIcon(_ category: String) -> String {
+        switch category {
+        case "authority": return "building.columns"
+        case "secret": return "lock.shield"
+        case "identity": return "key"
+        default: return "circle"
+        }
+    }
+
+    private func categoryColor(_ category: String) -> Color {
+        switch category {
+        case "authority": return .blue
+        case "secret": return .orange
+        case "identity": return .purple
+        default: return .secondary
+        }
+    }
+
+    private func loadOnboardingStatus() async {
+        guard let endpoint = target.mcpEndpointURL,
+              let endpointURL = URL(string: endpoint) else { return }
+
+        onboardingLoading = true
+        defer { onboardingLoading = false }
+
+        do {
+            let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
+            onboardingStatus = try await MCPService().callGetOnboardingStatus(
+                endpointURL: endpointURL,
+                bearerToken: token
+            )
+        } catch {
+            // Silently fail — view falls back to static checklist
+            TrafficLogger.shared.log(.error, label: "Onboarding Status", detail: error.localizedDescription)
+        }
     }
 
     private var notRegisteredContent: some View {
