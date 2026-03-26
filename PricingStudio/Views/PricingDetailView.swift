@@ -53,6 +53,21 @@ struct PricingDetailView: View {
                 }
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if let params = courierParams {
+                SecureCourierCard(
+                    operatorName: params.operatorName,
+                    operatorNpub: params.operatorNpub,
+                    endpointURL: params.endpointURL,
+                    missingSecrets: params.missingSecrets,
+                    onDismiss: { courierParams = nil }
+                )
+                .frame(width: 340)
+                .padding()
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .animation(.spring(duration: 0.3), value: courierParams != nil)
+            }
+        }
         .navigationTitle(target.displayName)
         .onAppear {
             // Ensure we're showing the right target's data — shared VM may
@@ -594,17 +609,9 @@ struct PricingDetailView: View {
 
                     if hasSecrets {
                         Button {
-                            showingCourierSheet = true
-                        } label: {
-                            Label("Deliver Secrets", systemImage: "lock.shield")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .tint(.orange)
-                        .sheet(isPresented: $showingCourierSheet) {
                             if let endpoint = target.mcpEndpointURL,
                                let url = URL(string: endpoint) {
-                                SecureCourierSheet(
+                                courierParams = CourierParams(
                                     operatorName: target.displayName,
                                     operatorNpub: target.npub,
                                     endpointURL: url,
@@ -612,11 +619,13 @@ struct PricingDetailView: View {
                                         .filter { $0.category == "secret" }
                                         .map { fieldLabel($0.field) }
                                 )
-                                .presentationDetents([.medium, .large])
-                                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-                                .interactiveDismissDisabled()
                             }
+                        } label: {
+                            Label("Deliver Secrets", systemImage: "lock.shield")
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(.orange)
                     }
                 }
             }
@@ -631,7 +640,14 @@ struct PricingDetailView: View {
         }
     }
 
-    @State private var showingCourierSheet = false
+    @State private var courierParams: CourierParams?
+
+    struct CourierParams {
+        let operatorName: String
+        let operatorNpub: String
+        let endpointURL: URL
+        let missingSecrets: [String]
+    }
 
     private func fieldLabel(_ field: String) -> String {
         field.replacingOccurrences(of: "_", with: " ")

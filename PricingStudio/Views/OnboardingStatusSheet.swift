@@ -10,7 +10,7 @@ struct OnboardingStatusSheet: View {
     @State private var status: MCPService.OnboardingStatus?
     @State private var loading = true
     @State private var error: String?
-    @State private var showingCourierSheet = false
+    @State private var showingCourierCard = false
 
     var body: some View {
         NavigationStack {
@@ -40,6 +40,24 @@ struct OnboardingStatusSheet: View {
                 }
             }
             .task { await loadStatus() }
+            .overlay(alignment: .bottomTrailing) {
+                if showingCourierCard,
+                   let endpoint = operator_.mcpEndpointURL,
+                   let url = URL(string: endpoint),
+                   let status {
+                    SecureCourierCard(
+                        operatorName: operator_.displayName,
+                        operatorNpub: operator_.npub,
+                        endpointURL: url,
+                        missingSecrets: status.missing
+                            .filter { $0.category == "secret" }
+                            .map { fieldLabel($0.field) },
+                        onDismiss: { showingCourierCard = false }
+                    )
+                    .frame(width: 340)
+                    .padding()
+                }
+            }
         }
     }
 
@@ -101,27 +119,11 @@ struct OnboardingStatusSheet: View {
 
                     if hasSecrets {
                         Button {
-                            showingCourierSheet = true
+                            showingCourierCard = true
                         } label: {
                             Label("Deliver Secrets via Secure Courier", systemImage: "lock.shield")
                         }
                         .tint(.orange)
-                        .sheet(isPresented: $showingCourierSheet) {
-                            if let endpoint = operator_.mcpEndpointURL,
-                               let url = URL(string: endpoint) {
-                                SecureCourierSheet(
-                                    operatorName: operator_.displayName,
-                                    operatorNpub: operator_.npub,
-                                    endpointURL: url,
-                                    missingSecrets: status.missing
-                                        .filter { $0.category == "secret" }
-                                        .map { fieldLabel($0.field) }
-                                )
-                                .presentationDetents([.medium, .large])
-                                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-                                .interactiveDismissDisabled()
-                            }
-                        }
                     }
                 }
             }
