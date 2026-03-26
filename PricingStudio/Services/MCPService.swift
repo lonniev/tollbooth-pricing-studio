@@ -1126,6 +1126,54 @@ actor MCPService {
         return status
     }
 
+    // MARK: - Secure Courier
+
+    func callRequestCredentialChannel(
+        endpointURL: URL,
+        bearerToken: String,
+        senderNpub: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Credential Channel", detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("request_credential_channel") }) else {
+            await traffic(.error, label: "Credential Channel", detail: "No request_credential_channel tool found")
+            throw MCPError.toolCallFailed("Operator does not support Secure Courier")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: tool.name,
+            arguments: ["sender_npub": .string(senderNpub)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            return "Secure Courier channel opened. Check your Nostr DMs for the credential template."
+        }
+
+        await traffic(.inbound, label: "Credential Channel", detail: String(text.prefix(500)))
+        return text
+    }
+
     // MARK: - Pricing Synthesis
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model
@@ -1346,7 +1394,7 @@ actor MCPService {
     }
 
     /// Extract text content from a Tool.Content value.
-    private func extractText(_ content: Tool.Content) -> String? {
+    func extractText(_ content: Tool.Content) -> String? {
         switch content {
         case .text(let text):
             return text

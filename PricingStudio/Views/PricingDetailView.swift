@@ -466,6 +466,16 @@ struct PricingDetailView: View {
                     .font(.subheadline)
                 }
 
+                if let courierStatus {
+                    Text(courierStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 400)
+                        .padding(8)
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                }
+
                 Text(target.npub)
                     .font(.caption)
                     .monospaced()
@@ -499,35 +509,108 @@ struct PricingDetailView: View {
 
     @ViewBuilder
     private func onboardingChecklist(_ status: MCPService.OnboardingStatus) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Label("Operator is in the community registry", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
+                .font(.subheadline)
 
             ForEach(status.configured, id: \.field) { field in
-                Label("\(fieldLabel(field.field)) — configured", systemImage: "checkmark.circle.fill")
+                Label("\(fieldLabel(field.field))", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
+                    .font(.subheadline)
             }
 
-            ForEach(status.missing, id: \.field) { field in
-                VStack(alignment: .leading, spacing: 2) {
-                    Label(fieldLabel(field.field), systemImage: categoryIcon(field.category))
-                        .foregroundStyle(categoryColor(field.category))
-                    if let how = field.how {
-                        Text(how)
+            if !status.missing.isEmpty {
+                Divider()
+
+                let hasSecrets = status.missing.contains { $0.category == "secret" }
+                let hasAuthority = status.missing.contains { $0.category == "authority" }
+
+                ForEach(status.missing, id: \.field) { field in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: categoryIcon(field.category))
+                            .foregroundStyle(categoryColor(field.category))
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(fieldLabel(field.field))
+                                .font(.subheadline)
+                                .foregroundStyle(categoryColor(field.category))
+                            if let how = field.how {
+                                Text(how)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+
+                // Actionable buttons based on what's missing
+                VStack(spacing: 10) {
+                    if hasAuthority {
+                        Button {
+                            Task { await loadOnboardingStatus() }
+                        } label: {
+                            Label("Refresh Config from Authority", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(.blue)
+                    }
+
+                    if hasSecrets {
+                        let missingSecretNames = status.missing
+                            .filter { $0.category == "secret" }
+                            .map { fieldLabel($0.field) }
+                            .joined(separator: ", ")
+
+                        Button {
+                            Task { await requestSecureCourier() }
+                        } label: {
+                            Label("Deliver Secrets via Secure Courier", systemImage: "lock.shield")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(.orange)
+
+                        Text("Opens a Secure Courier channel so you can deliver: \(missingSecretNames)")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                            .padding(.leading, 28)
                     }
                 }
             }
 
             if status.ready {
-                Label("Operator is fully configured", systemImage: "checkmark.seal.fill")
+                Divider()
+                Label("Operator is fully configured and ready to serve", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(.green)
+                    .font(.subheadline)
                     .fontWeight(.medium)
             }
         }
-        .font(.subheadline)
+    }
+
+    @State private var courierStatus: String?
+
+    private func requestSecureCourier() async {
+        guard let endpoint = target.mcpEndpointURL,
+              let endpointURL = URL(string: endpoint) else {
+            courierStatus = "No MCP endpoint configured"
+            return
+        }
+
+        do {
+            let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
+            let result = try await MCPService().callRequestCredentialChannel(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                senderNpub: target.npub
+            )
+            courierStatus = result
+        } catch {
+            courierStatus = "Failed: \(error.localizedDescription)"
+        }
     }
 
     private func fieldLabel(_ field: String) -> String {
