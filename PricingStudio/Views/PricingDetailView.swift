@@ -153,6 +153,55 @@ struct PricingDetailView: View {
                     Text(saveError)
                 }
             }
+        } else if target is Operator {
+            // Operator connected but has no pricing model — show onboarding
+            ScrollView {
+                VStack(spacing: 20) {
+                    Image(systemName: "tag.slash")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.orange)
+
+                    Text("No Pricing Model")
+                        .font(.title2.bold())
+
+                    Text("**\(target.displayName)** is online but hasn't published a pricing model yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 400)
+
+                    if let url = target.mcpEndpointURL, !url.isEmpty {
+                        Text(url)
+                            .font(.caption)
+                            .monospaced()
+                            .foregroundStyle(.tertiary)
+                            .textSelection(.enabled)
+                    }
+
+                    // Show onboarding checklist
+                    if onboardingLoading {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Checking configuration...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if let status = onboardingStatus {
+                        onboardingChecklist(status)
+                    }
+
+                    Button("Retry") {
+                        viewModel.retry(for: target)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+            }
+            .task {
+                if onboardingStatus == nil, target.mcpEndpointURL != nil {
+                    await loadOnboardingStatus()
+                }
+            }
         } else {
             ContentUnavailableView(
                 "No Pricing Model",
