@@ -300,7 +300,8 @@ actor MCPService {
     /// Returns SVG or PNG data for a rich balance visualization.
     func callAccountStatementInfographic(
         endpointURL: URL,
-        bearerToken: String
+        bearerToken: String,
+        patronNpub: String = ""
     ) async throws -> InfographicResult {
         await traffic(.outbound, label: "Statement Infographic", detail: "SSE → \(endpointURL.absoluteString)")
 
@@ -325,7 +326,9 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement_infographic tool found")
         }
 
-        let (content, isError) = try await client.callTool(name: infoTool.name, arguments: [:])
+        var args: [String: Value] = [:]
+        if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
+        let (content, isError) = try await client.callTool(name: infoTool.name, arguments: args)
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")

@@ -104,7 +104,8 @@ final class PatronAccountViewModel {
             )
             let result = try await mcpService.callAccountStatementInfographic(
                 endpointURL: endpointURL,
-                bearerToken: token
+                bearerToken: token,
+                patronNpub: patron.npub
             )
 
             if let svg = result.svgContent {
