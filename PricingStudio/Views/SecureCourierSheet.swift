@@ -20,6 +20,8 @@ struct SecureCourierCard: View {
     @State private var phase: Phase = .explain
     @State private var currentPoison: String = ""
     @State private var expanded = true
+    @State private var dragOffset: CGSize = .zero
+    @State private var savedOffset: CGSize = .zero
 
     enum Phase: Equatable {
         case explain
@@ -44,21 +46,35 @@ struct SecureCourierCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header — always visible, tap to expand/collapse
             headerBar
 
             if expanded {
                 Divider()
                 ScrollView {
                     phaseContent
-                        .padding(16)
+                        .padding(12)
                 }
-                .frame(maxHeight: 360)
+                .frame(maxHeight: 300)
             }
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(.quaternary, lineWidth: 1))
-        .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary, lineWidth: 1))
+        .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
+        .offset(x: savedOffset.width + dragOffset.width,
+                y: savedOffset.height + dragOffset.height)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    savedOffset = CGSize(
+                        width: savedOffset.width + value.translation.width,
+                        height: savedOffset.height + value.translation.height
+                    )
+                    dragOffset = .zero
+                }
+        )
     }
 
     // MARK: - Header
@@ -157,22 +173,22 @@ struct SecureCourierCard: View {
     }
 
     private var explainContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("This operator needs secrets delivered securely.")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("The operator needs these secrets:")
                 .font(.caption)
                 .foregroundStyle(.primary)
 
             ForEach(missingSecrets, id: \.self) { secret in
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     Image(systemName: "key.fill")
                         .font(.caption2)
                         .foregroundStyle(.orange)
                     Text(secret)
-                        .font(.caption.monospaced())
+                        .font(.caption2.monospaced())
                 }
             }
 
-            Text("When you tap Begin, the operator will send a credential form to your Nostr DMs. Fill in the values and reply, then come back here and tap Collect.")
+            Text("Tap Begin. You'll get a secure form in your Nostr messages. Fill it in, reply, then tap Collect here.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -223,23 +239,23 @@ struct SecureCourierCard: View {
     }
 
     private func readyContent(poison: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("A credential form is arriving in your Nostr DMs. Open Messages, find the form, fill in each field, and send your reply.")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Now go to your Nostr messenger and reply to the operator's secure courier message.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
 
-            HStack(spacing: 8) {
-                Text("Verify the phrase:")
+            HStack(spacing: 6) {
+                Text("Look for:")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Text("\"\(poison)\"")
-                    .font(.subheadline.bold())
+                    .font(.caption.bold())
                     .foregroundStyle(.orange)
             }
-            .padding(8)
-            .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .padding(6)
+            .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
 
-            Text("After you've sent your reply, come back here:")
+            Text("Fill in the fields and send. Then come back and tap Collect.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -290,12 +306,12 @@ struct SecureCourierCard: View {
     }
 
     private func receivedContent(message: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Label("Secrets received and stored.", systemImage: "checkmark.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.green)
 
-            Text("The operator now has the credentials it needs. You may also receive a credential card (ncred) in your DMs for future reuse.")
+            Text("The operator is now configured. Check your DMs for a credential card (ncred) you can save for reuse.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -317,15 +333,11 @@ struct SecureCourierCard: View {
 
     private func collectFailedContent(poison: String, error: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("The operator couldn't find your reply yet.")
+            Text("Reply not found yet.")
                 .font(.caption)
                 .foregroundStyle(.orange)
 
-            Text(error)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            Text("Check that you replied to the DM containing \"\(poison)\" with all fields filled in, then try again.")
+            Text("Make sure you replied to the DM with phrase \"\(poison)\" and all fields filled in.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
