@@ -248,12 +248,18 @@ struct SecureCourierCard: View {
 
     private func readyContent(poison: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Now go to your Nostr messenger and reply to the operator's secure courier message.")
+            Text("Open Messages for **\(operatorName)** and reply to the secure courier form.")
                 .font(.caption)
                 .foregroundStyle(.primary)
 
+            // Show which npub to look for
+            Text(String(operatorNpub.prefix(24)) + "...")
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
+
             HStack(spacing: 6) {
-                Text("Look for:")
+                Text("Verify phrase:")
                     .font(.caption2)
                     .foregroundStyle(.primary)
                 Text("\"\(poison)\"")
@@ -263,7 +269,7 @@ struct SecureCourierCard: View {
             .padding(8)
             .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
 
-            Text("Fill in the fields and send. Then come back and tap Collect.")
+            Text("Fill in the fields and send your reply. Then tap Collect.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -423,7 +429,7 @@ struct SecureCourierCard: View {
         }
     }
 
-    private func collectCredentials() async {
+    private func collectCredentials(retryCount: Int = 0) async {
         do {
             let token = try await resolveToken()
             let result = try await MCPService().callReceiveCredentials(
@@ -438,6 +444,12 @@ struct SecureCourierCard: View {
                     phase = .received(msg)
                 } else {
                     let err = json["error"] as? String ?? "No reply found on relays."
+                    // Auto-retry once on first failure (often a stale token)
+                    if retryCount == 0 {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000) // 2s
+                        await collectCredentials(retryCount: 1)
+                        return
+                    }
                     phase = .collectFailed(poison: currentPoison, error: err)
                 }
             } else {
