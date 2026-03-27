@@ -6,6 +6,7 @@ struct CourierParams {
     let operatorNpub: String
     let endpointURL: URL
     let missingSecrets: [String]
+    var greeting: String = ""
 }
 
 /// Floating card for the Secure Courier flow — stays on screen while
@@ -15,6 +16,7 @@ struct SecureCourierCard: View {
     let operatorNpub: String
     let endpointURL: URL
     let missingSecrets: [String]
+    var greeting: String = ""
     var onDismiss: () -> Void
 
     @State private var phase: Phase = .explain
@@ -174,9 +176,15 @@ struct SecureCourierCard: View {
 
     private var explainContent: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("The operator needs these secrets:")
-                .font(.caption)
-                .foregroundStyle(.primary)
+            if !greeting.isEmpty {
+                Text(greeting)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+            } else {
+                Text("In order to come online, **\(operatorName)** needs the credentials below.")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+            }
 
             ForEach(missingSecrets, id: \.self) { secret in
                 HStack(spacing: 4) {
@@ -188,7 +196,7 @@ struct SecureCourierCard: View {
                 }
             }
 
-            Text("Tap Begin. You'll get a secure form in your Nostr messages. Fill it in, reply, then tap Collect here.")
+            Text("When you tap Begin, a Secure Courier message will arrive in your Nostr DMs with these fields. Fill them in and reply to securely configure **\(operatorName)**.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 

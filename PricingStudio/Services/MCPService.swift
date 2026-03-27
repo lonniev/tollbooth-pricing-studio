@@ -1088,11 +1088,15 @@ actor MCPService {
         let summary: String
         var bootstrapError: String?
         var vaultOk: Bool?
+        var credentialGreeting: String?
+        var operatorName: String?
 
         enum CodingKeys: String, CodingKey {
             case ready, configured, missing, summary
             case bootstrapError = "bootstrap_error"
             case vaultOk = "vault_ok"
+            case credentialGreeting = "credential_greeting"
+            case operatorName = "operator_name"
         }
     }
 

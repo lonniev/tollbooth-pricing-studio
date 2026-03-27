@@ -652,7 +652,8 @@ struct PricingDetailView: View {
                                     endpointURL: url,
                                     missingSecrets: status.missing
                                         .filter { $0.category == "secret" }
-                                        .map { fieldLabel($0.field) }
+                                        .map { fieldLabel($0.field) },
+                                    greeting: onboardingStatus?.credentialGreeting ?? ""
                                 ))
                             }
                         } label: {
