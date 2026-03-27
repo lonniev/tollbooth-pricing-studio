@@ -1086,6 +1086,14 @@ actor MCPService {
         let configured: [OnboardingField]
         let missing: [OnboardingField]
         let summary: String
+        var bootstrapError: String?
+        var vaultOk: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case ready, configured, missing, summary
+            case bootstrapError = "bootstrap_error"
+            case vaultOk = "vault_ok"
+        }
     }
 
     func callGetOnboardingStatus(
@@ -1128,7 +1136,13 @@ actor MCPService {
         }
 
         let status = try JSONDecoder().decode(OnboardingStatus.self, from: data)
-        await traffic(.inbound, label: "Onboarding Status", detail: text)
+        let logDetail: String
+        if let err = status.bootstrapError, !err.isEmpty {
+            logDetail = "\(status.summary) | bootstrap: \(err)"
+        } else {
+            logDetail = status.summary
+        }
+        await traffic(.inbound, label: "Onboarding Status", detail: logDetail)
         return status
     }
 
