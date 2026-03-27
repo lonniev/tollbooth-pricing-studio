@@ -1128,7 +1128,7 @@ actor MCPService {
         }
 
         let status = try JSONDecoder().decode(OnboardingStatus.self, from: data)
-        await traffic(.inbound, label: "Onboarding Status", detail: status.summary)
+        await traffic(.inbound, label: "Onboarding Status", detail: text)
         return status
     }
 
