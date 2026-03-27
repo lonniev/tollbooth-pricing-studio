@@ -311,6 +311,26 @@ final class PricingViewModel {
             return
         }
 
+        // Operator with MCP URL: check onboarding first — if not configured,
+        // skip the pricing fetch entirely (it will fail anyway)
+        if target is Operator, let endpoint = target.mcpEndpointURL, let url = URL(string: endpoint) {
+            state = .loading(step: "Checking configuration...")
+            do {
+                let (_, token) = try await resolveEndpointAndToken(for: target)
+                let status = try await mcpService.callGetOnboardingStatus(
+                    endpointURL: url, bearerToken: token
+                )
+                if !status.ready {
+                    // Operator isn't fully configured — show onboarding, not pricing
+                    state = .registeredNotConfigured
+                    return
+                }
+            } catch {
+                // Onboarding check failed — continue to pricing fetch
+                // (the operator might not have get_onboarding_status yet)
+            }
+        }
+
         state = .loading(step: MCPService.ConnectionStep.resolvingOracle.rawValue)
 
         do {
