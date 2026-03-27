@@ -20,7 +20,7 @@ struct MessageBubble: View {
             if !dm.isFromMe { Spacer(minLength: 60) }
 
             VStack(alignment: dm.isFromMe ? .leading : .trailing, spacing: 4) {
-                if let _ = courierPayload {
+                if let _ = courierPayload, !dm.isFromMe {
                     courierContent
                 } else if dm.content.hasPrefix("ncred1") {
                     ncredContent

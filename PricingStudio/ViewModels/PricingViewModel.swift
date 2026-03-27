@@ -344,9 +344,15 @@ final class PricingViewModel {
             let isInRegistry = await checkOracleRegistration(npub: target.npub)
             state = isInRegistry ? .registeredNotConfigured : .notRegistered
         } catch {
-            let detail = "\(error.localizedDescription)\n\nUnderlying: \(String(describing: error))"
-            TrafficLogger.shared.log(.error, label: "Load Failed: \(target.displayName)", detail: detail)
-            state = .error(error.localizedDescription)
+            let msg = error.localizedDescription
+            // "No pricing model" is not a fatal error — show empty loaded state
+            if msg.contains("No pricing model") || msg.contains("not configured pricing") {
+                state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, pipeline: nil))
+            } else {
+                let detail = "\(msg)\n\nUnderlying: \(String(describing: error))"
+                TrafficLogger.shared.log(.error, label: "Load Failed: \(target.displayName)", detail: detail)
+                state = .error(msg)
+            }
         }
     }
 

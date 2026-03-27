@@ -255,19 +255,19 @@ struct SecureCourierCard: View {
             HStack(spacing: 6) {
                 Text("Look for:")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                 Text("\"\(poison)\"")
                     .font(.caption.bold())
                     .foregroundStyle(.orange)
             }
-            .padding(6)
-            .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            .padding(8)
+            .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
 
             Text("Fill in the fields and send. Then come back and tap Collect.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            HStack {
+            HStack(spacing: 8) {
                 Spacer()
                 Button {
                     phase = .collecting
