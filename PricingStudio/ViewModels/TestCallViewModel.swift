@@ -183,7 +183,7 @@ final class TestCallViewModel {
                 switch defVal {
                 case .string(let s): defaultStr = s
                 case .int(let i): defaultStr = "\(i)"
-                case .float(let f): defaultStr = "\(f)"
+                case .double(let f): defaultStr = "\(f)"
                 case .bool(let b): defaultStr = b ? "true" : "false"
                 default: defaultStr = ""
                 }
@@ -227,7 +227,7 @@ final class TestCallViewModel {
             case "integer":
                 args[param.name] = .int(Int(value) ?? 0)
             case "number":
-                args[param.name] = .float(Double(value) ?? 0)
+                args[param.name] = .double(Double(value) ?? 0)
             case "boolean":
                 args[param.name] = .bool(value == "true")
             default:
