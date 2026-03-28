@@ -143,11 +143,16 @@ struct OperatorStatsSheet: View {
         let mcpService = MCPService()
         let oauthService = OAuthService()
         do {
-            // Resolve a token for Oracle lookup
+            // Resolve Oracle URL and authenticate
+            let oracleURL = try await mcpService.resolveOracleURL(
+                forOperator: operator_.npub
+            )
+            let oracleHost = oracleURL.host ?? "oracle"
             let oracleToken = try await resolveToken(
                 oauthService: oauthService,
                 npub: operator_.npub,
-                host: "oracle"
+                host: oracleHost,
+                endpoint: oracleURL
             )
 
             // Lookup member from Oracle
