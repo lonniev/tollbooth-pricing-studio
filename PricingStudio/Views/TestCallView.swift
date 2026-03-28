@@ -24,18 +24,20 @@ struct TestCallView: View {
         NavigationStack {
             Form {
                 if isDirectMode {
-                    // Direct mode: identity first, then execute, then details
+                    // Direct mode: identity first, params, then execute, then details
                     identitySection
+                    if !vm.toolParams.isEmpty { parametersSection }
                     actionSection
                     resultSection
                     toolSummarySection
                     operatorSection
                     if !vm.availableTools.isEmpty { toolSection }
                 } else {
-                    // Browse mode: operator → tool → identity → execute
+                    // Browse mode: operator → tool → identity → params → execute
                     operatorSection
                     if !vm.availableTools.isEmpty { toolSection }
                     if vm.selectedTool != nil { identitySection }
+                    if !vm.toolParams.isEmpty { parametersSection }
                     actionSection
                     resultSection
                 }
@@ -199,6 +201,56 @@ struct TestCallView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var parametersSection: some View {
+        Section("Parameters") {
+            ForEach(vm.toolParams) { param in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text(param.name)
+                            .font(.caption.bold().monospaced())
+                        if param.required {
+                            Text("required")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.red)
+                        }
+                        Spacer()
+                        Text(param.type)
+                            .font(.system(size: 9).monospaced())
+                            .foregroundStyle(.tertiary)
+                    }
+                    if !param.description.isEmpty {
+                        Text(param.description)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    if param.name == "npub" {
+                        // npub is auto-filled from identity selection
+                        Text(vm.paramValues["npub", default: "select identity above"])
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.green)
+                    } else if param.type == "boolean" {
+                        Toggle("", isOn: Binding(
+                            get: { vm.paramValues[param.name, default: "false"] == "true" },
+                            set: { vm.paramValues[param.name] = $0 ? "true" : "false" }
+                        ))
+                    } else {
+                        TextField(
+                            param.defaultValue.isEmpty ? param.name : param.defaultValue,
+                            text: Binding(
+                                get: { vm.paramValues[param.name, default: ""] },
+                                set: { vm.paramValues[param.name] = $0 }
+                            )
+                        )
+                        .font(.caption.monospaced())
+                        .textFieldStyle(.roundedBorder)
+                    }
                 }
             }
         }

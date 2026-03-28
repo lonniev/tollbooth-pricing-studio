@@ -1,8 +1,10 @@
 import Foundation
+import MCP
 import SwiftData
 
 /// Drives the "Test Call as Npub" feature — lets users select an operator,
-/// pick a tool, choose an npub identity, check affordability, and optionally execute.
+/// pick a tool, choose an npub identity, fill in parameters from the tool's
+/// schema, check affordability, and execute.
 @MainActor @Observable
 final class TestCallViewModel {
 
@@ -26,8 +28,27 @@ final class TestCallViewModel {
         let requiredRole: ToolRole
     }
 
+    /// A parameter from the tool's input schema.
+    struct ToolParam: Identifiable, Sendable {
+        let id: String  // param name
+        let name: String
+        let description: String
+        let type: String  // "string", "integer", "number", "boolean"
+        let required: Bool
+        let defaultValue: String
+    }
+
     private(set) var state: State = .idle
     private(set) var availableTools: [ToolPrice] = []
+
+    /// Schema-derived parameters for the selected tool.
+    private(set) var toolParams: [ToolParam] = []
+
+    /// User-editable values for each parameter, keyed by param name.
+    var paramValues: [String: String] = [:]
+
+    /// Cached MCP tool schemas keyed by full tool name.
+    private var toolSchemas: [String: Value] = [:]
 
     var selectedOperator: Operator? {
         didSet {
@@ -35,6 +56,9 @@ final class TestCallViewModel {
                 availableTools = []
                 selectedTool = nil
                 selectedPatronNpub = nil
+                toolParams = []
+                paramValues = [:]
+                toolSchemas = [:]
                 state = .idle
             }
         }
@@ -44,12 +68,22 @@ final class TestCallViewModel {
         didSet {
             if selectedTool?.toolName != oldValue?.toolName {
                 selectedPatronNpub = nil
+                updateToolParams()
                 if !availableTools.isEmpty { state = .toolsLoaded }
             }
         }
     }
 
-    var selectedPatronNpub: String?
+    var selectedPatronNpub: String? {
+        didSet {
+            // Auto-fill npub param when identity is selected
+            if let npub = selectedPatronNpub {
+                if toolParams.contains(where: { $0.name == "npub" }) {
+                    paramValues["npub"] = npub
+                }
+            }
+        }
+    }
 
     private let mcpService = MCPService()
     private let oauthService = OAuthService()
@@ -68,16 +102,139 @@ final class TestCallViewModel {
 
         do {
             let token = try await resolveToken(operatorNpub: op.npub, endpoint: endpoint)
+
+            // Fetch pricing model for tool list + costs
             let result = try await mcpService.fetchPricingModel(
                 endpointURL: endpoint,
                 bearerToken: token,
                 onStep: { _ in }
             )
             availableTools = result.tools ?? []
+
+            // Fetch MCP tool schemas for parameter info
+            let mcpTools = try await mcpService.fetchToolList(
+                endpointURL: endpoint,
+                bearerToken: token
+            )
+            toolSchemas = [:]
+            for tool in mcpTools {
+                toolSchemas[tool.name] = tool.inputSchema
+            }
+
             state = .toolsLoaded
         } catch {
             state = .error("Failed to load tools: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Schema Parsing
+
+    /// Parse the selected tool's inputSchema and populate toolParams.
+    private func updateToolParams() {
+        toolParams = []
+        paramValues = [:]
+
+        guard let toolName = selectedTool?.toolName else { return }
+
+        // Find the matching MCP tool schema (try exact, then suffix match)
+        let schema: Value?
+        if let exact = toolSchemas[toolName] {
+            schema = exact
+        } else if let match = toolSchemas.first(where: { $0.key.hasSuffix("_\(toolName)") }) {
+            schema = match.value
+        } else {
+            schema = nil
+        }
+
+        guard let schema,
+              case .object(let obj) = schema,
+              let propsVal = obj["properties"],
+              case .object(let properties) = propsVal else { return }
+
+        // Extract required field names
+        var requiredNames: Set<String> = []
+        if let reqVal = obj["required"], case .array(let reqArr) = reqVal {
+            for item in reqArr {
+                if case .string(let name) = item {
+                    requiredNames.insert(name)
+                }
+            }
+        }
+
+        for (name, propVal) in properties {
+            guard case .object(let prop) = propVal else { continue }
+
+            let type: String
+            if let typeVal = prop["type"], case .string(let t) = typeVal {
+                type = t
+            } else {
+                type = "string"
+            }
+
+            let description: String
+            if let descVal = prop["description"], case .string(let d) = descVal {
+                description = d
+            } else {
+                description = ""
+            }
+
+            let defaultStr: String
+            if let defVal = prop["default"] {
+                switch defVal {
+                case .string(let s): defaultStr = s
+                case .int(let i): defaultStr = "\(i)"
+                case .float(let f): defaultStr = "\(f)"
+                case .bool(let b): defaultStr = b ? "true" : "false"
+                default: defaultStr = ""
+                }
+            } else {
+                defaultStr = ""
+            }
+
+            toolParams.append(ToolParam(
+                id: name,
+                name: name,
+                description: description,
+                type: type,
+                required: requiredNames.contains(name),
+                defaultValue: defaultStr
+            ))
+
+            // Pre-fill default values
+            if !defaultStr.isEmpty {
+                paramValues[name] = defaultStr
+            }
+        }
+
+        // Sort: required first, then alphabetical
+        toolParams.sort { a, b in
+            if a.required != b.required { return a.required }
+            return a.name < b.name
+        }
+    }
+
+    // MARK: - Build Arguments
+
+    /// Build the tool call arguments from paramValues, filtering empty optionals.
+    private func buildArguments() -> [String: Value] {
+        var args: [String: Value] = [:]
+        for param in toolParams {
+            let value = paramValues[param.name, default: ""]
+            if value.isEmpty && !param.required { continue }
+            if value.isEmpty { continue }
+
+            switch param.type {
+            case "integer":
+                args[param.name] = .int(Int(value) ?? 0)
+            case "number":
+                args[param.name] = .float(Double(value) ?? 0)
+            case "boolean":
+                args[param.name] = .bool(value == "true")
+            default:
+                args[param.name] = .string(value)
+            }
+        }
+        return args
     }
 
     // MARK: - Check Affordability
@@ -133,8 +290,8 @@ final class TestCallViewModel {
         guard let op = selectedOperator,
               let endpointString = op.mcpEndpointURL,
               let endpoint = URL(string: endpointString),
-              let tool = selectedTool,
-              let npub = selectedPatronNpub else {
+              let _ = selectedTool,
+              let _ = selectedPatronNpub else {
             state = .error("Missing operator or tool selection")
             return
         }
@@ -142,17 +299,13 @@ final class TestCallViewModel {
         state = .executing
 
         do {
+            let npub = selectedPatronNpub ?? op.npub
             let token = try await resolveToken(patronNpub: npub, operatorNpub: op.npub, endpoint: endpoint)
-            // Only pass npub for paid tools — free tools (Oracle delegation, etc.)
-            // don't accept npub and Pydantic rejects unexpected kwargs
-            var args: [String: Value] = [:]
-            if tool.priceSats > 0 {
-                args["npub"] = .string(npub)
-            }
+            let args = buildArguments()
             let response = try await mcpService.callToolGeneric(
                 endpointURL: endpoint,
                 bearerToken: token,
-                toolName: tool.toolName,
+                toolName: selectedTool!.toolName,
                 arguments: args
             )
             state = .result(response)
