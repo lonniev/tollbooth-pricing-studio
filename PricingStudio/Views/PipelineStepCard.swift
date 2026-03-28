@@ -26,7 +26,7 @@ struct PipelineStepCard: View {
                                 Text(formatParamKey(key))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                Text(value.description)
+                                Text(formatParamValue(key, value))
                                     .font(.caption.monospaced())
                             }
                         }
@@ -55,5 +55,22 @@ struct PipelineStepCard: View {
 
     private func formatParamKey(_ key: String) -> String {
         key.replacingOccurrences(of: "_", with: " ").capitalized + ":"
+    }
+
+    private static let dayNames = [
+        "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+    ]
+
+    private func formatParamValue(_ key: String, _ value: AnyCodableValue) -> String {
+        if key == "days_of_week", case .array(let items) = value {
+            let names = items.compactMap { item -> String? in
+                if case .int(let idx) = item, idx >= 0, idx < Self.dayNames.count {
+                    return Self.dayNames[idx]
+                }
+                return nil
+            }
+            return names.isEmpty ? value.description : names.joined(separator: ", ")
+        }
+        return value.description
     }
 }

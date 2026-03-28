@@ -143,11 +143,17 @@ final class TestCallViewModel {
 
         do {
             let token = try await resolveToken(patronNpub: npub, operatorNpub: op.npub, endpoint: endpoint)
+            // Only pass npub for paid tools — free tools (Oracle delegation, etc.)
+            // don't accept npub and Pydantic rejects unexpected kwargs
+            var args: [String: Value] = [:]
+            if tool.priceSats > 0 {
+                args["npub"] = .string(npub)
+            }
             let response = try await mcpService.callToolGeneric(
                 endpointURL: endpoint,
                 bearerToken: token,
                 toolName: tool.toolName,
-                arguments: ["npub": .string(npub)]
+                arguments: args
             )
             state = .result(response)
         } catch {
