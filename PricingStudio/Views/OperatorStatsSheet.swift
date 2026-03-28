@@ -141,9 +141,21 @@ struct OperatorStatsSheet: View {
 
     private func loadStats() async {
         let mcpService = MCPService()
+        let oauthService = OAuthService()
         do {
+            // Resolve a token for Oracle lookup
+            let oracleToken = try await resolveToken(
+                oauthService: oauthService,
+                npub: operator_.npub,
+                host: "oracle"
+            )
+
             // Lookup member from Oracle
-            let member = try await mcpService.callLookupMember(npub: operator_.npub)
+            let member = try await mcpService.lookupOperator(
+                npub: operator_.npub,
+                bearerToken: oracleToken,
+                onStep: { _ in }
+            )
 
             // Build tool stats from pricing model if endpoint available
             var totalTools = 0
@@ -153,22 +165,13 @@ struct OperatorStatsSheet: View {
 
             if let urlStr = operator_.mcpEndpointURL,
                let endpoint = URL(string: urlStr) {
-                let oauthService = OAuthService()
                 let host = endpoint.host ?? operator_.npub
-                let token: String
-                if let bundle = KeychainService.loadTokenBundle(
-                    forPatron: operator_.npub, operator: host
-                ), !bundle.isExpired {
-                    token = bundle.accessToken
-                } else {
-                    let bundle = try await oauthService.authenticate(
-                        mcpEndpoint: endpoint
-                    )
-                    try? KeychainService.saveTokenBundle(
-                        bundle, forPatron: operator_.npub, operator: host
-                    )
-                    token = bundle.accessToken
-                }
+                let token = try await resolveToken(
+                    oauthService: oauthService,
+                    npub: operator_.npub,
+                    host: host,
+                    endpoint: endpoint
+                )
 
                 let model = try await mcpService.fetchPricingModel(
                     endpointURL: endpoint,
@@ -204,7 +207,7 @@ struct OperatorStatsSheet: View {
             fetchedStats = OperatorStats(
                 registryRole: member.role,
                 registryStatus: member.status,
-                registryDisplayName: member.displayName ?? operator_.displayName,
+                registryDisplayName: member.displayName,
                 services: member.services ?? [],
                 totalToolCount: totalTools,
                 freeToolCount: freeTools,
@@ -215,5 +218,24 @@ struct OperatorStatsSheet: View {
         } catch {
             fetchError = error.localizedDescription
         }
+    }
+
+    private func resolveToken(
+        oauthService: OAuthService,
+        npub: String,
+        host: String,
+        endpoint: URL? = nil
+    ) async throws -> String {
+        if let bundle = KeychainService.loadTokenBundle(
+            forPatron: npub, operator: host
+        ), !bundle.isExpired {
+            return bundle.accessToken
+        }
+        let ep = endpoint ?? URL(string: "https://\(host)")!
+        let bundle = try await oauthService.authenticate(mcpEndpoint: ep)
+        try? KeychainService.saveTokenBundle(
+            bundle, forPatron: npub, operator: host
+        )
+        return bundle.accessToken
     }
 }
