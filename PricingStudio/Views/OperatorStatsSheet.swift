@@ -5,13 +5,28 @@ struct OperatorStatsSheet: View {
     let operator_: Operator
     let stats: OperatorStats?
 
+    @State private var fetchedStats: OperatorStats?
+    @State private var fetchError: String?
+
     var body: some View {
         NavigationStack {
             Group {
-                if let stats {
-                    statsContent(stats)
+                if let s = stats ?? fetchedStats {
+                    statsContent(s)
+                } else if let err = fetchError {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundStyle(.orange)
+                        Text(err)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
                 } else {
                     ProgressView("Loading operator details...")
+                        .task { await loadStats() }
                 }
             }
             .navigationTitle(operator_.displayName)
@@ -119,6 +134,86 @@ struct OperatorStatsSheet: View {
                 }
                 .padding(.vertical, 2)
             }
+        }
+    }
+
+    // MARK: - Fetch
+
+    private func loadStats() async {
+        let mcpService = MCPService()
+        do {
+            // Lookup member from Oracle
+            let member = try await mcpService.callLookupMember(npub: operator_.npub)
+
+            // Build tool stats from pricing model if endpoint available
+            var totalTools = 0
+            var freeTools = 0
+            var paidTools = 0
+            var categories: [String: (count: Int, min: Int, max: Int)] = [:]
+
+            if let urlStr = operator_.mcpEndpointURL,
+               let endpoint = URL(string: urlStr) {
+                let oauthService = OAuthService()
+                let host = endpoint.host ?? operator_.npub
+                let token: String
+                if let bundle = KeychainService.loadTokenBundle(
+                    forPatron: operator_.npub, operator: host
+                ), !bundle.isExpired {
+                    token = bundle.accessToken
+                } else {
+                    let bundle = try await oauthService.authenticate(
+                        mcpEndpoint: endpoint
+                    )
+                    try? KeychainService.saveTokenBundle(
+                        bundle, forPatron: operator_.npub, operator: host
+                    )
+                    token = bundle.accessToken
+                }
+
+                let model = try await mcpService.fetchPricingModel(
+                    endpointURL: endpoint,
+                    bearerToken: token,
+                    onStep: { _ in }
+                )
+                for tool in model.tools ?? [] {
+                    totalTools += 1
+                    if tool.priceSats == 0 {
+                        freeTools += 1
+                    } else {
+                        paidTools += 1
+                    }
+                    let cat = tool.category.isEmpty ? "uncategorized" : tool.category
+                    let existing = categories[cat, default: (0, Int.max, 0)]
+                    categories[cat] = (
+                        existing.count + 1,
+                        min(existing.min, tool.priceSats),
+                        max(existing.max, tool.priceSats)
+                    )
+                }
+            }
+
+            let summaries = categories.map { key, val in
+                ToolCategorySummary(
+                    category: key,
+                    count: val.count,
+                    minPriceSats: val.min == Int.max ? 0 : val.min,
+                    maxPriceSats: val.max
+                )
+            }.sorted { $0.category < $1.category }
+
+            fetchedStats = OperatorStats(
+                registryRole: member.role,
+                registryStatus: member.status,
+                registryDisplayName: member.displayName ?? operator_.displayName,
+                services: member.services ?? [],
+                totalToolCount: totalTools,
+                freeToolCount: freeTools,
+                paidToolCount: paidTools,
+                categorySummaries: summaries,
+                fetchedAt: Date()
+            )
+        } catch {
+            fetchError = error.localizedDescription
         }
     }
 }
