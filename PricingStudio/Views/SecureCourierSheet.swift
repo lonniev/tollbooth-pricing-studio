@@ -21,6 +21,7 @@ struct SecureCourierCard: View {
 
     @State private var phase: Phase = .explain
     @State private var currentPoison: String = ""
+    @State private var credentialCard: String = ""
     @State private var expanded = true
     @State private var dragOffset: CGSize = .zero
     @State private var savedOffset: CGSize = .zero
@@ -146,7 +147,7 @@ struct SecureCourierCard: View {
         case .calling: return "Contacting \(operatorName)..."
         case .ready: return "Channel Open — Reply via DM"
         case .collecting: return "Collecting Credentials..."
-        case .received: return "Credentials Received"
+        case .received: return "Credentials Sent."
         case .collectFailed: return "Reply Not Found"
         case .failed: return "Channel Failed"
         }
@@ -325,9 +326,24 @@ struct SecureCourierCard: View {
                 .font(.caption)
                 .foregroundStyle(.green)
 
-            Text("The operator is now configured. Check your DMs for a credential card (ncred) you can save for reuse.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            if !credentialCard.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Credential Card")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                    Text(credentialCard)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .textSelection(.enabled)
+                }
+                .padding(8)
+                .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+            } else {
+                Text("The operator is now configured.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             if !message.isEmpty {
                 Text(message)
@@ -441,6 +457,9 @@ struct SecureCourierCard: View {
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if json["success"] as? Bool == true {
                     let msg = json["message"] as? String ?? "Credentials stored successfully."
+                    if let ncred = json["credential_card"] as? String {
+                        credentialCard = ncred
+                    }
                     phase = .received(msg)
                 } else {
                     let err = json["error"] as? String ?? "No reply found on relays."
