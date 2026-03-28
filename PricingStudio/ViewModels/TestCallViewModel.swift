@@ -112,7 +112,8 @@ final class TestCallViewModel {
             let token = try await resolveToken(patronNpub: patronNpub, operatorNpub: op.npub, endpoint: endpoint)
             let balance = try await mcpService.callCheckBalance(
                 endpointURL: endpoint,
-                bearerToken: token
+                bearerToken: token,
+                patronNpub: patronNpub
             )
             state = .ready(ToolCostEstimate(
                 toolName: tool.toolName,
@@ -145,7 +146,8 @@ final class TestCallViewModel {
             let response = try await mcpService.callToolGeneric(
                 endpointURL: endpoint,
                 bearerToken: token,
-                toolName: tool.toolName
+                toolName: tool.toolName,
+                arguments: ["npub": .string(npub)]
             )
             state = .result(response)
         } catch {

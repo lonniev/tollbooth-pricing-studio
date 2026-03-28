@@ -1202,9 +1202,11 @@ actor MCPService {
         endpointURL: URL,
         bearerToken: String,
         senderNpub: String,
-        service: String = "tollbooth-sample-operator"
+        service: String = "tollbooth-sample-operator",
+        credentialCard: String = ""
     ) async throws -> String {
-        await traffic(.outbound, label: "Receive Credentials", detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
+        let label = credentialCard.isEmpty ? "Receive Credentials" : "Redeem ncred"
+        await traffic(.outbound, label: label, detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
         let transport = HTTPClientTransport(
@@ -1227,12 +1229,16 @@ actor MCPService {
             throw MCPError.toolCallFailed("Operator does not support receive_credentials")
         }
 
+        var args: [String: Value] = [
+            "sender_npub": .string(senderNpub),
+            "service": .string(service),
+        ]
+        if !credentialCard.isEmpty {
+            args["credential_card"] = .string(credentialCard)
+        }
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: [
-                "sender_npub": .string(senderNpub),
-                "service": .string(service),
-            ]
+            arguments: args
         )
 
         if isError == true {
@@ -1416,7 +1422,18 @@ actor MCPService {
 
         try await client.connect(transport: transport)
 
-        let (content, isError) = try await client.callTool(name: toolName, arguments: arguments)
+        // Resolve short tool name to full MCP name (e.g., "current" → "weather_current")
+        let allTools = try await listAllTools(client: client)
+        let resolvedName: String
+        if let match = allTools.first(where: { $0.name == toolName }) {
+            resolvedName = match.name
+        } else if let match = allTools.first(where: { $0.name.hasSuffix("_\(toolName)") }) {
+            resolvedName = match.name
+        } else {
+            resolvedName = toolName
+        }
+
+        let (content, isError) = try await client.callTool(name: resolvedName, arguments: arguments)
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")

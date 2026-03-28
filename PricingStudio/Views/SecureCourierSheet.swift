@@ -22,6 +22,8 @@ struct SecureCourierCard: View {
     @State private var phase: Phase = .explain
     @State private var currentPoison: String = ""
     @State private var credentialCard: String = ""
+    @State private var ncredInput: String = ""
+    @State private var showNcredField = false
     @State private var expanded = true
     @State private var dragOffset: CGSize = .zero
     @State private var savedOffset: CGSize = .zero
@@ -60,6 +62,15 @@ struct SecureCourierCard: View {
                 .frame(maxHeight: 300)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(
+            for: UIApplication.willEnterForegroundNotification
+        )) { _ in
+            // Auto-collect when returning from Messages (user likely sent their DM)
+            if case .ready = phase {
+                phase = .collecting
+                Task { await collectCredentials() }
+            }
+        }
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary, lineWidth: 1))
         .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
@@ -71,9 +82,11 @@ struct SecureCourierCard: View {
                     dragOffset = value.translation
                 }
                 .onEnded { value in
+                    let newY = savedOffset.height + value.translation.height
                     savedOffset = CGSize(
                         width: savedOffset.width + value.translation.width,
-                        height: savedOffset.height + value.translation.height
+                        // Clamp: don't let the card go above its origin
+                        height: max(0, newY)
                     )
                     dragOffset = .zero
                 }
@@ -201,8 +214,18 @@ struct SecureCourierCard: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            HStack {
+            HStack(spacing: 8) {
+                Button {
+                    showNcredField.toggle()
+                } label: {
+                    Label("Use ncred", systemImage: "creditcard")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
                 Spacer()
+
                 Button {
                     phase = .calling
                     Task { await beginCourierFlow() }
@@ -213,6 +236,29 @@ struct SecureCourierCard: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .tint(.orange)
+            }
+
+            if showNcredField {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Paste a credential card (ncred1...)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    TextField("ncred1...", text: $ncredInput)
+                        .font(.system(size: 10, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                    Button {
+                        guard ncredInput.hasPrefix("ncred1") else { return }
+                        phase = .collecting
+                        Task { await redeemNcred() }
+                    } label: {
+                        Label("Redeem", systemImage: "checkmark.seal")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.green)
+                    .disabled(!ncredInput.hasPrefix("ncred1"))
+                }
             }
         }
     }
@@ -328,9 +374,20 @@ struct SecureCourierCard: View {
 
             if !credentialCard.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Credential Card")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Credential Card")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            UIPasteboard.general.string = credentialCard
+                        } label: {
+                            Label("Copy", systemImage: "doc.on.doc")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.green)
+                    }
                     Text(credentialCard)
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -339,6 +396,10 @@ struct SecureCourierCard: View {
                 }
                 .padding(8)
                 .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+
+                Text("Save this ncred to reuse credentials without re-entering them.")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
             } else {
                 Text("The operator is now configured.")
                     .font(.caption2)
@@ -476,6 +537,32 @@ struct SecureCourierCard: View {
             }
         } catch {
             phase = .collectFailed(poison: currentPoison, error: error.localizedDescription)
+        }
+    }
+
+    private func redeemNcred() async {
+        do {
+            let token = try await resolveToken()
+            let result = try await MCPService().callReceiveCredentials(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                senderNpub: operatorNpub,
+                credentialCard: ncredInput
+            )
+            if let data = result.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if json["success"] as? Bool == true {
+                    let msg = json["message"] as? String ?? "Credentials redeemed from ncred."
+                    phase = .received(msg)
+                } else {
+                    let err = json["error"] as? String ?? "ncred redemption failed."
+                    phase = .failed(err)
+                }
+            } else {
+                phase = .received(result)
+            }
+        } catch {
+            phase = .failed(error.localizedDescription)
         }
     }
 }

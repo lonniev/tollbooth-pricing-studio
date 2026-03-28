@@ -14,6 +14,7 @@ struct MessageBubble: View {
 
     @State private var courierPayload: CourierPayload?
     @State private var didParse = false
+    @State private var courierReplyExpanded = false
 
     var body: some View {
         HStack {
@@ -86,16 +87,34 @@ struct MessageBubble: View {
     private var plainContent: some View {
         Group {
             if isOutboundCourierReply {
-                // Compact summary for outbound courier replies
-                HStack(spacing: 6) {
-                    Image(systemName: "lock.shield.fill")
-                        .foregroundStyle(.green)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Secure Courier reply sent")
-                            .font(.caption.bold())
-                        Text("\(courierFieldCount) credential\(courierFieldCount == 1 ? "" : "s") delivered")
+                VStack(alignment: .leading, spacing: 4) {
+                    // Compact summary — tap to expand
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.shield.fill")
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Secure Courier reply sent")
+                                .font(.caption.bold())
+                            Text("\(courierFieldCount) credential\(courierFieldCount == 1 ? "" : "s") delivered")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: courierReplyExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation { courierReplyExpanded.toggle() }
+                    }
+
+                    if courierReplyExpanded {
+                        Divider()
+                        Text(dm.content)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
                 .padding(.horizontal, 12)
