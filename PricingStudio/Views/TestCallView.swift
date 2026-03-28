@@ -24,22 +24,21 @@ struct TestCallView: View {
         NavigationStack {
             Form {
                 if isDirectMode {
-                    // Direct mode: identity first, params, then execute, then details
+                    // Focused mode: identity → params → execute → result
+                    // Operator and tool already chosen — keep it tight
+                    toolSummarySection
                     identitySection
                     if !vm.toolParams.isEmpty { parametersSection }
-                    actionSection
                     resultSection
-                    toolSummarySection
-                    operatorSection
-                    if !vm.availableTools.isEmpty { toolSection }
+                    actionSection
                 } else {
                     // Browse mode: operator → tool → identity → params → execute
                     operatorSection
                     if !vm.availableTools.isEmpty { toolSection }
                     if vm.selectedTool != nil { identitySection }
                     if !vm.toolParams.isEmpty { parametersSection }
-                    actionSection
                     resultSection
+                    actionSection
                 }
             }
             .navigationTitle(isDirectMode ? (vm.selectedTool?.toolName ?? "Test Call") : "Test Call")
