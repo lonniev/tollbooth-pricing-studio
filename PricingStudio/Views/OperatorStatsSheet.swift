@@ -139,21 +139,17 @@ struct OperatorStatsSheet: View {
 
     // MARK: - Fetch
 
+    private let oauthService = OAuthService()
+
     private func loadStats() async {
         let mcpService = MCPService()
-        let oauthService = OAuthService()
         do {
-            // Resolve Oracle URL and authenticate
+            // Resolve Oracle URL and authenticate (same pattern as PricingViewModel)
             let oracleURL = try await mcpService.resolveOracleURL(
                 forOperator: operator_.npub
             )
             let oracleHost = oracleURL.host ?? "oracle"
-            let oracleToken = try await resolveToken(
-                oauthService: oauthService,
-                npub: operator_.npub,
-                host: oracleHost,
-                endpoint: oracleURL
-            )
+            let oracleToken = try await resolveToken(for: oracleURL, host: oracleHost)
 
             // Lookup member from Oracle
             let member = try await mcpService.lookupOperator(
@@ -171,12 +167,7 @@ struct OperatorStatsSheet: View {
             if let urlStr = operator_.mcpEndpointURL,
                let endpoint = URL(string: urlStr) {
                 let host = endpoint.host ?? operator_.npub
-                let token = try await resolveToken(
-                    oauthService: oauthService,
-                    npub: operator_.npub,
-                    host: host,
-                    endpoint: endpoint
-                )
+                let token = try await resolveToken(for: endpoint, host: host)
 
                 let model = try await mcpService.fetchPricingModel(
                     endpointURL: endpoint,
@@ -225,22 +216,20 @@ struct OperatorStatsSheet: View {
         }
     }
 
-    private func resolveToken(
-        oauthService: OAuthService,
-        npub: String,
-        host: String,
-        endpoint: URL? = nil
-    ) async throws -> String {
-        if let bundle = KeychainService.loadTokenBundle(
-            forPatron: npub, operator: host
-        ), !bundle.isExpired {
-            return bundle.accessToken
+    /// Standard Horizon OAuth token resolution — same as PricingViewModel.
+    private func resolveToken(for endpoint: URL, host: String) async throws -> String {
+        if let bundle = KeychainService.loadTokenBundle(forOperator: host) {
+            if !bundle.isExpired { return bundle.accessToken }
+            if bundle.refreshToken != nil {
+                if let refreshed = try? await oauthService.refresh(bundle: bundle) {
+                    try? KeychainService.saveTokenBundle(refreshed, forOperator: host)
+                    return refreshed.accessToken
+                }
+            }
+            KeychainService.deleteTokenBundle(forOperator: host)
         }
-        let ep = endpoint ?? URL(string: "https://\(host)")!
-        let bundle = try await oauthService.authenticate(mcpEndpoint: ep)
-        try? KeychainService.saveTokenBundle(
-            bundle, forPatron: npub, operator: host
-        )
+        let bundle = try await oauthService.authenticate(mcpEndpoint: endpoint)
+        try KeychainService.saveTokenBundle(bundle, forOperator: host)
         return bundle.accessToken
     }
 }
