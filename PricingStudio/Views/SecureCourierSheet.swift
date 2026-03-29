@@ -5,6 +5,7 @@ struct CourierParams {
     let operatorName: String
     let operatorNpub: String
     let endpointURL: URL
+    let credentialService: String
     let missingSecrets: [String]
     var greeting: String = ""
 }
@@ -15,6 +16,7 @@ struct SecureCourierCard: View {
     let operatorName: String
     let operatorNpub: String
     let endpointURL: URL
+    let credentialService: String
     let missingSecrets: [String]
     var greeting: String = ""
     var onDismiss: () -> Void
@@ -490,7 +492,8 @@ struct SecureCourierCard: View {
             let result = try await MCPService().callRequestCredentialChannel(
                 endpointURL: endpointURL,
                 bearerToken: token,
-                senderNpub: operatorNpub
+                senderNpub: operatorNpub,
+                service: credentialService
             )
             if let data = result.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -512,7 +515,8 @@ struct SecureCourierCard: View {
             let result = try await MCPService().callReceiveCredentials(
                 endpointURL: endpointURL,
                 bearerToken: token,
-                senderNpub: operatorNpub
+                senderNpub: operatorNpub,
+                service: credentialService
             )
             if let data = result.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -547,6 +551,7 @@ struct SecureCourierCard: View {
                 endpointURL: endpointURL,
                 bearerToken: token,
                 senderNpub: operatorNpub,
+                service: credentialService,
                 credentialCard: ncredInput
             )
             if let data = result.data(using: .utf8),

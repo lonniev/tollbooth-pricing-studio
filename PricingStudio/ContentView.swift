@@ -115,6 +115,7 @@ struct ContentView: View {
                         operatorName: params.operatorName,
                         operatorNpub: params.operatorNpub,
                         endpointURL: params.endpointURL,
+                        credentialService: params.credentialService,
                         missingSecrets: params.missingSecrets,
                         greeting: params.greeting,
                         onDismiss: { withAnimation { activeCourier = nil } }

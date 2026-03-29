@@ -1106,6 +1106,7 @@ actor MCPService {
         var bootstrapError: String?
         var vaultOk: Bool?
         var credentialGreeting: String?
+        var credentialService: String?
         var operatorName: String?
 
         enum CodingKeys: String, CodingKey {
@@ -1113,6 +1114,7 @@ actor MCPService {
             case bootstrapError = "bootstrap_error"
             case vaultOk = "vault_ok"
             case credentialGreeting = "credential_greeting"
+            case credentialService = "credential_service"
             case operatorName = "operator_name"
         }
     }
@@ -1172,7 +1174,8 @@ actor MCPService {
     func callRequestCredentialChannel(
         endpointURL: URL,
         bearerToken: String,
-        senderNpub: String
+        senderNpub: String,
+        service: String
     ) async throws -> String {
         await traffic(.outbound, label: "Credential Channel", detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
@@ -1199,7 +1202,10 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: ["sender_npub": .string(senderNpub)]
+            arguments: [
+                "sender_npub": .string(senderNpub),
+                "service": .string(service),
+            ]
         )
 
         if isError == true {
