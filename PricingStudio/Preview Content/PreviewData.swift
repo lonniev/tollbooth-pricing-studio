@@ -97,6 +97,7 @@ enum PreviewData {
                 )
             }
         }(),
+        versions: nil,
         fetchedAt: Date()
     )
 
