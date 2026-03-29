@@ -1219,7 +1219,7 @@ actor MCPService {
         endpointURL: URL,
         bearerToken: String,
         senderNpub: String,
-        service: String = "tollbooth-sample-operator",
+        service: String = "",
         credentialCard: String = ""
     ) async throws -> String {
         let label = credentialCard.isEmpty ? "Receive Credentials" : "Redeem ncred"
@@ -1248,8 +1248,10 @@ actor MCPService {
 
         var args: [String: Value] = [
             "sender_npub": .string(senderNpub),
-            "service": .string(service),
         ]
+        if !service.isEmpty {
+            args["service"] = .string(service)
+        }
         if !credentialCard.isEmpty {
             args["credential_card"] = .string(credentialCard)
         }
