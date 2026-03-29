@@ -752,12 +752,29 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        // Extract versions dict — keys and values are both strings
-        guard let versions = json["versions"] as? [String: String] else {
-            return nil
+        // Build versions dict from top-level fields + build_info
+        var versions: [String: String] = [:]
+        if let v = json["version"] as? String, v != "unknown" {
+            versions["service"] = v
+        }
+        if let v = json["tollbooth_dpyc_version"] as? String, v != "unknown" {
+            versions["tollbooth_dpyc"] = v
+        }
+        if let buildInfo = json["build_info"] as? [String: String] {
+            if let sha = buildInfo["fastmcp_cloud_git_commit_sha"] {
+                versions["git_commit"] = String(sha.prefix(8))
+            }
+            if let repo = buildInfo["fastmcp_cloud_git_repo"] {
+                let repoName = repo.components(separatedBy: "/").last ?? repo
+                versions["repo"] = repoName
+            }
+        }
+        // Legacy: also check for old-style "versions" dict
+        if let legacy = json["versions"] as? [String: String] {
+            for (k, v) in legacy { versions[k] = v }
         }
 
-        return versions
+        return versions.isEmpty ? nil : versions
     }
 
     // MARK: - Register Authority Npub (Claim)

@@ -43,9 +43,28 @@ struct OperatorStatsSheet: View {
     private func statsContent(_ stats: OperatorStats) -> some View {
         List {
             registrySection(stats)
+            if let versions = stats.versions, !versions.isEmpty {
+                buildInfoSection(versions)
+            }
             toolInventorySection(stats)
             if !stats.services.isEmpty {
                 servicesSection(stats)
+            }
+        }
+    }
+
+    private func buildInfoSection(_ versions: [String: String]) -> some View {
+        Section("Build") {
+            ForEach(
+                versions.sorted(by: { $0.key < $1.key }),
+                id: \.key
+            ) { key, value in
+                LabeledContent(
+                    key.replacingOccurrences(of: "_", with: " ").capitalized,
+                    value: value
+                )
+                .font(.caption)
+                .monospaced()
             }
         }
     }
@@ -200,6 +219,17 @@ struct OperatorStatsSheet: View {
                 )
             }.sorted { $0.category < $1.category }
 
+            // Fetch build info from service_status
+            var versions: [String: String]?
+            if let urlStr = operator_.mcpEndpointURL,
+               let endpoint = URL(string: urlStr) {
+                let host = endpoint.host ?? operator_.npub
+                let token = try await resolveToken(for: endpoint, host: host)
+                versions = try? await mcpService.callServiceStatus(
+                    endpointURL: endpoint, bearerToken: token
+                )
+            }
+
             fetchedStats = OperatorStats(
                 registryRole: member.role,
                 registryStatus: member.status,
@@ -209,6 +239,7 @@ struct OperatorStatsSheet: View {
                 freeToolCount: freeTools,
                 paidToolCount: paidTools,
                 categorySummaries: summaries,
+                versions: versions,
                 fetchedAt: Date()
             )
         } catch {

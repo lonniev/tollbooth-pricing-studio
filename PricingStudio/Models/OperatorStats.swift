@@ -9,6 +9,7 @@ struct OperatorStats: Sendable {
     let freeToolCount: Int
     let paidToolCount: Int
     let categorySummaries: [ToolCategorySummary]
+    let versions: [String: String]?
     let fetchedAt: Date
 }
 
