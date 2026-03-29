@@ -593,6 +593,24 @@ struct PricingDetailView: View {
     @ViewBuilder
     private func onboardingChecklist(_ status: MCPService.OnboardingStatus) -> some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Critical warning when vault/persistence is missing
+            if status.vaultOk == false {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("No Persistence")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.red)
+                        Text("This operator has no database. It cannot persist credits, credentials, or any state. Re-register with the Authority to provision storage.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(10)
+                .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+            }
+
             Label("Operator is in the community registry", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .font(.subheadline)
@@ -695,7 +713,7 @@ struct PricingDetailView: View {
 
     private func categoryColor(_ category: String) -> Color {
         switch category {
-        case "authority": return .blue
+        case "authority": return .red
         case "secret": return .orange
         case "identity": return .purple
         default: return .secondary
