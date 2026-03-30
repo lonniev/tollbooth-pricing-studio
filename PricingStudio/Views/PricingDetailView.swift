@@ -170,13 +170,19 @@ struct PricingDetailView: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 400)
 
-                    if let url = target.mcpEndpointURL, !url.isEmpty {
-                        Text(url)
+                    if let url = target.mcpEndpointURL, !url.isEmpty,
+                       let link = URL(string: url) {
+                        Link(url, destination: link)
                             .font(.caption)
                             .monospaced()
-                            .foregroundStyle(.tertiary)
-                            .textSelection(.enabled)
+                            .foregroundStyle(.blue)
                     }
+
+                    Text(target.npub)
+                        .font(.caption)
+                        .monospaced()
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
 
                     // Show onboarding checklist
                     if onboardingLoading {
@@ -441,12 +447,12 @@ struct PricingDetailView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 400)
 
-                if let url = target.mcpEndpointURL, !url.isEmpty {
-                    Text(url)
+                if let url = target.mcpEndpointURL, !url.isEmpty,
+                   let link = URL(string: url) {
+                    Link(url, destination: link)
                         .font(.caption)
                         .monospaced()
-                        .foregroundStyle(.tertiary)
-                        .textSelection(.enabled)
+                        .foregroundStyle(.blue)
                 }
 
                 Text(target.npub)
