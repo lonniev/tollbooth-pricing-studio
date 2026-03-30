@@ -1,39 +1,39 @@
 import Foundation
 
+/// Generic preview data for SwiftUI canvas — not coupled to any real operator.
 enum PreviewData {
 
-    static let sampleAuthorityNpub = "npub1d999638gqpn8c594teklxtxva0uvxdng80q3ycyqvldjdl457c7qcrq64z"
+    static let sampleAuthorityNpub = "npub1sample0authority000000000000000000000000000000000000000000"
 
-    static let sampleOperatorNpub = "npub1y20qa7d3ddmh6730hdr0u0r08zys4p7pyk30uhur9edx4d88q4zqnr3q2h"
+    static let sampleOperatorNpub = "npub1sample0operator0000000000000000000000000000000000000000000"
 
     static let sampleMemberRecord = MemberRecord(
         npub: sampleOperatorNpub,
         role: "operator",
         status: "active",
-        displayName: "Personal Brain",
+        displayName: "Acme Weather",
         services: [
-            MemberService(name: "personal-brain", url: "https://personal-brain.fastmcp.app/mcp", description: "TheBrain knowledge graph access via MCP")
+            MemberService(name: "acme-weather", url: "https://acme-weather.fastmcp.app/mcp", description: "Weather forecasts and historical data via MCP")
         ],
-        upstreamAuthorityNpub: nil,
+        upstreamAuthorityNpub: sampleAuthorityNpub,
         memberSince: nil,
         notes: nil
     )
 
     static let sampleToolPrices: [ToolPrice] = [
-        ToolPrice(toolName: "brain_search_thoughts", priceSats: 1, category: "read", intent: "Search thoughts by keyword"),
-        ToolPrice(toolName: "brain_get_thought", priceSats: 1, category: "read", intent: "Get a thought by ID"),
-        ToolPrice(toolName: "brain_get_thought_graph", priceSats: 1, category: "read", intent: "Get thought connections"),
-        ToolPrice(toolName: "brain_brain_query", priceSats: 1, category: "read", intent: "BQL pattern query"),
-        ToolPrice(toolName: "brain_create_thought", priceSats: 5, category: "write", intent: "Create a new thought"),
-        ToolPrice(toolName: "brain_create_link", priceSats: 5, category: "write", intent: "Link two thoughts"),
-        ToolPrice(toolName: "brain_update_thought", priceSats: 5, category: "write", intent: "Update thought metadata"),
-        ToolPrice(toolName: "brain_create_or_update_note", priceSats: 5, category: "write", intent: "Create or update a note"),
-        ToolPrice(toolName: "brain_morph_thought", priceSats: 10, category: "heavy", intent: "Morph thought type and links"),
-        ToolPrice(toolName: "brain_get_thought_graph_paginated", priceSats: 10, category: "heavy", intent: "Paginated graph traversal"),
-        ToolPrice(toolName: "brain_session_status", priceSats: 0, category: "auth", intent: "Check session status"),
-        ToolPrice(toolName: "brain_check_balance", priceSats: 0, category: "auth", intent: "Check credit balance"),
-        ToolPrice(toolName: "brain_how_to_join", priceSats: 0, category: "free", intent: "DPYC onboarding guide"),
-        ToolPrice(toolName: "brain_lookup_member", priceSats: 0, category: "free", intent: "Lookup community member"),
+        // Read tier (1 sat)
+        ToolPrice(toolName: "weather_current", priceSats: 1, category: "read", intent: "Current conditions"),
+        ToolPrice(toolName: "weather_forecast", priceSats: 1, category: "read", intent: "Multi-day forecast"),
+        // Write tier (5 sats)
+        ToolPrice(toolName: "weather_subscribe", priceSats: 5, category: "write", intent: "Subscribe to alerts"),
+        ToolPrice(toolName: "weather_set_location", priceSats: 5, category: "write", intent: "Set default location"),
+        // Heavy tier (10 sats)
+        ToolPrice(toolName: "weather_historical", priceSats: 10, category: "heavy", intent: "Historical archive query"),
+        ToolPrice(toolName: "weather_bulk_export", priceSats: 10, category: "heavy", intent: "Bulk CSV export"),
+        // Free tools
+        ToolPrice(toolName: "weather_check_balance", priceSats: 0, category: "auth", intent: "Check credit balance"),
+        ToolPrice(toolName: "weather_service_status", priceSats: 0, category: "free", intent: "Health check"),
+        ToolPrice(toolName: "weather_how_to_join", priceSats: 0, category: "free", intent: "DPYC onboarding guide"),
     ]
 
     static let samplePipelineSteps: [PipelineStep] = [
@@ -68,7 +68,7 @@ enum PreviewData {
     static let samplePricingModel = PricingModelResponse(
         status: "ok",
         modelId: "pricing-model-001",
-        name: "Personal Brain Standard",
+        name: "Acme Weather Standard",
         isActive: true,
         tools: sampleToolPrices,
         pipeline: samplePipelineSteps
@@ -77,9 +77,9 @@ enum PreviewData {
     static let sampleOperatorStats = OperatorStats(
         registryRole: "operator",
         registryStatus: "active",
-        registryDisplayName: "Personal Brain",
+        registryDisplayName: "Acme Weather",
         services: [
-            MemberService(name: "personal-brain", url: "https://personal-brain.fastmcp.app/mcp", description: "TheBrain knowledge graph access via MCP")
+            MemberService(name: "acme-weather", url: "https://acme-weather.fastmcp.app/mcp", description: "Weather forecasts and historical data via MCP")
         ],
         totalToolCount: sampleToolPrices.count,
         freeToolCount: sampleToolPrices.filter { $0.priceSats == 0 }.count,
