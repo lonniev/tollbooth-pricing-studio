@@ -104,28 +104,43 @@ struct OnboardingStatusSheet: View {
                         }
                     }
                 }
+            }
 
-                Section("Actions") {
-                    let hasAuthority = status.missing.contains { $0.category == "authority" }
-                    let hasSecrets = status.missing.contains { $0.category == "secret" }
+            Section("Actions") {
+                let hasSecrets = status.missing.contains { $0.category == "secret" }
 
-                    if hasAuthority {
-                        Button {
-                            Task { await loadStatus() }
-                        } label: {
-                            Label("Refresh Config from Authority", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                        .tint(.blue)
-                    }
-
+                HStack(spacing: 10) {
                     if hasSecrets {
                         Button {
                             showingCourierCard = true
                         } label: {
-                            Label("Deliver Secrets via Secure Courier", systemImage: "lock.shield")
+                            Label("Deliver", systemImage: "lock.shield")
+                                .font(.caption)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                         .tint(.orange)
                     }
+
+                    Button {
+                        Task { await loadStatus() }
+                    } label: {
+                        Label("Check", systemImage: "checkmark.circle")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.blue)
+
+                    Button {
+                        Task { await reregister() }
+                    } label: {
+                        Label("Reattempt", systemImage: "square.and.pencil")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.indigo)
                 }
             }
 
@@ -180,6 +195,37 @@ struct OnboardingStatusSheet: View {
         loading = false
     }
 
+
+    /// Force the operator to re-bootstrap (Neon vault, relay config) and
+    /// then refresh the onboarding status. Calls service_status as a
+    /// lightweight trigger that exercises the bootstrap path.
+    private func reregister() async {
+        guard let endpoint = operator_.mcpEndpointURL,
+              let endpointURL = URL(string: endpoint) else { return }
+        do {
+            let host = endpointURL.host ?? operator_.npub
+            let token: String
+            if let bundle = KeychainService.loadTokenBundle(forPatron: operator_.npub, operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: operator_.npub, operator: host)
+                token = bundle.accessToken
+            }
+
+            // Call service_status to trigger bootstrap as a side effect
+            _ = try? await MCPService().callServiceStatus(
+                endpointURL: endpointURL,
+                bearerToken: token
+            )
+        } catch {
+            self.error = error.localizedDescription
+        }
+
+        // Refresh onboarding status
+        await loadStatus()
+    }
 
     private func fieldLabel(_ field: String) -> String {
         field.replacingOccurrences(of: "_", with: " ")
