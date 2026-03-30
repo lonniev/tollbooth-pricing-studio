@@ -339,11 +339,12 @@ final class Campaign {
         // Revenue projections
         if let proj = revenueProjections {
             md += "## Revenue Projections\n\n"
-            if let monthly = proj.monthlyRevenueSats {
-                md += "- Monthly revenue: \(monthly) sats\n"
-            }
-            if let daily = proj.dailyCallVolume {
-                md += "- Daily call volume: \(daily)\n"
+            if let tam = proj.tam { md += "- TAM: \(tam)\n" }
+            if let sam = proj.sam { md += "- SAM: \(sam)\n" }
+            if let som = proj.som { md += "- SOM: \(som)\n" }
+            for rp in proj.projections {
+                md += "- **\(rp.scenario)**: \(rp.revenueSats.formatted()) sats/mo "
+                md += "(\(rp.monthlyUsers) users, \(rp.callsPerUserPerMonth) calls/user)\n"
             }
             md += "\n"
         }

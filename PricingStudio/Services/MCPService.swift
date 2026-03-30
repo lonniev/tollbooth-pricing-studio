@@ -1587,12 +1587,9 @@ extension MCPService {
             ]
         )
 
-        let text = content.compactMap { block -> String? in
-            if case .text(let t) = block { return t }
-            return nil
-        }.joined()
+        let text = content.compactMap { extractText($0) }.joined()
 
-        if isError {
+        if isError == true {
             await traffic(.error, label: "Publish Campaign Error", detail: text)
             throw MCPError.toolCallFailed(text)
         }
