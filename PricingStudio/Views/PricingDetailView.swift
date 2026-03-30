@@ -505,13 +505,19 @@ struct PricingDetailView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 400)
 
-                if let url = target.mcpEndpointURL, !url.isEmpty {
-                    Text(url)
+                if let url = target.mcpEndpointURL, !url.isEmpty,
+                   let link = URL(string: url) {
+                    Link(url, destination: link)
                         .font(.caption)
                         .monospaced()
-                        .foregroundStyle(.tertiary)
-                        .textSelection(.enabled)
+                        .foregroundStyle(.blue)
                 }
+
+                Text(target.npub)
+                    .font(.caption)
+                    .monospaced()
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
 
                 // Live onboarding status
                 if onboardingLoading {
@@ -742,22 +748,22 @@ struct PricingDetailView: View {
                 .frame(maxWidth: 400)
 
             VStack(spacing: 4) {
-                Text(target.npub)
-                    .font(.caption)
-                    .monospaced()
-                    .foregroundStyle(.tertiary)
-                    .textSelection(.enabled)
-                if let url = target.mcpEndpointURL, !url.isEmpty {
-                    Text(url)
-                        .font(.caption2)
+                if let url = target.mcpEndpointURL, !url.isEmpty,
+                   let link = URL(string: url) {
+                    Link(url, destination: link)
+                        .font(.caption)
                         .monospaced()
-                        .foregroundStyle(.tertiary)
-                        .textSelection(.enabled)
+                        .foregroundStyle(.blue)
                 } else {
                     Label("No MCP endpoint configured", systemImage: "exclamationmark.triangle")
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
+                Text(target.npub)
+                    .font(.caption)
+                    .monospaced()
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
             }
 
             HStack(spacing: 12) {
