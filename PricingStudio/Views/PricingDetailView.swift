@@ -624,9 +624,6 @@ struct PricingDetailView: View {
             if !status.missing.isEmpty {
                 Divider()
 
-                let hasSecrets = status.missing.contains { $0.category == "secret" }
-                let hasAuthority = status.missing.contains { $0.category == "authority" }
-
                 ForEach(status.missing, id: \.field) { field in
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: categoryIcon(field.category))
