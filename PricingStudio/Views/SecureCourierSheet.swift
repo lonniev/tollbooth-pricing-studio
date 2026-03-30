@@ -29,6 +29,7 @@ struct SecureCourierCard: View {
     @State private var expanded = true
     @State private var dragOffset: CGSize = .zero
     @State private var savedOffset: CGSize = .zero
+    @State private var showDismissConfirm = false
 
     enum Phase: Equatable {
         case explain
@@ -119,18 +120,42 @@ struct SecureCourierCard: View {
             .buttonStyle(.plain)
 
             Button {
-                onDismiss()
+                if isActivePhase {
+                    showDismissConfirm = true
+                } else {
+                    onDismiss()
+                }
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isActivePhase ? .tertiary : .secondary)
             }
             .buttonStyle(.plain)
+            .confirmationDialog(
+                "Secure Courier is in progress",
+                isPresented: $showDismissConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Abandon Courier Flow", role: .destructive) {
+                    onDismiss()
+                }
+                Button("Continue", role: .cancel) {}
+            } message: {
+                Text("Closing now will lose your courier channel. You would need to start the credential exchange over.")
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { expanded.toggle() } }
+    }
+
+    /// True when the courier protocol is mid-flight — dismissing would lose state.
+    private var isActivePhase: Bool {
+        switch phase {
+        case .calling, .ready, .collecting, .collectFailed: return true
+        case .explain, .received, .failed: return false
+        }
     }
 
     private var phaseIcon: String {
