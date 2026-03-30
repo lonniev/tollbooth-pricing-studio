@@ -25,6 +25,9 @@ struct PricingConsultantView: View {
     @State private var showingFullScreen = false
     @State private var secondOpinionVM = SecondOpinionViewModel()
     @State private var saveName = ""
+    @State private var publishingCampaign = false
+    @State private var publishResult: String?
+    @State private var showingPublishResult = false
     @State private var editingMessageIndex: Int?
     @State private var editedMessageText = ""
     @State private var showingForkSheet = false
@@ -230,6 +233,11 @@ struct PricingConsultantView: View {
                 Text("Give this campaign a name so you can resume it later.")
             }
         }
+        .alert("Publish Campaign", isPresented: $showingPublishResult) {
+            Button("OK") { publishResult = nil }
+        } message: {
+            Text(publishResult ?? "")
+        }
     }
 
     // MARK: - Header
@@ -329,6 +337,19 @@ struct PricingConsultantView: View {
                     .labelStyle(.iconOnly)
             }
             .disabled(consultantVM.currentCampaign == nil)
+
+            Button {
+                Task { await publishCampaign() }
+            } label: {
+                if publishingCampaign {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Publish", systemImage: "globe")
+                        .labelStyle(.iconOnly)
+                }
+            }
+            .disabled(consultantVM.currentCampaign == nil || publishingCampaign)
+            .help("Publish to DPYC Community")
 
             Button {
                 showingPromptEditor = true
@@ -743,6 +764,50 @@ struct PricingConsultantView: View {
                 consultantVM.autoSave(context: modelContext)
             }
         }
+    }
+
+    private func publishCampaign() async {
+        guard let campaign = consultantVM.currentCampaign else { return }
+
+        publishingCampaign = true
+        defer { publishingCampaign = false }
+
+        do {
+            let oracleURL = try await MCPService().resolveOracleURL(forOperator: operatorNpub)
+
+            // Get a token for the Oracle
+            let host = oracleURL.host ?? "dpyc-oracle"
+            let token: String
+            if let bundle = KeychainService.loadTokenBundle(forPatron: operatorNpub, operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await OAuthService().authenticate(mcpEndpoint: oracleURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: operatorNpub, operator: host)
+                token = bundle.accessToken
+            }
+
+            let result = try await MCPService().callPublishCampaign(
+                oracleURL: oracleURL,
+                bearerToken: token,
+                authorNpub: operatorNpub,
+                operatorNpub: campaign.operatorNpub,
+                campaignJSON: campaign.exportJSON(),
+                campaignName: campaign.name
+            )
+
+            if let data = result.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               json["success"] as? Bool == true {
+                publishResult = "Published \"\(campaign.name)\" to DPYC community."
+            } else {
+                publishResult = "Publish may have failed. Check the community repo."
+            }
+        } catch {
+            publishResult = "Publish failed: \(error.localizedDescription)"
+        }
+
+        showingPublishResult = true
     }
 }
 

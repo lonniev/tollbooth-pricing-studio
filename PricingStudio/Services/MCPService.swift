@@ -1540,3 +1540,64 @@ enum MCPError: LocalizedError {
         }
     }
 }
+
+// MARK: - Campaign Publishing (via Oracle)
+
+extension MCPService {
+
+    /// Publish a campaign to dpyc-community via the Oracle's publish_campaign tool.
+    func callPublishCampaign(
+        oracleURL: URL,
+        bearerToken: String,
+        authorNpub: String,
+        operatorNpub: String,
+        campaignJSON: String,
+        campaignName: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Publish Campaign", detail: "SSE → \(oracleURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: oracleURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let publishTool = allTools.first(where: { $0.name.contains("publish_campaign") }) else {
+            await traffic(.error, label: "Publish Campaign", detail: "No publish_campaign tool found")
+            throw MCPError.toolCallFailed("No publish_campaign tool found on Oracle")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: publishTool.name,
+            arguments: [
+                "author_npub": .string(authorNpub),
+                "operator_npub": .string(operatorNpub),
+                "campaign_json": .string(campaignJSON),
+                "campaign_name": .string(campaignName),
+            ]
+        )
+
+        let text = content.compactMap { block -> String? in
+            if case .text(let t) = block { return t }
+            return nil
+        }.joined()
+
+        if isError {
+            await traffic(.error, label: "Publish Campaign Error", detail: text)
+            throw MCPError.toolCallFailed(text)
+        }
+
+        await traffic(.inbound, label: "Publish Campaign", detail: String(text.prefix(500)))
+        return text
+    }
+}
