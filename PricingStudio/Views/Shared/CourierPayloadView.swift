@@ -115,10 +115,7 @@ struct CourierPayloadView: View {
                 text: field.value
             )
             .font(.system(.callout, design: .monospaced))
-            .textFieldStyle(.plain)
-            .padding(8)
-            .background(Color(.tertiarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .textFieldStyle(.roundedBorder)
             .autocorrectionDisabled()
             .textInputAutocapitalization(.never)
         }
