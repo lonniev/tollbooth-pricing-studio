@@ -99,16 +99,11 @@ struct MessageThreadView: View {
                                 }
                             )
                             .id(dm.id)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    Task { await chatVM.requestDeletion(eventIds: [dm.rawEventId]) }
-                                } label: {
-                                    Label("Delete from Relays", systemImage: "trash")
-                                }
-                            }
-                            .onLongPressGesture {
-                                toggleSelection(dm.id)
-                            }
+                            .modifier(MessageGestureModifier(
+                                isCourierInput: !dm.isFromMe && dm.content.contains("@@@"),
+                                onDelete: { Task { await chatVM.requestDeletion(eventIds: [dm.rawEventId]) } },
+                                onLongPress: { toggleSelection(dm.id) }
+                            ))
                         }
                         // Bottom anchor — ensures last message is never hidden under compose
                         Color.clear.frame(height: 1).id("bottom_anchor")
@@ -246,6 +241,30 @@ struct MessageThreadView: View {
             let formatter = DateFormatter()
             formatter.dateFormat = "EEE, MMM d"
             return formatter.string(from: date)
+        }
+    }
+}
+
+
+/// Conditionally applies context menu and long-press gestures.
+/// When `isCourierInput` is true, gestures are suppressed so the
+/// TextField paste menu can work unimpeded.
+private struct MessageGestureModifier: ViewModifier {
+    let isCourierInput: Bool
+    let onDelete: () -> Void
+    let onLongPress: () -> Void
+
+    func body(content: Content) -> some View {
+        if isCourierInput {
+            content
+        } else {
+            content
+                .contextMenu {
+                    Button(role: .destructive, action: onDelete) {
+                        Label("Delete from Relays", systemImage: "trash")
+                    }
+                }
+                .onLongPressGesture(perform: onLongPress)
         }
     }
 }
