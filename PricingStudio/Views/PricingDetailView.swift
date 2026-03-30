@@ -645,44 +645,55 @@ struct PricingDetailView: View {
                     }
                 }
 
-                Divider()
+            }
 
-                // Actionable buttons based on what's missing
-                HStack(spacing: 10) {
-                    if hasAuthority {
-                        Button {
-                            Task { await loadOnboardingStatus() }
-                        } label: {
-                            Label("Refresh Config", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .tint(.blue)
-                    }
+            Divider()
 
-                    if hasSecrets {
-                        Button {
-                            if let endpoint = target.mcpEndpointURL,
-                               let url = URL(string: endpoint) {
-                                onRequestCourier?(CourierParams(
-                                    operatorName: target.displayName,
-                                    operatorNpub: target.npub,
-                                    endpointURL: url,
-                                    credentialService: onboardingStatus?.credentialService ?? "",
-                                    missingSecrets: status.missing
-                                        .filter { $0.category == "secret" }
-                                        .map { fieldLabel($0.field) },
-                                    greeting: onboardingStatus?.credentialGreeting ?? ""
-                                ))
-                            }
-                        } label: {
-                            Label("Deliver Secrets", systemImage: "lock.shield")
+            // Action chiclets — always visible
+            HStack(spacing: 10) {
+                if status.missing.contains(where: { $0.category == "secret" }) {
+                    Button {
+                        if let endpoint = target.mcpEndpointURL,
+                           let url = URL(string: endpoint) {
+                            onRequestCourier?(CourierParams(
+                                operatorName: target.displayName,
+                                operatorNpub: target.npub,
+                                endpointURL: url,
+                                credentialService: onboardingStatus?.credentialService ?? "",
+                                missingSecrets: status.missing
+                                    .filter { $0.category == "secret" }
+                                    .map { fieldLabel($0.field) },
+                                greeting: onboardingStatus?.credentialGreeting ?? ""
+                            ))
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .tint(.orange)
+                    } label: {
+                        Label("Deliver", systemImage: "lock.shield")
+                            .font(.caption)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.orange)
                 }
+
+                Button {
+                    Task { await loadOnboardingStatus() }
+                } label: {
+                    Label("Check", systemImage: "checkmark.circle")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(.blue)
+
+                Button {
+                    Task { await reattemptBootstrap() }
+                } label: {
+                    Label("Reattempt", systemImage: "square.and.pencil")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(.indigo)
             }
 
             if status.ready {
@@ -738,6 +749,28 @@ struct PricingDetailView: View {
             // Silently fail — view falls back to static checklist
             TrafficLogger.shared.log(.error, label: "Onboarding Status", detail: error.localizedDescription)
         }
+    }
+
+    /// Force the operator to re-bootstrap (triggers service_status which
+    /// exercises the vault/relay bootstrap path), then refresh onboarding.
+    private func reattemptBootstrap() async {
+        guard let endpoint = target.mcpEndpointURL,
+              let endpointURL = URL(string: endpoint) else { return }
+
+        onboardingLoading = true
+        defer { onboardingLoading = false }
+
+        do {
+            let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
+            _ = try? await MCPService().callServiceStatus(
+                endpointURL: endpointURL,
+                bearerToken: token
+            )
+        } catch {
+            TrafficLogger.shared.log(.error, label: "Reattempt Bootstrap", detail: error.localizedDescription)
+        }
+
+        await loadOnboardingStatus()
     }
 
     private var notRegisteredContent: some View {
