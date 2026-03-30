@@ -295,6 +295,23 @@ final class Campaign {
             }
         }
 
+        if let opinion = secondOpinionText, !opinion.isEmpty {
+            dict["second_opinion"] = opinion
+        }
+
+        if let analysis = analysis {
+            if let data = try? JSONEncoder().encode(analysis),
+               let obj = try? JSONSerialization.jsonObject(with: data) {
+                dict["interview_analysis"] = obj
+            }
+        }
+
+        // Full interview transcript
+        let allMsgs = messages
+        if !allMsgs.isEmpty {
+            dict["interview_messages"] = Campaign.encodeDicts(allMsgs)
+        }
+
         let data = (try? JSONSerialization.data(
             withJSONObject: dict,
             options: [.prettyPrinted, .sortedKeys]
@@ -302,75 +319,159 @@ final class Campaign {
         return String(data: data, encoding: .utf8) ?? "{}"
     }
 
-    /// Export campaign as a Markdown summary for human reading.
+    /// Export campaign as a rich Markdown document for human reading.
+    ///
+    /// Includes everything a reader needs to understand the campaign's
+    /// value proposition: overview metrics, pricing philosophy, tool prices,
+    /// constraint pipeline rationale, revenue projections, the full peer
+    /// review, and the complete interview conversation.
     func exportMarkdown() -> String {
+        let stageLabels = InterviewProgress.stageLabels
+
         var md = "# \(name)\n\n"
         md += "**Operator:** \(operatorDisplayName)\n"
         md += "**Created:** \(createdAt.formatted(date: .long, time: .omitted))\n"
+        md += "**Updated:** \(updatedAt.formatted(date: .long, time: .omitted))\n"
         if isDeployed { md += "**Status:** Deployed\n" }
+        if let progress = interviewProgress {
+            let label = progress.stageNumber <= stageLabels.count
+                ? stageLabels[progress.stageNumber - 1]
+                : "Stage \(progress.stageNumber)"
+            md += "**Interview Stage:** \(progress.stageNumber)/6 (\(label))\n"
+        }
         md += "\n---\n\n"
 
-        // Proposal summary
-        if let proposal = proposal {
-            md += "## Pricing Proposal\n\n"
+        // ── Bottom Line Up Front ──────────────────────────────────
+        let insights = interviewProgress?.insights
+        let projections = proposal?.projections ?? revenueProjections
 
-            if let tools = proposal.toolPrices, !tools.isEmpty {
-                md += "### Tool Prices\n\n"
-                md += "| Tool | Price (sats) | Category |\n"
-                md += "|------|-------------|----------|\n"
-                for tool in tools {
-                    md += "| \(tool.toolName) | \(tool.priceSats) | \(tool.category) |\n"
-                }
-                md += "\n"
+        if insights != nil || projections != nil {
+            md += "## Bottom Line Up Front\n\n"
+
+            if let philosophy = insights?.philosophy {
+                md += "**Pricing Philosophy:** \(philosophy.capitalized)\n\n"
             }
 
-            if let pipeline = proposal.pipeline, !pipeline.isEmpty {
-                md += "### Constraint Pipeline\n\n"
-                for (i, step) in pipeline.enumerated() {
-                    md += "**Step \(i + 1): \(step.type)**\n"
-                    for (key, value) in step.params.sorted(by: { $0.key < $1.key }) {
-                        md += "- \(key): \(value)\n"
-                    }
-                    md += "\n"
-                }
+            if let moderate = projections?.moderate {
+                md += "**Projected Revenue (moderate):** "
+                md += "\(moderate.revenueSats.formatted()) sats/mo "
+                md += "($\(String(format: "%.2f", moderate.revenueUsd))/mo)\n\n"
+            }
+
+            if let tc = projections?.toolCount, let avg = projections?.avgPriceSats {
+                md += "**Tools:** \(tc) total, \(avg) sats average price\n\n"
+            }
+
+            if let constraints = insights?.constraintsConsidered, !constraints.isEmpty {
+                md += "**Constraints:** \(constraints.joined(separator: ", "))\n\n"
             }
         }
 
-        // Revenue projections
-        if let proj = revenueProjections {
-            md += "## Revenue Projections\n\n"
-            if let tam = proj.tam { md += "- TAM: \(tam)\n" }
-            if let sam = proj.sam { md += "- SAM: \(sam)\n" }
-            if let som = proj.som { md += "- SOM: \(som)\n" }
-            for rp in proj.projections {
-                md += "- **\(rp.scenario)**: \(rp.revenueSats.formatted()) sats/mo "
-                md += "(\(rp.monthlyUsers) users, \(rp.callsPerUserPerMonth) calls/user)\n"
+        // ── Tool Prices ──────────────────────────────────────────
+        if let tools = proposal?.toolPrices, !tools.isEmpty {
+            md += "## Tool Prices\n\n"
+            md += "| Tool | Price (sats) | Category | Intent |\n"
+            md += "|------|-------------|----------|--------|\n"
+            for tool in tools {
+                md += "| \(tool.toolName) | \(tool.priceSats) | \(tool.category) | \(tool.intent) |\n"
             }
             md += "\n"
         }
 
-        // Peer review
-        if let review = secondOpinionText, !review.isEmpty {
+        // ── Constraint Pipeline ──────────────────────────────────
+        if let pipeline = proposal?.pipeline, !pipeline.isEmpty {
+            md += "## Constraint Pipeline\n\n"
+            md += "The constraint pipeline evaluates each tool invocation to determine "
+            md += "the effective price. Steps execute in order; each can modify the price "
+            md += "or deny access.\n\n"
+            for (i, step) in pipeline.enumerated() {
+                let typeName = step.type.replacingOccurrences(of: "_", with: " ").capitalized
+                md += "### Step \(i + 1): \(typeName)\n\n"
+                for (key, value) in step.params.sorted(by: { $0.key < $1.key }) {
+                    md += "- **\(key):** \(value)\n"
+                }
+                md += "\n"
+            }
+        }
+
+        // ── Revenue Projections ──────────────────────────────────
+        if let proj = projections, !proj.projections.isEmpty {
+            md += "## Revenue Projections\n\n"
+
+            if proj.tam != nil || proj.sam != nil || proj.som != nil {
+                if let tam = proj.tam { md += "- **TAM:** \(tam)\n" }
+                if let sam = proj.sam { md += "- **SAM:** \(sam)\n" }
+                if let som = proj.som { md += "- **SOM:** \(som)\n" }
+                md += "\n"
+            }
+
+            md += "| Scenario | Users/Mo | Calls/User | Sats/Mo | USD/Mo |\n"
+            md += "|----------|---------|------------|---------|--------|\n"
+            for rp in proj.projections {
+                md += "| \(rp.scenario.capitalized) "
+                md += "| \(rp.monthlyUsers) "
+                md += "| \(rp.callsPerUserPerMonth) "
+                md += "| \(rp.revenueSats.formatted()) "
+                md += "| $\(String(format: "%.2f", rp.revenueUsd)) |\n"
+            }
+            md += "\n"
+        }
+
+        // ── Peer Review ──────────────────────────────────────────
+        if let review = peerReview {
             md += "## Peer Review\n\n"
-            md += review
+            md += "**Reviewer:** \(review.providerName)\n"
+            if let verdict = review.verdict {
+                let label: String
+                switch verdict {
+                case .approve: label = "Approved"
+                case .approveWithReservations: label = "Approved with Reservations"
+                case .reworkRecommended: label = "Rework Recommended"
+                case .reject: label = "Rejected"
+                }
+                md += "**Verdict:** \(label)\n\n"
+            }
+
+            for section in review.sections {
+                md += "### \(section.title)\n\n"
+                md += "\(section.content)\n\n"
+            }
+
+            if let changes = review.suggestedChanges, !changes.isEmpty {
+                md += "### Suggested Changes\n\n"
+                md += "\(changes)\n\n"
+            }
+        }
+
+        // Also include the raw second opinion if different from structured review
+        if peerReview == nil, let opinion = secondOpinionText, !opinion.isEmpty {
+            md += "## Second Opinion\n\n"
+            md += opinion
             md += "\n\n"
         }
 
-        // Interview highlights (assistant messages only, abbreviated)
-        let assistantMsgs = messages.filter { $0.role == .assistant }
-        if !assistantMsgs.isEmpty {
-            md += "## Interview Highlights\n\n"
-            for msg in assistantMsgs.prefix(10) {
-                let preview = String(msg.content.prefix(300))
-                let stage = msg.stageNumber.map { "Stage \($0)" } ?? ""
-                if !stage.isEmpty { md += "**\(stage)**\n\n" }
-                md += "> \(preview.replacingOccurrences(of: "\n", with: "\n> "))\n\n"
-            }
-            if assistantMsgs.count > 10 {
-                md += "*(\(assistantMsgs.count - 10) more messages in full export)*\n\n"
+        // ── Full Interview ───────────────────────────────────────
+        let allMsgs = messages
+        if !allMsgs.isEmpty {
+            md += "## Interview Transcript\n\n"
+            md += "The complete pricing consultant interview, "
+            md += "\(allMsgs.count) messages across "
+            md += "\(Set(allMsgs.compactMap(\.stageNumber)).count) stages.\n\n"
+
+            var lastStage: Int?
+            for msg in allMsgs {
+                let stage = msg.stageNumber ?? 0
+                if stage != lastStage, stage > 0, stage <= stageLabels.count {
+                    md += "### Stage \(stage): \(stageLabels[stage - 1])\n\n"
+                    lastStage = stage
+                }
+                let role = msg.role == .user ? "**Operator**" : "**Consultant**"
+                md += "\(role):\n\n"
+                md += "\(msg.content)\n\n"
             }
         }
 
+        // ── Footer ───────────────────────────────────────────────
         md += "---\n\n"
         md += "*Exported from [Pricing Studio](https://github.com/lonniev/tollbooth-pricing-studio) "
         md += "— part of the [DPYC](https://github.com/lonniev/dpyc-community) ecosystem.*\n"
