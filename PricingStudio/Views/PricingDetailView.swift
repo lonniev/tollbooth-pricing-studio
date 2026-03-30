@@ -449,6 +449,12 @@ struct PricingDetailView: View {
                         .textSelection(.enabled)
                 }
 
+                Text(target.npub)
+                    .font(.caption)
+                    .monospaced()
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
+
                 // Show onboarding checklist if available
                 if target is Operator, target.mcpEndpointURL != nil {
                     if onboardingLoading {
@@ -523,12 +529,6 @@ struct PricingDetailView: View {
                 }
 
 
-                Text(target.npub)
-                    .font(.caption)
-                    .monospaced()
-                    .foregroundStyle(.tertiary)
-                    .textSelection(.enabled)
-
             }
             .padding()
         }
@@ -596,6 +596,7 @@ struct PricingDetailView: View {
 
             // Action chiclets — always visible
             HStack(spacing: 10) {
+                Spacer()
                 if status.missing.contains(where: { $0.category == "secret" }) {
                     Button {
                         if let endpoint = target.mcpEndpointURL,
@@ -639,6 +640,7 @@ struct PricingDetailView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .tint(.indigo)
+                Spacer()
             }
 
             if status.ready {
