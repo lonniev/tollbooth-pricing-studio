@@ -661,6 +661,7 @@ struct PricingDetailView: View {
                     .foregroundStyle(.green)
                     .font(.subheadline)
                     .fontWeight(.medium)
+                    .frame(maxWidth: .infinity)
             }
         }
     }

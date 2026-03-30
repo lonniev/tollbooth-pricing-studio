@@ -10,6 +10,28 @@ struct DMConversation: Identifiable, Sendable {
 
     var id: String { counterpartyPubkeyHex }
 
+    /// Messages with NIP-04/NIP-17 duplicates removed.
+    ///
+    /// The Secure Courier sends both a NIP-04 and NIP-17 copy for
+    /// compatibility. Dedup by (content, direction) within a 60-second
+    /// window, preferring NIP-44 over NIP-04 when both exist.
+    var dedupedMessages: [DecryptedDM] {
+        var seen: [String: DecryptedDM] = [:]
+        for dm in messages.sorted(by: { $0.createdAt < $1.createdAt }) {
+            let key = "\(dm.isFromMe):\(dm.content.prefix(200))"
+            if let existing = seen[key],
+               abs(dm.createdAt.timeIntervalSince(existing.createdAt)) < 60 {
+                // Prefer NIP-44 over NIP-04
+                if dm.encryption == .nip44 && existing.encryption == .nip04 {
+                    seen[key] = dm
+                }
+            } else {
+                seen[key] = dm
+            }
+        }
+        return seen.values.sorted { $0.createdAt < $1.createdAt }
+    }
+
     /// Most recent message in the conversation.
     var latestMessage: DecryptedDM? {
         messages.last

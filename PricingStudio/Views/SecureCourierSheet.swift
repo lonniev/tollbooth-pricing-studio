@@ -30,6 +30,7 @@ struct SecureCourierCard: View {
     @State private var dragOffset: CGSize = .zero
     @State private var savedOffset: CGSize = .zero
     @State private var showDismissConfirm = false
+    @State private var ncredSaved = false
 
     enum Phase: Equatable {
         case explain
@@ -406,6 +407,19 @@ struct SecureCourierCard: View {
                             .font(.caption2.bold())
                             .foregroundStyle(.secondary)
                         Spacer()
+                        Button {
+                            try? KeychainService.saveNcred(
+                                credentialCard,
+                                forService: credentialService,
+                                operator: operatorNpub
+                            )
+                            ncredSaved = true
+                        } label: {
+                            Label(ncredSaved ? "Saved" : "Save", systemImage: ncredSaved ? "checkmark.circle.fill" : "key.fill")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(ncredSaved ? .green : .blue)
                         Button {
                             UIPasteboard.general.string = credentialCard
                         } label: {

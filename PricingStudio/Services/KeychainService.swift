@@ -109,6 +109,28 @@ enum KeychainService {
         delete(service: xaiService, account: xaiAccount)
     }
 
+    // MARK: - Credential Cards (ncred)
+
+    private static let ncredService = "com.tollbooth.ncred"
+
+    /// Save an ncred credential card for a service+operator pair.
+    static func saveNcred(_ ncred: String, forService service: String, operator operatorNpub: String) throws {
+        let account = "\(service):\(operatorNpub)"
+        try save(data: Data(ncred.utf8), service: ncredService, account: account)
+    }
+
+    /// Load a saved ncred for a service+operator pair.
+    static func loadNcred(forService service: String, operator operatorNpub: String) -> String? {
+        let account = "\(service):\(operatorNpub)"
+        return load(service: ncredService, account: account)
+    }
+
+    /// Delete a saved ncred.
+    static func deleteNcred(forService service: String, operator operatorNpub: String) {
+        let account = "\(service):\(operatorNpub)"
+        delete(service: ncredService, account: account)
+    }
+
     // MARK: - Generic Keychain Operations
 
     private static func save(data: Data, service: String, account: String) throws {

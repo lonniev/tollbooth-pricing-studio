@@ -78,7 +78,7 @@ struct MessageThreadView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(Array(conversation.messages.enumerated()), id: \.element.id) { index, dm in
+                        ForEach(Array(conversation.dedupedMessages.enumerated()), id: \.element.id) { index, dm in
                             if shouldShowDateDivider(at: index) {
                                 dateDivider(for: dm.createdAt)
                             }
