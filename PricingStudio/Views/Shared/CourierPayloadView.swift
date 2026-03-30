@@ -119,7 +119,6 @@ struct CourierPayloadView: View {
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
-                .writingToolsBehavior(.disabled)
 
                 PasteButton(payloadType: String.self) { strings in
                     if let text = strings.first {
