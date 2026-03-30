@@ -464,14 +464,9 @@ struct PricingDetailView: View {
 
                 }
 
-                // Actions
-                HStack(spacing: 12) {
-                    Button("Retry") {
-                        viewModel.retry(for: target)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    if target is Operator {
+                // Manage menu (registration lifecycle)
+                if target is Operator {
+                    HStack(spacing: 12) {
                         Menu {
                             Button {
                                 showingAdoptionRequest = true
@@ -493,8 +488,10 @@ struct PricingDetailView: View {
                             }
                         } label: {
                             Label("Manage", systemImage: "ellipsis.circle")
+                                .font(.caption)
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(.small)
                         .sheet(isPresented: $showingEditRegistration) {
                             EditOperatorRegistrationSheet(operatorTarget: target)
                         }
