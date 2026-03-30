@@ -110,25 +110,14 @@ struct CourierPayloadView: View {
                     .monospaced()
             }
 
-            HStack(spacing: 6) {
-                TextField(
-                    placeholderText(for: field.wrappedValue),
-                    text: field.value
-                )
-                .font(.system(.callout, design: .monospaced))
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-
-                PasteButton(payloadType: String.self) { strings in
-                    if let text = strings.first {
-                        field.value.wrappedValue = text
-                    }
-                }
-                .buttonBorderShape(.roundedRectangle(radius: 6))
-                .labelStyle(.iconOnly)
-                .tint(.blue)
-            }
+            TextField(
+                placeholderText(for: field.wrappedValue),
+                text: field.value
+            )
+            .font(.system(.callout, design: .monospaced))
+            .textFieldStyle(.roundedBorder)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
         }
     }
 
