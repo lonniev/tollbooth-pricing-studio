@@ -464,39 +464,6 @@ struct PricingDetailView: View {
 
                 }
 
-                // Manage menu (registration lifecycle)
-                if target is Operator {
-                    HStack(spacing: 12) {
-                        Menu {
-                            Button {
-                                showingAdoptionRequest = true
-                            } label: {
-                                Label("Register with Authority", systemImage: "building.columns")
-                            }
-                            Button {
-                                showingEditRegistration = true
-                            } label: {
-                                Label("Edit Registration", systemImage: "pencil")
-                            }
-                            if (target as? Operator)?.authorityNpub != nil {
-                                Divider()
-                                Button(role: .destructive) {
-                                    showingDeregisterConfirm = true
-                                } label: {
-                                    Label("Deregister", systemImage: "trash")
-                                }
-                            }
-                        } label: {
-                            Label("Manage", systemImage: "ellipsis.circle")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .sheet(isPresented: $showingEditRegistration) {
-                            EditOperatorRegistrationSheet(operatorTarget: target)
-                        }
-                    }
-                }
             }
             .padding()
         }
@@ -562,22 +529,6 @@ struct PricingDetailView: View {
                     .foregroundStyle(.tertiary)
                     .textSelection(.enabled)
 
-                HStack(spacing: 12) {
-                    Button {
-                        showingEditRegistration = true
-                    } label: {
-                        Label("Edit Registration", systemImage: "pencil.circle")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button("Check Again") {
-                        viewModel.retry(for: target)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .sheet(isPresented: $showingEditRegistration) {
-                    EditOperatorRegistrationSheet(operatorTarget: target)
-                }
             }
             .padding()
         }
