@@ -110,14 +110,27 @@ struct CourierPayloadView: View {
                     .monospaced()
             }
 
-            TextField(
-                placeholderText(for: field.wrappedValue),
-                text: field.value
-            )
-            .font(.system(.callout, design: .monospaced))
-            .textFieldStyle(.roundedBorder)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
+            HStack(spacing: 6) {
+                TextField(
+                    placeholderText(for: field.wrappedValue),
+                    text: field.value
+                )
+                .font(.system(.callout, design: .monospaced))
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+
+                Button {
+                    if let clip = UIPasteboard.general.string, !clip.isEmpty {
+                        field.wrappedValue.value = clip
+                    }
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.callout)
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
