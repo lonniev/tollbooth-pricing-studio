@@ -320,6 +320,16 @@ struct PricingConsultantView: View {
             }
             .disabled(consultantVM.messages.isEmpty)
 
+            ShareLink(
+                item: consultantVM.currentCampaign?.exportMarkdown() ?? "",
+                subject: Text(consultantVM.currentCampaign?.name ?? "Campaign"),
+                message: Text("Pricing campaign from DPYC Pricing Studio")
+            ) {
+                Label("Share", systemImage: "square.and.arrow.up")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(consultantVM.currentCampaign == nil)
+
             Button {
                 showingPromptEditor = true
             } label: {

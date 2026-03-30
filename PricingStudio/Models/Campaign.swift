@@ -248,4 +248,132 @@ final class Campaign {
             return dict
         }
     }
+
+    // MARK: - Export for Community Sharing
+
+    /// Export campaign as a JSON string suitable for import.
+    func exportJSON() -> String {
+        let formatter = ISO8601DateFormatter()
+        var dict: [String: Any] = [
+            "name": name,
+            "operator_npub": operatorNpub,
+            "operator_display_name": operatorDisplayName,
+            "created_at": formatter.string(from: createdAt),
+            "updated_at": formatter.string(from: updatedAt),
+            "is_deployed": isDeployed,
+        ]
+
+        if let proposal = proposal {
+            if let data = try? JSONEncoder().encode(proposal),
+               let obj = try? JSONSerialization.jsonObject(with: data) {
+                dict["proposal"] = obj
+            }
+        }
+
+        if let progress = interviewProgress {
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            if let data = try? encoder.encode(progress),
+               let obj = try? JSONSerialization.jsonObject(with: data) {
+                dict["interview_progress"] = obj
+            }
+        }
+
+        if let projections = revenueProjections {
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            if let data = try? encoder.encode(projections),
+               let obj = try? JSONSerialization.jsonObject(with: data) {
+                dict["revenue_projections"] = obj
+            }
+        }
+
+        if let review = peerReview {
+            if let data = try? JSONEncoder().encode(review),
+               let obj = try? JSONSerialization.jsonObject(with: data) {
+                dict["peer_review"] = obj
+            }
+        }
+
+        let data = (try? JSONSerialization.data(
+            withJSONObject: dict,
+            options: [.prettyPrinted, .sortedKeys]
+        )) ?? Data()
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    /// Export campaign as a Markdown summary for human reading.
+    func exportMarkdown() -> String {
+        var md = "# \(name)\n\n"
+        md += "**Operator:** \(operatorDisplayName)\n"
+        md += "**Created:** \(createdAt.formatted(date: .long, time: .omitted))\n"
+        if isDeployed { md += "**Status:** Deployed\n" }
+        md += "\n---\n\n"
+
+        // Proposal summary
+        if let proposal = proposal {
+            md += "## Pricing Proposal\n\n"
+
+            if let tools = proposal.toolPrices, !tools.isEmpty {
+                md += "### Tool Prices\n\n"
+                md += "| Tool | Price (sats) | Category |\n"
+                md += "|------|-------------|----------|\n"
+                for tool in tools {
+                    md += "| \(tool.toolName) | \(tool.priceSats) | \(tool.category) |\n"
+                }
+                md += "\n"
+            }
+
+            if let pipeline = proposal.pipeline, !pipeline.isEmpty {
+                md += "### Constraint Pipeline\n\n"
+                for (i, step) in pipeline.enumerated() {
+                    md += "**Step \(i + 1): \(step.type)**\n"
+                    for (key, value) in step.params.sorted(by: { $0.key < $1.key }) {
+                        md += "- \(key): \(value)\n"
+                    }
+                    md += "\n"
+                }
+            }
+        }
+
+        // Revenue projections
+        if let proj = revenueProjections {
+            md += "## Revenue Projections\n\n"
+            if let monthly = proj.monthlyRevenueSats {
+                md += "- Monthly revenue: \(monthly) sats\n"
+            }
+            if let daily = proj.dailyCallVolume {
+                md += "- Daily call volume: \(daily)\n"
+            }
+            md += "\n"
+        }
+
+        // Peer review
+        if let review = secondOpinionText, !review.isEmpty {
+            md += "## Peer Review\n\n"
+            md += review
+            md += "\n\n"
+        }
+
+        // Interview highlights (assistant messages only, abbreviated)
+        let assistantMsgs = messages.filter { $0.role == .assistant }
+        if !assistantMsgs.isEmpty {
+            md += "## Interview Highlights\n\n"
+            for msg in assistantMsgs.prefix(10) {
+                let preview = String(msg.content.prefix(300))
+                let stage = msg.stageNumber.map { "Stage \($0)" } ?? ""
+                if !stage.isEmpty { md += "**\(stage)**\n\n" }
+                md += "> \(preview.replacingOccurrences(of: "\n", with: "\n> "))\n\n"
+            }
+            if assistantMsgs.count > 10 {
+                md += "*(\(assistantMsgs.count - 10) more messages in full export)*\n\n"
+            }
+        }
+
+        md += "---\n\n"
+        md += "*Exported from [Pricing Studio](https://github.com/lonniev/tollbooth-pricing-studio) "
+        md += "— part of the [DPYC](https://github.com/lonniev/dpyc-community) ecosystem.*\n"
+
+        return md
+    }
 }
