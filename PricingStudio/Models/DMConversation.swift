@@ -20,7 +20,7 @@ struct DMConversation: Identifiable, Sendable {
     var dedupedMessages: [DecryptedDM] {
         var seen: [String: DecryptedDM] = [:]
         for dm in messages.sorted(by: { $0.createdAt < $1.createdAt }) {
-            let key = "\(dm.isFromMe):\(dm.content.prefix(200))"
+            let key = "\(dm.isFromMe):\(dm.content)"
             if let existing = seen[key] {
                 // Prefer NIP-44 over NIP-04; otherwise keep the first arrival
                 if dm.encryption == .nip44 && existing.encryption == .nip04 {
