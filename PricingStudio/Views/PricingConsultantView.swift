@@ -793,7 +793,8 @@ struct PricingConsultantView: View {
                 authorNpub: operatorNpub,
                 operatorNpub: campaign.operatorNpub,
                 campaignJSON: campaign.exportJSON(),
-                campaignName: campaign.name
+                campaignName: campaign.name,
+                campaignMarkdown: campaign.exportMarkdown()
             )
 
             if let data = result.data(using: .utf8),

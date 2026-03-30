@@ -1552,7 +1552,8 @@ extension MCPService {
         authorNpub: String,
         operatorNpub: String,
         campaignJSON: String,
-        campaignName: String
+        campaignName: String,
+        campaignMarkdown: String = ""
     ) async throws -> String {
         await traffic(.outbound, label: "Publish Campaign", detail: "SSE → \(oracleURL.absoluteString)")
 
@@ -1584,6 +1585,7 @@ extension MCPService {
                 "operator_npub": .string(operatorNpub),
                 "campaign_json": .string(campaignJSON),
                 "campaign_name": .string(campaignName),
+                "campaign_markdown": .string(campaignMarkdown),
             ]
         )
 
