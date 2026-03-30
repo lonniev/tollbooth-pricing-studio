@@ -119,17 +119,16 @@ struct CourierPayloadView: View {
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
+                .writingToolsBehavior(.disabled)
 
-                Button {
-                    if let clip = UIPasteboard.general.string, !clip.isEmpty {
-                        field.wrappedValue.value = clip
+                PasteButton(payloadType: String.self) { strings in
+                    if let text = strings.first {
+                        field.value.wrappedValue = text
                     }
-                } label: {
-                    Image(systemName: "doc.on.clipboard")
-                        .font(.callout)
-                        .foregroundStyle(.blue)
                 }
-                .buttonStyle(.plain)
+                .buttonBorderShape(.roundedRectangle(radius: 6))
+                .labelStyle(.iconOnly)
+                .tint(.blue)
             }
         }
     }
