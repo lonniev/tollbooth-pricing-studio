@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Tab cases shared across all ChatContainerView specializations.
+enum ChatContainerTab: String, CaseIterable {
+    case pricing = "Pricing"
+    case invoices = "Invoices"
+    case consultant = "Campaign Advisor"
+    case messages = "Messages"
+}
+
 /// Wraps the existing detail pane with a configurable | Messages segmented control.
 /// Optionally shows an "Invoices" tab and/or a "Consultant" tab when the corresponding views are provided.
 struct ChatContainerView<PricingContent: View, InvoicesContent: View, ConsultantContent: View>: View {
@@ -10,11 +18,12 @@ struct ChatContainerView<PricingContent: View, InvoicesContent: View, Consultant
     let invoicesContent: (() -> InvoicesContent)?
     let consultantContent: (() -> ConsultantContent)?
 
-    @State private var selectedTab: Tab = .pricing
+    @Binding var selectedTab: ChatContainerTab
 
     init(
         identity: ChatIdentity,
         chatVM: ChatViewModel,
+        selectedTab: Binding<ChatContainerTab>,
         firstTabLabel: String = "Pricing",
         @ViewBuilder pricingContent: @escaping () -> PricingContent,
         invoicesContent: (() -> InvoicesContent)? = nil,
@@ -22,30 +31,24 @@ struct ChatContainerView<PricingContent: View, InvoicesContent: View, Consultant
     ) {
         self.identity = identity
         self.chatVM = chatVM
+        self._selectedTab = selectedTab
         self.firstTabLabel = firstTabLabel
         self.pricingContent = pricingContent
         self.invoicesContent = invoicesContent
         self.consultantContent = consultantContent
     }
 
-    enum Tab: String, CaseIterable {
-        case pricing = "Pricing"
-        case invoices = "Invoices"
-        case consultant = "Campaign Advisor"
-        case messages = "Messages"
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             Picker("View", selection: $selectedTab) {
-                Text(firstTabLabel).tag(Tab.pricing)
+                Text(firstTabLabel).tag(ChatContainerTab.pricing)
                 if invoicesContent != nil {
-                    Text("Invoices").tag(Tab.invoices)
+                    Text("Invoices").tag(ChatContainerTab.invoices)
                 }
                 if consultantContent != nil {
-                    Text("Campaign Advisor").tag(Tab.consultant)
+                    Text("Campaign Advisor").tag(ChatContainerTab.consultant)
                 }
-                Text("Messages").tag(Tab.messages)
+                Text("Messages").tag(ChatContainerTab.messages)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -82,11 +85,13 @@ extension ChatContainerView where ConsultantContent == EmptyView, InvoicesConten
     init(
         identity: ChatIdentity,
         chatVM: ChatViewModel,
+        selectedTab: Binding<ChatContainerTab>,
         firstTabLabel: String = "Pricing",
         @ViewBuilder pricingContent: @escaping () -> PricingContent
     ) {
         self.identity = identity
         self.chatVM = chatVM
+        self._selectedTab = selectedTab
         self.firstTabLabel = firstTabLabel
         self.pricingContent = pricingContent
         self.invoicesContent = nil
@@ -99,12 +104,14 @@ extension ChatContainerView where ConsultantContent == EmptyView {
     init(
         identity: ChatIdentity,
         chatVM: ChatViewModel,
+        selectedTab: Binding<ChatContainerTab>,
         firstTabLabel: String = "Pricing",
         @ViewBuilder pricingContent: @escaping () -> PricingContent,
         @ViewBuilder invoicesContent: @escaping () -> InvoicesContent
     ) {
         self.identity = identity
         self.chatVM = chatVM
+        self._selectedTab = selectedTab
         self.firstTabLabel = firstTabLabel
         self.pricingContent = pricingContent
         self.invoicesContent = invoicesContent
@@ -117,12 +124,14 @@ extension ChatContainerView where InvoicesContent == EmptyView {
     init(
         identity: ChatIdentity,
         chatVM: ChatViewModel,
+        selectedTab: Binding<ChatContainerTab>,
         firstTabLabel: String = "Pricing",
         @ViewBuilder pricingContent: @escaping () -> PricingContent,
         consultantContent: @escaping () -> ConsultantContent
     ) {
         self.identity = identity
         self.chatVM = chatVM
+        self._selectedTab = selectedTab
         self.firstTabLabel = firstTabLabel
         self.pricingContent = pricingContent
         self.invoicesContent = nil

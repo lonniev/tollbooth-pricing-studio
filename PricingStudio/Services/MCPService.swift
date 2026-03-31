@@ -288,6 +288,125 @@ actor MCPService {
         )
     }
 
+    // MARK: - Account Statement
+
+    struct InvoiceLineItem: Sendable, Identifiable {
+        let id: String        // invoice_id
+        let status: String    // Pending | Settled | Expired | Invalid
+        let amountSats: Int
+        let apiSatsCredited: Int
+        let multiplier: Int
+        let createdAt: Date?
+        let settledAt: Date?
+    }
+
+    struct AccountStatementResult: Sendable {
+        let invoiceItems: [InvoiceLineItem]
+    }
+
+    func callAccountStatement(
+        endpointURL: URL,
+        bearerToken: String,
+        patronNpub: String = ""
+    ) async throws -> AccountStatementResult {
+        await traffic(.outbound, label: "Account Statement", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        // Match account_statement but not account_statement_infographic
+        guard let tool = allTools.first(where: {
+            $0.name.contains("account_statement") && !$0.name.contains("infographic")
+        }) else {
+            await traffic(.error, label: "Account Statement", detail: "No account_statement tool found")
+            throw MCPError.toolCallFailed("No account_statement tool found")
+        }
+
+        var args: [String: Value] = [:]
+        if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Account Statement Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Account Statement", detail: String(text.prefix(300)))
+
+        return try parseAccountStatementResponse(data)
+    }
+
+    private func parseAccountStatementResponse(_ data: Data) throws -> AccountStatementResult {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw MCPError.invalidResponse
+        }
+
+        let root: [String: Any]
+        if let result = json["result"] as? [String: Any] {
+            root = result
+        } else {
+            root = json
+        }
+
+        let rawItems = (root["purchase_history"] as? [[String: Any]]) ?? []
+
+        let items: [InvoiceLineItem] = rawItems.map { dict in
+            let invoiceId = dict["invoice_id"] as? String ?? ""
+            let status = dict["status"] as? String ?? "Unknown"
+            let amountSats = (dict["amount_sats"] as? Int) ?? Int(dict["amount_sats"] as? String ?? "") ?? 0
+            let apiSats = (dict["api_sats_credited"] as? Int) ?? Int(dict["api_sats_credited"] as? String ?? "") ?? 0
+            let multiplier = (dict["multiplier"] as? Int) ?? Int(dict["multiplier"] as? String ?? "") ?? 1
+            let createdAt = (dict["created_at"] as? String).flatMap { parseISO8601($0) }
+            let settledAt = (dict["settled_at"] as? String).flatMap { parseISO8601($0) }
+
+            return InvoiceLineItem(
+                id: invoiceId,
+                status: status,
+                amountSats: amountSats,
+                apiSatsCredited: apiSats,
+                multiplier: multiplier,
+                createdAt: createdAt,
+                settledAt: settledAt
+            )
+        }
+
+        return AccountStatementResult(invoiceItems: items)
+    }
+
+    private func parseISO8601(_ str: String) -> Date? {
+        let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fmt1 = ISO8601DateFormatter()
+        fmt1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = fmt1.date(from: trimmed) { return d }
+        let fmt2 = ISO8601DateFormatter()
+        fmt2.formatOptions = [.withInternetDateTime]
+        if let d = fmt2.date(from: trimmed) { return d }
+        // Bare datetime without timezone
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return df.date(from: trimmed)
+    }
+
     // MARK: - Account Statement Infographic
 
     struct InfographicResult: Sendable {
@@ -389,7 +508,8 @@ actor MCPService {
     func callPurchaseCredits(
         endpointURL: URL,
         bearerToken: String,
-        amountSats: Int
+        amountSats: Int,
+        patronNpub: String = ""
     ) async throws -> PurchaseResult {
         await traffic(.outbound, label: "Purchase Credits", detail: "SSE → \(endpointURL.absoluteString) amount=\(amountSats)")
 
@@ -416,7 +536,11 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: purchaseTool.name,
-            arguments: ["amount_sats": .int(amountSats)]
+            arguments: {
+                var args: [String: Value] = ["amount_sats": .int(amountSats)]
+                if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
+                return args
+            }()
         )
 
         if isError == true {
@@ -441,6 +565,13 @@ actor MCPService {
             responseDict = result
         } else {
             responseDict = json
+        }
+
+        // Check for application-level errors
+        if responseDict["success"] as? Bool == false {
+            let errorMsg = (responseDict["error"] as? String) ?? "Purchase failed."
+            await traffic(.error, label: "Purchase Credits", detail: errorMsg)
+            throw MCPError.toolCallFailed(errorMsg)
         }
 
         let invoiceId = (responseDict["invoice_id"] as? String)
@@ -473,7 +604,8 @@ actor MCPService {
     func callCheckPayment(
         endpointURL: URL,
         bearerToken: String,
-        invoiceId: String
+        invoiceId: String,
+        npub: String = ""
     ) async throws -> CheckPaymentResult {
         await traffic(.outbound, label: "Check Payment", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId)")
 
@@ -500,7 +632,11 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: paymentTool.name,
-            arguments: ["invoice_id": .string(invoiceId)]
+            arguments: {
+                var args: [String: Value] = ["invoice_id": .string(invoiceId)]
+                if !npub.isEmpty { args["npub"] = .string(npub) }
+                return args
+            }()
         )
 
         if isError == true {
@@ -1096,6 +1232,7 @@ actor MCPService {
         let status: String
         var how: String?
         var value: String?
+        var lifecycle: String?  // "set_once" | "dynamic"
     }
 
     struct OnboardingStatus: Decodable {
@@ -1116,6 +1253,23 @@ actor MCPService {
             case credentialGreeting = "credential_greeting"
             case credentialService = "credential_service"
             case operatorName = "operator_name"
+        }
+    }
+
+    struct PatronOnboardingStatus: Decodable {
+        let ready: Bool
+        let configured: [OnboardingField]
+        let missing: [OnboardingField]
+        let summary: String
+        var credentialType: String?    // "set_once" | "none_or_dynamic"
+        var credentialGreeting: String?
+        var credentialService: String?
+
+        enum CodingKeys: String, CodingKey {
+            case ready, configured, missing, summary
+            case credentialType = "credential_type"
+            case credentialGreeting = "credential_greeting"
+            case credentialService = "credential_service"
         }
     }
 
@@ -1141,9 +1295,9 @@ actor MCPService {
         try await client.connect(transport: transport)
 
         let allTools = try await listAllTools(client: client)
-        guard let onboardTool = allTools.first(where: { $0.name.contains("get_onboarding_status") }) else {
-            await traffic(.error, label: "Onboarding Status", detail: "No get_onboarding_status tool found")
-            throw MCPError.toolCallFailed("No get_onboarding_status tool found")
+        guard let onboardTool = allTools.first(where: { $0.name.contains("get_operator_onboarding_status") }) else {
+            await traffic(.error, label: "Onboarding Status", detail: "No get_operator_onboarding_status tool found")
+            throw MCPError.toolCallFailed("No get_operator_onboarding_status tool found")
         }
 
         let (content, isError) = try await client.callTool(name: onboardTool.name, arguments: [:])
@@ -1167,6 +1321,62 @@ actor MCPService {
         }
         await traffic(.inbound, label: "Onboarding Status", detail: logDetail)
         return status
+    }
+
+    // MARK: - Patron Onboarding Status
+
+    func callGetPatronOnboardingStatus(
+        endpointURL: URL,
+        bearerToken: String,
+        patronNpub: String
+    ) async throws -> PatronOnboardingStatus {
+        await traffic(.outbound, label: "Patron Onboarding", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("get_patron_onboarding_status") }) else {
+            await traffic(.inbound, label: "Patron Onboarding", detail: "Tool not found — operator may not require patron credentials")
+            // Return a synthetic "no patron credentials needed" status
+            return PatronOnboardingStatus(
+                ready: true,
+                configured: [],
+                missing: [],
+                summary: "Operator does not report patron credential requirements.",
+                credentialType: "none_or_dynamic"
+            )
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: tool.name,
+            arguments: ["patron_npub": .string(patronNpub)]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Patron Onboarding", detail: String(text.prefix(300)))
+        return try JSONDecoder().decode(PatronOnboardingStatus.self, from: data)
     }
 
     // MARK: - Secure Courier

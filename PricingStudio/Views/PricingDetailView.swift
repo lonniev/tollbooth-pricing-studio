@@ -18,6 +18,8 @@ struct PricingDetailView: View {
     @State private var deregisterError: String?
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var onboardingLoading = false
+    @State private var authorityBalanceVM = AuthorityBalanceViewModel()
+    @State private var showingAuthorityTopOff = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
@@ -99,6 +101,10 @@ struct PricingDetailView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         if let name = model.name {
                             modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord, source: model.source)
+                        }
+
+                        if let op = target as? Operator, let authNpub = op.authorityNpub {
+                            authorityBalanceSection(operatorNpub: op.npub, authorityNpub: authNpub)
                         }
 
                         if let endpoint = target.mcpEndpointURL {
@@ -284,7 +290,115 @@ struct PricingDetailView: View {
         .background(.bar)
     }
 
+    // MARK: - Authority Balance Section
+
     @ViewBuilder
+    private func authorityBalanceSection(operatorNpub: String, authorityNpub: String) -> some View {
+        let authority = resolveAuthority(npub: authorityNpub)
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "building.columns.fill")
+                    .foregroundStyle(.blue)
+                Text("Authority Account")
+                    .font(.subheadline.bold())
+                Spacer()
+
+                switch authorityBalanceVM.balanceState {
+                case .idle:
+                    EmptyView()
+                case .loading:
+                    HStack(spacing: 4) {
+                        ProgressView().controlSize(.small)
+                        Text("Brr\u{2026}").font(.caption).foregroundStyle(.secondary)
+                    }
+                case .loaded(let result):
+                    Text("\(result.balanceApiSats) sats")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundColor(result.balanceApiSats > 0 ? .primary : .red)
+                case .error(let msg):
+                    Label("Error", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .help(msg)
+                }
+            }
+
+            Text(authority?.displayName ?? String(authorityNpub.prefix(20)) + "...")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if case .loaded(let result) = authorityBalanceVM.balanceState {
+                HStack(spacing: 12) {
+                    Button {
+                        showingAuthorityTopOff = true
+                    } label: {
+                        Label("Top Off", systemImage: "plus.circle.fill")
+                            .font(.caption.bold())
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(result.balanceApiSats < 100 ? .orange : .accentColor)
+                    .controlSize(.small)
+
+                    if !result.pendingInvoiceIds.isEmpty, let auth = authority {
+                        Button {
+                            Task { await authorityBalanceVM.reconcile(authority: auth, pendingIds: result.pendingInvoiceIds) }
+                        } label: {
+                            if authorityBalanceVM.isReconciling {
+                                ProgressView().controlSize(.mini)
+                            } else {
+                                Label("Reconcile (\(result.pendingInvoiceIds.count))", systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.caption.bold())
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(authorityBalanceVM.isReconciling)
+                    }
+                }
+
+                if let rr = authorityBalanceVM.reconcileResult {
+                    HStack(spacing: 6) {
+                        if rr.settled > 0 {
+                            Label("+\(rr.creditsGained) sats", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                        if rr.expired > 0 {
+                            Label("\(rr.expired) expired", systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .font(.caption2)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .task {
+            if case .idle = authorityBalanceVM.balanceState, let auth = authority {
+                await authorityBalanceVM.loadBalance(for: auth)
+            }
+        }
+        .sheet(isPresented: $showingAuthorityTopOff) {
+            if let auth = authority {
+                AuthorityTopOffSheet(
+                    authorityName: auth.displayName,
+                    authorityNpub: auth.npub,
+                    endpoint: auth.mcpEndpointURL ?? "",
+                    balanceVM: authorityBalanceVM,
+                    authority: auth,
+                    purchaserNpub: operatorNpub
+                )
+            }
+        }
+    }
+
+    private func resolveAuthority(npub: String) -> Authority? {
+        let descriptor = FetchDescriptor<Authority>(predicate: #Predicate { $0.npub == npub })
+        return try? modelContext.fetch(descriptor).first
+    }
+
     private func pipelineSection(_ serverPipeline: [PipelineStep]) -> some View {
         PipelineView(
             steps: isEditingPipeline

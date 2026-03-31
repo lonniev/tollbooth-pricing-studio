@@ -8,10 +8,14 @@ struct CourierParams {
     let credentialService: String
     let missingSecrets: [String]
     var greeting: String = ""
+    var senderNpub: String = ""  // non-empty for patron context
 }
 
 /// Floating card for the Secure Courier flow — stays on screen while
 /// the user navigates to Messages and back.
+///
+/// When used from the patron context, set `senderNpub` to the patron's npub.
+/// Auth and DM sender will use that identity instead of `operatorNpub`.
 struct SecureCourierCard: View {
     let operatorName: String
     let operatorNpub: String
@@ -19,7 +23,12 @@ struct SecureCourierCard: View {
     let credentialService: String
     let missingSecrets: [String]
     var greeting: String = ""
+    var senderNpub: String = ""  // defaults to operatorNpub when empty
+    var onOpenMessages: (() -> Void)?  // optional: switch to Messages tab
     var onDismiss: () -> Void
+
+    /// The npub to use for auth and as the DM sender identity.
+    private var effectiveSender: String { senderNpub.isEmpty ? operatorNpub : senderNpub }
 
     @State private var phase: Phase = .explain
     @State private var currentPoison: String = ""
@@ -349,6 +358,18 @@ struct SecureCourierCard: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
+                if let onOpenMessages {
+                    Button {
+                        onOpenMessages()
+                    } label: {
+                        Label("Open Messages", systemImage: "message.fill")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.blue)
+                }
+
                 Spacer()
                 Button {
                     phase = .collecting
@@ -515,13 +536,14 @@ struct SecureCourierCard: View {
     // MARK: - Network
 
     private func resolveToken() async throws -> String {
+        let authId = effectiveSender
         let host = endpointURL.host ?? operatorNpub
-        if let bundle = KeychainService.loadTokenBundle(forPatron: operatorNpub, operator: host),
+        if let bundle = KeychainService.loadTokenBundle(forPatron: authId, operator: host),
            !bundle.isExpired {
             return bundle.accessToken
         }
         let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
-        try? KeychainService.saveTokenBundle(bundle, forPatron: operatorNpub, operator: host)
+        try? KeychainService.saveTokenBundle(bundle, forPatron: authId, operator: host)
         return bundle.accessToken
     }
 
@@ -531,7 +553,7 @@ struct SecureCourierCard: View {
             let result = try await MCPService().callRequestCredentialChannel(
                 endpointURL: endpointURL,
                 bearerToken: token,
-                senderNpub: operatorNpub,
+                senderNpub: effectiveSender,
                 service: credentialService
             )
             if let data = result.data(using: .utf8),
@@ -554,7 +576,7 @@ struct SecureCourierCard: View {
             let result = try await MCPService().callReceiveCredentials(
                 endpointURL: endpointURL,
                 bearerToken: token,
-                senderNpub: operatorNpub,
+                senderNpub: effectiveSender,
                 service: credentialService
             )
             if let data = result.data(using: .utf8),
@@ -589,7 +611,7 @@ struct SecureCourierCard: View {
             let result = try await MCPService().callReceiveCredentials(
                 endpointURL: endpointURL,
                 bearerToken: token,
-                senderNpub: operatorNpub,
+                senderNpub: effectiveSender,
                 service: credentialService,
                 credentialCard: ncredInput
             )

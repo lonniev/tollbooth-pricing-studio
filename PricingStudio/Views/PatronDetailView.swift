@@ -7,6 +7,8 @@ import WebKit
 struct PatronDetailView: View {
     let patron: Patron
     @Bindable var accountVM: PatronAccountViewModel
+    var onOpenMessages: ((_ operatorNpub: String) -> Void)?
+    var onRequestCourier: ((CourierParams) -> Void)?
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
 
     var body: some View {
@@ -78,7 +80,9 @@ struct PatronDetailView: View {
                             balance: balance,
                             patron: patron,
                             operator: operators.first(where: { $0.npub == balance.id }),
-                            accountVM: accountVM
+                            accountVM: accountVM,
+                            onOpenMessages: onOpenMessages,
+                            onRequestCourier: onRequestCourier
                         )
                     }
                 }
@@ -94,11 +98,16 @@ private struct OperatorBalanceCard: View {
     let patron: Patron
     let `operator`: Operator?
     let accountVM: PatronAccountViewModel
+    var onOpenMessages: ((_ operatorNpub: String) -> Void)?
+    var onRequestCourier: ((CourierParams) -> Void)?
     @State private var isExpanded = false
     @State private var showingTopOff = false
     @State private var showingInfographic = false
     @State private var isReconciling = false
     @State private var reconcileResult: PatronAccountViewModel.ReconcileResult?
+    @State private var patronOnboarding: MCPService.PatronOnboardingStatus?
+    @State private var loadingOnboarding = false
+    @State private var showingErrorDetail = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -143,7 +152,10 @@ private struct OperatorBalanceCard: View {
                 patronNpub: patron.npub,
                 operatorName: balance.operatorName,
                 endpoint: balance.endpoint,
-                accountVM: accountVM
+                accountVM: accountVM,
+                onNotifyOperator: onOpenMessages.map { callback in
+                    { callback(balance.id) }
+                }
             )
         }
         .sheet(isPresented: $showingInfographic) {
@@ -153,6 +165,12 @@ private struct OperatorBalanceCard: View {
                 operatorNpub: balance.id,
                 accountVM: accountVM
             )
+        }
+        .task {
+            // Auto-check patron credential status when card appears
+            if patronOnboarding == nil {
+                await loadPatronOnboardingStatus()
+            }
         }
     }
 
@@ -179,10 +197,28 @@ private struct OperatorBalanceCard: View {
                 }
             }
         case .error(let msg):
-            Label("Error", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.red)
-                .help(msg)
+            Button {
+                showingErrorDetail = true
+            } label: {
+                Label("Error", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showingErrorDetail) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Balance Check Failed", systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.red)
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                .padding()
+                .frame(maxWidth: 320)
+                .presentationCompactAdaptation(.popover)
+            }
         }
     }
 
@@ -305,6 +341,156 @@ private struct OperatorBalanceCard: View {
             .font(.caption2)
             .padding(.top, 4)
         }
+
+        // Credential status
+        credentialSection
+    }
+
+    // MARK: - Patron Credential Section
+
+    @ViewBuilder
+    private var credentialSection: some View {
+        Divider()
+            .padding(.vertical, 4)
+
+        let service = patronOnboarding?.credentialService ?? ""
+        let hasNcred = !service.isEmpty && KeychainService.loadNcred(forService: service, operator: balance.id) != nil
+        let credType = patronOnboarding?.credentialType ?? ""
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                if credType == "none_or_dynamic" {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundStyle(.teal)
+                } else {
+                    Image(systemName: patronOnboarding?.ready == true ? "checkmark.shield.fill" : "shield.slash")
+                        .foregroundStyle(patronOnboarding?.ready == true ? .green : .secondary)
+                }
+                Text("Patron Secrets")
+                    .font(.caption.bold())
+                Spacer()
+
+                if loadingOnboarding {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+
+            if credType == "none_or_dynamic" {
+                Label("No patron credentials needed", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption2)
+                    .foregroundStyle(.teal)
+            } else if let status = patronOnboarding {
+                let configuredSecrets = status.configured
+                let missingSecrets = status.missing
+
+                ForEach(configuredSecrets, id: \.field) { field in
+                    HStack(spacing: 4) {
+                        Image(systemName: field.lifecycle == "dynamic" ? "arrow.triangle.2.circlepath.circle.fill" : "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                        Text(fieldLabel(field.field))
+                            .font(.caption2)
+                        if field.lifecycle == "dynamic" {
+                            Text("auto-renewed")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.teal)
+                        }
+                    }
+                }
+
+                ForEach(missingSecrets, id: \.field) { field in
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text(fieldLabel(field.field))
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                if patronOnboarding == nil && !loadingOnboarding {
+                    Button {
+                        Task { await loadPatronOnboardingStatus() }
+                    } label: {
+                        Label("Check", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                let hasMissing = !(patronOnboarding?.missing.isEmpty ?? true)
+                if hasMissing && credType != "none_or_dynamic",
+                   let endpointString = self.operator?.mcpEndpointURL,
+                   let endpointURL = URL(string: endpointString) {
+                    Button {
+                        onRequestCourier?(CourierParams(
+                            operatorName: balance.operatorName,
+                            operatorNpub: balance.id,
+                            endpointURL: endpointURL,
+                            credentialService: patronOnboarding?.credentialService ?? "",
+                            missingSecrets: (patronOnboarding?.missing ?? []).map { fieldLabel($0.field) },
+                            greeting: patronOnboarding?.credentialGreeting ?? "",
+                            senderNpub: patron.npub
+                        ))
+                    } label: {
+                        Label("Deliver", systemImage: "lock.shield")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.orange)
+                }
+
+                if hasNcred {
+                    Button(role: .destructive) {
+                        KeychainService.deleteNcred(forService: service, operator: balance.id)
+                        Task { await loadPatronOnboardingStatus() }
+                    } label: {
+                        Label("Forget", systemImage: "trash")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private func fieldLabel(_ field: String) -> String {
+        field.replacingOccurrences(of: "_", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
+    private func loadPatronOnboardingStatus() async {
+        guard let endpointString = self.operator?.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else { return }
+        loadingOnboarding = true
+        do {
+            let host = endpointURL.host ?? balance.id
+            let token: String
+            if let bundle = KeychainService.loadTokenBundle(forPatron: patron.npub, operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: patron.npub, operator: host)
+                token = bundle.accessToken
+            }
+            patronOnboarding = try await MCPService().callGetPatronOnboardingStatus(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                patronNpub: patron.npub
+            )
+        } catch {
+            // Silently handle — the section just won't show details
+        }
+        loadingOnboarding = false
     }
 
     private func reconcilePending(_ result: PatronAccountViewModel.BalanceResult) async {
@@ -342,11 +528,12 @@ private struct OperatorBalanceCard: View {
 
 // MARK: - Top Off Sheet
 
-private struct TopOffSheet: View {
+struct TopOffSheet: View {
     let patronNpub: String
     let operatorName: String
     let endpoint: String
     let accountVM: PatronAccountViewModel
+    var onNotifyOperator: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedAmount = 500
@@ -487,14 +674,37 @@ private struct TopOffSheet: View {
 
                 case .error(let message):
                     Section {
-                        Label(message, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                        let guidance = Self.purchaseErrorGuidance(message, operatorName: operatorName)
+                        Label(guidance.headline, systemImage: guidance.icon)
+                            .foregroundStyle(guidance.color)
+                            .font(.subheadline.bold())
 
-                        Button("Retry") {
-                            purchase()
+                        Text(guidance.explanation)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if guidance.isRetryable {
+                            Button("Retry") {
+                                purchase()
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
+
+                        if guidance.canNotify, let onNotifyOperator {
+                            Button {
+                                dismiss()
+                                onNotifyOperator()
+                            } label: {
+                                Label("Message \(operatorName)", systemImage: "message.fill")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                        }
+                    } footer: {
+                        Text(message)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -505,6 +715,62 @@ private struct TopOffSheet: View {
                 }
             }
         }
+    }
+
+    private struct ErrorGuidance {
+        let headline: String
+        let icon: String
+        let color: Color
+        let explanation: String
+        let isRetryable: Bool
+        let canNotify: Bool
+    }
+
+    private static func purchaseErrorGuidance(_ message: String, operatorName: String) -> ErrorGuidance {
+        let lower = message.lowercased()
+
+        if lower.contains("authority") && lower.contains("insufficient") || lower.contains("certification failed") {
+            return ErrorGuidance(
+                headline: "Operator Payment Not Ready",
+                icon: "building.columns.fill",
+                color: .orange,
+                explanation: "\(operatorName)'s payment authority doesn't have enough funds to certify this purchase. This isn't something you can fix — the operator needs to fund their Authority account.",
+                isRetryable: false,
+                canNotify: true
+            )
+        }
+
+        if lower.contains("btcpay") || lower.contains("payment processor") {
+            return ErrorGuidance(
+                headline: "Payment Processor Unavailable",
+                icon: "bolt.slash.fill",
+                color: .red,
+                explanation: "\(operatorName)'s payment processor is not responding. Try again later, or let the operator know.",
+                isRetryable: true,
+                canNotify: true
+            )
+        }
+
+        if lower.contains("connection") || lower.contains("timeout") || lower.contains("unreachable") {
+            return ErrorGuidance(
+                headline: "Connection Failed",
+                icon: "wifi.slash",
+                color: .red,
+                explanation: "Couldn't reach \(operatorName). Check your connection and try again.",
+                isRetryable: true,
+                canNotify: false
+            )
+        }
+
+        // Generic fallback
+        return ErrorGuidance(
+            headline: "Purchase Failed",
+            icon: "exclamationmark.triangle.fill",
+            color: .red,
+            explanation: message,
+            isRetryable: true,
+            canNotify: true
+        )
     }
 
     private var effectiveAmount: Int {

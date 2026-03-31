@@ -301,6 +301,46 @@ struct ConstraintCatalog {
         ),
 
         // ---------------------------------------------------------------
+        // MARK: Credit Terms
+        // ---------------------------------------------------------------
+
+        ConstraintSpec(
+            type: .demurrage,
+            category: "Credit Terms",
+            description: "Demurrage encourages healthy velocity of circulation — credits expire after a configurable number of days, motivating patrons to use them rather than hoard them.",
+            params: [
+                ParamSpec(
+                    name: "ttl_days",
+                    type: .int,
+                    required: true,
+                    defaultValue: .int(15),
+                    description: "Days until a credit tranche expires."
+                ),
+                ParamSpec(
+                    name: "target_usage_pct",
+                    type: .float,
+                    required: false,
+                    defaultValue: .double(0.75),
+                    description: "Target usage percentage before expiration (for interview recommendations)."
+                ),
+                ParamSpec(
+                    name: "min_days",
+                    type: .int,
+                    required: false,
+                    defaultValue: .int(3),
+                    description: "Minimum allowed TTL in days."
+                ),
+                ParamSpec(
+                    name: "max_days",
+                    type: .int,
+                    required: false,
+                    defaultValue: .int(90),
+                    description: "Maximum allowed TTL in days."
+                ),
+            ]
+        ),
+
+        // ---------------------------------------------------------------
         // MARK: Dynamic constraints
         // ---------------------------------------------------------------
 
@@ -349,7 +389,7 @@ struct ConstraintCatalog {
 
     static var categories: [String] {
         let cats = Set(all.map(\.category))
-        return ["Pricing", "Access", "Dynamic"].filter { cats.contains($0) }
+        return ["Pricing", "Access", "Credit Terms", "Dynamic"].filter { cats.contains($0) }
     }
 
     static func specs(in category: String) -> [ConstraintSpec] {

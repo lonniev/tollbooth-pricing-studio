@@ -349,7 +349,12 @@ enum OAuthError: LocalizedError {
         case .metadataFetchFailed: return "Failed to fetch OAuth metadata"
         case .registrationNotSupported: return "Dynamic client registration not supported"
         case .registrationFailed: return "OAuth client registration failed"
-        case .authSessionFailed(let error): return "Authentication failed: \(error.localizedDescription)"
+        case .authSessionFailed(let error):
+            let desc = error.localizedDescription
+            if desc.contains("cancel") || desc.contains("Cancel") {
+                return "Sign-in required — tap an operator to authenticate with Horizon."
+            }
+            return "Authentication failed: \(desc)"
         case .noAuthCode: return "No authorization code received"
         case .tokenExchangeFailed: return "Failed to exchange authorization code for token"
         case .noRefreshToken: return "No refresh token available"

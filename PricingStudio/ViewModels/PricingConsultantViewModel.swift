@@ -662,7 +662,23 @@ final class PricingConsultantViewModel {
             2: "You are in the DEMAND phase. Focus exclusively on exploring expected usage patterns, market size, and user segments. Build on the inventory findings.",
             3: "You are in the VALUE phase. Focus exclusively on assessing willingness-to-pay, competitive positioning, and perceived value.",
             4: "You are in the COST phase. Focus exclusively on understanding serving costs, margin requirements, and infrastructure overhead.",
-            5: "You are in the CONSTRAINTS phase. Focus exclusively on designing promotional mechanics, fairness rules, rate limits, and free-tier policies.",
+            5: "You are in the CONSTRAINTS & CREDIT TERMS phase. Cover two topics:\n\n" +
+                "1. Promotional mechanics: fairness rules, rate limits, free-tier policies, discounts.\n\n" +
+                "2. Demurrage: In the DPYC economy, demurrage is a positive feature — it encourages " +
+                "healthy velocity of circulation by giving credits a finite shelf life. This is not a " +
+                "penalty; it aligns patron incentives with operator sustainability. Present it as a " +
+                "natural property of the credit, not something punitive.\n\n" +
+                "The minimum invoice is 1000 sats. Ask the operator how many tool calls they expect " +
+                "a typical patron to make per day. Then compute a recommended TTL:\n\n" +
+                "  avg_cost = median of tool prices from the pricing model\n" +
+                "  expected_daily_sats = avg_cost * calls_per_day\n" +
+                "  ttl_days = ceil((1000 * 0.75) / expected_daily_sats)\n\n" +
+                "Clamp to 3-90 days. Present the recommendation: " +
+                "\"A patron spending ~X sats/day will use 75% of a 1000-sat tranche in Y days, " +
+                "so I recommend Y-day demurrage.\" The operator can accept or override.\n\n" +
+                "Include a demurrage step in the CAMPAIGN_JSON pipeline with " +
+                "params: {\"ttl_days\": N, \"target_usage_pct\": 0.75, \"min_days\": 3, \"max_days\": 90}. " +
+                "This is a standard constraint like any other pipeline step.",
             6: "You are in the RECOMMENDATION phase. Synthesize all prior findings and present a complete pricing campaign draft with BLUF, revenue projections, and A/B/C variants.",
         ]
 
@@ -902,7 +918,7 @@ struct InterviewProgress: Codable, Equatable {
     )
 
     static let stageNames = ["inventory", "demand", "value", "cost", "constraints", "recommendation"]
-    static let stageLabels = ["Inventory", "Demand", "Value", "Cost", "Constraints", "Recommendation"]
+    static let stageLabels = ["Inventory", "Demand", "Value", "Cost", "Constraints & Demurrage", "Recommendation"]
 }
 
 // MARK: - Context

@@ -64,7 +64,8 @@ final class AuthorityBalanceViewModel {
                     let result = try await mcpService.callCheckPayment(
                         endpointURL: endpointURL,
                         bearerToken: token,
-                        invoiceId: invoiceId
+                        invoiceId: invoiceId,
+                        npub: authority.npub
                     )
                     switch result.status {
                     case "Settled":

@@ -502,12 +502,13 @@ private struct AdoptOperatorSheet: View {
 
 // MARK: - Authority Top Off Sheet
 
-private struct AuthorityTopOffSheet: View {
+struct AuthorityTopOffSheet: View {
     let authorityName: String
     let authorityNpub: String
     let endpoint: String
     let balanceVM: AuthorityBalanceViewModel
     let authority: Authority
+    var purchaserNpub: String = ""  // if non-empty, used instead of authorityNpub for purchase identity
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedAmount = 1000
@@ -647,7 +648,8 @@ private struct AuthorityTopOffSheet: View {
                 let result = try await mcpService.callPurchaseCredits(
                     endpointURL: endpointURL,
                     bearerToken: token,
-                    amountSats: effectiveAmount
+                    amountSats: effectiveAmount,
+                    patronNpub: purchaserNpub.isEmpty ? authorityNpub : purchaserNpub
                 )
                 purchaseState = .success(result)
             } catch {
@@ -666,7 +668,8 @@ private struct AuthorityTopOffSheet: View {
                 let result = try await mcpService.callCheckPayment(
                     endpointURL: endpointURL,
                     bearerToken: token,
-                    invoiceId: invoiceId
+                    invoiceId: invoiceId,
+                    npub: authorityNpub
                 )
                 if result.status == "Settled" || result.creditsGranted > 0 {
                     paymentCheckState = .checked("Settled! +\(result.creditsGranted) sats credited.")

@@ -4,23 +4,55 @@ import SwiftData
 struct InvoiceListView: View {
     let patron: Patron
     @Bindable var accountVM: PatronAccountViewModel
+    var onOpenMessages: ((_ operatorNpub: String) -> Void)?
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
 
     @State private var isReconciling = false
     @State private var reconcileResults: [String: PatronAccountViewModel.ReconcileResult] = [:]
     @State private var checkingInvoices: Set<String> = []
     @State private var invoiceStatuses: [String: String] = [:]
+    @State private var hasLoadedHistory = false
+    @State private var topOffOperator: TopOffTarget?
+
+    private struct TopOffTarget: Identifiable {
+        let id: String  // operator npub
+        let operatorName: String
+        let endpoint: String
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .short
+        return df
+    }()
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 summaryHeader
                 reconcileAllButton
-                invoicesByOperator
+                invoiceHistoryByOperator
             }
             .padding()
         }
         .navigationTitle("Invoices")
+        .task {
+            guard !hasLoadedHistory else { return }
+            hasLoadedHistory = true
+            await accountVM.loadAllInvoiceHistory(for: patron, operators: operators)
+        }
+        .sheet(item: $topOffOperator) { target in
+            TopOffSheet(
+                patronNpub: patron.npub,
+                operatorName: target.operatorName,
+                endpoint: target.endpoint,
+                accountVM: accountVM,
+                onNotifyOperator: onOpenMessages.map { callback in
+                    { callback(target.id) }
+                }
+            )
+        }
     }
 
     // MARK: - Summary Header
@@ -87,61 +119,87 @@ struct InvoiceListView: View {
         }
     }
 
-    // MARK: - Invoices by Operator
+    // MARK: - Invoice History by Operator
 
     @ViewBuilder
-    private var invoicesByOperator: some View {
-        let balancesWithInvoices = accountVM.operatorBalances.filter { balance in
-            if case .loaded(let result) = balance.balanceState {
-                return !result.pendingInvoiceIds.isEmpty
-            }
-            return false
-        }
+    private var invoiceHistoryByOperator: some View {
+        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
 
-        if balancesWithInvoices.isEmpty {
+        if mcpOperators.isEmpty {
             ContentUnavailableView(
-                "No Pending Invoices",
-                systemImage: "checkmark.circle",
-                description: Text("All invoices have been settled or there are no outstanding payments.")
+                "No Operators",
+                systemImage: "server.rack",
+                description: Text("Add an operator to view invoice history.")
             )
             .padding(.top, 32)
         } else {
-            ForEach(balancesWithInvoices) { balance in
-                if case .loaded(let result) = balance.balanceState {
-                    operatorInvoiceSection(balance: balance, result: result)
-                }
+            ForEach(mcpOperators) { op in
+                operatorInvoiceHistorySection(op: op)
             }
         }
     }
 
     @ViewBuilder
-    private func operatorInvoiceSection(
-        balance: PatronAccountViewModel.OperatorBalance,
-        result: PatronAccountViewModel.BalanceResult
-    ) -> some View {
+    private func operatorInvoiceHistorySection(op: Operator) -> some View {
+        let historyState = accountVM.invoiceHistoryStates[op.npub] ?? .idle
+
         VStack(alignment: .leading, spacing: 8) {
+            // Operator header
             HStack {
                 Image(systemName: "server.rack")
                     .foregroundStyle(.orange)
-                Text(balance.operatorName)
+                Text(op.displayName)
                     .font(.headline)
                 Spacer()
-                Text("\(result.pendingInvoiceIds.count) pending")
-                    .font(.caption.bold())
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.orange.opacity(0.2), in: Capsule())
-                    .foregroundStyle(.orange)
-            }
 
-            if let rr = reconcileResults[balance.id] {
-                reconcileResultBanner(rr)
+                if let rr = reconcileResults[op.npub] {
+                    reconcileResultBadge(rr)
+                }
+
+                Button {
+                    topOffOperator = TopOffTarget(
+                        id: op.npub,
+                        operatorName: op.displayName,
+                        endpoint: op.mcpEndpointURL ?? ""
+                    )
+                } label: {
+                    Label("Top Off", systemImage: "plus.circle.fill")
+                        .font(.caption.bold())
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.mini)
             }
 
             Divider()
 
-            ForEach(result.pendingInvoiceIds, id: \.self) { invoiceId in
-                invoiceRow(invoiceId: invoiceId, endpoint: balance.endpoint)
+            switch historyState {
+            case .idle:
+                Text("Not loaded")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .loading:
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Loading invoice history...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            case .loaded(let items):
+                if items.isEmpty {
+                    Text("No invoices yet")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
+                } else {
+                    invoiceTable(items: items, endpoint: op.mcpEndpointURL ?? "")
+                }
+            case .error(let message):
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.vertical, 4)
             }
         }
         .padding(12)
@@ -150,53 +208,116 @@ struct InvoiceListView: View {
     }
 
     @ViewBuilder
-    private func invoiceRow(invoiceId: String, endpoint: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(invoiceId)
-                    .font(.caption.monospaced())
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                if let status = invoiceStatuses[invoiceId] {
-                    Text(status)
-                        .font(.caption2)
-                        .foregroundStyle(statusColor(for: status))
-                }
-            }
-
+    private func invoiceTable(items: [MCPService.InvoiceLineItem], endpoint: String) -> some View {
+        // Column headers
+        HStack(spacing: 0) {
+            Text("Date")
+                .frame(width: 130, alignment: .leading)
+            Text("Amount")
+                .frame(width: 70, alignment: .trailing)
+            Text("Credits")
+                .frame(width: 70, alignment: .trailing)
+            Text("Status")
+                .frame(minWidth: 60, alignment: .center)
             Spacer()
-
-            Button {
-                Task { await checkSingleInvoice(invoiceId: invoiceId, endpoint: endpoint) }
-            } label: {
-                if checkingInvoices.contains(invoiceId) {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Label("Check", systemImage: "magnifyingglass")
-                        .font(.caption.bold())
-                }
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(checkingInvoices.contains(invoiceId))
         }
-        .padding(.vertical, 4)
+        .font(.caption2.bold())
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 4)
+
+        ForEach(items) { item in
+            invoiceLineItemRow(item: item, endpoint: endpoint)
+        }
     }
 
     @ViewBuilder
-    private func reconcileResultBanner(_ rr: PatronAccountViewModel.ReconcileResult) -> some View {
-        HStack(spacing: 8) {
+    private func invoiceLineItemRow(item: MCPService.InvoiceLineItem, endpoint: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 0) {
+                // Date
+                Group {
+                    if let date = item.createdAt {
+                        Text(Self.dateFormatter.string(from: date))
+                    } else {
+                        Text("--")
+                    }
+                }
+                .frame(width: 130, alignment: .leading)
+
+                // Amount (real sats)
+                Text("\(item.amountSats)")
+                    .frame(width: 70, alignment: .trailing)
+
+                // Credits granted
+                Text(item.apiSatsCredited > 0 ? "\(item.apiSatsCredited)" : "--")
+                    .frame(width: 70, alignment: .trailing)
+
+                // Status badge
+                statusBadge(for: item.status)
+                    .frame(minWidth: 60, alignment: .center)
+
+                Spacer()
+
+                // Check button for pending invoices
+                if item.status == "Pending" {
+                    Button {
+                        Task { await checkSingleInvoice(invoiceId: item.id, endpoint: endpoint) }
+                    } label: {
+                        if checkingInvoices.contains(item.id) {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "magnifyingglass")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .disabled(checkingInvoices.contains(item.id))
+                }
+            }
+            .font(.caption.monospacedDigit())
+
+            // Invoice tracking ID
+            Text(item.id)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+
+        // Show override status from reconcile check
+        if let overrideStatus = invoiceStatuses[item.id] {
+            Text(overrideStatus)
+                .font(.caption2)
+                .foregroundStyle(statusColor(for: overrideStatus))
+                .padding(.leading, 8)
+        }
+    }
+
+    @ViewBuilder
+    private func statusBadge(for status: String) -> some View {
+        Text(status)
+            .font(.caption2.bold())
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(statusColor(for: status).opacity(0.15), in: Capsule())
+            .foregroundStyle(statusColor(for: status))
+    }
+
+    @ViewBuilder
+    private func reconcileResultBadge(_ rr: PatronAccountViewModel.ReconcileResult) -> some View {
+        HStack(spacing: 4) {
             if rr.settled > 0 {
-                Label("\(rr.settled) settled (+\(rr.creditsGained) sats)", systemImage: "checkmark.circle.fill")
+                Label("\(rr.settled)", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             }
             if rr.expired > 0 {
-                Label("\(rr.expired) expired", systemImage: "xmark.circle.fill")
+                Label("\(rr.expired)", systemImage: "xmark.circle.fill")
                     .foregroundStyle(.red)
             }
             if rr.stillPending > 0 {
-                Label("\(rr.stillPending) still pending", systemImage: "clock")
+                Label("\(rr.stillPending)", systemImage: "clock")
                     .foregroundStyle(.orange)
             }
         }
@@ -229,8 +350,9 @@ struct InvoiceListView: View {
             }
         }
 
-        // Refresh balances to pick up changes
+        // Refresh balances and invoice history
         await accountVM.forceRefresh(for: patron, operators: operators)
+        await accountVM.loadAllInvoiceHistory(for: patron, operators: operators)
         isReconciling = false
     }
 
@@ -265,15 +387,24 @@ struct InvoiceListView: View {
 
     private var aggregateStats: AggregateStats {
         var stats = AggregateStats()
-        for balance in accountVM.operatorBalances {
-            if case .loaded(let result) = balance.balanceState {
-                stats.totalPending += result.pendingInvoiceCount
-                if let summary = result.invoiceSummary {
-                    stats.totalSettled += summary.settledCount
-                    stats.totalCredits += summary.totalApiSatsCredited
+
+        // Derive from invoice history when available
+        for (_, historyState) in accountVM.invoiceHistoryStates {
+            if case .loaded(let items) = historyState {
+                for item in items {
+                    switch item.status {
+                    case "Pending":
+                        stats.totalPending += 1
+                    case "Settled":
+                        stats.totalSettled += 1
+                        stats.totalCredits += item.apiSatsCredited
+                    default:
+                        break
+                    }
                 }
             }
         }
+
         // Include reconcile results from this session
         for (_, rr) in reconcileResults {
             stats.totalSettled += rr.settled
@@ -291,8 +422,8 @@ struct InvoiceListView: View {
 
     private func statusColor(for status: String) -> Color {
         if status.hasPrefix("Settled") { return .green }
-        if status == "Expired" { return .red }
-        if status == "Still pending" { return .orange }
+        if status == "Expired" || status == "Invalid" { return .red }
+        if status == "Pending" || status == "Still pending" { return .orange }
         return .secondary
     }
 }

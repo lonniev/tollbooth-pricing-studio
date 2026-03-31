@@ -327,7 +327,7 @@ final class PricingViewModel {
                 }
             } catch {
                 // Onboarding check failed — continue to pricing fetch
-                // (the operator might not have get_onboarding_status yet)
+                // (the operator might not have get_operator_onboarding_status yet)
             }
         }
 

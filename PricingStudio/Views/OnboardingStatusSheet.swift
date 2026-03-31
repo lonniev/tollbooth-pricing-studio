@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Standalone sheet showing an operator's configuration readiness.
-/// Calls get_onboarding_status on the operator's MCP and displays
+/// Calls get_operator_onboarding_status on the operator's MCP and displays
 /// configured/missing fields with actionable remediation.
 struct OnboardingStatusSheet: View {
     let operator_: Operator

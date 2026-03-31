@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var activeCourier: CourierParams?
     @State private var showingPushError = false
     @State private var campaignForOverview: Campaign?
+    @State private var detailTab: ChatContainerTab = .pricing
 
     var body: some View {
         NavigationSplitView {
@@ -37,36 +38,11 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 Group {
                     if let auth = authorityVM.selectedAuthority {
-                        ChatContainerView(identity: ChatIdentity(from: auth), chatVM: chatVM) {
-                            AuthorityDetailView(authority: auth, pricingVM: pricingVM, authorityVM: authorityVM) { op in
-                                operatorVM.selectedOperator = op
-                            }
-                        }
+                        authorityDetail(auth)
                     } else if let op = operatorVM.selectedOperator {
-                        ChatContainerView(identity: ChatIdentity(from: op), chatVM: chatVM) {
-                            PricingDetailView(target: op, viewModel: pricingVM, onRequestCourier: { params in
-                            withAnimation { activeCourier = params }
-                        })
-                        } consultantContent: {
-                            PricingConsultantView(
-                                consultantVM: consultantVM,
-                                context: buildConsultantContext(for: op),
-                                operatorNpub: op.npub,
-                                onApplyJSON: { json in
-                                    pricingVM.applyConsultantJSON(json, for: op)
-                                    showingPushConfirmation = true
-                                },
-                                onDeleteCampaign: { campaign in
-                                    operatorVM.requestCampaignDelete(campaign)
-                                }
-                            )
-                        }
+                        operatorDetail(op)
                     } else if let patron = patronVM.selectedPatron {
-                        ChatContainerView(identity: ChatIdentity(from: patron), chatVM: chatVM, firstTabLabel: "Account") {
-                            PatronDetailView(patron: patron, accountVM: patronAccountVM)
-                        } invoicesContent: {
-                            InvoiceListView(patron: patron, accountVM: patronAccountVM)
-                        }
+                        patronDetail(patron)
                     } else {
                         NetworkTopologyView(
                             onNodeSelected: { npub, tier in
@@ -118,6 +94,8 @@ struct ContentView: View {
                         credentialService: params.credentialService,
                         missingSecrets: params.missingSecrets,
                         greeting: params.greeting,
+                        senderNpub: params.senderNpub,
+                        onOpenMessages: params.senderNpub.isEmpty ? nil : { openMessagesFor(params.operatorNpub) },
                         onDismiss: { withAnimation { activeCourier = nil } }
                     )
                     .frame(width: 340)
@@ -299,13 +277,7 @@ struct ContentView: View {
             // Wire display name resolver using modelContext for OS notifications
             let ctx = modelContext
             DMPollingService.shared.resolveDisplayName = { key in
-                let npub = key.hasPrefix("npub1") ? key : (try? NostrKeyService.npubFromHex(key))
-                guard let npub else { return String(key.prefix(16)) + "…" }
-                // Query entities by npub — patron aliases first
-                if let p = (try? ctx.fetch(FetchDescriptor<Patron>()))?.first(where: { $0.npub == npub }) { return p.displayName }
-                if let o = (try? ctx.fetch(FetchDescriptor<Operator>()))?.first(where: { $0.npub == npub }) { return o.displayName }
-                if let a = (try? ctx.fetch(FetchDescriptor<Authority>()))?.first(where: { $0.npub == npub }) { return a.displayName }
-                return String(npub.prefix(16)) + "…"
+                Self.resolveDisplayName(key: key, context: ctx)
             }
             // Wire Oracle tool executor for AI Assistant tool_use
             AnthropicService.executeOracleTool = { toolName, input in
@@ -408,6 +380,65 @@ struct ContentView: View {
     }
 
     // MARK: - Graph Node Selection
+
+    @ViewBuilder
+    private func authorityDetail(_ auth: Authority) -> some View {
+        ChatContainerView(identity: ChatIdentity(from: auth), chatVM: chatVM, selectedTab: $detailTab) {
+            AuthorityDetailView(authority: auth, pricingVM: pricingVM, authorityVM: authorityVM) { op in
+                operatorVM.selectedOperator = op
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func operatorDetail(_ op: Operator) -> some View {
+        ChatContainerView(identity: ChatIdentity(from: op), chatVM: chatVM, selectedTab: $detailTab) {
+            PricingDetailView(target: op, viewModel: pricingVM, onRequestCourier: { params in
+                withAnimation { activeCourier = params }
+            })
+        } consultantContent: {
+            PricingConsultantView(
+                consultantVM: consultantVM,
+                context: buildConsultantContext(for: op),
+                operatorNpub: op.npub,
+                onApplyJSON: { json in
+                    pricingVM.applyConsultantJSON(json, for: op)
+                    showingPushConfirmation = true
+                },
+                onDeleteCampaign: { campaign in
+                    operatorVM.requestCampaignDelete(campaign)
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func patronDetail(_ patron: Patron) -> some View {
+        ChatContainerView(identity: ChatIdentity(from: patron), chatVM: chatVM, selectedTab: $detailTab, firstTabLabel: "Account") {
+            PatronDetailView(patron: patron, accountVM: patronAccountVM, onOpenMessages: openMessagesFor, onRequestCourier: { params in
+                withAnimation { activeCourier = params }
+            })
+        } invoicesContent: {
+            InvoiceListView(patron: patron, accountVM: patronAccountVM, onOpenMessages: openMessagesFor)
+        }
+    }
+
+    private static func resolveDisplayName(key: String, context: ModelContext) -> String {
+        let npub = key.hasPrefix("npub1") ? key : (try? NostrKeyService.npubFromHex(key))
+        guard let npub else { return String(key.prefix(16)) + "…" }
+        let patrons: [Patron] = (try? context.fetch(FetchDescriptor<Patron>())) ?? []
+        if let p = patrons.first(where: { $0.npub == npub }) { return p.displayName }
+        let operators: [Operator] = (try? context.fetch(FetchDescriptor<Operator>())) ?? []
+        if let o = operators.first(where: { $0.npub == npub }) { return o.displayName }
+        let authorities: [Authority] = (try? context.fetch(FetchDescriptor<Authority>())) ?? []
+        if let a = authorities.first(where: { $0.npub == npub }) { return a.displayName }
+        return String(npub.prefix(16)) + "…"
+    }
+
+    private func openMessagesFor(_ operatorNpub: String) {
+        chatVM.selectedConversationId = operatorNpub
+        detailTab = .messages
+    }
 
     private func selectEntity(npub: String, tier: NetworkTier) {
         switch tier {
@@ -1011,18 +1042,12 @@ private struct SidebarAlertsModifier: ViewModifier {
                 Text("Delete \"\(patron.displayName)\"? Any saved nsec for this patron will also be removed.")
             }
             .alert(
-                "Identity Alias",
-                isPresented: $patronVM.showingAliasConfirmation,
-                presenting: patronVM.pendingAlias
-            ) { _ in
-                Button("Cancel", role: .cancel) {
-                    patronVM.cancelAlias()
-                }
-                Button("Add Alias") {
-                    patronVM.confirmAlias(context: modelContext)
-                }
-            } message: { alias in
-                Text("A patron named \"\(alias.existingName)\" already uses this npub. Add \"\(alias.displayName)\" as an identity alias sharing the same key?")
+                "Duplicate Identity",
+                isPresented: $patronVM.showingDuplicateAlert
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(patronVM.duplicateAlertMessage)
             }
     }
 }

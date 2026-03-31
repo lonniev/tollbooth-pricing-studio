@@ -97,6 +97,7 @@ enum PipelineStepType: String, Sendable {
     case happyHour = "happy_hour"
     case jsonExpression = "json_expression"
     case surgePricing = "surge_pricing"
+    case demurrage = "demurrage"
     case unknown
 
     var iconName: String {
@@ -111,6 +112,7 @@ enum PipelineStepType: String, Sendable {
         case .happyHour: return "party.popper"
         case .jsonExpression: return "curlybraces"
         case .surgePricing: return "chart.line.uptrend.xyaxis"
+        case .demurrage: return "hourglass"
         case .unknown: return "questionmark.circle"
         }
     }
@@ -127,6 +129,7 @@ enum PipelineStepType: String, Sendable {
         case .happyHour: return "Happy Hour"
         case .jsonExpression: return "JSON Expression"
         case .surgePricing: return "Surge Pricing"
+        case .demurrage: return "Demurrage"
         case .unknown: return "Unknown"
         }
     }

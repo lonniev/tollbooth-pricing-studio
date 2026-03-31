@@ -44,8 +44,8 @@ private struct PatronRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Image(systemName: patron.aliasOf != nil ? "person.2.fill" : "person.badge.key")
-                        .foregroundStyle(patron.aliasOf != nil ? .purple : .teal)
+                    Image(systemName: "person.badge.key")
+                        .foregroundStyle(.teal)
                         .font(.caption)
                     Text(patron.displayName)
                         .font(.headline)
@@ -59,11 +59,6 @@ private struct PatronRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospaced()
-                if let aliasOf = patron.aliasOf {
-                    Label("Alias of \(aliasOf)", systemImage: "arrow.triangle.branch")
-                        .font(.caption2)
-                        .foregroundStyle(.purple)
-                }
             }
             Spacer()
             if KeychainService.loadNsec(forNpub: patron.npub) != nil {

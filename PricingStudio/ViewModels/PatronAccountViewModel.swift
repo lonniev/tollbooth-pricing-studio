@@ -62,6 +62,80 @@ final class PatronAccountViewModel {
         let createdAt: Date?
     }
 
+    // MARK: - Invoice History
+
+    enum InvoiceHistoryState {
+        case idle
+        case loading
+        case loaded([MCPService.InvoiceLineItem])
+        case error(String)
+    }
+
+    /// Per-operator invoice history, keyed by operator npub
+    var invoiceHistoryStates: [String: InvoiceHistoryState] = [:]
+
+    func fetchInvoiceHistory(for patron: Patron, operator op: Operator) async {
+        guard let endpointString = op.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else { return }
+
+        invoiceHistoryStates[op.npub] = .loading
+
+        do {
+            let host = endpointURL.host ?? op.npub
+            let token = try await resolvePatronToken(
+                patronNpub: patron.npub,
+                operatorHost: host,
+                endpointURL: endpointURL
+            )
+            let result = try await mcpService.callAccountStatement(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                patronNpub: patron.npub
+            )
+            invoiceHistoryStates[op.npub] = .loaded(result.invoiceItems)
+        } catch {
+            invoiceHistoryStates[op.npub] = .error(error.localizedDescription)
+        }
+    }
+
+    func loadAllInvoiceHistory(for patron: Patron, operators: [Operator]) async {
+        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
+        // Extract sendable values before entering task group
+        let patronNpub = patron.npub
+        let opInfos: [(npub: String, endpoint: String)] = mcpOperators.compactMap { op in
+            guard let endpoint = op.mcpEndpointURL else { return nil }
+            return (op.npub, endpoint)
+        }
+        await withTaskGroup(of: (String, [MCPService.InvoiceLineItem]).self) { group in
+            for info in opInfos {
+                group.addTask {
+                    guard let endpointURL = URL(string: info.endpoint) else {
+                        return (info.npub, [])
+                    }
+                    do {
+                        let host = endpointURL.host ?? info.npub
+                        let token = try await self.resolvePatronToken(
+                            patronNpub: patronNpub,
+                            operatorHost: host,
+                            endpointURL: endpointURL
+                        )
+                        let result = try await self.mcpService.callAccountStatement(
+                            endpointURL: endpointURL,
+                            bearerToken: token,
+                            patronNpub: patronNpub
+                        )
+                        return (info.npub, result.invoiceItems)
+                    } catch {
+                        return (info.npub, [])
+                    }
+                }
+            }
+            for await (npub, items) in group {
+                invoiceHistoryStates[npub] = items.isEmpty ? .loaded([]) : .loaded(items)
+            }
+        }
+    }
+
     // MARK: - Cache
 
     private var balanceCache: [String: CachedBalance] = [:]
@@ -156,18 +230,30 @@ final class PatronAccountViewModel {
         }
         state = .loading
 
-        // Fetch each balance sequentially (MainActor-isolated)
-        for op in mcpOperators {
-            guard let endpointString = op.mcpEndpointURL,
-                  let endpointURL = URL(string: endpointString) else { continue }
-
-            let result = await fetchBalance(
-                patronNpub: patron.npub,
-                operatorNpub: op.npub,
-                endpointURL: endpointURL
-            )
-            if let idx = operatorBalances.firstIndex(where: { $0.id == op.npub }) {
-                operatorBalances[idx].balanceState = result
+        // Fetch all balances in parallel
+        let patronNpub = patron.npub
+        let opEndpoints: [(npub: String, endpoint: String)] = mcpOperators.compactMap { op in
+            guard let ep = op.mcpEndpointURL else { return nil }
+            return (op.npub, ep)
+        }
+        await withTaskGroup(of: (String, BalanceState).self) { group in
+            for info in opEndpoints {
+                group.addTask {
+                    guard let endpointURL = URL(string: info.endpoint) else {
+                        return (info.npub, .error("Invalid endpoint URL"))
+                    }
+                    let result = await self.fetchBalance(
+                        patronNpub: patronNpub,
+                        operatorNpub: info.npub,
+                        endpointURL: endpointURL
+                    )
+                    return (info.npub, result)
+                }
+            }
+            for await (npub, result) in group {
+                if let idx = operatorBalances.firstIndex(where: { $0.id == npub }) {
+                    operatorBalances[idx].balanceState = result
+                }
             }
         }
 
@@ -200,7 +286,8 @@ final class PatronAccountViewModel {
         return try await mcpService.callPurchaseCredits(
             endpointURL: endpointURL,
             bearerToken: token,
-            amountSats: amountSats
+            amountSats: amountSats,
+            patronNpub: patronNpub
         )
     }
 
@@ -235,7 +322,8 @@ final class PatronAccountViewModel {
                 let result = try await mcpService.callCheckPayment(
                     endpointURL: endpointURL,
                     bearerToken: token,
-                    invoiceId: invoiceId
+                    invoiceId: invoiceId,
+                    npub: patronNpub
                 )
                 switch result.status {
                 case "Settled":
