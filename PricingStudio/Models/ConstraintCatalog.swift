@@ -395,4 +395,39 @@ struct ConstraintCatalog {
     static func specs(in category: String) -> [ConstraintSpec] {
         all.filter { $0.category == category }
     }
+
+    /// Generate a prompt-friendly constraint reference for the LLM advisor.
+    /// Lists every supported type with its JSON key, category, description,
+    /// and parameter specifications so the LLM uses ONLY valid types.
+    static var promptReference: String {
+        var lines: [String] = [
+            "## Supported Constraint Types (EXHAUSTIVE LIST)",
+            "",
+            "You MUST only use constraint types from this list. Any other type name is INVALID.",
+            ""
+        ]
+        for cat in categories {
+            lines.append("### \(cat)")
+            for spec in specs(in: cat) {
+                lines.append("- **`\(spec.type.rawValue)`**: \(spec.description)")
+                let required = spec.params.filter(\.required)
+                let optional = spec.params.filter { !$0.required }
+                if !required.isEmpty {
+                    let paramList = required.map { "  - `\($0.name)` (\($0.type)): \($0.description)" }
+                    lines.append("  Required params:")
+                    lines.append(contentsOf: paramList)
+                }
+                if !optional.isEmpty {
+                    let paramList = optional.map {
+                        let def = $0.defaultValue.map { " (default: \($0))" } ?? ""
+                        return "  - `\($0.name)` (\($0.type))\(def): \($0.description)"
+                    }
+                    lines.append("  Optional params:")
+                    lines.append(contentsOf: paramList)
+                }
+            }
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
 }

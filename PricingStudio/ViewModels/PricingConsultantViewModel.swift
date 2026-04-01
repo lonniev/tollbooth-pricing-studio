@@ -727,6 +727,11 @@ final class PricingConsultantViewModel {
             parts.append("\n## Current Phase\n\(focus)")
         }
 
+        // Inject full constraint catalog for stages that formulate pipelines
+        if stage >= 5 {
+            parts.append("\n\(ConstraintCatalog.promptReference)")
+        }
+
         // For stages 2+, synthesize prior-stage context from insights
         if stage >= 2 {
             var priorContext: [String] = ["\n## Context from Prior Phases"]

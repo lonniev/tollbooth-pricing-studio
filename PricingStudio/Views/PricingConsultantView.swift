@@ -490,24 +490,13 @@ struct PricingConsultantView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    if consultantVM.messages.isEmpty {
+                    if consultantVM.displayedMessages.isEmpty {
                         emptyState
-                    } else if consultantVM.viewingStageNumber != nil {
-                        // Stage-filtered view: show only messages for the selected stage
+                    } else {
+                        // Show only the current stage's conversation
                         ForEach(consultantVM.displayedMessages) { message in
                             bubble(message)
                                 .id(message.id)
-                        }
-                    } else {
-                        // All-stages view: group messages by phase with section headers
-                        let grouped = groupMessagesByStage(consultantVM.messages)
-                        ForEach(grouped, id: \.stage) { group in
-                            stageSectionHeader(stage: group.stage)
-                                .id("stage-header-\(group.stage)")
-                            ForEach(group.messages) { message in
-                                bubble(message)
-                                    .id(message.id)
-                            }
                         }
                     }
 
@@ -540,31 +529,6 @@ struct PricingConsultantView: View {
         }
     }
 
-    /// Group messages into contiguous stage sections for display.
-    /// Stage 6 assistant messages are excluded while streaming (buffered).
-    private func groupMessagesByStage(_ messages: [AssistantMessage]) -> [StageGroup] {
-        var groups: [StageGroup] = []
-        var currentStage = 0
-        var currentMessages: [AssistantMessage] = []
-
-        for message in messages {
-            // Buffer stage 6 assistant messages while streaming
-            if (message.stageNumber ?? 0) == 6 && message.role == .assistant && message.isStreaming {
-                continue
-            }
-            let stage = message.stageNumber ?? currentStage
-            if stage != currentStage && !currentMessages.isEmpty {
-                groups.append(StageGroup(stage: currentStage, messages: currentMessages))
-                currentMessages = []
-            }
-            currentStage = stage
-            currentMessages.append(message)
-        }
-        if !currentMessages.isEmpty {
-            groups.append(StageGroup(stage: currentStage, messages: currentMessages))
-        }
-        return groups
-    }
 
     @ViewBuilder
     private func stageSectionHeader(stage: Int) -> some View {
@@ -775,12 +739,6 @@ struct PricingConsultantView: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: - Stage Group
-
-    private struct StageGroup {
-        let stage: Int
-        let messages: [AssistantMessage]
-    }
 
     // MARK: - Actions
 
