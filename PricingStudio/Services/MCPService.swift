@@ -791,10 +791,16 @@ actor MCPService {
 
         // Include operator_proof INSIDE the model_json payload (not as a separate argument)
         if let npub = operatorNpub {
-            let proof = try OperatorProofService.createProof(
-                toolName: "set_pricing_model",
-                operatorNpub: npub
-            )
+            let proof: String
+            do {
+                proof = try OperatorProofService.createProof(
+                    toolName: "set_pricing_model",
+                    operatorNpub: npub
+                )
+            } catch {
+                await traffic(.error, label: "Operator Proof Failed", detail: "\(error)")
+                throw error
+            }
             // Decode, inject proof, re-encode
             if var dict = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
                 dict["operator_proof"] = proof

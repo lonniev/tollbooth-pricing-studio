@@ -455,14 +455,21 @@ final class PricingViewModel {
     func savePricing(for target: any PricingTarget) async throws {
         guard let model = pricingModel,
               let endpointString = target.mcpEndpointURL,
-              let endpointURL = URL(string: endpointString) else { return }
+              let endpointURL = URL(string: endpointString) else {
+            let reason = pricingModel == nil ? "No pricing model loaded"
+                : target.mcpEndpointURL == nil ? "No MCP endpoint configured for \(target.displayName)"
+                : "Invalid MCP endpoint URL"
+            TrafficLogger.shared.log(.error, label: "Save Pricing", detail: reason)
+            throw MCPError.toolCallFailed(reason)
+        }
 
         // Pre-flight: validate and repair pipeline before sending to server
         validateAndRepairPipeline()
         let hardErrors = pipelineWarnings.filter { $0.contains("server will reject") }
         if !hardErrors.isEmpty {
-            state = .error("Pipeline validation failed:\n" + hardErrors.joined(separator: "\n"))
-            return
+            let detail = hardErrors.joined(separator: "\n")
+            TrafficLogger.shared.log(.error, label: "Pipeline Validation", detail: detail)
+            throw MCPError.toolCallFailed("Pipeline validation failed:\n\(detail)")
         }
 
         state = .loading(step: "Saving pricing...")
@@ -472,6 +479,9 @@ final class PricingViewModel {
 
         // Resolve operator identity for the proof
         let operatorNpub = resolveOperatorNpub(for: target)
+        if operatorNpub == nil {
+            TrafficLogger.shared.log(.outbound, label: "Save Pricing", detail: "No nsec in Keychain for \(target.npub.prefix(16))… — proceeding without operator proof")
+        }
 
         // Merge local edits into model
         let mergedModel = mergeEdits(into: model)
