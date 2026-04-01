@@ -709,7 +709,7 @@ final class PricingConsultantViewModel {
                 "This is not a penalty — it is a natural, positive property of the credit that aligns " +
                 "patron incentives with operator sustainability. Recommend demurrage by default, but " +
                 "respect the operator's choice if they prefer credits that never expire.\n\n" +
-                "The constraint type is 'demurrage' — a standard pipeline step like any other constraint. " +
+                "The constraint type is 'demurrage' — NEVER 'tranche_expiration' or any other name. " +
                 "The minimum invoice is 1000 sats. Ask the operator how many tool calls they expect " +
                 "a typical patron to make per day. Then compute a recommended TTL:\n\n" +
                 "  avg_cost = median of tool prices from the pricing model\n" +
@@ -929,8 +929,10 @@ final class PricingConsultantViewModel {
 
     When the operator explicitly approves the design (or a specific variant), output a \
     fenced JSON block with "name", "tools" (array of tool_name/price_sats/category/intent), \
-    and "pipeline" (array of type/params constraint steps). Do NOT output JSON until the \
-    operator approves.
+    and "pipeline" (array of type/params constraint steps). The credit expiration constraint \
+    type is "demurrage" — NEVER use "tranche_expiration" or any other name. Example pipeline \
+    step: {"type": "demurrage", "params": {"ttl_days": 15, "target_usage_pct": 0.75}}. \
+    Do NOT output JSON until the operator approves.
     """
 }
 
