@@ -14,7 +14,7 @@ final class ReconciliationViewModel {
     var isReconciling = false
     var error: String?
     var noMismatchMessage: String?
-    var providerName: String = "Grok"
+    var providerName: String = "Claude"
 
     private let mcpService = MCPService()
 
@@ -61,14 +61,11 @@ final class ReconciliationViewModel {
 
         Task {
             let provider: any LLMProvider
-            if let xaiKey = KeychainService.loadXAIAPIKey(), !xaiKey.isEmpty {
-                provider = XAIProvider(apiKey: xaiKey)
-                providerName = "Grok"
-            } else if let anthropicKey = KeychainService.loadAnthropicAPIKey(), !anthropicKey.isEmpty {
+            if let anthropicKey = KeychainService.loadAnthropicAPIKey(), !anthropicKey.isEmpty {
                 provider = AnthropicProvider(apiKey: anthropicKey)
                 providerName = "Claude"
             } else {
-                error = "No API key available. Add an xAI or Anthropic API key in settings."
+                error = "No Anthropic API key available. Add one in settings."
                 isReconciling = false
                 return
             }

@@ -262,11 +262,8 @@ struct ReconciliationSheet: View {
             .font(.caption.bold())
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(
-                viewModel.providerName == "Grok" ? Color.orange.opacity(0.15) : Color.purple.opacity(0.15),
-                in: Capsule()
-            )
-            .foregroundStyle(viewModel.providerName == "Grok" ? .orange : .purple)
+            .background(Color.purple.opacity(0.15), in: Capsule())
+            .foregroundStyle(.purple)
     }
 
     private func categoryDisplayName(_ category: String) -> String {
