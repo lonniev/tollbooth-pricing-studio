@@ -311,7 +311,6 @@ struct ContentView: View {
                 Color.black.opacity(0.2)
                     .ignoresSafeArea()
                     .onTapGesture { campaignForOverview = nil }
-
                 CampaignOverviewSheet(campaign: campaign) {
                     campaignForOverview = nil
                 }
@@ -403,6 +402,7 @@ struct ContentView: View {
                 operatorNpub: op.npub,
                 onApplyJSON: { json in
                     pricingVM.applyConsultantJSON(json, for: op)
+                    detailTab = .pricing
                     showingPushConfirmation = true
                 },
                 onDeleteCampaign: { campaign in

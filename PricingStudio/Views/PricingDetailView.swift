@@ -225,9 +225,15 @@ struct PricingDetailView: View {
 
     private var unifiedSaveBar: some View {
         HStack {
-            Text(editSummary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if viewModel.campaignApplied {
+                Label("Campaign ready", systemImage: "checkmark.seal.fill")
+                    .font(.caption.bold())
+                    .foregroundStyle(.green)
+            } else {
+                Text(editSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
 
@@ -269,6 +275,7 @@ struct PricingDetailView: View {
                         do {
                             try await viewModel.savePricing(for: target)
                             isEditingPipeline = false
+                            viewModel.campaignApplied = false
                             showSaveSuccess = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                                 showSaveSuccess = false

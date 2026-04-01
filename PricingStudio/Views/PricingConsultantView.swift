@@ -70,6 +70,16 @@ struct PricingConsultantView: View {
                         .foregroundStyle(.orange)
                     Spacer()
                     Button {
+                        consultantVM.redoStage(viewing, context: context)
+                    } label: {
+                        Label("Redo Phase", systemImage: "arrow.counterclockwise")
+                            .font(.caption.bold())
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .tint(.orange)
+                    .disabled(consultantVM.isStreaming)
+                    Button {
                         consultantVM.viewingStageNumber = nil
                     } label: {
                         Text("Current")
@@ -190,7 +200,11 @@ struct PricingConsultantView: View {
                 messages: consultantVM.messages,
                 stages: consultantVM.pendingReshape ?? [],
                 onAccept: {
-                    consultantVM.acceptReshape(context: modelContext)
+                    consultantVM.acceptReshape(
+                        context: modelContext,
+                        consultantContext: context,
+                        rerunRecommendation: true
+                    )
                     showingReshapePreview = false
                 },
                 onDiscard: {
@@ -263,19 +277,83 @@ struct PricingConsultantView: View {
 
             Spacer()
 
-            // Export
+            // ── File: load / save / reconcile ──
+            Button {
+                showingLoadSheet = true
+            } label: {
+                Label("Load", systemImage: "folder")
+                    .labelStyle(.iconOnly)
+            }
+
+            Button {
+                if let campaign = consultantVM.currentCampaign {
+                    saveName = campaign.name
+                } else {
+                    let operatorName = context.operatorName ?? "Campaign"
+                    let dateStr = Date().formatted(.dateTime.month(.abbreviated).day())
+                    saveName = "\(operatorName) — \(dateStr)"
+                }
+                showingSaveSheet = true
+            } label: {
+                Label("Save", systemImage: "tray.and.arrow.down")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(consultantVM.messages.isEmpty)
+
+            Button {
+                consultantVM.aiReshape()
+            } label: {
+                if consultantVM.isReshaping {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("Reconcile Stages", systemImage: "arrow.triangle.2.circlepath")
+                        .labelStyle(.iconOnly)
+                }
+            }
+            .disabled(consultantVM.messages.isEmpty || consultantVM.isReshaping)
+            .help("AI re-classify messages into interview stages and rerun recommendation")
+
+            Divider().frame(height: 16)
+
+            // ── Share: export transcript / share campaign / publish ──
             if !consultantVM.messages.isEmpty {
                 ShareLink(
                     item: consultantVM.exportTranscript(),
                     subject: Text("Pricing Interview"),
                     message: Text("Interview transcript from Pricing Studio")
                 ) {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label("Export Transcript", systemImage: "doc.plaintext")
                         .labelStyle(.iconOnly)
                 }
             }
 
-            // Second Opinion — available once the interview reaches Synthesis (stage 6)
+            ShareLink(
+                item: consultantVM.currentCampaign?.exportMarkdown() ?? "",
+                subject: Text(consultantVM.currentCampaign?.name ?? "Campaign"),
+                message: Text("Pricing campaign from DPYC Pricing Studio")
+            ) {
+                Label("Share Campaign", systemImage: "square.and.arrow.up")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(consultantVM.currentCampaign == nil)
+
+            Button {
+                Task { await publishCampaign() }
+            } label: {
+                if publishingCampaign {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Publish", systemImage: "globe")
+                        .labelStyle(.iconOnly)
+                }
+            }
+            .disabled(consultantVM.currentCampaign == nil || publishingCampaign)
+            .help("Publish to DPYC Community")
+
+            Divider().frame(height: 16)
+
+            // ── Review: second opinion ──
             if !consultantVM.messages.isEmpty {
                 let canReview = consultantVM.interviewProgress.stageNumber >= 6
                     || consultantVM.currentCampaign?.secondOpinionText != nil
@@ -305,65 +383,16 @@ struct PricingConsultantView: View {
                     : "Available after Synthesis stage (stage 6 of 6)")
             }
 
-            // Campaign actions
-            Button {
-                showingLoadSheet = true
-            } label: {
-                Label("Load", systemImage: "folder")
-                    .labelStyle(.iconOnly)
-            }
+            Divider().frame(height: 16)
 
-            Button {
-                if let campaign = consultantVM.currentCampaign {
-                    saveName = campaign.name
-                } else {
-                    let operatorName = context.operatorName ?? "Campaign"
-                    let dateStr = Date().formatted(.dateTime.month(.abbreviated).day())
-                    saveName = "\(operatorName) — \(dateStr)"
-                }
-                showingSaveSheet = true
-            } label: {
-                Label("Save", systemImage: "square.and.arrow.down")
-                    .labelStyle(.iconOnly)
-            }
-            .disabled(consultantVM.messages.isEmpty)
-
-            ShareLink(
-                item: consultantVM.currentCampaign?.exportMarkdown() ?? "",
-                subject: Text(consultantVM.currentCampaign?.name ?? "Campaign"),
-                message: Text("Pricing campaign from DPYC Pricing Studio")
-            ) {
-                Label("Share", systemImage: "square.and.arrow.up")
-                    .labelStyle(.iconOnly)
-            }
-            .disabled(consultantVM.currentCampaign == nil)
-
-            Button {
-                Task { await publishCampaign() }
-            } label: {
-                if publishingCampaign {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label("Publish", systemImage: "globe")
-                        .labelStyle(.iconOnly)
-                }
-            }
-            .disabled(consultantVM.currentCampaign == nil || publishingCampaign)
-            .help("Publish to DPYC Community")
-
-            Button {
-                showingPromptEditor = true
-            } label: {
-                Label("Edit Prompt", systemImage: "doc.text")
-                    .labelStyle(.iconOnly)
-            }
-
+            // ── Destructive: delete / close ──
             if let campaign = consultantVM.currentCampaign, onDeleteCampaign != nil {
                 Button {
                     onDeleteCampaign?(campaign)
                 } label: {
                     Label("Delete", systemImage: "trash")
                         .labelStyle(.iconOnly)
+                        .foregroundStyle(.red)
                 }
             }
 
@@ -388,20 +417,6 @@ struct PricingConsultantView: View {
             }
 
             Button {
-                consultantVM.aiReshape()
-            } label: {
-                if consultantVM.isReshaping {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Label("Re-tag Stages", systemImage: "arrow.triangle.2.circlepath")
-                        .labelStyle(.iconOnly)
-                }
-            }
-            .disabled(consultantVM.messages.isEmpty || consultantVM.isReshaping)
-            .help("AI re-classify messages into interview stages")
-
-            Button {
                 showingFullScreen = true
             } label: {
                 Label("Expand", systemImage: "arrow.up.left.and.arrow.down.right")
@@ -409,12 +424,22 @@ struct PricingConsultantView: View {
             }
             .disabled(consultantVM.messages.isEmpty)
 
-            Button {
-                showingAPIKeySheet = true
-            } label: {
-                Label("API Key", systemImage: "key")
-                    .labelStyle(.iconOnly)
+            // ── Deploy (far right, separated by spacer) ──
+            if let json = consultantVM.extractedPipelineJSON
+                ?? consultantVM.proposal.pipelineJSON {
+                Spacer().frame(width: 16)
+                Button {
+                    onApplyJSON?(json)
+                } label: {
+                    Label("Deploy", systemImage: "banknote.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .controlSize(.small)
+                .disabled(onApplyJSON == nil)
+                .help("Deploy campaign to operator")
             }
+
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -549,6 +574,7 @@ struct PricingConsultantView: View {
             ? InterviewProgress.stageLabels[stage - 1]
             : "Stage \(stage)"
         let icon = stageIcon(stage)
+        let hasMessages = !(consultantVM.stageMessages[stage] ?? []).isEmpty
 
         HStack(spacing: 8) {
             Image(systemName: icon)
@@ -558,6 +584,18 @@ struct PricingConsultantView: View {
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
             VStack { Divider() }
+            if hasMessages && !consultantVM.isStreaming {
+                Button {
+                    consultantVM.redoStage(stage, context: context)
+                } label: {
+                    Label("Redo", systemImage: "arrow.counterclockwise")
+                        .font(.caption2)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .tint(.orange)
+                .help("Re-interview this phase from scratch")
+            }
         }
         .padding(.top, stage > 1 ? 16 : 4)
     }
@@ -701,13 +739,13 @@ struct PricingConsultantView: View {
         HStack {
             Image(systemName: "checkmark.seal.fill")
                 .foregroundStyle(.green)
-            Text("Pipeline ready to apply")
+            Text("Campaign ready to deploy")
                 .font(.subheadline.bold())
             Spacer()
             Button {
                 onApplyJSON?(json)
             } label: {
-                Label("Apply Model", systemImage: "square.and.arrow.down")
+                Label("Deploy", systemImage: "banknote.fill")
             }
             .buttonStyle(.borderedProminent)
             .tint(.green)

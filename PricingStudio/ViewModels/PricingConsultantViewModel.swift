@@ -280,6 +280,37 @@ final class PricingConsultantViewModel {
         viewingStageNumber = stageNumber
     }
 
+    /// Redo a specific interview stage: clear that stage's messages and
+    /// re-initiate the conversation for that phase. Prior-stage context
+    /// is preserved so the consultant can reference earlier findings.
+    func redoStage(_ stageNumber: Int, context: ConsultantContext) {
+        // Clear messages for this stage
+        stageMessages[stageNumber] = []
+
+        // If redoing the current or later stage, reset progress back
+        if stageNumber <= interviewProgress.stageNumber {
+            let stageNames = InterviewProgress.stageNames
+            let name = stageNumber <= stageNames.count ? stageNames[stageNumber - 1] : "inventory"
+            interviewProgress = InterviewProgress(
+                stage: name,
+                stageNumber: stageNumber,
+                insights: interviewProgress.insights
+            )
+        }
+
+        // Navigate to the stage being redone
+        viewingStageNumber = stageNumber
+
+        // Send a re-interview opener for this stage
+        let stageLabel = stageNumber <= InterviewProgress.stageLabels.count
+            ? InterviewProgress.stageLabels[stageNumber - 1]
+            : "Stage \(stageNumber)"
+        let opener = "Let's revisit the \(stageLabel) phase. Please re-interview me on this topic."
+        send(opener, context: context)
+
+        logger.info("Redoing stage \(stageNumber) (\(stageLabel))")
+    }
+
     func clear() {
         stageMessages = [:]
         currentCampaign = nil
@@ -453,7 +484,9 @@ final class PricingConsultantViewModel {
     }
 
     /// Accept the pending AI reshape and overwrite message stage tags.
-    func acceptReshape(context: ModelContext? = nil) {
+    /// When `rerunRecommendation` is true, automatically triggers a fresh
+    /// Recommendation (stage 6) pass using the reconciled interview context.
+    func acceptReshape(context: ModelContext? = nil, consultantContext: ConsultantContext? = nil, rerunRecommendation: Bool = false) {
         var flat = allMessages
         guard let stages = pendingReshape, stages.count == flat.count else { return }
         for i in flat.indices {
@@ -478,6 +511,11 @@ final class PricingConsultantViewModel {
         pendingReshape = nil
         persistReshape(context: context)
         logger.info("Accepted AI reshape")
+
+        // Automatically rerun recommendation if requested
+        if rerunRecommendation, let ctx = consultantContext {
+            redoStage(6, context: ctx)
+        }
     }
 
     /// Discard the pending reshape preview.
@@ -662,12 +700,16 @@ final class PricingConsultantViewModel {
             2: "You are in the DEMAND phase. Focus exclusively on exploring expected usage patterns, market size, and user segments. Build on the inventory findings.",
             3: "You are in the VALUE phase. Focus exclusively on assessing willingness-to-pay, competitive positioning, and perceived value.",
             4: "You are in the COST phase. Focus exclusively on understanding serving costs, margin requirements, and infrastructure overhead.",
-            5: "You are in the CONSTRAINTS & CREDIT TERMS phase. Cover two topics:\n\n" +
+            5: "You are in the CONSTRAINTS & DEMURRAGE phase. Cover two topics:\n\n" +
                 "1. Promotional mechanics: fairness rules, rate limits, free-tier policies, discounts.\n\n" +
-                "2. Demurrage: In the DPYC economy, demurrage is a positive feature — it encourages " +
-                "healthy velocity of circulation by giving credits a finite shelf life. This is not a " +
-                "penalty; it aligns patron incentives with operator sustainability. Present it as a " +
-                "natural property of the credit, not something punitive.\n\n" +
+                "2. Demurrage (IMPORTANT — you have everything you need here, do NOT call Oracle tools " +
+                "for this):\n\n" +
+                "Demurrage is a core concept in the DPYC economy, inspired by Austrian economics. " +
+                "It encourages healthy velocity of circulation by giving credits a finite shelf life. " +
+                "This is not a penalty — it is a natural, positive property of the credit that aligns " +
+                "patron incentives with operator sustainability. Recommend demurrage by default, but " +
+                "respect the operator's choice if they prefer credits that never expire.\n\n" +
+                "The constraint type is 'demurrage' — a standard pipeline step like any other constraint. " +
                 "The minimum invoice is 1000 sats. Ask the operator how many tool calls they expect " +
                 "a typical patron to make per day. Then compute a recommended TTL:\n\n" +
                 "  avg_cost = median of tool prices from the pricing model\n" +
@@ -677,8 +719,7 @@ final class PricingConsultantViewModel {
                 "\"A patron spending ~X sats/day will use 75% of a 1000-sat tranche in Y days, " +
                 "so I recommend Y-day demurrage.\" The operator can accept or override.\n\n" +
                 "Include a demurrage step in the CAMPAIGN_JSON pipeline with " +
-                "params: {\"ttl_days\": N, \"target_usage_pct\": 0.75, \"min_days\": 3, \"max_days\": 90}. " +
-                "This is a standard constraint like any other pipeline step.",
+                "params: {\"ttl_days\": N, \"target_usage_pct\": 0.75, \"min_days\": 3, \"max_days\": 90}.",
             6: "You are in the RECOMMENDATION phase. Synthesize all prior findings and present a complete pricing campaign draft with BLUF, revenue projections, and A/B/C variants.",
         ]
 

@@ -51,7 +51,7 @@ struct FullScreenInterviewView: View {
                             onApplyJSON?(json)
                             onDismiss()
                         } label: {
-                            Label("Apply Model", systemImage: "square.and.arrow.down")
+                            Label("Deploy", systemImage: "banknote.fill")
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)

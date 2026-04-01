@@ -36,6 +36,7 @@ final class PricingViewModel {
     var localEdits: [String: ToolPrice] = [:]
     var localRemovals: Set<String> = []
     var localPipeline: [PipelineStep]? = nil
+    var campaignApplied = false  // true when edits came from a campaign recommendation
 
     /// Warnings from client-side pipeline validation (displayed before save).
     var pipelineWarnings: [String] = []
@@ -76,6 +77,7 @@ final class PricingViewModel {
         localEdits.removeAll()
         localRemovals.removeAll()
         localPipeline = nil
+        campaignApplied = false
     }
 
     /// Apply JSON output from the AI Pricing Consultant.
@@ -117,6 +119,8 @@ final class PricingViewModel {
             }
             localPipeline = steps
         }
+
+        campaignApplied = true
 
         // Validate and repair pipeline against ConstraintCatalog
         validateAndRepairPipeline()
