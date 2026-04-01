@@ -32,7 +32,12 @@ struct ContentView: View {
                 isConsultantStreaming: consultantVM.isStreaming,
                 showingTrafficLog: $showingTrafficLog,
                 showingSettings: $showingSettings,
-                campaignForOverview: $campaignForOverview
+                campaignForOverview: $campaignForOverview,
+                onOpenCampaign: { op, campaign in
+                    operatorVM.selectedOperator = op
+                    consultantVM.loadCampaign(campaign)
+                    detailTab = .consultant
+                }
             )
         } detail: {
             VStack(spacing: 0) {
@@ -473,7 +478,17 @@ private struct SidebarView: View {
     @Binding var showingTrafficLog: Bool
     @Binding var showingSettings: Bool
     @Binding var campaignForOverview: Campaign?
+    var onOpenCampaign: ((Operator, Campaign) -> Void)?
     @State private var showingKeypairGenerator = false
+    @State private var authoritiesExpanded = true
+    @State private var operatorsExpanded = true
+    @State private var patronsExpanded = true
+    @State private var categoryOrder: [SidebarCategory] = [.authorities, .operators, .patrons]
+
+    enum SidebarCategory: String, CaseIterable, Identifiable {
+        case authorities, operators, patrons
+        var id: String { rawValue }
+    }
 
     private var hasSelection: Bool {
         authorityVM.selectedAuthority != nil
@@ -492,9 +507,16 @@ private struct SidebarView: View {
 
     var body: some View {
         List {
-            authoritiesSection
-            operatorsSection
-            patronsSection
+            ForEach(categoryOrder) { category in
+                switch category {
+                case .authorities: authoritiesSection
+                case .operators: operatorsSection
+                case .patrons: patronsSection
+                }
+            }
+            .onMove { indices, newOffset in
+                categoryOrder.move(fromOffsets: indices, toOffset: newOffset)
+            }
 
             Section {
                 Button {
@@ -611,7 +633,7 @@ private struct SidebarView: View {
 
     @ViewBuilder
     private var authoritiesSection: some View {
-        Section("Authorities") {
+        Section(isExpanded: $authoritiesExpanded) {
             ForEach(authorities) { auth in
                 AuthorityRowInline(
                     authority: auth,
@@ -650,12 +672,14 @@ private struct SidebarView: View {
                         .font(.subheadline)
                 }
             }
+        } header: {
+            Text("Authorities")
         }
     }
 
     @ViewBuilder
     private var operatorsSection: some View {
-        Section("Operators") {
+        Section(isExpanded: $operatorsExpanded) {
             ForEach(operators) { op in
                 OperatorRowInline(
                     op: op,
@@ -708,8 +732,7 @@ private struct SidebarView: View {
                     .opacity(isConsultantStreaming ? 0.5 : 1.0)
                     .onTapGesture {
                         guard !isConsultantStreaming else { return }
-                        operatorVM.selectedOperator = op
-                        operatorVM.selectedCampaign = campaign
+                        onOpenCampaign?(op, campaign)
                     }
                     .contextMenu {
                         Button {
@@ -753,12 +776,14 @@ private struct SidebarView: View {
                         .font(.subheadline)
                 }
             }
+        } header: {
+            Text("Operators")
         }
     }
 
     @ViewBuilder
     private var patronsSection: some View {
-        Section("Patrons") {
+        Section(isExpanded: $patronsExpanded) {
             PatronSidebarView(viewModel: patronVM)
 
             if patrons.isEmpty {
@@ -768,6 +793,8 @@ private struct SidebarView: View {
                         .font(.subheadline)
                 }
             }
+        } header: {
+            Text("Patrons")
         }
     }
 }

@@ -52,9 +52,8 @@ struct FullScreenInterviewView: View {
                             onDismiss()
                         } label: {
                             Label("Deploy", systemImage: "banknote.fill")
+                                .labelStyle(.iconOnly)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
                     }
                 }
             }

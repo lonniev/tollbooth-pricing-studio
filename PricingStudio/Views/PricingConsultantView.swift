@@ -432,10 +432,8 @@ struct PricingConsultantView: View {
                     onApplyJSON?(json)
                 } label: {
                     Label("Deploy", systemImage: "banknote.fill")
+                        .labelStyle(.iconOnly)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .controlSize(.small)
                 .disabled(onApplyJSON == nil)
                 .help("Deploy campaign to operator")
             }
@@ -746,9 +744,8 @@ struct PricingConsultantView: View {
                 onApplyJSON?(json)
             } label: {
                 Label("Deploy", systemImage: "banknote.fill")
+                    .labelStyle(.iconOnly)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
             .disabled(onApplyJSON == nil)
         }
         .padding(.horizontal)
