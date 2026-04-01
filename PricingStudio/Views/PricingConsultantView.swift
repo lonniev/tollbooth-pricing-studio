@@ -56,41 +56,9 @@ struct PricingConsultantView: View {
                 Divider()
             }
 
-            // Stage-viewing banner
-            if let viewing = consultantVM.viewingStageNumber,
-               viewing != consultantVM.interviewProgress.stageNumber {
-                let label = viewing <= InterviewProgress.stageLabels.count
-                    ? InterviewProgress.stageLabels[viewing - 1]
-                    : "Stage \(viewing)"
-                HStack {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .foregroundStyle(.orange)
-                    Text("Viewing \(label)")
-                        .font(.caption.bold())
-                        .foregroundStyle(.orange)
-                    Spacer()
-                    Button {
-                        consultantVM.redoStage(viewing, context: context)
-                    } label: {
-                        Label("Redo Phase", systemImage: "arrow.counterclockwise")
-                            .font(.caption.bold())
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .tint(.orange)
-                    .disabled(consultantVM.isStreaming)
-                    Button {
-                        consultantVM.viewingStageNumber = nil
-                    } label: {
-                        Text("Current")
-                            .font(.caption.bold())
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .background(Color.orange.opacity(0.08))
+            // Chapter navigation bar — always visible when interview is active
+            if !consultantVM.messages.isEmpty {
+                chapterNavigationBar
             }
 
             messageList
@@ -560,6 +528,62 @@ struct PricingConsultantView: View {
             }
         }
         .padding(.top, stage > 1 ? 16 : 4)
+    }
+
+    // MARK: - Chapter Navigation
+
+    @ViewBuilder
+    private var chapterNavigationBar: some View {
+        let viewing = consultantVM.viewingStageNumber ?? consultantVM.interviewProgress.stageNumber
+        let maxUnlocked = consultantVM.interviewProgress.stageNumber
+
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                ForEach([1, 2, 3, 4, 5, 6], id: \.self) { (stage: Int) in
+                    let label = stage <= InterviewProgress.stageLabels.count
+                        ? InterviewProgress.stageLabels[stage - 1]
+                        : "Stage \(stage)"
+                    let isActive = stage == viewing
+                    let hasContent = !(consultantVM.stageMessages[stage] ?? []).isEmpty
+                    let isUnlocked = stage <= maxUnlocked || stage == 1
+
+                    Button {
+                        if hasContent {
+                            consultantVM.revisitStage(stage)
+                        } else if isUnlocked {
+                            consultantVM.navigateToStage(stage, context: context)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: stageIcon(stage))
+                                .font(.caption2)
+                            Text(label)
+                                .font(.caption2.bold())
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(
+                            isActive ? Color.accentColor.opacity(0.2)
+                            : hasContent ? Color.green.opacity(0.08)
+                            : Color.clear,
+                            in: Capsule()
+                        )
+                        .foregroundColor(
+                            isActive ? .primary
+                            : hasContent ? .green
+                            : isUnlocked ? .secondary
+                            : .gray.opacity(0.3)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!isUnlocked && !hasContent)
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 4)
+        .background(.ultraThinMaterial)
     }
 
     private func stageIcon(_ stage: Int) -> String {

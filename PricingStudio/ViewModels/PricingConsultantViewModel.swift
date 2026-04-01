@@ -53,8 +53,9 @@ final class PricingConsultantViewModel {
     /// The currently loaded campaign, if any.
     var currentCampaign: Campaign?
 
-    /// Stage being viewed (nil = current stage).
-    var viewingStageNumber: Int?
+    /// Stage being viewed. Always set — each stage is a separate chapter.
+    /// Defaults to 1 (Inventory). Navigation between stages is explicit.
+    var viewingStageNumber: Int? = 1
 
     /// Revenue projections parsed from the latest synthesis response.
     var revenueProjections: CampaignProjections?
@@ -146,7 +147,7 @@ final class PricingConsultantViewModel {
     func startInterview(context: ConsultantContext) {
         stageMessages = [:]
         currentCampaign = nil
-        viewingStageNumber = nil
+        viewingStageNumber = 1
         revenueProjections = nil
         interviewProgress = .default
 
@@ -228,9 +229,7 @@ final class PricingConsultantViewModel {
                 self.processResponse(stage: targetStage, at: idx)
             }
             self.isStreaming = false
-            // Return to current stage after sending
-            self.viewingStageNumber = nil
-            logger.info("Consultant turn complete (\(self.allMessages.count) messages)")
+            logger.info("Consultant turn complete (stage \(targetStage), \(self.allMessages.count) total messages)")
         }
     }
 
@@ -276,6 +275,23 @@ final class PricingConsultantViewModel {
     }
 
     /// Set viewing to a past or current stage.
+    /// Navigate to a stage chapter. If the stage has no messages yet,
+    /// automatically send an opener to begin the conversation.
+    func navigateToStage(_ stageNumber: Int, context: ConsultantContext) {
+        viewingStageNumber = stageNumber
+
+        // If this stage is empty and prior stages have been started, auto-begin
+        let msgs = stageMessages[stageNumber] ?? []
+        if msgs.isEmpty && stageNumber > 1 && !isStreaming {
+            let stageLabel = stageNumber <= InterviewProgress.stageLabels.count
+                ? InterviewProgress.stageLabels[stageNumber - 1]
+                : "Stage \(stageNumber)"
+            let opener = "Let's begin the \(stageLabel) phase."
+            send(opener, context: context)
+        }
+    }
+
+    /// Navigate to a stage without auto-beginning (for viewing completed stages).
     func revisitStage(_ stageNumber: Int) {
         viewingStageNumber = stageNumber
     }
@@ -696,10 +712,22 @@ final class PricingConsultantViewModel {
 
         // Stage-specific focus instruction
         let stageFocus: [Int: String] = [
-            1: "You are in the INVENTORY phase. Focus exclusively on discovering the operator's tools, categories, and current pricing. Do not discuss demand, value, costs, or constraints yet.",
-            2: "You are in the DEMAND phase. Focus exclusively on exploring expected usage patterns, market size, and user segments. Build on the inventory findings.",
-            3: "You are in the VALUE phase. Focus exclusively on assessing willingness-to-pay, competitive positioning, and perceived value.",
-            4: "You are in the COST phase. Focus exclusively on understanding serving costs, margin requirements, and infrastructure overhead.",
+            1: "You are in the INVENTORY phase — a self-contained conversation about ONLY this topic. " +
+                "Focus exclusively on discovering the operator's tools, categories, and current pricing. " +
+                "Do NOT discuss demand, value, costs, or constraints — those are separate conversations. " +
+                "When you have a complete inventory, summarize your findings clearly.",
+            2: "You are in the DEMAND phase — a self-contained conversation about ONLY this topic. " +
+                "Focus exclusively on exploring expected usage patterns, market size, and user segments. " +
+                "Do NOT discuss value, costs, or constraints — those are separate conversations. " +
+                "When you have a clear demand picture, summarize your findings clearly.",
+            3: "You are in the VALUE phase — a self-contained conversation about ONLY this topic. " +
+                "Focus exclusively on assessing willingness-to-pay, competitive positioning, and perceived value. " +
+                "Do NOT discuss costs or constraints — those are separate conversations. " +
+                "When you have a value assessment, summarize your findings clearly.",
+            4: "You are in the COST phase — a self-contained conversation about ONLY this topic. " +
+                "Focus exclusively on understanding serving costs, margin requirements, and infrastructure overhead. " +
+                "Do NOT discuss constraints — that is a separate conversation. " +
+                "When you have a cost picture, summarize your findings clearly.",
             5: "You are in the CONSTRAINTS & DEMURRAGE phase. Cover two topics:\n\n" +
                 "1. Promotional mechanics: fairness rules, rate limits, free-tier policies, discounts.\n\n" +
                 "2. Demurrage (IMPORTANT — you have everything you need here, do NOT call Oracle tools " +
@@ -732,34 +760,54 @@ final class PricingConsultantViewModel {
             parts.append("\n\(ConstraintCatalog.promptReference)")
         }
 
-        // For stages 2+, synthesize prior-stage context from insights
+        // For stages 2+, inject summaries from completed prior stages.
+        // Each stage is a separate conversation, so the LLM has no memory
+        // of prior stages. We give it the final assistant response from each
+        // completed prior stage as a rich summary, plus parsed insight fields.
         if stage >= 2 {
-            var priorContext: [String] = ["\n## Context from Prior Phases"]
+            var priorContext: [String] = [
+                "\n## Context from Prior Phases",
+                "Each phase was a separate conversation. Here are the conclusions:",
+            ]
             let insights = interviewProgress.insights
 
+            let stageLabels = InterviewProgress.stageLabels
+            for priorStage in 1..<stage {
+                let label = priorStage <= stageLabels.count ? stageLabels[priorStage - 1] : "Stage \(priorStage)"
+                let msgs = stageMessages[priorStage] ?? []
+                if let lastAssistant = msgs.last(where: { $0.role == .assistant && !$0.content.isEmpty }) {
+                    // Truncate to ~800 chars to keep prompt manageable
+                    let summary = String(lastAssistant.content.prefix(800))
+                    priorContext.append("\n### Phase \(priorStage): \(label)\n\(summary)")
+                }
+            }
+
+            // Also include parsed insight fields as structured data
+            var insightBullets: [String] = []
             if let tools = insights.toolsIdentified {
-                priorContext.append("- Inventory: \(tools) tools identified" +
+                insightBullets.append("- Inventory: \(tools) tools" +
                     (insights.toolsCategories.map { " across \($0) categories" } ?? ""))
             }
             if stage >= 3, let demand = insights.demandSummary {
-                priorContext.append("- Demand: \(demand)")
+                insightBullets.append("- Demand: \(demand)")
             }
             if stage >= 4, let value = insights.valueSummary {
-                priorContext.append("- Value: \(value)")
+                insightBullets.append("- Value: \(value)")
             }
             if stage >= 5, let cost = insights.costSummary {
-                priorContext.append("- Cost: \(cost)")
+                insightBullets.append("- Cost: \(cost)")
             }
             if stage >= 6, let constraints = insights.constraintsConsidered, !constraints.isEmpty {
-                priorContext.append("- Constraints considered: \(constraints.joined(separator: ", "))")
+                insightBullets.append("- Constraints: \(constraints.joined(separator: ", "))")
             }
             if let philosophy = insights.philosophy {
-                priorContext.append("- Pricing philosophy: \(philosophy)")
+                insightBullets.append("- Philosophy: \(philosophy)")
+            }
+            if !insightBullets.isEmpty {
+                priorContext.append("\n### Key Findings\n" + insightBullets.joined(separator: "\n"))
             }
 
-            if priorContext.count > 1 {
-                parts.append(priorContext.joined(separator: "\n"))
-            }
+            parts.append(priorContext.joined(separator: "\n"))
         }
 
         return parts.joined(separator: "\n")
