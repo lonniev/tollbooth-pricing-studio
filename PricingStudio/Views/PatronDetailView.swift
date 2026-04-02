@@ -354,7 +354,6 @@ private struct OperatorBalanceCard: View {
             .padding(.vertical, 4)
 
         let service = patronOnboarding?.credentialService ?? ""
-        let hasNcred = !service.isEmpty && KeychainService.loadNcred(forPatron: patron.npub, service: service, operator: balance.id) != nil
         let credType = patronOnboarding?.credentialType ?? ""
 
         VStack(alignment: .leading, spacing: 6) {
