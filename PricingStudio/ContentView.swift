@@ -396,24 +396,55 @@ struct ContentView: View {
 
     @ViewBuilder
     private func operatorDetail(_ op: Operator) -> some View {
-        ChatContainerView(identity: ChatIdentity(from: op), chatVM: chatVM, selectedTab: $detailTab) {
-            PricingDetailView(target: op, viewModel: pricingVM, onRequestCourier: { params in
-                withAnimation { activeCourier = params }
-            })
-        } consultantContent: {
-            PricingConsultantView(
-                consultantVM: consultantVM,
-                context: buildConsultantContext(for: op),
-                operatorNpub: op.npub,
-                onApplyJSON: { json in
-                    pricingVM.applyConsultantJSON(json, for: op)
-                    detailTab = .pricing
-                    showingPushConfirmation = true
-                },
-                onDeleteCampaign: { campaign in
-                    operatorVM.requestCampaignDelete(campaign)
+        let identity = ChatIdentity(from: op)
+        let hasAuthority = op.authorityNpub != nil
+
+        VStack(spacing: 0) {
+            Picker("View", selection: $detailTab) {
+                if hasAuthority {
+                    Text("Authority").tag(ChatContainerTab.authority)
                 }
-            )
+                Text("Pricing").tag(ChatContainerTab.pricing)
+                Text("Campaign Advisor").tag(ChatContainerTab.consultant)
+                Text("Messages").tag(ChatContainerTab.messages)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            switch detailTab {
+            case .authority:
+                if let authNpub = op.authorityNpub {
+                    OperatorAuthorityView(operator: op, authorityNpub: authNpub)
+                }
+            case .pricing:
+                PricingDetailView(target: op, viewModel: pricingVM, onRequestCourier: { params in
+                    withAnimation { activeCourier = params }
+                })
+            case .consultant:
+                PricingConsultantView(
+                    consultantVM: consultantVM,
+                    context: buildConsultantContext(for: op),
+                    operatorNpub: op.npub,
+                    onApplyJSON: { json in
+                        pricingVM.applyConsultantJSON(json, for: op)
+                        detailTab = .pricing
+                        showingPushConfirmation = true
+                    },
+                    onDeleteCampaign: { campaign in
+                        operatorVM.requestCampaignDelete(campaign)
+                    }
+                )
+            case .messages:
+                if identity.hasNsec {
+                    ChatView(chatVM: chatVM)
+                        .onAppear { chatVM.switchIdentity(to: identity) }
+                } else {
+                    NoNsecView(entityName: identity.displayName)
+                }
+            case .invoices:
+                EmptyView()
+            }
         }
     }
 

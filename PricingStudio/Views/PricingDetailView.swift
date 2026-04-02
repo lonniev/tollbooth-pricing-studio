@@ -103,9 +103,7 @@ struct PricingDetailView: View {
                             modelHeader(name: name, isActive: model.isActive ?? false, member: viewModel.memberRecord, source: model.source)
                         }
 
-                        if let op = target as? Operator, let authNpub = op.authorityNpub {
-                            authorityBalanceSection(operatorNpub: op.npub, authorityNpub: authNpub)
-                        }
+                        // Authority balance is on the Authority tab now
 
                         if let endpoint = target.mcpEndpointURL {
                             NotarizationStatusView(operatorNpub: target.npub, endpointURL: endpoint)

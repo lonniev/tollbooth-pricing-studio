@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Tab cases shared across all ChatContainerView specializations.
 enum ChatContainerTab: String, CaseIterable {
+    case authority = "Authority"
     case pricing = "Pricing"
     case invoices = "Invoices"
     case consultant = "Campaign Advisor"
@@ -56,6 +57,9 @@ struct ChatContainerView<PricingContent: View, InvoicesContent: View, Consultant
             .accessibilityIdentifier("detailTabPicker")
 
             switch selectedTab {
+            case .authority:
+                // Handled by the caller (ContentView.operatorDetail)
+                EmptyView()
             case .pricing:
                 pricingContent()
             case .invoices:
