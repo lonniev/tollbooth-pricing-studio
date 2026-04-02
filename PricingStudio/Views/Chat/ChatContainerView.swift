@@ -55,11 +55,19 @@ struct ChatContainerView<PricingContent: View, InvoicesContent: View, Consultant
             .padding(.horizontal)
             .padding(.vertical, 8)
             .accessibilityIdentifier("detailTabPicker")
+            .onAppear {
+                // Reset to first tab if current selection isn't available in this view
+                if selectedTab == .authority || selectedTab == .consultant && consultantContent == nil
+                    || selectedTab == .invoices && invoicesContent == nil {
+                    selectedTab = .pricing
+                }
+            }
 
             switch selectedTab {
             case .authority:
-                // Handled by the caller (ContentView.operatorDetail)
-                EmptyView()
+                // Only meaningful on the operator detail (handled by ContentView).
+                // If we land here, fall through to pricing.
+                pricingContent()
             case .pricing:
                 pricingContent()
             case .invoices:
