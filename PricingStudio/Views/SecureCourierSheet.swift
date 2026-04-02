@@ -251,50 +251,95 @@ struct SecureCourierCard: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 8) {
-                Button {
-                    showNcredField.toggle()
-                } label: {
-                    Label("Use ncred", systemImage: "creditcard")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            // Check for saved ncred in Keychain
+            let savedNcred = KeychainService.loadNcred(forService: credentialService, operator: operatorNpub)
 
-                Spacer()
-
-                Button {
-                    phase = .calling
-                    Task { await beginCourierFlow() }
-                } label: {
-                    Label("Begin", systemImage: "paperplane.fill")
-                        .font(.caption)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .tint(.orange)
-            }
-
-            if showNcredField {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Paste a credential card (ncred1...)")
-                        .font(.caption2)
+            if let saved = savedNcred {
+                // Saved ncred available — offer one-tap redemption
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "creditcard.fill")
+                            .foregroundStyle(.green)
+                        Text("Saved credential card found")
+                            .font(.caption.bold())
+                            .foregroundStyle(.green)
+                    }
+                    Text(String(saved.prefix(30)) + "...")
+                        .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)
-                    TextField("ncred1...", text: $ncredInput)
-                        .font(.system(size: 10, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 8) {
+                        Button {
+                            ncredInput = saved
+                            phase = .collecting
+                            Task { await redeemNcred() }
+                        } label: {
+                            Label("Use Saved ncred", systemImage: "checkmark.seal.fill")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.green)
+
+                        Button {
+                            phase = .calling
+                            Task { await beginCourierFlow() }
+                        } label: {
+                            Label("New Courier", systemImage: "paperplane")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                .padding(8)
+                .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                // No saved ncred — normal courier flow
+                HStack(spacing: 8) {
                     Button {
-                        guard ncredInput.hasPrefix("ncred1") else { return }
-                        phase = .collecting
-                        Task { await redeemNcred() }
+                        showNcredField.toggle()
                     } label: {
-                        Label("Redeem", systemImage: "checkmark.seal")
+                        Label("Use ncred", systemImage: "creditcard")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Spacer()
+
+                    Button {
+                        phase = .calling
+                        Task { await beginCourierFlow() }
+                    } label: {
+                        Label("Begin", systemImage: "paperplane.fill")
                             .font(.caption)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .tint(.green)
-                    .disabled(!ncredInput.hasPrefix("ncred1"))
+                    .tint(.orange)
+                }
+
+                if showNcredField {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Paste a credential card (ncred1...)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        TextField("ncred1...", text: $ncredInput)
+                            .font(.system(size: 10, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            guard ncredInput.hasPrefix("ncred1") else { return }
+                            phase = .collecting
+                            Task { await redeemNcred() }
+                        } label: {
+                            Label("Redeem", systemImage: "checkmark.seal")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.green)
+                        .disabled(!ncredInput.hasPrefix("ncred1"))
+                    }
                 }
             }
         }
@@ -428,19 +473,9 @@ struct SecureCourierCard: View {
                             .font(.caption2.bold())
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Button {
-                            try? KeychainService.saveNcred(
-                                credentialCard,
-                                forService: credentialService,
-                                operator: operatorNpub
-                            )
-                            ncredSaved = true
-                        } label: {
-                            Label(ncredSaved ? "Saved" : "Save", systemImage: ncredSaved ? "checkmark.circle.fill" : "key.fill")
-                                .font(.caption2)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(ncredSaved ? .green : .blue)
+                        Label("Saved to Keychain", systemImage: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
                         Button {
                             UIPasteboard.general.string = credentialCard
                         } label: {
@@ -585,6 +620,13 @@ struct SecureCourierCard: View {
                     let msg = json["message"] as? String ?? "Credentials stored successfully."
                     if let ncred = json["credential_card"] as? String {
                         credentialCard = ncred
+                        // Auto-save ncred to Keychain for future re-use
+                        try? KeychainService.saveNcred(
+                            ncred,
+                            forService: credentialService,
+                            operator: operatorNpub
+                        )
+                        ncredSaved = true
                     }
                     phase = .received(msg)
                 } else {
