@@ -1495,6 +1495,52 @@ actor MCPService {
         return text
     }
 
+    func callForgetCredentials(
+        endpointURL: URL,
+        bearerToken: String,
+        service: String,
+        npub: String
+    ) async throws {
+        await traffic(.outbound, label: "Forget Credentials", detail: "service=\(service) npub=\(npub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = HTTPClientTransport(
+            endpoint: endpointURL,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            requestModifier: { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("forget_credentials") }) else {
+            await traffic(.error, label: "Forget Credentials", detail: "No forget_credentials tool found")
+            throw MCPError.toolCallFailed("Operator does not support forget_credentials")
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: tool.name,
+            arguments: [
+                "service": .string(service),
+                "npub": .string(npub),
+            ]
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        let text = content.compactMap { extractText($0) }.first ?? ""
+        await traffic(.inbound, label: "Forget Credentials", detail: String(text.prefix(500)))
+    }
+
     // MARK: - Pricing Synthesis
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model

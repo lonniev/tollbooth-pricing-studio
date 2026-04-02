@@ -445,17 +445,14 @@ private struct OperatorBalanceCard: View {
                     .tint(.orange)
                 }
 
-                if hasNcred {
-                    Button(role: .destructive) {
-                        KeychainService.deleteNcred(forService: service, operator: balance.id)
-                        Task { await loadPatronOnboardingStatus() }
-                    } label: {
-                        Label("Forget", systemImage: "trash")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                Button(role: .destructive) {
+                    Task { await forgetPatronCredentials(service: service) }
+                } label: {
+                    Label("Forget", systemImage: "trash")
+                        .font(.caption)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
         }
     }
@@ -491,6 +488,35 @@ private struct OperatorBalanceCard: View {
             // Silently handle — the section just won't show details
         }
         loadingOnboarding = false
+    }
+
+    private func forgetPatronCredentials(service: String) async {
+        guard let endpointString = self.operator?.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else { return }
+        do {
+            let host = endpointURL.host ?? balance.id
+            let token: String
+            if let bundle = KeychainService.loadTokenBundle(forPatron: patron.npub, operator: host),
+               !bundle.isExpired {
+                token = bundle.accessToken
+            } else {
+                let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
+                try? KeychainService.saveTokenBundle(bundle, forPatron: patron.npub, operator: host)
+                token = bundle.accessToken
+            }
+            try await MCPService().callForgetCredentials(
+                endpointURL: endpointURL,
+                bearerToken: token,
+                service: service,
+                npub: patron.npub
+            )
+        } catch {
+            // Log but don't block — local cleanup proceeds
+        }
+        // Also clear local ncred if any
+        KeychainService.deleteNcred(forService: service, operator: balance.id)
+        // Refresh onboarding status to show missing credentials + Deliver button
+        await loadPatronOnboardingStatus()
     }
 
     private func reconcilePending(_ result: PatronAccountViewModel.BalanceResult) async {
