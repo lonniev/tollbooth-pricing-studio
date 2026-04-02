@@ -354,7 +354,7 @@ private struct OperatorBalanceCard: View {
             .padding(.vertical, 4)
 
         let service = patronOnboarding?.credentialService ?? ""
-        let hasNcred = !service.isEmpty && KeychainService.loadNcred(forService: service, operator: balance.id) != nil
+        let hasNcred = !service.isEmpty && KeychainService.loadNcred(forPatron: patron.npub, service: service, operator: balance.id) != nil
         let credType = patronOnboarding?.credentialType ?? ""
 
         VStack(alignment: .leading, spacing: 6) {
@@ -514,7 +514,7 @@ private struct OperatorBalanceCard: View {
             // Log but don't block — local cleanup proceeds
         }
         // Also clear local ncred if any
-        KeychainService.deleteNcred(forService: service, operator: balance.id)
+        KeychainService.deleteNcred(forPatron: patron.npub, service: service, operator: balance.id)
         // Refresh onboarding status to show missing credentials + Deliver button
         await loadPatronOnboardingStatus()
     }

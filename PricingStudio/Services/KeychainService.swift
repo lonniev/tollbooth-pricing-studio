@@ -113,21 +113,21 @@ enum KeychainService {
 
     private static let ncredService = "com.tollbooth.ncred"
 
-    /// Save an ncred credential card for a service+operator pair.
-    static func saveNcred(_ ncred: String, forService service: String, operator operatorNpub: String) throws {
-        let account = "\(service):\(operatorNpub)"
+    /// Save an ncred credential card keyed by patron+service+operator.
+    static func saveNcred(_ ncred: String, forPatron patronNpub: String, service: String, operator operatorNpub: String) throws {
+        let account = "\(patronNpub):\(service):\(operatorNpub)"
         try save(data: Data(ncred.utf8), service: ncredService, account: account)
     }
 
-    /// Load a saved ncred for a service+operator pair.
-    static func loadNcred(forService service: String, operator operatorNpub: String) -> String? {
-        let account = "\(service):\(operatorNpub)"
+    /// Load a saved ncred for a patron+service+operator triple.
+    static func loadNcred(forPatron patronNpub: String, service: String, operator operatorNpub: String) -> String? {
+        let account = "\(patronNpub):\(service):\(operatorNpub)"
         return load(service: ncredService, account: account)
     }
 
     /// Delete a saved ncred.
-    static func deleteNcred(forService service: String, operator operatorNpub: String) {
-        let account = "\(service):\(operatorNpub)"
+    static func deleteNcred(forPatron patronNpub: String, service: String, operator operatorNpub: String) {
+        let account = "\(patronNpub):\(service):\(operatorNpub)"
         delete(service: ncredService, account: account)
     }
 

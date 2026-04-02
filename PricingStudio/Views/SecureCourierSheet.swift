@@ -252,7 +252,7 @@ struct SecureCourierCard: View {
                 .foregroundStyle(.secondary)
 
             // Check for saved ncred in Keychain
-            let savedNcred = KeychainService.loadNcred(forService: credentialService, operator: operatorNpub)
+            let savedNcred = effectiveSender.isEmpty ? nil : KeychainService.loadNcred(forPatron: effectiveSender, service: credentialService, operator: operatorNpub)
 
             if let saved = savedNcred {
                 // Saved ncred available — offer one-tap redemption
@@ -621,11 +621,14 @@ struct SecureCourierCard: View {
                     if let ncred = json["credential_card"] as? String {
                         credentialCard = ncred
                         // Auto-save ncred to Keychain for future re-use
-                        try? KeychainService.saveNcred(
-                            ncred,
-                            forService: credentialService,
-                            operator: operatorNpub
-                        )
+                        if !effectiveSender.isEmpty {
+                            try? KeychainService.saveNcred(
+                                ncred,
+                                forPatron: effectiveSender,
+                                service: credentialService,
+                                operator: operatorNpub
+                            )
+                        }
                         ncredSaved = true
                     }
                     phase = .received(msg)
