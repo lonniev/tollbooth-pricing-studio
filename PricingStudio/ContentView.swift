@@ -480,14 +480,25 @@ private struct SidebarView: View {
     @Binding var campaignForOverview: Campaign?
     var onOpenCampaign: ((Operator, Campaign) -> Void)?
     @State private var showingKeypairGenerator = false
-    @State private var authoritiesExpanded = true
-    @State private var operatorsExpanded = true
-    @State private var patronsExpanded = true
     @State private var categoryOrder: [SidebarCategory] = [.authorities, .operators, .patrons]
 
-    enum SidebarCategory: String, CaseIterable, Identifiable {
+    enum SidebarCategory: String, CaseIterable, Identifiable, Codable {
         case authorities, operators, patrons
         var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .authorities: "Authorities"
+            case .operators: "Operators"
+            case .patrons: "Patrons"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .authorities: "building.columns"
+            case .operators: "server.rack"
+            case .patrons: "person.badge.key"
+            }
+        }
     }
 
     private var hasSelection: Bool {
@@ -507,11 +518,21 @@ private struct SidebarView: View {
 
     var body: some View {
         List {
-            ForEach(categoryOrder) { category in
-                switch category {
-                case .authorities: authoritiesSection
-                case .operators: operatorsSection
-                case .patrons: patronsSection
+            ForEach($categoryOrder) { $category in
+                Section {
+                    switch category {
+                    case .authorities: authoritiesSectionContent
+                    case .operators: operatorsSectionContent
+                    case .patrons: patronsSectionContent
+                    }
+                } header: {
+                    HStack {
+                        Label(category.label, systemImage: category.icon)
+                        Spacer()
+                        Image(systemName: "line.3.horizontal")
+                            .font(.caption2)
+                            .foregroundStyle(.quaternary)
+                    }
                 }
             }
             .onMove { indices, newOffset in
@@ -526,6 +547,7 @@ private struct SidebarView: View {
                 }
             }
         }
+        .environment(\.editMode, .constant(.active))
         .navigationTitle("Pricing Studio")
         .toolbar { sidebarToolbarContent }
         .modifier(sidebarAlerts)
@@ -632,8 +654,8 @@ private struct SidebarView: View {
     // MARK: - Sidebar Sections
 
     @ViewBuilder
-    private var authoritiesSection: some View {
-        Section(isExpanded: $authoritiesExpanded) {
+    private var authoritiesSectionContent: some View {
+        Group {
             ForEach(authorities) { auth in
                 AuthorityRowInline(
                     authority: auth,
@@ -672,14 +694,12 @@ private struct SidebarView: View {
                         .font(.subheadline)
                 }
             }
-        } header: {
-            Text("Authorities")
         }
     }
 
     @ViewBuilder
-    private var operatorsSection: some View {
-        Section(isExpanded: $operatorsExpanded) {
+    private var operatorsSectionContent: some View {
+        Group {
             ForEach(operators) { op in
                 OperatorRowInline(
                     op: op,
@@ -776,14 +796,12 @@ private struct SidebarView: View {
                         .font(.subheadline)
                 }
             }
-        } header: {
-            Text("Operators")
         }
     }
 
     @ViewBuilder
-    private var patronsSection: some View {
-        Section(isExpanded: $patronsExpanded) {
+    private var patronsSectionContent: some View {
+        Group {
             PatronSidebarView(viewModel: patronVM)
 
             if patrons.isEmpty {
@@ -793,8 +811,6 @@ private struct SidebarView: View {
                         .font(.subheadline)
                 }
             }
-        } header: {
-            Text("Patrons")
         }
     }
 }
