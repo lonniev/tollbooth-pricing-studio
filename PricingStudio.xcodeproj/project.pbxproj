@@ -39,6 +39,7 @@
 		AA00000100000000000000C3 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F3 /* PreviewData.swift */; };
 		AA00000100000000000000C4 /* OperatorStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F4 /* OperatorStats.swift */; };
 		AA00000100000000000000C5 /* EditOperatorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F5 /* EditOperatorSheet.swift */; };
+		AA0000010000000000000F02 /* OperatorAuthorityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F01 /* OperatorAuthorityView.swift */; };
 		AA00000100000000000000C6 /* OperatorStatsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F6 /* OperatorStatsSheet.swift */; };
 		AA00000100000000000000C7 /* Patron.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F7 /* Patron.swift */; };
 		AA00000100000000000000C8 /* PatronCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F8 /* PatronCollectionViewModel.swift */; };
@@ -189,6 +190,7 @@
 		AA00000100000000000000F3 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F4 /* OperatorStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStats.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F5 /* EditOperatorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditOperatorSheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000F01 /* OperatorAuthorityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorAuthorityView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F6 /* OperatorStatsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStatsSheet.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F7 /* Patron.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Patron.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F8 /* PatronCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronCollectionViewModel.swift; sourceTree = "<group>"; };
@@ -495,6 +497,7 @@
 				AA0000010000000000000235 /* TestCallView.swift */,
 				AA00000100000000000000EB /* AddOperatorSheet.swift */,
 				AA00000100000000000000F5 /* EditOperatorSheet.swift */,
+				AA0000010000000000000F01 /* OperatorAuthorityView.swift */,
 				AA00000100000000000000F6 /* OperatorStatsSheet.swift */,
 				AA00000100000000000000EC /* PricingDetailView.swift */,
 				AA00000100000000000000ED /* ToolPriceListView.swift */,
@@ -898,6 +901,7 @@
 				AA00000100000000000000C3 /* PreviewData.swift in Sources */,
 				AA00000100000000000000C4 /* OperatorStats.swift in Sources */,
 				AA00000100000000000000C5 /* EditOperatorSheet.swift in Sources */,
+				AA0000010000000000000F02 /* OperatorAuthorityView.swift in Sources */,
 				AA00000100000000000000C6 /* OperatorStatsSheet.swift in Sources */,
 				AA00000100000000000000C7 /* Patron.swift in Sources */,
 				AA00000100000000000000C8 /* PatronCollectionViewModel.swift in Sources */,
