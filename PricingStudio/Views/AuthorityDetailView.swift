@@ -8,6 +8,7 @@ struct AuthorityDetailView: View {
     var onOperatorSelected: ((Operator) -> Void)?
     @State private var balanceVM = AuthorityBalanceViewModel()
     @State private var showingTopOff = false
+    @State private var fundingOperator: Operator?
 
     private var isLinked: Bool {
         KeychainService.loadNsec(forNpub: authority.npub) != nil
@@ -46,6 +47,18 @@ struct AuthorityDetailView: View {
                     endpoint: endpoint,
                     balanceVM: balanceVM,
                     authority: authority
+                )
+            }
+        }
+        .sheet(item: $fundingOperator) { op in
+            if let endpoint = authority.mcpEndpointURL {
+                AuthorityTopOffSheet(
+                    authorityName: "\(op.displayName) at \(authority.displayName)",
+                    authorityNpub: authority.npub,
+                    endpoint: endpoint,
+                    balanceVM: balanceVM,
+                    authority: authority,
+                    purchaserNpub: op.npub
                 )
             }
         }
@@ -250,6 +263,7 @@ struct AuthorityDetailView: View {
             authorityNpub: authority.npub,
             authorityEndpointURL: authority.mcpEndpointURL,
             onOperatorSelected: onOperatorSelected,
+            onFundOperator: { op in fundingOperator = op },
             onAdopt: authority.mcpEndpointURL != nil && authorityVM != nil
                 ? { authorityVM?.requestAdopt(authority) }
                 : nil
@@ -281,15 +295,18 @@ private struct ConnectedOperatorsList: View {
     let authorityNpub: String
     let authorityEndpointURL: String?
     var onOperatorSelected: ((Operator) -> Void)?
+    var onFundOperator: ((Operator) -> Void)?
     var onAdopt: (() -> Void)?
     @Query private var allOperators: [Operator]
     @Environment(\.modelContext) private var modelContext
     @State private var deregisterError: String?
+    @State private var operatorBalances: [String: Int] = [:]  // npub → balance
 
-    init(authorityNpub: String, authorityEndpointURL: String? = nil, onOperatorSelected: ((Operator) -> Void)? = nil, onAdopt: (() -> Void)? = nil) {
+    init(authorityNpub: String, authorityEndpointURL: String? = nil, onOperatorSelected: ((Operator) -> Void)? = nil, onFundOperator: ((Operator) -> Void)? = nil, onAdopt: (() -> Void)? = nil) {
         self.authorityNpub = authorityNpub
         self.authorityEndpointURL = authorityEndpointURL
         self.onOperatorSelected = onOperatorSelected
+        self.onFundOperator = onFundOperator
         self.onAdopt = onAdopt
         self._allOperators = Query(sort: \Operator.addedAt)
     }
@@ -340,6 +357,11 @@ private struct ConnectedOperatorsList: View {
                                         .font(.caption2)
                                         .foregroundStyle(.primary)
                                         .lineLimit(1)
+                                    if let bal = operatorBalances[op.npub] {
+                                        Text("\(bal) sats")
+                                            .font(.caption2.monospacedDigit())
+                                            .foregroundStyle(bal < 50 ? .red : .green)
+                                    }
                                 }
                                 .frame(width: 80)
                                 .padding(.vertical, 6)
@@ -347,6 +369,13 @@ private struct ConnectedOperatorsList: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
+                                if let onFundOperator {
+                                    Button {
+                                        onFundOperator(op)
+                                    } label: {
+                                        Label("Fund Operator", systemImage: "bolt.fill")
+                                    }
+                                }
                                 Button(role: .destructive) {
                                     Task { await deregisterOperator(op) }
                                 } label: {
@@ -358,6 +387,7 @@ private struct ConnectedOperatorsList: View {
                     .padding(.horizontal)
                 }
                 .padding(.bottom, 8)
+                .task { await loadOperatorBalances() }
             }
         }
         .alert("Disconnect Failed", isPresented: Binding(
@@ -367,6 +397,35 @@ private struct ConnectedOperatorsList: View {
             Button("OK") { deregisterError = nil }
         } message: {
             if let deregisterError { Text(deregisterError) }
+        }
+    }
+
+    private func loadOperatorBalances() async {
+        guard let endpointString = authorityEndpointURL,
+              let endpointURL = URL(string: endpointString) else { return }
+        let mcpService = MCPService()
+        let oauthService = OAuthService()
+        for op in connectedOperators {
+            do {
+                let host = endpointURL.host ?? authorityNpub
+                let token: String
+                if let bundle = KeychainService.loadTokenBundle(forPatron: op.npub, operator: host),
+                   !bundle.isExpired {
+                    token = bundle.accessToken
+                } else {
+                    let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
+                    try KeychainService.saveTokenBundle(bundle, forPatron: op.npub, operator: host)
+                    token = bundle.accessToken
+                }
+                let result = try await mcpService.callCheckBalance(
+                    endpointURL: endpointURL,
+                    bearerToken: token,
+                    patronNpub: op.npub
+                )
+                operatorBalances[op.npub] = result.balanceApiSats
+            } catch {
+                // Silently skip — balance display is optional
+            }
         }
     }
 
