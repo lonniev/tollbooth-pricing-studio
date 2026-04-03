@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import CoreImage.CIFilterBuiltins
 
 struct AuthorityDetailView: View {
     let authority: Authority
@@ -640,16 +639,9 @@ struct AuthorityTopOffSheet: View {
                 case .success(let result):
                     Section("Invoice") {
                         if let bolt11 = result.lightningInvoice {
-                            // QR code for Lightning wallet scanning
-                            if let qrImage = generateQRCode(from: "lightning:\(bolt11)") {
-                                Image(uiImage: qrImage)
-                                    .interpolation(.none)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(maxWidth: 220, maxHeight: 220)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                            }
+                            QRCodeView("lightning:\(bolt11)", size: 220)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
                             Text(bolt11)
                                 .font(.system(size: 9, design: .monospaced))
                                 .textSelection(.enabled)
@@ -750,17 +742,6 @@ struct AuthorityTopOffSheet: View {
                 paymentCheckState = .checked("Error: \(error.localizedDescription)")
             }
         }
-    }
-
-    private func generateQRCode(from string: String) -> UIImage? {
-        guard let data = string.data(using: .ascii),
-              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
-        filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("M", forKey: "inputCorrectionLevel")
-        guard let output = filter.outputImage else { return nil }
-        let scale = 10.0 / output.extent.width * 220
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        return UIImage(ciImage: scaled)
     }
 
     private func resolveToken(host: String, endpointURL: URL) async throws -> String {

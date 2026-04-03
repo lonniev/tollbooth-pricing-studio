@@ -843,35 +843,7 @@ struct TopOffSheet: View {
 
     @ViewBuilder
     private func qrCodeImage(for string: String) -> some View {
-        if let image = generateQRCode(from: string) {
-            Image(uiImage: image)
-                .interpolation(.none)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 200, height: 200)
-        } else if let url = URL(string: string) {
-            // QR generation failed — show a prominent link instead
-            Link(destination: url) {
-                Label("Open Payment Page", systemImage: "arrow.up.right.square")
-                    .font(.headline)
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
-
-    private func generateQRCode(from string: String) -> UIImage? {
-        guard let data = string.data(using: .utf8),
-              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
-        filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("M", forKey: "inputCorrectionLevel")
-        guard let output = filter.outputImage else { return nil }
-        // Scale to ~200px
-        let scaleX = 200.0 / output.extent.width
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleX))
-        // Render to CGImage for reliable SwiftUI display
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
-        return UIImage(cgImage: cgImage)
+        QRCodeView(string)
     }
 }
 
