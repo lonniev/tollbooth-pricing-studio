@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import CoreImage.CIFilterBuiltins
 
 struct AuthorityDetailView: View {
     let authority: Authority
@@ -638,25 +639,32 @@ struct AuthorityTopOffSheet: View {
 
                 case .success(let result):
                     Section("Invoice") {
+                        if let bolt11 = result.lightningInvoice {
+                            // QR code for Lightning wallet scanning
+                            if let qrImage = generateQRCode(from: "lightning:\(bolt11)") {
+                                Image(uiImage: qrImage)
+                                    .interpolation(.none)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxWidth: 220, maxHeight: 220)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                            }
+                            Text(bolt11)
+                                .font(.system(size: 9, design: .monospaced))
+                                .textSelection(.enabled)
+                                .lineLimit(2)
+                                .foregroundStyle(.secondary)
+                        }
+
                         if !result.checkoutLink.isEmpty, let url = URL(string: result.checkoutLink) {
                             Link(destination: url) {
                                 Label("Open Payment Page", systemImage: "arrow.up.right.square")
+                                    .font(.caption)
                             }
-                        }
-
-                        if let bolt11 = result.lightningInvoice {
-                            Text(bolt11)
-                                .font(.caption2.monospaced())
-                                .textSelection(.enabled)
-                                .lineLimit(3)
                         }
 
                         if !result.invoiceId.isEmpty {
-                            LabeledContent("Invoice ID") {
-                                Text(result.invoiceId)
-                                    .font(.caption2.monospaced())
-                                    .textSelection(.enabled)
-                            }
                             Button {
                                 checkPayment(invoiceId: result.invoiceId)
                             } label: {
@@ -742,6 +750,17 @@ struct AuthorityTopOffSheet: View {
                 paymentCheckState = .checked("Error: \(error.localizedDescription)")
             }
         }
+    }
+
+    private func generateQRCode(from string: String) -> UIImage? {
+        guard let data = string.data(using: .ascii),
+              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let output = filter.outputImage else { return nil }
+        let scale = 10.0 / output.extent.width * 220
+        let scaled = output.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        return UIImage(ciImage: scaled)
     }
 
     private func resolveToken(host: String, endpointURL: URL) async throws -> String {
