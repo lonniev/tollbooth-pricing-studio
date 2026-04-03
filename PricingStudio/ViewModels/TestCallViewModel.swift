@@ -85,6 +85,14 @@ final class TestCallViewModel {
         }
     }
 
+    /// The pricing model's pipeline steps, if loaded. Set externally.
+    var pipelineSteps: [PipelineStep] = []
+
+    /// Whether the selected tool has a patron_proof constraint in the pipeline.
+    var toolRequiresPatronProof: Bool {
+        pipelineSteps.contains { $0.type == "patron_proof" }
+    }
+
     private let mcpService = MCPService()
     private let oauthService = OAuthService()
 
@@ -301,7 +309,17 @@ final class TestCallViewModel {
         do {
             let npub = selectedPatronNpub ?? op.npub
             let token = try await resolveToken(patronNpub: npub, operatorNpub: op.npub, endpoint: endpoint)
-            let args = buildArguments()
+            var args = buildArguments()
+
+            // If the tool requires patron_proof (from pipeline), sign it
+            if toolRequiresPatronProof, let patronNpub = selectedPatronNpub {
+                let proof = try OperatorProofService.createProof(
+                    toolName: selectedTool!.toolName,
+                    operatorNpub: patronNpub  // works for any npub with nsec in Keychain
+                )
+                args["patron_proof"] = .string(proof)
+            }
+
             let response = try await mcpService.callToolGeneric(
                 endpointURL: endpoint,
                 bearerToken: token,
