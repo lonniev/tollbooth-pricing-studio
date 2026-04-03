@@ -118,6 +118,7 @@ final class TestCallViewModel {
                 onStep: { _ in }
             )
             availableTools = result.tools ?? []
+            pipelineSteps = result.pipeline ?? []
 
             // Fetch MCP tool schemas for parameter info
             let mcpTools = try await mcpService.fetchToolList(
