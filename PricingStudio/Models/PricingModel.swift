@@ -98,6 +98,7 @@ enum PipelineStepType: String, Sendable {
     case jsonExpression = "json_expression"
     case surgePricing = "surge_pricing"
     case demurrage = "demurrage"
+    case patronProof = "patron_proof"
     case unknown
 
     var iconName: String {
@@ -113,6 +114,7 @@ enum PipelineStepType: String, Sendable {
         case .jsonExpression: return "curlybraces"
         case .surgePricing: return "chart.line.uptrend.xyaxis"
         case .demurrage: return "hourglass"
+        case .patronProof: return "lock.shield"
         case .unknown: return "questionmark.circle"
         }
     }
@@ -130,6 +132,7 @@ enum PipelineStepType: String, Sendable {
         case .jsonExpression: return "JSON Expression"
         case .surgePricing: return "Surge Pricing"
         case .demurrage: return "Demurrage"
+        case .patronProof: return "Patron Proof"
         case .unknown: return "Unknown"
         }
     }

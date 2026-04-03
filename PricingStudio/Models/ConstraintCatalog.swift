@@ -379,6 +379,25 @@ struct ConstraintCatalog {
                 ),
             ]
         ),
+
+        // ---------------------------------------------------------------
+        // MARK: Identity
+        // ---------------------------------------------------------------
+
+        ConstraintSpec(
+            type: .patronProof,
+            category: "Identity",
+            description: "Require the patron to prove npub ownership via Schnorr signature. Use for high-value tools where unauthorized spend must be prevented. The patron signs a Nostr kind-27235 event with their nsec.",
+            params: [
+                ParamSpec(
+                    name: "window_seconds",
+                    type: .int,
+                    required: false,
+                    defaultValue: .int(120),
+                    description: "Maximum age of the proof event in seconds."
+                ),
+            ]
+        ),
     ]
 
     // MARK: - Lookups
@@ -389,7 +408,7 @@ struct ConstraintCatalog {
 
     static var categories: [String] {
         let cats = Set(all.map(\.category))
-        return ["Pricing", "Access", "Credit Terms", "Dynamic"].filter { cats.contains($0) }
+        return ["Pricing", "Access", "Credit Terms", "Identity", "Dynamic"].filter { cats.contains($0) }
     }
 
     static func specs(in category: String) -> [ConstraintSpec] {

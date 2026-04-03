@@ -747,7 +747,15 @@ final class PricingConsultantViewModel {
                 "\"A patron spending ~X sats/day will use 75% of a 1000-sat tranche in Y days, " +
                 "so I recommend Y-day demurrage.\" The operator can accept or override.\n\n" +
                 "Include a demurrage step in the CAMPAIGN_JSON pipeline with " +
-                "params: {\"ttl_days\": N, \"target_usage_pct\": 0.75, \"min_days\": 3, \"max_days\": 90}.",
+                "params: {\"ttl_days\": N, \"target_usage_pct\": 0.75, \"min_days\": 3, \"max_days\": 90}.\n\n" +
+                "3. Patron Proof (for high-value tools):\n\n" +
+                "If any tools are priced at 50+ sats, recommend adding a 'patron_proof' constraint " +
+                "to those specific tools. This requires the patron to sign each call with their nsec, " +
+                "proving they own the npub being debited. Frame this as a security feature the operator " +
+                "offers patrons: 'your high-value purchases are signature-protected.' Low-fee tools " +
+                "(≤10 sats) don't need this overhead — it adds friction. Respect the operator's choice " +
+                "if they prefer no proof. Include patron_proof in the pipeline only for recommended tools: " +
+                "{\"type\": \"patron_proof\", \"params\": {\"window_seconds\": 120}}.",
             6: "You are in the RECOMMENDATION phase. Synthesize all prior findings and present a complete pricing campaign draft with BLUF, revenue projections, and A/B/C variants.",
         ]
 
