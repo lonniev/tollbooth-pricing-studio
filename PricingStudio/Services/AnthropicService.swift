@@ -10,6 +10,23 @@ final class AnthropicService: @unchecked Sendable {
     private static let model = "claude-sonnet-4-6"
     private static let maxTokens = 2048
 
+    /// Map API error responses to clear, actionable user messages.
+    private static func friendlyErrorMessage(statusCode: Int, body: String) -> String {
+        let lower = body.lowercased()
+        switch statusCode {
+        case 400 where lower.contains("credit balance"):
+            return "[AI provider credits exhausted. Add credits at console.anthropic.com before continuing.]"
+        case 401:
+            return "[AI provider API key is invalid or expired. Check your Anthropic key in Settings.]"
+        case 429:
+            return "[AI provider rate limit reached. Wait a moment and try again.]"
+        case 529, 503:
+            return "[AI provider is temporarily overloaded. Try again in a few seconds.]"
+        default:
+            return "[AI provider error (HTTP \(statusCode)). Check Settings or try again later.]"
+        }
+    }
+
     // MARK: - Oracle Tool Definitions
 
     nonisolated(unsafe) static let oracleTools: [[String: Any]] = [
@@ -252,7 +269,8 @@ final class AnthropicService: @unchecked Sendable {
                         error: "HTTP \(code)"
                     )
                 }
-                continuation.yield("[Error: HTTP \(code) — \(errorBody.prefix(200))]")
+                let userMessage = Self.friendlyErrorMessage(statusCode: code, body: errorBody)
+                continuation.yield(userMessage)
                 return result
             }
 

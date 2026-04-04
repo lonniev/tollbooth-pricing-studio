@@ -15,6 +15,22 @@ struct XAIProvider: LLMProvider, Sendable {
         self.apiKey = apiKey
     }
 
+    private static func friendlyErrorMessage(statusCode: Int, body: String) -> String {
+        let lower = body.lowercased()
+        switch statusCode {
+        case 400 where lower.contains("credit") || lower.contains("balance") || lower.contains("billing"):
+            return "[AI provider credits exhausted. Add credits in your xAI account before continuing.]"
+        case 401:
+            return "[AI provider API key is invalid or expired. Check your xAI key in Settings.]"
+        case 429:
+            return "[AI provider rate limit reached. Wait a moment and try again.]"
+        case 503, 529:
+            return "[AI provider is temporarily overloaded. Try again in a few seconds.]"
+        default:
+            return "[AI provider error (HTTP \(statusCode)). Check Settings or try again later.]"
+        }
+    }
+
     func streamCompletion(
         messages: [[String: String]],
         systemPrompt: String,
@@ -75,7 +91,8 @@ struct XAIProvider: LLMProvider, Sendable {
                     if errorBody.count > 500 { break }
                 }
                 logger.error("xAI HTTP \(code): \(errorBody.prefix(200))")
-                continuation.yield("[Error: HTTP \(code) — \(errorBody.prefix(200))]")
+                let userMessage = Self.friendlyErrorMessage(statusCode: code, body: errorBody)
+                continuation.yield(userMessage)
                 continuation.finish()
                 return
             }
