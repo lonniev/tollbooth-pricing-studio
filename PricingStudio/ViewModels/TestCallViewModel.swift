@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import SwiftData
+import UIKit
 
 /// Drives the "Test Call as Npub" feature — lets users select an operator,
 /// pick a tool, choose an npub identity, fill in parameters from the tool's
@@ -15,6 +16,7 @@ final class TestCallViewModel {
         case checkingBalance
         case ready(ToolCostEstimate)
         case executing
+        case oauthPolling(secondsRemaining: Int)
         case result(String)
         case error(String)
     }
@@ -128,6 +130,27 @@ final class TestCallViewModel {
             toolSchemas = [:]
             for tool in mcpTools {
                 toolSchemas[tool.name] = tool.inputSchema
+            }
+
+            // Merge MCP tools not already in the pricing model.
+            let knownNames = Set(availableTools.map(\.toolName))
+            for tool in mcpTools {
+                if !knownNames.contains(tool.name) {
+                    let description: String
+                    if case .object(let obj) = tool.inputSchema,
+                       let descVal = obj["description"],
+                       case .string(let d) = descVal {
+                        description = d
+                    } else {
+                        description = tool.description ?? ""
+                    }
+                    availableTools.append(ToolPrice(
+                        toolName: tool.name,
+                        priceSats: 0,
+                        category: "free",
+                        intent: description
+                    ))
+                }
             }
 
             state = .toolsLoaded
@@ -327,10 +350,89 @@ final class TestCallViewModel {
                 toolName: selectedTool!.toolName,
                 arguments: args
             )
-            state = .result(response)
+
+            // Detect OAuth dance: begin_oauth returns authorize_url
+            if let authorizeURL = extractAuthorizeURL(from: response) {
+                await beginOAuthPolling(
+                    authorizeURL: authorizeURL,
+                    endpoint: endpoint,
+                    token: token
+                )
+            } else {
+                state = .result(response)
+            }
         } catch {
             state = .error("Tool call failed: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - OAuth Dance
+
+    /// Detect an authorize_url in a begin_oauth response.
+    private func extractAuthorizeURL(from response: String) -> URL? {
+        guard let data = response.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let urlString = json["authorize_url"] as? String,
+              let url = URL(string: urlString) else {
+            return nil
+        }
+        return url
+    }
+
+    /// Open browser and poll check_oauth_status until completed or timeout.
+    private func beginOAuthPolling(
+        authorizeURL: URL,
+        endpoint: URL,
+        token: String
+    ) async {
+        // Open browser for user to authorize
+        await UIApplication.shared.open(authorizeURL)
+
+        let pollInterval: UInt64 = 2_000_000_000  // 2 seconds
+        let maxSeconds = 30
+        let maxPolls = maxSeconds / 2
+
+        for i in 0..<maxPolls {
+            let remaining = maxSeconds - (i * 2)
+            state = .oauthPolling(secondsRemaining: remaining)
+
+            try? await Task.sleep(nanoseconds: pollInterval)
+
+            do {
+                // Build args for check_oauth_status — reuse the npub param
+                var checkArgs: [String: Value] = [:]
+                if let npub = selectedPatronNpub {
+                    // Try both param names since operators vary
+                    if toolParams.contains(where: { $0.name == "patron_npub" }) {
+                        checkArgs["patron_npub"] = .string(npub)
+                    } else {
+                        checkArgs["npub"] = .string(npub)
+                    }
+                }
+
+                let response = try await mcpService.callToolGeneric(
+                    endpointURL: endpoint,
+                    bearerToken: token,
+                    toolName: "check_oauth_status",
+                    arguments: checkArgs
+                )
+
+                // Parse status
+                if let data = response.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let status = json["status"] as? String,
+                   status == "completed" {
+                    state = .result(response)
+                    return
+                }
+                // "pending" — keep polling
+            } catch {
+                // Transient error — keep polling unless fatal
+                continue
+            }
+        }
+
+        state = .error("OAuth authorization timed out after \(maxSeconds)s. The authorization code may have expired — try again.")
     }
 
     // MARK: - Token Resolution

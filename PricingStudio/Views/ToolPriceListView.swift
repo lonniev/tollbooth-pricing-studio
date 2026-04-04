@@ -38,7 +38,7 @@ struct ToolPriceListView: View {
                         .textCase(.uppercase)
 
                     ForEach(categoryTools) { tool in
-                        let isRemoved = viewModel?.localRemovals.contains(tool.toolName) ?? false
+                        let isRemoved = viewModel?.localRemovals.contains(tool.toolId) ?? false
                         if isRemoved {
                             HStack(spacing: 12) {
                                 Text(tool.toolName)

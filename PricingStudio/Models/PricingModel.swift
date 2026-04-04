@@ -12,7 +12,8 @@ enum PricingSource: String, Codable, Sendable {
 }
 
 struct ToolPrice: Codable, Identifiable, Sendable {
-    var id: String { toolName }
+    var id: String { toolId }
+    let toolId: String
     let toolName: String
     var priceSats: Int
     var priceType: PriceType
@@ -22,7 +23,9 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     var minCost: Int = 0
     var maxCost: Int? = nil
 
-    init(toolName: String, priceSats: Int, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil) {
+    init(toolId: String = "", toolName: String, priceSats: Int, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil) {
+        // If no toolId provided, synthesize from toolName for backward compat
+        self.toolId = toolId.isEmpty ? toolName : toolId
         self.toolName = toolName
         self.priceSats = priceSats
         self.priceType = priceType
@@ -34,6 +37,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case toolId = "tool_id"
         case toolName = "tool_name"
         case priceSats = "price_sats"
         case priceType = "price_type"
@@ -46,6 +50,8 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         toolName = try container.decode(String.self, forKey: .toolName)
+        // Legacy: if tool_id missing, synthesize from tool_name
+        toolId = try container.decodeIfPresent(String.self, forKey: .toolId) ?? toolName
         priceSats = try container.decode(Int.self, forKey: .priceSats)
         priceType = try container.decodeIfPresent(PriceType.self, forKey: .priceType) ?? .flat
         priceFormula = try container.decodeIfPresent(String.self, forKey: .priceFormula)
@@ -57,6 +63,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(toolId, forKey: .toolId)
         try container.encode(toolName, forKey: .toolName)
         try container.encode(priceSats, forKey: .priceSats)
         try container.encode(priceType, forKey: .priceType)

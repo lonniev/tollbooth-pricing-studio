@@ -15,11 +15,11 @@ struct ToolPriceRow: View {
     }
 
     private var effectiveTool: ToolPrice {
-        viewModel?.editedTool(for: tool.toolName) ?? tool
+        viewModel?.editedTool(for: tool.toolId) ?? tool
     }
 
     private var isEdited: Bool {
-        viewModel?.editedTool(for: tool.toolName) != nil
+        viewModel?.editedTool(for: tool.toolId) != nil
     }
 
     var body: some View {
@@ -272,7 +272,7 @@ private struct ToolPriceEditor: View {
                 .controlSize(.small)
 
                 Button("Reset") {
-                    viewModel.resetEdit(toolName: tool.toolName)
+                    viewModel.resetEdit(toolId: tool.toolId)
                     isPresented = false
                 }
                 .buttonStyle(.bordered)

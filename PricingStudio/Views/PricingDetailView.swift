@@ -96,6 +96,11 @@ struct PricingDetailView: View {
     @ViewBuilder
     private func loadedContent(_ model: PricingModelResponse) -> some View {
         if model.status == "ok", let tools = model.tools {
+            // Merge in new tools from reconciliation that aren't in the stored model
+            let storedNames = Set(tools.map(\.toolName))
+            let newFromEdits = viewModel.localEdits.values.filter { !storedNames.contains($0.toolName) }
+            let allTools = tools + newFromEdits.sorted(by: { $0.toolName < $1.toolName })
+
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -111,7 +116,7 @@ struct PricingDetailView: View {
 
                         pipelineSection(model.pipeline ?? [])
 
-                        ToolPriceListView(tools: tools, viewModel: viewModel, target: target)
+                        ToolPriceListView(tools: allTools, viewModel: viewModel, target: target)
                     }
                     .padding()
                 }

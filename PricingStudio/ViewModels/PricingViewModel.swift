@@ -1,4 +1,5 @@
 import Foundation
+import MCP
 import SwiftUI
 
 @MainActor
@@ -53,8 +54,8 @@ final class PricingViewModel {
         return false
     }
 
-    func editedTool(for toolName: String) -> ToolPrice? {
-        localEdits[toolName]
+    func editedTool(for toolId: String) -> ToolPrice? {
+        localEdits[toolId]
     }
 
     func applyEdit(toolName: String, priceSats: Int, priceType: PriceType, priceFormula: String?, minCost: Int = 0, maxCost: Int? = nil, category: String? = nil) {
@@ -66,11 +67,11 @@ final class PricingViewModel {
         tool.minCost = minCost
         tool.maxCost = maxCost
         if let category { tool.category = category }
-        localEdits[toolName] = tool
+        localEdits[tool.toolId] = tool
     }
 
-    func resetEdit(toolName: String) {
-        localEdits.removeValue(forKey: toolName)
+    func resetEdit(toolId: String) {
+        localEdits.removeValue(forKey: toolId)
     }
 
     func resetAllEdits() {
@@ -91,16 +92,18 @@ final class PricingViewModel {
             for toolDict in toolDicts {
                 guard let name = toolDict["tool_name"] as? String,
                       let price = toolDict["price_sats"] as? Int else { continue }
+                let toolId = toolDict["tool_id"] as? String ?? name
                 let category = toolDict["category"] as? String ?? "general"
                 let intent = toolDict["intent"] as? String ?? ""
                 let tool = ToolPrice(
+                    toolId: toolId,
                     toolName: name,
                     priceSats: price,
                     priceType: .flat,
                     category: category,
                     intent: intent
                 )
-                localEdits[name] = tool
+                localEdits[tool.toolId] = tool
             }
         }
 
@@ -426,6 +429,45 @@ final class PricingViewModel {
 
         try Task.checkCancellation()
 
+        // Merge live MCP tools so ALL tools appear in the pricing view,
+        // not just those with explicit prices in the stored model.
+        let enrichedModel: PricingModelResponse
+        do {
+            let liveTools = try await mcpService.fetchToolList(
+                endpointURL: endpointURL,
+                bearerToken: targetToken
+            )
+            // Merge live MCP tools not already in the pricing model.
+            // With UUID-based identity, the pricing model is authoritative.
+            // Any MCP tool not in the model gets a placeholder entry for display.
+            let knownNames = Set((model.tools ?? []).map(\.toolName))
+            var allTools = model.tools ?? []
+            for tool in liveTools {
+                if !knownNames.contains(tool.name) {
+                    allTools.append(ToolPrice(
+                        toolName: tool.name,
+                        priceSats: 0,
+                        category: "free",
+                        intent: tool.description ?? ""
+                    ))
+                }
+            }
+            enrichedModel = PricingModelResponse(
+                status: model.status,
+                modelId: model.modelId,
+                name: model.name,
+                isActive: model.isActive,
+                tools: allTools,
+                pipeline: model.pipeline,
+                source: model.source
+            )
+        } catch {
+            // Live tool fetch failed — fall back to pricing model only
+            enrichedModel = model
+        }
+
+        try Task.checkCancellation()
+
         // Fetch service status (best-effort, non-blocking for pricing display)
         let versions = try? await mcpService.callServiceStatus(
             endpointURL: endpointURL,
@@ -434,9 +476,9 @@ final class PricingViewModel {
         serviceVersions = versions
 
         let now = Date()
-        cache[target.npub] = CacheEntry(model: model, memberRecord: member, versions: versions, cachedAt: now)
+        cache[target.npub] = CacheEntry(model: enrichedModel, memberRecord: member, versions: versions, cachedAt: now)
         loadedAt = now
-        state = .loaded(model)
+        state = .loaded(enrichedModel)
     }
 
     // MARK: - Save Pricing
@@ -523,10 +565,10 @@ final class PricingViewModel {
     private func mergeEdits(into model: PricingModelResponse) -> PricingModelResponse {
         var tools = model.tools ?? []
 
-        // Replace edited tools in-place
+        // Replace edited tools in-place (keyed by toolId)
         if !localEdits.isEmpty {
-            for (name, edited) in localEdits {
-                if let idx = tools.firstIndex(where: { $0.toolName == name }) {
+            for (toolId, edited) in localEdits {
+                if let idx = tools.firstIndex(where: { $0.toolId == toolId }) {
                     tools[idx] = edited
                 } else {
                     // New tool from reconciliation — append
@@ -535,9 +577,9 @@ final class PricingViewModel {
             }
         }
 
-        // Remove stale tools
+        // Remove stale tools (keyed by toolId)
         if !localRemovals.isEmpty {
-            tools.removeAll { localRemovals.contains($0.toolName) }
+            tools.removeAll { localRemovals.contains($0.toolId) }
         }
 
         let pipeline = localPipeline ?? model.pipeline
@@ -560,10 +602,10 @@ final class PricingViewModel {
     /// Stage reconciliation results: new/changed tools into localEdits, stale tools into localRemovals.
     func applyReconciliation(suggestedTools: [ToolPrice], mismatch: MCPService.ToolMismatch) {
         for tool in suggestedTools {
-            localEdits[tool.toolName] = tool
+            localEdits[tool.toolId] = tool
         }
         for stale in mismatch.staleTools {
-            localRemovals.insert(stale.toolName)
+            localRemovals.insert(stale.toolId)
         }
     }
 

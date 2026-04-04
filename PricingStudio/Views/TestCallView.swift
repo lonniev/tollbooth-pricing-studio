@@ -314,6 +314,22 @@ struct TestCallView: View {
                         Text("Executing…").foregroundStyle(.secondary)
                     }
                 }
+
+                if case .oauthPolling(let remaining) = vm.state {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            ProgressView()
+                            Text("Waiting for browser authorization…")
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("\(remaining)s remaining")
+                            .font(.caption.monospacedDigit().bold())
+                            .foregroundStyle(remaining <= 10 ? .red : .orange)
+                        Text("Complete the sign-in in your browser. The app will detect it automatically.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
             }
         }
     }
