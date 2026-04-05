@@ -408,22 +408,46 @@ final class PricingViewModel {
 
         try Task.checkCancellation()
 
-        // Step 3: Get auth token for MCP endpoint
+        // Step 3: Resolve auth token (cached or empty for first attempt)
         state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
         let targetHost = endpointURL.host ?? target.npub
-        let targetToken = try await resolveToken(for: endpointURL, host: targetHost)
+        var targetToken = try await resolveToken(for: endpointURL, host: targetHost)
 
         try Task.checkCancellation()
 
-        // Step 4: Fetch pricing model
-        let model = try await mcpService.fetchPricingModel(
-            endpointURL: endpointURL,
-            bearerToken: targetToken
-        ) { [weak self] step in
-            guard !Task.isCancelled else { return }
-            Task { @MainActor in
+        // Step 4: Fetch pricing model — retry with auth on 401
+        let model: PricingModelResponse
+        do {
+            model = try await mcpService.fetchPricingModel(
+                endpointURL: endpointURL,
+                bearerToken: targetToken
+            ) { [weak self] step in
                 guard !Task.isCancelled else { return }
-                self?.state = .loading(step: step.rawValue)
+                Task { @MainActor in
+                    guard !Task.isCancelled else { return }
+                    self?.state = .loading(step: step.rawValue)
+                }
+            }
+        } catch {
+            // Connection failed — might be 401. Try authenticating and retry once.
+            if targetToken.isEmpty {
+                targetToken = try await authenticateAfterChallenge(for: endpointURL, host: targetHost)
+                if !targetToken.isEmpty {
+                    model = try await mcpService.fetchPricingModel(
+                        endpointURL: endpointURL,
+                        bearerToken: targetToken
+                    ) { [weak self] step in
+                        guard !Task.isCancelled else { return }
+                        Task { @MainActor in
+                            guard !Task.isCancelled else { return }
+                            self?.state = .loading(step: step.rawValue)
+                        }
+                    }
+                } else {
+                    throw error  // auth didn't help
+                }
+            } else {
+                throw error  // already had a token, not a 401 issue
             }
         }
 
@@ -724,31 +748,35 @@ final class PricingViewModel {
     // MARK: - Token Resolution
 
     /// Resolve a valid access token: cached bundle → refresh → full re-auth.
-    private func resolveToken(for endpoint: URL, host: String) async throws -> String {
-        // 1. Check for a cached bundle
+    /// Resolve a bearer token for the endpoint. Returns cached token if
+    /// available, empty string if no auth is known for this host.
+    /// Call ``authenticateAfterChallenge`` if the MCP returns 401.
+    func resolveToken(for endpoint: URL, host: String) async throws -> String {
         if let bundle = KeychainService.loadTokenBundle(forOperator: host) {
             if !bundle.isExpired {
                 return bundle.accessToken
             }
-
-            // 2. Token expired — try refresh
             if bundle.refreshToken != nil {
                 do {
                     let refreshed = try await oauthService.refresh(bundle: bundle)
                     try KeychainService.saveTokenBundle(refreshed, forOperator: host)
                     return refreshed.accessToken
                 } catch {
-                    TrafficLogger.shared.log(.error, label: "Token Refresh Failed", detail: "\(host): \(error.localizedDescription) — falling back to re-auth")
+                    TrafficLogger.shared.log(.error, label: "Token Refresh Failed", detail: "\(host): \(error.localizedDescription)")
                 }
             }
-
-            // Refresh failed or unavailable — clear stale bundle
             KeychainService.deleteTokenBundle(forOperator: host)
         }
+        // No cached token — try without auth first. If 401, caller retries via authenticateAfterChallenge.
+        return ""
+    }
 
-        // 3. No valid cached token — full OAuth dance
+    /// Authenticate after a 401 challenge, cache the token, return it.
+    func authenticateAfterChallenge(for endpoint: URL, host: String) async throws -> String {
         let bundle = try await oauthService.authenticate(mcpEndpoint: endpoint)
-        try KeychainService.saveTokenBundle(bundle, forOperator: host)
+        if !bundle.accessToken.isEmpty {
+            try KeychainService.saveTokenBundle(bundle, forOperator: host)
+        }
         return bundle.accessToken
     }
 }
