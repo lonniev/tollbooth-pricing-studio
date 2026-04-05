@@ -18,6 +18,7 @@ struct PricingDetailView: View {
     @State private var deregisterError: String?
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var onboardingLoading = false
+    @State private var isInitializing = false
     @State private var authorityBalanceVM = AuthorityBalanceViewModel()
     @State private var showingAuthorityTopOff = false
     @Environment(\.modelContext) private var modelContext
@@ -205,10 +206,30 @@ struct PricingDetailView: View {
                         onboardingChecklist(status)
                     }
 
-                    Button("Retry") {
-                        viewModel.retry(for: target)
+                    HStack(spacing: 12) {
+                        Button("Retry") {
+                            viewModel.retry(for: target)
+                        }
+                        .buttonStyle(.bordered)
+
+                        if KeychainService.loadNsec(forNpub: target.npub) != nil {
+                            Button {
+                                initializePricingModel(for: target)
+                            } label: {
+                                Label("Initialize Pricing", systemImage: "plus.circle.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
+
+                    if isInitializing {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text("Initializing pricing model...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .padding()
             }
@@ -813,6 +834,30 @@ struct PricingDetailView: View {
         case "secret": return .orange
         case "identity": return .purple
         default: return .secondary
+        }
+    }
+
+    /// Initialize a fresh pricing model by calling get_pricing_model (triggers
+    /// server-side self-initialization with proper UUIDs) then reload.
+    private func initializePricingModel(for target: any PricingTarget) {
+        isInitializing = true
+        Task {
+            defer { isInitializing = false }
+            guard let endpoint = target.mcpEndpointURL,
+                  let endpointURL = URL(string: endpoint) else { return }
+            do {
+                let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
+                // Call get_pricing_model — server self-initializes if no model exists
+                _ = try? await MCPService().callGetPricingModel(
+                    endpointURL: endpointURL,
+                    bearerToken: token
+                )
+                // Reload the pricing view
+                viewModel.forceRefresh(for: target)
+            } catch {
+                TrafficLogger.shared.log(.error, label: "Initialize Pricing", detail: error.localizedDescription)
+                viewModel.retry(for: target)
+            }
         }
     }
 
