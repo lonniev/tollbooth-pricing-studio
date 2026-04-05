@@ -55,8 +55,8 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         priceSats = try container.decode(Int.self, forKey: .priceSats)
         priceType = try container.decodeIfPresent(PriceType.self, forKey: .priceType) ?? .flat
         priceFormula = try container.decodeIfPresent(String.self, forKey: .priceFormula)
-        category = try container.decode(String.self, forKey: .category)
-        intent = try container.decode(String.self, forKey: .intent)
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? ""
+        intent = try container.decodeIfPresent(String.self, forKey: .intent) ?? ""
         minCost = try container.decodeIfPresent(Int.self, forKey: .minCost) ?? 0
         maxCost = try container.decodeIfPresent(Int.self, forKey: .maxCost)
     }
