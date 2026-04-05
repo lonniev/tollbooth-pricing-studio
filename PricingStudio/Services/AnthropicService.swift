@@ -78,8 +78,21 @@ final class AnthropicService: @unchecked Sendable {
 
     // MARK: - Tool Executor
 
-    /// Callback to execute Oracle MCP tool calls. Set by ContentView.
+    /// Callback to execute MCP tool calls (Oracle + operator). Set by ContentView.
+    /// Parameters: (toolName, input) → result string.
     nonisolated(unsafe) static var executeOracleTool: ((String, [String: Any]) async -> String)?
+
+    /// Additional operator-specific tool definitions, set per-session.
+    /// These are appended to `oracleTools` when `includeTools` is true.
+    nonisolated(unsafe) static var operatorTools: [[String: Any]] = []
+
+    /// Callback to execute operator MCP tool calls (different endpoint from Oracle).
+    nonisolated(unsafe) static var executeOperatorTool: ((String, [String: Any]) async -> String)?
+
+    /// Combined tool list: Oracle + operator tools.
+    static var allTools: [[String: Any]] {
+        oracleTools + operatorTools
+    }
 
     // MARK: - Send Message (with tool use)
 
@@ -133,21 +146,26 @@ final class AnthropicService: @unchecked Sendable {
 
         // If Claude requested tool use, execute and continue
         if let toolUse = result.toolUse {
+            // Route to the right executor based on tool name prefix
+            let isOracleTool = Self.oracleTools.contains { ($0["name"] as? String) == toolUse.name }
+            let label = isOracleTool ? "Oracle" : "Operator"
+
             await MainActor.run {
-                TrafficLogger.shared.log(.outbound, label: "Oracle Tool",
+                TrafficLogger.shared.log(.outbound, label: "\(label) Tool",
                                          detail: "Claude called: \(toolUse.name)")
             }
 
-            continuation.yield("\n\n*🦉 Consulting the Oracle…*\n\n")
+            continuation.yield("\n\n*Consulting \(label)…*\n\n")
 
-            // Execute the MCP tool call
             let mcpToolName = Self.toolNameMap[toolUse.name] ?? toolUse.name
             let toolInput = toolUse.input
             let toolResult: String
-            if let executor = Self.executeOracleTool {
+            if isOracleTool, let executor = Self.executeOracleTool {
                 toolResult = await executor(mcpToolName, toolInput)
+            } else if !isOracleTool, let executor = Self.executeOperatorTool {
+                toolResult = await executor(toolUse.name, toolInput)
             } else {
-                toolResult = "Oracle tool executor not configured."
+                toolResult = "\(label) tool executor not configured."
             }
 
             let toolId = toolUse.id
@@ -225,7 +243,7 @@ final class AnthropicService: @unchecked Sendable {
             "messages": messages,
         ]
         if includeTools {
-            body["tools"] = Self.oracleTools
+            body["tools"] = Self.allTools
         }
 
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {

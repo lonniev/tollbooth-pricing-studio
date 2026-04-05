@@ -362,6 +362,8 @@ struct ContentView: View {
     private func buildConsultantContext(for op: Operator) -> ConsultantContext {
         var ctx = ConsultantContext()
         ctx.operatorName = op.displayName
+        ctx.operatorEndpointURL = op.mcpEndpointURL
+        ctx.operatorNpub = op.npub
 
         if let model = pricingVM.pricingModel, let tools = model.tools {
             ctx.toolSummary = tools.prefix(30).map { "\($0.toolName): \($0.priceSats) sats (\($0.category))" }.joined(separator: "\n")

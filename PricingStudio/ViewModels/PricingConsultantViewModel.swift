@@ -1,4 +1,5 @@
 import Foundation
+import MCP
 import SwiftData
 import OSLog
 
@@ -150,6 +151,9 @@ final class PricingConsultantViewModel {
         viewingStageNumber = 1
         revenueProjections = nil
         interviewProgress = .default
+
+        // Configure operator tool access for the AI advisor
+        configureOperatorTools(context: context)
 
         let opener = "Let's design a pricing campaign."
         let userMessage = AssistantMessage(role: .user, content: opener, stageNumber: 1)
@@ -704,6 +708,77 @@ final class PricingConsultantViewModel {
 
     // Content cleanup and JSON extraction delegated to ResponseParser
 
+    // MARK: - Operator Tool Access
+
+    /// Configure AnthropicService with the operator's MCP tools so the
+    /// AI advisor can call them during the interview to verify claims.
+    private func configureOperatorTools(context: ConsultantContext) {
+        guard let endpointString = context.operatorEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            AnthropicService.operatorTools = []
+            AnthropicService.executeOperatorTool = nil
+            return
+        }
+
+        // Build tool definitions for key operator tools the advisor should access
+        let readOnlyTools: [(name: String, description: String, params: [String: Any])] = [
+            ("get_pricing_model", "Get the operator's active pricing model with all tool prices.", [:]),
+            ("service_status", "Check the operator's service health, version, and configuration.", [:]),
+            ("check_price", "Preview the effective cost of a tool call including constraint effects.",
+             ["tool_id": ["type": "string", "description": "The tool's UUID from the pricing model"]]),
+        ]
+
+        AnthropicService.operatorTools = readOnlyTools.map { tool in
+            var schema: [String: Any] = ["type": "object", "properties": tool.params]
+            if !tool.params.isEmpty {
+                schema["required"] = Array(tool.params.keys)
+            }
+            return [
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": schema,
+            ] as [String: Any]
+        }
+
+        // Set executor that calls the operator's MCP endpoint
+        let operatorNpub = context.operatorNpub ?? ""
+        AnthropicService.executeOperatorTool = { toolName, input in
+            let mcpService = MCPService()
+            let oauthService = OAuthService()
+            do {
+                let host = endpointURL.host ?? operatorNpub
+                let token: String
+                if let bundle = KeychainService.loadTokenBundle(forOperator: host),
+                   !bundle.isExpired {
+                    token = bundle.accessToken
+                } else {
+                    let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
+                    try? KeychainService.saveTokenBundle(bundle, forOperator: host)
+                    token = bundle.accessToken
+                }
+
+                // Convert input dict to MCP Value args
+                var args: [String: MCP.Value] = [:]
+                for (key, value) in input {
+                    if let s = value as? String { args[key] = .string(s) }
+                    else if let i = value as? Int { args[key] = .int(i) }
+                    else if let b = value as? Bool { args[key] = .bool(b) }
+                }
+
+                return try await mcpService.callToolGeneric(
+                    endpointURL: endpointURL,
+                    bearerToken: token,
+                    toolName: toolName,
+                    arguments: args
+                )
+            } catch {
+                return "Operator tool call failed: \(error.localizedDescription)"
+            }
+        }
+
+        logger.info("Configured \(readOnlyTools.count) operator tools for AI advisor")
+    }
+
     // MARK: - System Prompt Assembly
 
     /// Build a stage-specific system prompt that includes prior-stage context.
@@ -843,6 +918,11 @@ final class PricingConsultantViewModel {
         Do not repeat the raw tool list — instead summarize briefly \
         (e.g. "I see you have 12 tools across 3 categories") and \
         suggest which interview step to begin with.
+
+        You have tool access: you can call get_pricing_model, service_status, \
+        and check_price on the operator's MCP endpoint to verify claims and \
+        ground your advice in real data. Use these tools proactively — don't \
+        just trust what the operator tells you about their pricing or tools.
         """)
 
         // Fallback formatting instructions (in case community prompt hasn't been updated)
@@ -1031,4 +1111,6 @@ struct ConsultantContext {
     var operatorName: String?
     var toolSummary: String?
     var currentPipeline: String?
+    var operatorEndpointURL: String?
+    var operatorNpub: String?
 }
