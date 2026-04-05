@@ -837,8 +837,8 @@ struct PricingDetailView: View {
         }
     }
 
-    /// Reset any stale pricing models, then trigger server-side
-    /// self-initialization with proper UUIDs from the tool registry.
+    /// Reset pricing to a clean default — erases stale models and restores
+    /// a fresh one with proper UUIDs from the tool registry.
     private func initializePricingModel(for target: any PricingTarget) {
         isInitializing = true
         Task {
@@ -846,28 +846,18 @@ struct PricingDetailView: View {
             guard let endpoint = target.mcpEndpointURL,
                   let endpointURL = URL(string: endpoint) else { return }
             do {
-                let mcp = MCPService()
                 let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
-
-                // Step 1: Reset — delete stale models (requires operator_proof)
                 let proof = try OperatorProofService.createProof(
                     toolName: "reset_pricing_model",
                     operatorNpub: target.npub
                 )
-                _ = try? await mcp.callToolGeneric(
+                // Single call: erase + restore default
+                _ = try await MCPService().callToolGeneric(
                     endpointURL: endpointURL,
                     bearerToken: token,
                     toolName: "reset_pricing_model",
                     arguments: ["operator_proof": .string(proof)]
                 )
-
-                // Step 2: Initialize — get_pricing_model self-creates fresh model
-                _ = try? await mcp.callGetPricingModel(
-                    endpointURL: endpointURL,
-                    bearerToken: token
-                )
-
-                // Reload the pricing view
                 viewModel.forceRefresh(for: target)
             } catch {
                 TrafficLogger.shared.log(.error, label: "Initialize Pricing", detail: error.localizedDescription)
