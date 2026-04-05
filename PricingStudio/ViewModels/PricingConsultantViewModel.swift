@@ -195,6 +195,10 @@ final class PricingConsultantViewModel {
     }
 
     func send(_ text: String, context: ConsultantContext) {
+        // Ensure operator tools are configured (may be first call after loadCampaign)
+        if AnthropicService.operatorTools.isEmpty {
+            configureOperatorTools(context: context)
+        }
         let targetStage = viewingStageNumber ?? interviewProgress.stageNumber
         let userMessage = AssistantMessage(role: .user, content: text, stageNumber: targetStage)
         stageMessages[targetStage, default: []].append(userMessage)
@@ -701,7 +705,8 @@ final class PricingConsultantViewModel {
             }
         }
 
-        logger.info("Configured \(readOnlyTools.count) operator tools for AI advisor")
+        let toolNames = readOnlyTools.map(\.name).joined(separator: ", ")
+        logger.info("Configured \(readOnlyTools.count) operator tools for AI advisor: \(toolNames) at \(endpointString)")
     }
 
     // MARK: - System Prompt Assembly
