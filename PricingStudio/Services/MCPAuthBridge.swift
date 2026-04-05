@@ -51,9 +51,12 @@ final class ASWebAuthDelegate: NSObject, OAuthAuthorizationDelegate, @unchecked 
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
                 let delegate = SessionDelegate()
+                // callbackURLScheme "http" intercepts the loopback redirect
+                // (http://127.0.0.1:PORT/callback?code=...) before the browser
+                // tries to connect to localhost
                 let session = ASWebAuthenticationSession(
                     url: url,
-                    callbackURLScheme: "com.tollbooth.dpyc.pricingstudio"
+                    callbackURLScheme: "http"
                 ) { callbackURL, error in
                     if let callbackURL {
                         continuation.resume(returning: callbackURL)
@@ -90,7 +93,8 @@ enum MCPAuthFactory {
         let config = OAuthConfiguration(
             grantType: .authorizationCode,
             authentication: .none(clientID: "PricingStudio"),
-            authorizationRedirectURI: URL(string: "com.tollbooth.dpyc.pricingstudio://callback")!,
+            // Default loopback redirect — ASWebAuthenticationSession intercepts
+            // the redirect before the browser connects to localhost
             clientName: "PricingStudio",
             authorizationDelegate: ASWebAuthDelegate()
         )
