@@ -340,10 +340,16 @@ struct TestCallView: View {
         case .result(let text):
             Section("Result") {
                 ScrollView {
-                    Text(prettyPrintJSON(text))
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let json = tryPrettyJSON(text) {
+                        Text(json)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        MarkdownContentView(text: text)
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 .frame(maxHeight: 300)
             }
@@ -379,13 +385,13 @@ struct TestCallView: View {
         return nil
     }
 
-    /// Pretty-print JSON response. Does NOT follow embedded URLs.
-    private func prettyPrintJSON(_ text: String) -> String {
+    /// Try to pretty-print as JSON. Returns nil if not valid JSON.
+    private func tryPrettyJSON(_ text: String) -> String? {
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data),
               let pretty = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
               let result = String(data: pretty, encoding: .utf8) else {
-            return text
+            return nil
         }
         return result
     }
