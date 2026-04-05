@@ -43,7 +43,20 @@ final class OAuthService: NSObject, Sendable {
     }
 
     func authenticate(mcpEndpoint: URL) async throws -> TokenBundle {
-        let metadata = try await discoverMetadata(for: mcpEndpoint)
+        let metadata: OAuthMetadata
+        do {
+            metadata = try await discoverMetadata(for: mcpEndpoint)
+        } catch OAuthError.metadataFetchFailed {
+            // No OAuth on this endpoint — return an empty bundle (no auth needed)
+            return TokenBundle(
+                accessToken: "",
+                refreshToken: nil,
+                expiresAt: Date.distantFuture,
+                tokenEndpoint: "",
+                clientId: "",
+                clientSecret: ""
+            )
+        }
         let registration = try await registerClient(metadata: metadata, endpoint: mcpEndpoint)
         let (codeVerifier, codeChallenge) = generatePKCE()
         let authCode = try await requestAuthorization(
