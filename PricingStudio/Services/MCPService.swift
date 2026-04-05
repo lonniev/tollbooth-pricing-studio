@@ -457,7 +457,7 @@ actor MCPService {
 
         // Check for image content first (PNG/JPEG)
         for item in content {
-            if case .image(let data, let mimeType, _) = item {
+            if case .image(let data, let mimeType, _, _) = item {
                 await traffic(.inbound, label: "Statement Infographic", detail: "Image received: \(mimeType)")
                 return InfographicResult(svgContent: nil, pngBase64: data, generatedAt: nil)
             }
@@ -1774,7 +1774,7 @@ actor MCPService {
     /// Extract text content from a Tool.Content value.
     func extractText(_ content: Tool.Content) -> String? {
         switch content {
-        case .text(let text):
+        case .text(let text, _, _):
             return text
         default:
             return nil
