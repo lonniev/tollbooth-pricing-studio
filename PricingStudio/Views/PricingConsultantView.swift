@@ -1471,6 +1471,22 @@ struct ReshapePreviewSheet: View {
 
     private let stageLabels = ["", "Inventory", "Demand", "Value", "Cost", "Constraints", "Recommendation"]
 
+    @ViewBuilder
+    private func chapterCard(stage: Int) -> some View {
+        let label = stage < stageLabels.count ? stageLabels[stage] : "Stage \(stage)"
+        let summary = chapters[stage] ?? ""
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Phase \(stage): \(label)")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.accentColor)
+            MarkdownContentView(text: summary)
+                .font(.caption)
+        }
+        .padding()
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -1490,18 +1506,7 @@ struct ReshapePreviewSheet: View {
                     .padding(.horizontal)
 
                     ForEach(chapters.keys.sorted(), id: \.self) { stage in
-                        if let summary = chapters[stage] {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Phase \(stage): \(stageLabels[stage])")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(.accentColor)
-                                MarkdownContentView(text: summary)
-                                    .font(.caption)
-                            }
-                            .padding()
-                            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
-                            .padding(.horizontal)
-                        }
+                        chapterCard(stage: stage)
                     }
                 }
                 .padding(.vertical)
