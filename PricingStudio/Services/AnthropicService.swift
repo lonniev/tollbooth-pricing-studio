@@ -3,6 +3,7 @@ import OSLog
 
 private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "Anthropic")
 
+
 @preconcurrency
 final class AnthropicService: @unchecked Sendable {
 
@@ -146,7 +147,6 @@ final class AnthropicService: @unchecked Sendable {
 
         // If Claude requested tool use, execute and continue
         if let toolUse = result.toolUse {
-            // Route to the right executor based on tool name prefix
             let isOracleTool = Self.oracleTools.contains { ($0["name"] as? String) == toolUse.name }
             let label = isOracleTool ? "Oracle" : "Operator"
 
@@ -159,7 +159,7 @@ final class AnthropicService: @unchecked Sendable {
 
             let mcpToolName = Self.toolNameMap[toolUse.name] ?? toolUse.name
             let toolInput = toolUse.input
-            let toolResult: String
+            var toolResult: String
             if isOracleTool, let executor = Self.executeOracleTool {
                 toolResult = await executor(mcpToolName, toolInput)
             } else if !isOracleTool, let executor = Self.executeOperatorTool {
@@ -168,19 +168,26 @@ final class AnthropicService: @unchecked Sendable {
                 toolResult = "\(label) tool executor not configured."
             }
 
+            // Guard against empty or error results that would confuse Claude
+            if toolResult.isEmpty {
+                toolResult = "Tool returned no data."
+            }
+
             let toolId = toolUse.id
             let toolName = toolUse.name
             let toolInputJSON = toolUse.inputJSON
 
             await MainActor.run {
-                TrafficLogger.shared.log(.inbound, label: "Oracle Tool",
+                TrafficLogger.shared.log(.inbound, label: "\(label) Tool",
                                          detail: "\(toolName) → \(String(toolResult.prefix(100)))")
             }
 
-            // Build follow-up messages with tool result using JSON construction
+            // Build follow-up messages with tool result
+            let inputObj = toolInputJSON.data(using: .utf8).flatMap {
+                try? JSONSerialization.jsonObject(with: $0)
+            } ?? [:]
             let assistantContent: [[String: Any]] = [
-                ["type": "tool_use", "id": toolId, "name": toolName,
-                 "input": (try? JSONSerialization.jsonObject(with: toolInputJSON.data(using: .utf8)!)) ?? [:]]
+                ["type": "tool_use", "id": toolId, "name": toolName, "input": inputObj]
             ]
             let toolResultContent: [[String: Any]] = [
                 ["type": "tool_result", "tool_use_id": toolId, "content": toolResult]
@@ -189,7 +196,7 @@ final class AnthropicService: @unchecked Sendable {
             followUp.append(["role": "assistant", "content": assistantContent])
             followUp.append(["role": "user", "content": toolResultContent])
 
-            // Second request — Claude incorporates tool result (no tools this round)
+            // Second request — Claude incorporates tool result
             _ = await sendRequest(
                 messages: followUp,
                 systemPrompt: systemPrompt,
