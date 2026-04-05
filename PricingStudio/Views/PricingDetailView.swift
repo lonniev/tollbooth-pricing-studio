@@ -19,6 +19,7 @@ struct PricingDetailView: View {
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var onboardingLoading = false
     @State private var isInitializing = false
+    @State private var showingResetConfirm = false
     @State private var authorityBalanceVM = AuthorityBalanceViewModel()
     @State private var showingAuthorityTopOff = false
     @Environment(\.modelContext) private var modelContext
@@ -531,6 +532,14 @@ struct PricingDetailView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 if target is Operator {
+                    if KeychainService.loadNsec(forNpub: target.npub) != nil {
+                        Divider()
+                        Button(role: .destructive) {
+                            showingResetConfirm = true
+                        } label: {
+                            Label("Reset Pricing Model", systemImage: "arrow.counterclockwise")
+                        }
+                    }
                     Divider()
                     Button {
                         showingEditRegistration = true
@@ -572,6 +581,18 @@ struct PricingDetailView: View {
                 Button("OK") { deregisterError = nil }
             } message: {
                 if let deregisterError { Text(deregisterError) }
+            }
+            .confirmationDialog(
+                "Reset Pricing Model",
+                isPresented: $showingResetConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Reset to Defaults", role: .destructive) {
+                    initializePricingModel(for: target)
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This erases the current pricing model and creates a fresh one with all tools at TBD (0 sats). You'll need to set prices for each paid tool before patrons can use them.")
             }
         }
     }
