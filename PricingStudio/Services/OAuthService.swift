@@ -42,12 +42,32 @@ final class OAuthService: NSObject, Sendable {
         let refresh_token: String?
     }
 
-    func authenticate(mcpEndpoint: URL) async throws -> TokenBundle {
-        let metadata: OAuthMetadata
+    /// Probe whether the endpoint requires OAuth by checking for a 401 challenge.
+    /// Returns true if auth is needed, false if the endpoint accepts unauthenticated requests.
+    func requiresAuth(endpoint: URL) async -> Bool {
+        guard let host = endpoint.host, let scheme = endpoint.scheme else { return false }
+        let probeURL = URL(string: "\(scheme)://\(host)/mcp")!
+        var request = URLRequest(url: probeURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
+        request.httpBody = Data("""
+        {"jsonrpc":"2.0","method":"initialize","id":0,"params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"probe","version":"1.0"}}}
+        """.utf8)
+
         do {
-            metadata = try await discoverMetadata(for: mcpEndpoint)
-        } catch OAuthError.metadataFetchFailed {
-            // No OAuth on this endpoint — return an empty bundle (no auth needed)
+            let (_, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            return status == 401 || status == 403
+        } catch {
+            return false  // can't reach it — let the real call surface the error
+        }
+    }
+
+    func authenticate(mcpEndpoint: URL) async throws -> TokenBundle {
+        // Check if the endpoint actually requires auth
+        let needsAuth = await requiresAuth(endpoint: mcpEndpoint)
+        if !needsAuth {
             return TokenBundle(
                 accessToken: "",
                 refreshToken: nil,
@@ -57,6 +77,9 @@ final class OAuthService: NSObject, Sendable {
                 clientSecret: ""
             )
         }
+
+        let metadata: OAuthMetadata
+        metadata = try await discoverMetadata(for: mcpEndpoint)
         let registration = try await registerClient(metadata: metadata, endpoint: mcpEndpoint)
         let (codeVerifier, codeChallenge) = generatePKCE()
         let authCode = try await requestAuthorization(
