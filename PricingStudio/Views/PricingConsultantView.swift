@@ -165,8 +165,7 @@ struct PricingConsultantView: View {
         }
         .sheet(isPresented: $showingReshapePreview) {
             ReshapePreviewSheet(
-                messages: consultantVM.messages,
-                stages: consultantVM.pendingReshape ?? [],
+                chapters: consultantVM.pendingChapterReshape ?? [:],
                 onAccept: {
                     consultantVM.acceptReshape(
                         context: modelContext,
@@ -181,7 +180,7 @@ struct PricingConsultantView: View {
                 }
             )
         }
-        .onChange(of: consultantVM.pendingReshape) { _, newValue in
+        .onChange(of: consultantVM.pendingChapterReshape?.count) { _, newValue in
             if newValue != nil {
                 showingReshapePreview = true
             }
@@ -1464,75 +1463,48 @@ private struct PromptEditorSheet: View {
 /// Shows the AI's proposed stage assignments side-by-side with message previews.
 /// The user can accept (overwrite saved campaign) or discard.
 struct ReshapePreviewSheet: View {
-    let messages: [AssistantMessage]
-    let stages: [Int]
+    let chapters: [Int: String]
     var onAccept: () -> Void
     var onDiscard: () -> Void
 
     @Environment(\.dismiss) private var dismiss
 
     private let stageLabels = ["", "Inventory", "Demand", "Value", "Cost", "Constraints", "Recommendation"]
-    private let stageIcons = ["", "hammer", "chart.bar", "dollarsign.circle",
-                              "gauge.with.dots.needle.bottom.50percent",
-                              "slider.horizontal.3", "star.fill"]
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 8) {
                         Image(systemName: "wand.and.stars")
                             .font(.title2)
                             .foregroundStyle(.purple)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("AI Stage Classification")
+                            Text("Chapter Reshape Preview")
                                 .font(.headline)
-                            Text("Review the proposed stage assignments below. Accept to overwrite the saved campaign.")
+                            Text("Cross-boundary content has been relocated and paraphrased. Each chapter is self-contained.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
-                }
+                    .padding(.horizontal)
 
-                ForEach(Array(zip(messages.indices, messages)), id: \.0) { index, message in
-                    let stage = index < stages.count ? stages[index] : 1
-                    let oldStage = message.stageNumber ?? 0
-                    let changed = oldStage != stage
-
-                    HStack(alignment: .top, spacing: 10) {
-                        // Stage badge
-                        VStack(spacing: 2) {
-                            Image(systemName: stageIcons[stage])
-                                .font(.caption)
-                                .foregroundStyle(changed ? .orange : Color.accentColor)
-                            Text(stageLabels[stage])
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(changed ? .orange : .secondary)
-                        }
-                        .frame(width: 56)
-
-                        // Message preview
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(message.role == .user ? "Operator" : "Consultant")
-                                .font(.caption2.bold())
-                                .foregroundStyle(message.role == .user ? Color.blue : Color.green)
-                            Text(message.content.prefix(120) + (message.content.count > 120 ? "..." : ""))
-                                .font(.caption)
-                                .foregroundStyle(.primary)
-                                .lineLimit(3)
-                                .textSelection(.enabled)
-                        }
-
-                        Spacer()
-
-                        // Change indicator
-                        if changed {
-                            Image(systemName: "arrow.right.circle.fill")
-                                .foregroundStyle(.orange)
-                                .font(.caption)
+                    ForEach(chapters.keys.sorted(), id: \.self) { stage in
+                        if let summary = chapters[stage] {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Phase \(stage): \(stageLabels[stage])")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.accentColor)
+                                MarkdownContentView(text: summary)
+                                    .font(.caption)
+                            }
+                            .padding()
+                            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+                            .padding(.horizontal)
                         }
                     }
                 }
+                .padding(.vertical)
             }
             .navigationTitle("Reshape Preview")
             .navigationBarTitleDisplayMode(.inline)

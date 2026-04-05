@@ -416,14 +416,7 @@ final class PricingConsultantViewModel {
                 flat[i].content = ResponseParser.cleanForDisplay(flat[i].content)
             }
 
-            // Reshape legacy campaigns that lack stage numbers
-            let untaggedCount = flat.filter({ $0.stageNumber == nil }).count
-            if untaggedCount > 0 && !flat.isEmpty {
-                logger.info("Reshaping \(untaggedCount) untagged messages in '\(campaign.name)'")
-                reshapeStagesInPlace(&flat)
-            }
-
-            // Group into stages
+            // Group into stages (untagged messages default to stage 1)
             var grouped: [Int: [AssistantMessage]] = [:]
             for msg in flat {
                 let stage = msg.stageNumber ?? 1
@@ -447,41 +440,17 @@ final class PricingConsultantViewModel {
         logger.info("Loaded campaign '\(campaign.name)' (\(self.allMessages.count) messages)")
     }
 
-    // MARK: - Legacy Reshape
-
-    /// Force re-reshape using keyword heuristics (offline fallback).
-    func forceReshape(context: ModelContext? = nil) {
-        var flat = allMessages
-        for i in flat.indices {
-            flat[i].stageNumber = nil
-        }
-        interviewProgress = .default
-        reshapeStagesInPlace(&flat)
-
-        // Regroup into stages
-        var grouped: [Int: [AssistantMessage]] = [:]
-        for msg in flat {
-            let stage = msg.stageNumber ?? 1
-            grouped[stage, default: []].append(msg)
-        }
-        stageMessages = grouped
-        persistReshape(context: context)
-        logger.info("Force-reshaped \(self.allMessages.count) messages (keyword heuristics)")
-    }
-
-    /// AI-powered reshape: sends the transcript to the LLM to classify each
-    /// message into the correct interview stage. Results are stored in
-    /// `pendingReshape` for preview before the user confirms overwrite.
+    /// AI-powered reshape: sends the full transcript to the LLM to produce
+    /// clean, self-contained chapter summaries with cross-boundary content
+    /// relocated and paraphrased.
     var isReshaping = false
     var reshapeError: String?
-    var pendingReshape: [Int]?   // stage number per message index, awaiting confirmation
     var pendingChapterReshape: [Int: String]?  // stage → clean chapter summary, awaiting confirmation
 
     func aiReshape() {
         guard !messages.isEmpty else { return }
         isReshaping = true
         reshapeError = nil
-        pendingReshape = nil
         pendingChapterReshape = nil
 
         Task {
@@ -511,56 +480,25 @@ final class PricingConsultantViewModel {
     /// When `rerunRecommendation` is true, automatically triggers a fresh
     /// Recommendation (stage 6) pass using the reconciled interview context.
     func acceptReshape(context: ModelContext? = nil, consultantContext: ConsultantContext? = nil, rerunRecommendation: Bool = false) {
-        // Chapter-based reshape: replace stage messages with clean summaries
-        if let chapters = pendingChapterReshape {
-            var grouped: [Int: [AssistantMessage]] = [:]
-            var maxStage = 1
-            for (stage, summary) in chapters.sorted(by: { $0.key < $1.key }) {
-                let msg = AssistantMessage(role: .assistant, content: summary, stageNumber: stage)
-                grouped[stage] = [msg]
-                maxStage = max(maxStage, stage)
-            }
-            let stageNames = ["", "inventory", "demand", "value", "cost", "constraints", "recommendation"]
-            interviewProgress = InterviewProgress(
-                stage: stageNames[maxStage],
-                stageNumber: maxStage,
-                insights: interviewProgress.insights
-            )
-            stageMessages = grouped
-            pendingChapterReshape = nil
-            pendingReshape = nil
-            persistReshape(context: context)
-            logger.info("Accepted chapter reshape (\(chapters.count) chapters)")
+        guard let chapters = pendingChapterReshape else { return }
 
-            if rerunRecommendation, let ctx = consultantContext {
-                redoStage(6, context: ctx)
-            }
-            return
-        }
-
-        // Legacy: per-message stage re-tagging
-        var flat = allMessages
-        guard let stages = pendingReshape, stages.count == flat.count else { return }
-        for i in flat.indices {
-            flat[i].stageNumber = stages[i]
-        }
-        if let maxStage = stages.max() {
-            let stageNames = ["", "inventory", "demand", "value", "cost", "constraints", "recommendation"]
-            interviewProgress = InterviewProgress(
-                stage: stageNames[maxStage],
-                stageNumber: maxStage,
-                insights: interviewProgress.insights
-            )
-        }
         var grouped: [Int: [AssistantMessage]] = [:]
-        for msg in flat {
-            let stage = msg.stageNumber ?? 1
-            grouped[stage, default: []].append(msg)
+        var maxStage = 1
+        for (stage, summary) in chapters.sorted(by: { $0.key < $1.key }) {
+            let msg = AssistantMessage(role: .assistant, content: summary, stageNumber: stage)
+            grouped[stage] = [msg]
+            maxStage = max(maxStage, stage)
         }
+        let stageNames = ["", "inventory", "demand", "value", "cost", "constraints", "recommendation"]
+        interviewProgress = InterviewProgress(
+            stage: stageNames[maxStage],
+            stageNumber: maxStage,
+            insights: interviewProgress.insights
+        )
         stageMessages = grouped
-        pendingReshape = nil
+        pendingChapterReshape = nil
         persistReshape(context: context)
-        logger.info("Accepted AI reshape")
+        logger.info("Accepted chapter reshape (\(chapters.count) chapters)")
 
         if rerunRecommendation, let ctx = consultantContext {
             redoStage(6, context: ctx)
@@ -569,7 +507,7 @@ final class PricingConsultantViewModel {
 
     /// Discard the pending reshape preview.
     func discardReshape() {
-        pendingReshape = nil
+        pendingChapterReshape = nil
     }
 
     private func persistReshape(context: ModelContext? = nil) {
@@ -578,48 +516,6 @@ final class PricingConsultantViewModel {
             campaign.messages = allMessages
             campaign.interviewProgress = interviewProgress
             try? context?.save()
-        }
-    }
-
-    /// Re-tag messages in-place by parsing PROGRESS metadata or keyword heuristics.
-    /// Stage progression is **monotonically increasing**.
-    private func reshapeStagesInPlace(_ msgs: inout [AssistantMessage]) {
-        var currentStage = 1
-
-        for i in msgs.indices {
-            if msgs[i].stageNumber != nil {
-                currentStage = max(currentStage, msgs[i].stageNumber!)
-                continue
-            }
-
-            // Try to recover stage from PROGRESS comment in assistant messages
-            if msgs[i].role == .assistant {
-                let (stripped, progress) = ResponseParser.extractProgress(from: msgs[i].content)
-                if let progress {
-                    currentStage = max(currentStage, progress.stageNumber)
-                    msgs[i].content = stripped
-                    msgs[i].stageNumber = currentStage
-                    if progress.stageNumber > interviewProgress.stageNumber {
-                        interviewProgress = progress
-                    }
-
-                    // Also strip REVENUE if present
-                    let (strippedRevenue, projections) = ResponseParser.extractRevenue(from: msgs[i].content)
-                    if let projections {
-                        msgs[i].content = strippedRevenue
-                        revenueProjections = projections
-                        proposal.projections = projections
-                    }
-                    continue
-                }
-            }
-
-            // Heuristic: classify by transition-signaling phrases in the content.
-            let text = msgs[i].content.lowercased()
-            if let detected = StageClassifier.detectStageByKeywords(text), detected > currentStage {
-                currentStage = detected
-            }
-            msgs[i].stageNumber = currentStage
         }
     }
 
