@@ -3,6 +3,26 @@ import MCP
 
 actor MCPService {
 
+    /// Create a transport with the SDK's built-in OAuth authorizer.
+    /// If bearerToken is non-empty, also adds it as a static fallback header.
+    private func makeTransport(
+        endpoint: URL,
+        bearerToken: String = ""
+    ) -> HTTPClientTransport {
+        let authorizer = MCPAuthFactory.makeAuthorizer(for: endpoint)
+        return HTTPClientTransport(
+            endpoint: endpoint,
+            streaming: true,
+            sseInitializationTimeout: 30,
+            authorizer: authorizer,
+            requestModifier: bearerToken.isEmpty ? { $0 } : { request in
+                var req = request
+                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+                return req
+            }
+        )
+    }
+
     enum ConnectionStep: String, Sendable {
         case resolvingOracle = "Resolving Oracle endpoint..."
         case lookingUpOperator = "Looking up operator..."
@@ -53,16 +73,7 @@ actor MCPService {
         await traffic(.outbound, label: "Oracle Connect", detail: "SSE → \(oracleURL.absoluteString) (Bearer auth)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: oracleURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: oracleURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
         do {
             try await client.connect(transport: transport)
@@ -140,16 +151,7 @@ actor MCPService {
         await traffic(.outbound, label: "Balance Check", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -312,16 +314,7 @@ actor MCPService {
         await traffic(.outbound, label: "Account Statement", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -425,16 +418,7 @@ actor MCPService {
         await traffic(.outbound, label: "Statement Infographic", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -514,16 +498,7 @@ actor MCPService {
         await traffic(.outbound, label: "Purchase Credits", detail: "SSE → \(endpointURL.absoluteString) amount=\(amountSats)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -610,16 +585,7 @@ actor MCPService {
         await traffic(.outbound, label: "Check Payment", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -683,16 +649,7 @@ actor MCPService {
         await traffic(.outbound, label: "Get Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -759,16 +716,7 @@ actor MCPService {
         await traffic(.outbound, label: "Set Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -855,16 +803,7 @@ actor MCPService {
         await traffic(.outbound, label: "Service Status", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -931,16 +870,7 @@ actor MCPService {
         await traffic(.outbound, label: "Register Authority Npub", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -983,16 +913,7 @@ actor MCPService {
         await traffic(.outbound, label: "Confirm Claim", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1035,16 +956,7 @@ actor MCPService {
         await traffic(.outbound, label: "Check Approval", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1087,16 +999,7 @@ actor MCPService {
         await traffic(.outbound, label: "Register Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1139,16 +1042,7 @@ actor MCPService {
         await traffic(.outbound, label: "Update Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1191,16 +1085,7 @@ actor MCPService {
         await traffic(.outbound, label: "Deregister Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1286,16 +1171,7 @@ actor MCPService {
         await traffic(.outbound, label: "Onboarding Status", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1339,16 +1215,7 @@ actor MCPService {
         await traffic(.outbound, label: "Patron Onboarding", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1396,16 +1263,7 @@ actor MCPService {
         await traffic(.outbound, label: "Credential Channel", detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1448,16 +1306,7 @@ actor MCPService {
         await traffic(.outbound, label: label, detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1504,16 +1353,7 @@ actor MCPService {
         await traffic(.outbound, label: "Forget Credentials", detail: "service=\(service) npub=\(npub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1549,16 +1389,7 @@ actor MCPService {
         await traffic(.outbound, label: "Operator Connect", detail: "SSE → \(endpointURL.absoluteString) (Bearer auth)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
         do {
             try await client.connect(transport: transport)
@@ -1653,16 +1484,7 @@ actor MCPService {
         await traffic(.outbound, label: "Mismatch Detection", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1695,16 +1517,7 @@ actor MCPService {
         await traffic(.outbound, label: "Test Call", detail: "\(toolName) → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1739,16 +1552,7 @@ actor MCPService {
         bearerToken: String
     ) async throws -> [Tool] {
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: endpointURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1820,16 +1624,7 @@ extension MCPService {
         await traffic(.outbound, label: "Publish Campaign", detail: "SSE → \(oracleURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = HTTPClientTransport(
-            endpoint: oracleURL,
-            streaming: true,
-            sseInitializationTimeout: 30,
-            requestModifier: { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
-        )
+        let transport = makeTransport(endpoint: oracleURL, bearerToken: bearerToken)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
