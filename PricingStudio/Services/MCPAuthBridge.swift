@@ -90,6 +90,7 @@ enum MCPAuthFactory {
         let config = OAuthConfiguration(
             grantType: .authorizationCode,
             authentication: .none(clientID: "PricingStudio"),
+            authorizationRedirectURI: URL(string: "com.tollbooth.dpyc.pricingstudio://callback")!,
             clientName: "PricingStudio",
             authorizationDelegate: ASWebAuthDelegate()
         )
