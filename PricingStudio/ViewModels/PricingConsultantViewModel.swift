@@ -475,12 +475,14 @@ final class PricingConsultantViewModel {
     var isReshaping = false
     var reshapeError: String?
     var pendingReshape: [Int]?   // stage number per message index, awaiting confirmation
+    var pendingChapterReshape: [Int: String]?  // stage → clean chapter summary, awaiting confirmation
 
     func aiReshape() {
         guard !messages.isEmpty else { return }
         isReshaping = true
         reshapeError = nil
         pendingReshape = nil
+        pendingChapterReshape = nil
 
         Task {
             guard let anthropicKey = KeychainService.loadAnthropicAPIKey(), !anthropicKey.isEmpty else {
@@ -490,11 +492,13 @@ final class PricingConsultantViewModel {
             }
             let provider: any LLMProvider = AnthropicProvider(apiKey: anthropicKey)
 
-            let result = await StageClassifier.classifyViaAI(messages: messages, provider: provider)
+            // Use chapter-based reshape: produces clean, self-contained summaries
+            // with cross-boundary content relocated and paraphrased
+            let result = await StageClassifier.reshapeChapters(messages: messages, provider: provider)
             switch result {
-            case .success(let stages):
-                pendingReshape = stages
-                logger.info("AI reshape complete: \(stages)")
+            case .success(let chapters):
+                pendingChapterReshape = chapters
+                logger.info("AI chapter reshape complete: \(chapters.count) chapters")
             case .failure(.parseFailed(let response)):
                 reshapeError = "AI returned unexpected format. Got \(response)"
                 logger.warning("AI reshape parse failed: \(response)")
@@ -507,12 +511,39 @@ final class PricingConsultantViewModel {
     /// When `rerunRecommendation` is true, automatically triggers a fresh
     /// Recommendation (stage 6) pass using the reconciled interview context.
     func acceptReshape(context: ModelContext? = nil, consultantContext: ConsultantContext? = nil, rerunRecommendation: Bool = false) {
+        // Chapter-based reshape: replace stage messages with clean summaries
+        if let chapters = pendingChapterReshape {
+            var grouped: [Int: [AssistantMessage]] = [:]
+            var maxStage = 1
+            for (stage, summary) in chapters.sorted(by: { $0.key < $1.key }) {
+                let msg = AssistantMessage(role: .assistant, content: summary, stageNumber: stage)
+                grouped[stage] = [msg]
+                maxStage = max(maxStage, stage)
+            }
+            let stageNames = ["", "inventory", "demand", "value", "cost", "constraints", "recommendation"]
+            interviewProgress = InterviewProgress(
+                stage: stageNames[maxStage],
+                stageNumber: maxStage,
+                insights: interviewProgress.insights
+            )
+            stageMessages = grouped
+            pendingChapterReshape = nil
+            pendingReshape = nil
+            persistReshape(context: context)
+            logger.info("Accepted chapter reshape (\(chapters.count) chapters)")
+
+            if rerunRecommendation, let ctx = consultantContext {
+                redoStage(6, context: ctx)
+            }
+            return
+        }
+
+        // Legacy: per-message stage re-tagging
         var flat = allMessages
         guard let stages = pendingReshape, stages.count == flat.count else { return }
         for i in flat.indices {
             flat[i].stageNumber = stages[i]
         }
-        // Update interview progress to the highest stage reached
         if let maxStage = stages.max() {
             let stageNames = ["", "inventory", "demand", "value", "cost", "constraints", "recommendation"]
             interviewProgress = InterviewProgress(
@@ -521,7 +552,6 @@ final class PricingConsultantViewModel {
                 insights: interviewProgress.insights
             )
         }
-        // Regroup into stages
         var grouped: [Int: [AssistantMessage]] = [:]
         for msg in flat {
             let stage = msg.stageNumber ?? 1
@@ -532,7 +562,6 @@ final class PricingConsultantViewModel {
         persistReshape(context: context)
         logger.info("Accepted AI reshape")
 
-        // Automatically rerun recommendation if requested
         if rerunRecommendation, let ctx = consultantContext {
             redoStage(6, context: ctx)
         }
