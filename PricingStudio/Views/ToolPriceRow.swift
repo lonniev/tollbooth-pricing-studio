@@ -279,6 +279,16 @@ private struct ToolPriceEditor: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+
+                if tool.priced {
+                    Button("TBD") {
+                        viewModel.markTBD(toolId: tool.toolId)
+                        isPresented = false
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .foregroundStyle(.gray)
+                }
             }
         }
         .padding()

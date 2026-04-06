@@ -61,11 +61,19 @@ final class PricingViewModel {
         guard let model = pricingModel, let tools = model.tools,
               var tool = tools.first(where: { $0.toolName == toolName }) else { return }
         tool.priceSats = priceSats
+        tool.priced = true  // explicitly setting a price marks it as priced
         tool.priceType = priceType
         tool.priceFormula = priceFormula
         tool.minCost = minCost
         tool.maxCost = maxCost
         if let category { tool.category = category }
+        localEdits[tool.toolId] = tool
+    }
+
+    func markTBD(toolId: String) {
+        guard let model = pricingModel, let tools = model.tools,
+              var tool = tools.first(where: { $0.toolId == toolId }) else { return }
+        tool.priced = false
         localEdits[tool.toolId] = tool
     }
 
