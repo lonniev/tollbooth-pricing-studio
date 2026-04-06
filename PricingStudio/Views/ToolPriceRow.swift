@@ -96,19 +96,13 @@ struct ToolPriceRow: View {
         }
     }
 
-    /// A tool is genuinely free if its category is "free" or "restricted".
-    /// A paid-category tool at 0 sats is unpriced (TBD).
-    private static let genuinelyFreeCategories: Set<String> = ["free", "restricted", "auth"]
-
     private func priceBadgeLabel(for tool: ToolPrice) -> some View {
-        let isUnpriced = tool.priceSats == 0 && !Self.genuinelyFreeCategories.contains(tool.category)
-        let badgeColor: Color = isEdited ? .blue : isUnpriced ? .gray : (tool.priceSats == 0 ? .green : .orange)
+        let badgeColor: Color = isEdited ? .blue : !tool.priced ? .gray : (tool.priceSats == 0 ? .green : .orange)
         let label: String = {
+            if !tool.priced { return "TBD" }
             switch tool.priceType {
             case .flat:
-                if tool.priceSats == 0 {
-                    return isUnpriced ? "TBD" : "FREE"
-                }
+                if tool.priceSats == 0 { return "FREE" }
                 return "\(tool.priceSats) sat\(tool.priceSats == 1 ? "" : "s")"
             case .percent:
                 if let param = tool.priceFormula, !param.isEmpty, !param.hasSuffix("%") {

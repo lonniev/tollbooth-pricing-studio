@@ -16,6 +16,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     let toolId: String
     let toolName: String
     var priceSats: Int
+    var priced: Bool
     var priceType: PriceType
     var priceFormula: String?
     var category: String
@@ -23,11 +24,11 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     var minCost: Int = 0
     var maxCost: Int? = nil
 
-    init(toolId: String = "", toolName: String, priceSats: Int, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil) {
-        // If no toolId provided, synthesize from toolName for backward compat
+    init(toolId: String = "", toolName: String, priceSats: Int, priced: Bool = true, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil) {
         self.toolId = toolId.isEmpty ? toolName : toolId
         self.toolName = toolName
         self.priceSats = priceSats
+        self.priced = priced
         self.priceType = priceType
         self.priceFormula = priceFormula
         self.category = category
@@ -40,6 +41,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         case toolId = "tool_id"
         case toolName = "tool_name"
         case priceSats = "price_sats"
+        case priced
         case priceType = "price_type"
         case priceFormula = "price_formula"
         case category, intent
@@ -50,9 +52,9 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         toolName = try container.decode(String.self, forKey: .toolName)
-        // Legacy: if tool_id missing, synthesize from tool_name
         toolId = try container.decodeIfPresent(String.self, forKey: .toolId) ?? toolName
         priceSats = try container.decode(Int.self, forKey: .priceSats)
+        priced = try container.decodeIfPresent(Bool.self, forKey: .priced) ?? true  // legacy = priced
         priceType = try container.decodeIfPresent(PriceType.self, forKey: .priceType) ?? .flat
         priceFormula = try container.decodeIfPresent(String.self, forKey: .priceFormula)
         category = try container.decodeIfPresent(String.self, forKey: .category) ?? ""
@@ -66,6 +68,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         try container.encode(toolId, forKey: .toolId)
         try container.encode(toolName, forKey: .toolName)
         try container.encode(priceSats, forKey: .priceSats)
+        try container.encode(priced, forKey: .priced)
         try container.encode(priceType, forKey: .priceType)
         try container.encodeIfPresent(priceFormula, forKey: .priceFormula)
         try container.encode(category, forKey: .category)
