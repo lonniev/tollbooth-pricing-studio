@@ -22,7 +22,6 @@ final class ReconciliationViewModel {
 
     func detectMismatch(
         endpointURL: URL,
-        bearerToken: String,
         storedModel: PricingModelResponse
     ) {
         isDetecting = true
@@ -35,7 +34,6 @@ final class ReconciliationViewModel {
             do {
                 let result = try await mcpService.detectToolMismatch(
                     endpointURL: endpointURL,
-                    bearerToken: bearerToken,
                     storedModel: storedModel
                 )
                 mismatch = result

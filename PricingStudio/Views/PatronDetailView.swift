@@ -480,7 +480,6 @@ private struct OperatorBalanceCard: View {
             }
             patronOnboarding = try await MCPService().callGetPatronOnboardingStatus(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 patronNpub: patron.npub
             )
         } catch {
@@ -505,7 +504,6 @@ private struct OperatorBalanceCard: View {
             }
             try await MCPService().callForgetCredentials(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 service: service,
                 npub: patron.npub
             )

@@ -587,7 +587,6 @@ struct SecureCourierCard: View {
             let token = try await resolveToken()
             let result = try await MCPService().callRequestCredentialChannel(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 senderNpub: effectiveSender,
                 service: credentialService
             )
@@ -610,7 +609,6 @@ struct SecureCourierCard: View {
             let token = try await resolveToken()
             let result = try await MCPService().callReceiveCredentials(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 senderNpub: effectiveSender,
                 service: credentialService
             )
@@ -655,7 +653,6 @@ struct SecureCourierCard: View {
             let token = try await resolveToken()
             let result = try await MCPService().callReceiveCredentials(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 senderNpub: effectiveSender,
                 service: credentialService,
                 credentialCard: ncredInput

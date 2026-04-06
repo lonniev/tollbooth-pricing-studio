@@ -165,7 +165,6 @@ struct RequestAdoptionSheet: View {
 
             let result = try await mcpService.callRegisterOperator(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 operatorNpub: operatorTarget.npub,
                 operatorServiceURL: (operatorTarget as? Operator)?.mcpEndpointURL ?? ""
             )

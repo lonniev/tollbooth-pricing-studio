@@ -178,7 +178,6 @@ struct OperatorAuthorityView: View {
             }
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 patronNpub: `operator`.npub
             )
             operatorBalance = result.balanceApiSats

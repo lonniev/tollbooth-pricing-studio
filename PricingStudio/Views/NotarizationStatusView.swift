@@ -86,7 +86,6 @@ struct NotarizationStatusView: View {
             }
             let response = try await mcpService.callToolGeneric(
                 endpointURL: url,
-                bearerToken: "",
                 toolName: "list_notarizations"
             )
             if let data = response.data(using: .utf8),

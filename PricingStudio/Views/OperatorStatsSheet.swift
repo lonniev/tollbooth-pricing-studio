@@ -173,7 +173,6 @@ struct OperatorStatsSheet: View {
             // Lookup member from Oracle
             let member = try await mcpService.lookupOperator(
                 npub: operator_.npub,
-                bearerToken: oracleToken,
                 onStep: { _ in }
             )
 
@@ -190,7 +189,6 @@ struct OperatorStatsSheet: View {
 
                 let model = try await mcpService.fetchPricingModel(
                     endpointURL: endpoint,
-                    bearerToken: token,
                     onStep: { _ in }
                 )
                 for tool in model.tools ?? [] {
@@ -226,7 +224,7 @@ struct OperatorStatsSheet: View {
                 let host = endpoint.host ?? operator_.npub
                 let token = try await resolveToken(for: endpoint, host: host)
                 versions = try? await mcpService.callServiceStatus(
-                    endpointURL: endpoint, bearerToken: token
+                    endpointURL: endpoint
                 )
             }
 

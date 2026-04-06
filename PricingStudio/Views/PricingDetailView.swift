@@ -515,7 +515,6 @@ struct PricingDetailView: View {
                                let model = viewModel.pricingModel {
                                 reconciliationVM.detectMismatch(
                                     endpointURL: url,
-                                    bearerToken: token,
                                     storedModel: model
                                 )
                             }
@@ -875,7 +874,6 @@ struct PricingDetailView: View {
                 // Single call: erase + restore default
                 _ = try await MCPService().callToolGeneric(
                     endpointURL: endpointURL,
-                    bearerToken: token,
                     toolName: "reset_pricing_model",
                     arguments: ["operator_proof": .string(proof)]
                 )
@@ -897,8 +895,7 @@ struct PricingDetailView: View {
         do {
             let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
             onboardingStatus = try await MCPService().callGetOnboardingStatus(
-                endpointURL: endpointURL,
-                bearerToken: token
+                endpointURL: endpointURL
             )
         } catch {
             // Silently fail — view falls back to static checklist
@@ -918,8 +915,7 @@ struct PricingDetailView: View {
         do {
             let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
             _ = try? await MCPService().callServiceStatus(
-                endpointURL: endpointURL,
-                bearerToken: token
+                endpointURL: endpointURL
             )
         } catch {
             TrafficLogger.shared.log(.error, label: "Reattempt Bootstrap", detail: error.localizedDescription)
@@ -1025,7 +1021,6 @@ struct PricingDetailView: View {
 
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 operatorNpub: op.npub
             )
         } catch {

@@ -29,7 +29,6 @@ final class PricingViewModel {
     var onAuthorityDiscovered: ((String, String?, String?) -> Void)?
 
     private let mcpService = MCPService()
-    private let oauthService = OAuthService()
     private var loadingTask: Task<Void, Never>?
 
     // MARK: - Local Edits
@@ -325,7 +324,7 @@ final class PricingViewModel {
             do {
                 let (_, token) = try await resolveEndpointAndToken(for: target)
                 let status = try await mcpService.callGetOnboardingStatus(
-                    endpointURL: url, bearerToken: token
+                    endpointURL: url
                 )
                 if !status.ready {
                     // Operator isn't fully configured — show onboarding, not pricing
@@ -366,18 +365,14 @@ final class PricingViewModel {
     private func fetchPricingSteps(for target: any PricingTarget) async throws {
         try Task.checkCancellation()
 
-        // Step 1: Resolve Oracle URL and authenticate
+        // Step 1: Resolve Oracle URL
         let oracleURL = try await mcpService.resolveOracleURL(forOperator: target.npub)
-        let oracleHost = oracleURL.host ?? "oracle"
 
         try Task.checkCancellation()
         state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
-        let oracleToken = try await resolveToken(for: oracleURL, host: oracleHost)
 
-        try Task.checkCancellation()
-
-        // Step 2: Lookup via Oracle
-        let member = try await mcpService.lookupOperator(npub: target.npub, bearerToken: oracleToken) { [weak self] step in
+        // Step 2: Lookup via Oracle (transport handles auth)
+        let member = try await mcpService.lookupOperator(npub: target.npub) { [weak self] step in
             guard !Task.isCancelled else { return }
             Task { @MainActor in
                 guard !Task.isCancelled else { return }
@@ -408,46 +403,14 @@ final class PricingViewModel {
 
         try Task.checkCancellation()
 
-        // Step 3: Resolve auth token (cached or empty for first attempt)
-        state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
-        let targetHost = endpointURL.host ?? target.npub
-        var targetToken = try await resolveToken(for: endpointURL, host: targetHost)
-
-        try Task.checkCancellation()
-
-        // Step 4: Fetch pricing model — retry with auth on 401
-        let model: PricingModelResponse
-        do {
-            model = try await mcpService.fetchPricingModel(
-                endpointURL: endpointURL,
-                bearerToken: targetToken
-            ) { [weak self] step in
+        // Step 3: Fetch pricing model (transport handles auth via SDK authorizer)
+        let model = try await mcpService.fetchPricingModel(
+            endpointURL: endpointURL
+        ) { [weak self] step in
+            guard !Task.isCancelled else { return }
+            Task { @MainActor in
                 guard !Task.isCancelled else { return }
-                Task { @MainActor in
-                    guard !Task.isCancelled else { return }
-                    self?.state = .loading(step: step.rawValue)
-                }
-            }
-        } catch {
-            // Connection failed — might be 401. Try authenticating and retry once.
-            if targetToken.isEmpty {
-                targetToken = try await authenticateAfterChallenge(for: endpointURL, host: targetHost)
-                if !targetToken.isEmpty {
-                    model = try await mcpService.fetchPricingModel(
-                        endpointURL: endpointURL,
-                        bearerToken: targetToken
-                    ) { [weak self] step in
-                        guard !Task.isCancelled else { return }
-                        Task { @MainActor in
-                            guard !Task.isCancelled else { return }
-                            self?.state = .loading(step: step.rawValue)
-                        }
-                    }
-                } else {
-                    throw error  // auth didn't help
-                }
-            } else {
-                throw error  // already had a token, not a 401 issue
+                self?.state = .loading(step: step.rawValue)
             }
         }
 
@@ -458,8 +421,7 @@ final class PricingViewModel {
         let enrichedModel: PricingModelResponse
         do {
             let liveTools = try await mcpService.fetchToolList(
-                endpointURL: endpointURL,
-                bearerToken: targetToken
+                endpointURL: endpointURL
             )
             // Merge live MCP tools not already in the pricing model.
             // With UUID-based identity, the pricing model is authoritative.
@@ -494,8 +456,7 @@ final class PricingViewModel {
 
         // Fetch service status (best-effort, non-blocking for pricing display)
         let versions = try? await mcpService.callServiceStatus(
-            endpointURL: endpointURL,
-            bearerToken: targetToken
+            endpointURL: endpointURL
         )
         serviceVersions = versions
 
@@ -540,9 +501,6 @@ final class PricingViewModel {
 
         state = .loading(step: "Saving pricing...")
 
-        let targetHost = endpointURL.host ?? target.npub
-        let token = try await resolveToken(for: endpointURL, host: targetHost)
-
         // Resolve operator identity for the proof
         let operatorNpub = resolveOperatorNpub(for: target)
         if operatorNpub == nil {
@@ -554,7 +512,6 @@ final class PricingViewModel {
 
         _ = try await mcpService.callSetPricingModel(
             endpointURL: endpointURL,
-            bearerToken: token,
             model: mergedModel,
             operatorNpub: operatorNpub
         )
@@ -633,15 +590,14 @@ final class PricingViewModel {
         }
     }
 
-    /// Resolve the MCP endpoint URL and bearer token for the current target.
+    /// Resolve the MCP endpoint URL for the current target.
+    /// Auth is handled by the SDK's transport authorizer — no token needed.
     func resolveEndpointAndToken(for target: any PricingTarget) async throws -> (URL, String) {
         guard let endpointString = target.mcpEndpointURL,
               let endpointURL = URL(string: endpointString) else {
             throw MCPError.connectionFailed("No MCP endpoint found for this entity")
         }
-        let targetHost = endpointURL.host ?? target.npub
-        let token = try await resolveToken(for: endpointURL, host: targetHost)
-        return (endpointURL, token)
+        return (endpointURL, "")
     }
 
     #if DEBUG
@@ -689,20 +645,8 @@ final class PricingViewModel {
         do {
             let mcpService = MCPService()
             let oracleURL = try await mcpService.resolveOracleURL(forOperator: npub)
-            let oauthService = OAuthService()
-            let host = oracleURL.host ?? "dpyc-oracle"
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: "oracle", operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await oauthService.authenticate(mcpEndpoint: oracleURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: "oracle", operator: host)
-                token = bundle.accessToken
-            }
             let response = try await mcpService.callToolGeneric(
                 endpointURL: oracleURL,
-                bearerToken: token,
                 toolName: "lookup_member",
                 arguments: ["npub": .string(npub)]
             )
@@ -748,36 +692,5 @@ final class PricingViewModel {
     // MARK: - Token Resolution
 
     /// Resolve a valid access token: cached bundle → refresh → full re-auth.
-    /// Resolve a bearer token for the endpoint. Returns cached token if
-    /// available, empty string if no auth is known for this host.
-    /// Call ``authenticateAfterChallenge`` if the MCP returns 401.
-    func resolveToken(for endpoint: URL, host: String) async throws -> String {
-        if let bundle = KeychainService.loadTokenBundle(forOperator: host) {
-            if !bundle.isExpired {
-                return bundle.accessToken
-            }
-            if bundle.refreshToken != nil {
-                do {
-                    let refreshed = try await oauthService.refresh(bundle: bundle)
-                    try KeychainService.saveTokenBundle(refreshed, forOperator: host)
-                    return refreshed.accessToken
-                } catch {
-                    TrafficLogger.shared.log(.error, label: "Token Refresh Failed", detail: "\(host): \(error.localizedDescription)")
-                }
-            }
-            KeychainService.deleteTokenBundle(forOperator: host)
-        }
-        // No cached token — try without auth first. If 401, caller retries via authenticateAfterChallenge.
-        return ""
-    }
-
-    /// Authenticate after a 401 challenge, cache the token, return it.
-    func authenticateAfterChallenge(for endpoint: URL, host: String) async throws -> String {
-        let bundle = try await oauthService.authenticate(mcpEndpoint: endpoint)
-        if !bundle.accessToken.isEmpty {
-            try KeychainService.saveTokenBundle(bundle, forOperator: host)
-        }
-        return bundle.accessToken
-    }
 }
 

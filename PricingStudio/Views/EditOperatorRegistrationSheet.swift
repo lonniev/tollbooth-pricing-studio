@@ -185,7 +185,6 @@ struct EditOperatorRegistrationSheet: View {
 
             let result = try await mcpService.callUpdateOperator(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 operatorNpub: operatorTarget.npub,
                 serviceURL: serviceURL,
                 displayName: displayName

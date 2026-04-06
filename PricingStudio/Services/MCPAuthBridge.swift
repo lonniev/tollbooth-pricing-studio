@@ -4,6 +4,7 @@ import AuthenticationServices
 import UIKit
 
 /// Bridges KeychainService to the MCP SDK's TokenStorage protocol.
+/// One storage instance per host — tokens keyed by operator host.
 final class KeychainTokenStorage: TokenStorage, @unchecked Sendable {
     private let host: String
 
@@ -65,7 +66,6 @@ final class ASWebAuthDelegate: NSObject, OAuthAuthorizationDelegate, @unchecked 
                 }
                 session.presentationContextProvider = delegate
                 session.prefersEphemeralWebBrowserSession = false
-                // Prevent delegate from being deallocated
                 objc_setAssociatedObject(session, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
                 session.start()
             }
@@ -84,6 +84,7 @@ private final class SessionDelegate: NSObject, ASWebAuthenticationPresentationCo
 }
 
 /// Factory for creating an OAuthAuthorizer configured for DPYC MCPs.
+/// The authorizer handles 401 challenges automatically — no proactive auth needed.
 enum MCPAuthFactory {
     static func makeAuthorizer(for endpoint: URL) -> OAuthAuthorizer {
         let host = endpoint.host ?? endpoint.absoluteString

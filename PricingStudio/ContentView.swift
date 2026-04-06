@@ -285,24 +285,13 @@ struct ContentView: View {
                 Self.resolveDisplayName(key: key, context: ctx)
             }
             // Wire Oracle tool executor for AI Assistant tool_use
+            // Oracle tool executor — transport handles auth via SDK authorizer
             AnthropicService.executeOracleTool = { toolName, input in
                 let mcpService = MCPService()
-                let oauthService = OAuthService()
                 do {
                     let oracleURL = try await RegistryService.resolveOracleURL()
-                    let host = oracleURL.host ?? "dpyc-oracle"
-                    let token: String
-                    if let bundle = KeychainService.loadTokenBundle(forPatron: "oracle", operator: host),
-                       !bundle.isExpired {
-                        token = bundle.accessToken
-                    } else {
-                        let bundle = try await oauthService.authenticate(mcpEndpoint: oracleURL)
-                        try? KeychainService.saveTokenBundle(bundle, forPatron: "oracle", operator: host)
-                        token = bundle.accessToken
-                    }
                     return try await mcpService.callToolGeneric(
                         endpointURL: oracleURL,
-                        bearerToken: token,
                         toolName: toolName
                     )
                 } catch {

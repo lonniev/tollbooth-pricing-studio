@@ -670,33 +670,18 @@ final class PricingConsultantViewModel {
         }
 
         // Set executor that calls the operator's MCP endpoint
-        let operatorNpub = context.operatorNpub ?? ""
+        // Transport handles auth via SDK authorizer — no token resolution needed
         AnthropicService.executeOperatorTool = { toolName, input in
             let mcpService = MCPService()
-            let oauthService = OAuthService()
             do {
-                let host = endpointURL.host ?? operatorNpub
-                let token: String
-                if let bundle = KeychainService.loadTokenBundle(forOperator: host),
-                   !bundle.isExpired {
-                    token = bundle.accessToken
-                } else {
-                    let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-                    try? KeychainService.saveTokenBundle(bundle, forOperator: host)
-                    token = bundle.accessToken
-                }
-
-                // Convert input dict to MCP Value args
                 var args: [String: MCP.Value] = [:]
                 for (key, value) in input {
                     if let s = value as? String { args[key] = .string(s) }
                     else if let i = value as? Int { args[key] = .int(i) }
                     else if let b = value as? Bool { args[key] = .bool(b) }
                 }
-
                 return try await mcpService.callToolGeneric(
                     endpointURL: endpointURL,
-                    bearerToken: token,
                     toolName: toolName,
                     arguments: args
                 )

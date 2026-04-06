@@ -84,8 +84,7 @@ final class AuthorityCollectionViewModel {
     /// Step 1/3: Initiate the Authority claim protocol by calling `register_authority_npub`.
     func initiateAuthorityClaim(
         authorityEndpoint: URL,
-        candidateNpub: String,
-        bearerToken: String
+        candidateNpub: String
     ) async {
         claimStatus = .connecting
 
@@ -95,7 +94,6 @@ final class AuthorityCollectionViewModel {
 
             _ = try await mcpService.callRegisterAuthorityNpub(
                 endpointURL: authorityEndpoint,
-                bearerToken: bearerToken,
                 candidateNpub: candidateNpub
             )
 
@@ -108,8 +106,7 @@ final class AuthorityCollectionViewModel {
     /// Steps 2–3: After the user sends credentials, confirm the claim and check approval.
     func confirmAndCheckApproval(
         authorityEndpoint: URL,
-        candidateNpub: String,
-        bearerToken: String
+        candidateNpub: String
     ) async {
         let mcpService = MCPService()
 
@@ -118,7 +115,6 @@ final class AuthorityCollectionViewModel {
         do {
             let confirmResult = try await mcpService.callConfirmAuthorityClaim(
                 endpointURL: authorityEndpoint,
-                bearerToken: bearerToken,
                 candidateNpub: candidateNpub
             )
 
@@ -139,7 +135,6 @@ final class AuthorityCollectionViewModel {
         do {
             let approvalResult = try await mcpService.callCheckAuthorityApproval(
                 endpointURL: authorityEndpoint,
-                bearerToken: bearerToken,
                 candidateNpub: candidateNpub
             )
 
@@ -205,7 +200,6 @@ final class AuthorityCollectionViewModel {
     func adoptOperator(
         authority: Authority,
         operatorToAdopt: Operator,
-        bearerToken: String,
         context: ModelContext
     ) async {
         guard let endpointString = authority.mcpEndpointURL,
@@ -220,7 +214,6 @@ final class AuthorityCollectionViewModel {
         do {
             let result = try await mcpService.callRegisterOperator(
                 endpointURL: endpointURL,
-                bearerToken: bearerToken,
                 operatorNpub: operatorToAdopt.npub,
                 operatorServiceURL: operatorToAdopt.mcpEndpointURL ?? ""
             )

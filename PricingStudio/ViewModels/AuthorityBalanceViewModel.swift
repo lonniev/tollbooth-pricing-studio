@@ -33,12 +33,10 @@ final class AuthorityBalanceViewModel {
             // Ensure DPYC session is active — _dpyc_sessions is in-memory and resets on deploy
             _ = try? await mcpService.callRegisterOperator(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 operatorNpub: authority.npub
             )
             let result = try await mcpService.callCheckBalance(
-                endpointURL: endpointURL,
-                bearerToken: token
+                endpointURL: endpointURL
             )
             balanceState = .loaded(result)
         } catch {
@@ -63,7 +61,6 @@ final class AuthorityBalanceViewModel {
                 do {
                     let result = try await mcpService.callCheckPayment(
                         endpointURL: endpointURL,
-                        bearerToken: token,
                         invoiceId: invoiceId,
                         npub: authority.npub
                     )

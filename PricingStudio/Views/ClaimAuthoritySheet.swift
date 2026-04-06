@@ -496,8 +496,7 @@ struct ClaimAuthoritySheet: View {
             let token = try await resolveToken(for: endpointURL, host: host)
             await viewModel.confirmAndCheckApproval(
                 authorityEndpoint: endpointURL,
-                candidateNpub: candidateNpub,
-                bearerToken: token
+                candidateNpub: candidateNpub
             )
         } catch {
             viewModel.claimStatus = .failed("Verification failed: \(error.localizedDescription)")
@@ -551,13 +550,11 @@ struct ClaimAuthoritySheet: View {
                 let mcpService = MCPService()
                 _ = try await mcpService.callRegisterOperator(
                     endpointURL: endpointURL,
-                    bearerToken: token,
                     operatorNpub: candidateNpub
                 )
                 await viewModel.initiateAuthorityClaim(
                     authorityEndpoint: endpointURL,
-                    candidateNpub: candidateNpub,
-                    bearerToken: token
+                    candidateNpub: candidateNpub
                 )
 
                 if viewModel.claimStatus == .challengeSent {

@@ -419,7 +419,6 @@ private struct ConnectedOperatorsList: View {
                 }
                 let result = try await mcpService.callCheckBalance(
                     endpointURL: endpointURL,
-                    bearerToken: token,
                     patronNpub: op.npub
                 )
                 operatorBalances[op.npub] = result.balanceApiSats
@@ -455,7 +454,6 @@ private struct ConnectedOperatorsList: View {
 
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 operatorNpub: op.npub
             )
         } catch {
@@ -547,7 +545,6 @@ private struct AdoptOperatorSheet: View {
                             await authorityVM.adoptOperator(
                                 authority: authority,
                                 operatorToAdopt: op,
-                                bearerToken: token,
                                 context: modelContext
                             )
                         }
@@ -706,7 +703,6 @@ struct AuthorityTopOffSheet: View {
                 let token = try await resolveToken(host: host, endpointURL: endpointURL)
                 let result = try await mcpService.callPurchaseCredits(
                     endpointURL: endpointURL,
-                    bearerToken: token,
                     amountSats: effectiveAmount,
                     patronNpub: purchaserNpub.isEmpty ? authorityNpub : purchaserNpub
                 )
@@ -726,7 +722,6 @@ struct AuthorityTopOffSheet: View {
                 let token = try await resolveToken(host: host, endpointURL: endpointURL)
                 let result = try await mcpService.callCheckPayment(
                     endpointURL: endpointURL,
-                    bearerToken: token,
                     invoiceId: invoiceId,
                     npub: authorityNpub
                 )

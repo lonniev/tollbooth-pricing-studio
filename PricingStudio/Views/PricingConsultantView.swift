@@ -805,7 +805,6 @@ struct PricingConsultantView: View {
 
             let result = try await MCPService().callPublishCampaign(
                 oracleURL: oracleURL,
-                bearerToken: token,
                 authorNpub: operatorNpub,
                 operatorNpub: campaign.operatorNpub,
                 campaignJSON: campaign.exportJSON(),

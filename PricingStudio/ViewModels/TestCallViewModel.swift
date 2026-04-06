@@ -96,7 +96,6 @@ final class TestCallViewModel {
     }
 
     private let mcpService = MCPService()
-    private let oauthService = OAuthService()
 
     // MARK: - Load Tools
 
@@ -111,12 +110,10 @@ final class TestCallViewModel {
         state = .loadingTools
 
         do {
-            let token = try await resolveToken(operatorNpub: op.npub, endpoint: endpoint)
 
             // Fetch pricing model for tool list + costs
             let result = try await mcpService.fetchPricingModel(
                 endpointURL: endpoint,
-                bearerToken: token,
                 onStep: { _ in }
             )
             availableTools = result.tools ?? []
@@ -124,8 +121,7 @@ final class TestCallViewModel {
 
             // Fetch MCP tool schemas for parameter info
             let mcpTools = try await mcpService.fetchToolList(
-                endpointURL: endpoint,
-                bearerToken: token
+                endpointURL: endpoint
             )
             toolSchemas = [:]
             for tool in mcpTools {
@@ -298,10 +294,8 @@ final class TestCallViewModel {
         state = .checkingBalance
 
         do {
-            let token = try await resolveToken(patronNpub: patronNpub, operatorNpub: op.npub, endpoint: endpoint)
             let balance = try await mcpService.callCheckBalance(
                 endpointURL: endpoint,
-                bearerToken: token,
                 patronNpub: patronNpub
             )
             state = .ready(ToolCostEstimate(
@@ -332,7 +326,6 @@ final class TestCallViewModel {
 
         do {
             let npub = selectedPatronNpub ?? op.npub
-            let token = try await resolveToken(patronNpub: npub, operatorNpub: op.npub, endpoint: endpoint)
             var args = buildArguments()
 
             // If the tool requires patron_proof (from pipeline), sign it
@@ -346,7 +339,6 @@ final class TestCallViewModel {
 
             let response = try await mcpService.callToolGeneric(
                 endpointURL: endpoint,
-                bearerToken: token,
                 toolName: selectedTool!.toolName,
                 arguments: args
             )
@@ -355,8 +347,7 @@ final class TestCallViewModel {
             if let authorizeURL = extractAuthorizeURL(from: response) {
                 await beginOAuthPolling(
                     authorizeURL: authorizeURL,
-                    endpoint: endpoint,
-                    token: token
+                    endpoint: endpoint
                 )
             } else {
                 state = .result(response)
@@ -382,8 +373,7 @@ final class TestCallViewModel {
     /// Open browser and poll check_oauth_status until completed or timeout.
     private func beginOAuthPolling(
         authorizeURL: URL,
-        endpoint: URL,
-        token: String
+        endpoint: URL
     ) async {
         // Open browser for user to authorize
         await UIApplication.shared.open(authorizeURL)
@@ -412,7 +402,6 @@ final class TestCallViewModel {
 
                 let response = try await mcpService.callToolGeneric(
                     endpointURL: endpoint,
-                    bearerToken: token,
                     toolName: "check_oauth_status",
                     arguments: checkArgs
                 )
@@ -433,30 +422,6 @@ final class TestCallViewModel {
         }
 
         state = .error("OAuth authorization timed out after \(maxSeconds)s. The authorization code may have expired — try again.")
-    }
-
-    // MARK: - Token Resolution
-
-    private func resolveToken(patronNpub: String? = nil, operatorNpub: String, endpoint: URL) async throws -> String {
-        let operatorHost = endpoint.host ?? operatorNpub
-        let npub = patronNpub ?? operatorNpub
-
-        // Check cached token
-        if let bundle = KeychainService.loadTokenBundle(forPatron: npub, operator: operatorHost) {
-            if !bundle.isExpired { return bundle.accessToken }
-            if bundle.refreshToken != nil {
-                if let refreshed = try? await oauthService.refresh(bundle: bundle) {
-                    try? KeychainService.saveTokenBundle(refreshed, forPatron: npub, operator: operatorHost)
-                    return refreshed.accessToken
-                }
-            }
-            KeychainService.deleteTokenBundle(forPatron: npub, operator: operatorHost)
-        }
-
-        // Full OAuth
-        let bundle = try await oauthService.authenticate(mcpEndpoint: endpoint)
-        try KeychainService.saveTokenBundle(bundle, forPatron: npub, operator: operatorHost)
-        return bundle.accessToken
     }
 
     // MARK: - Helpers

@@ -89,7 +89,6 @@ final class PatronAccountViewModel {
             )
             let result = try await mcpService.callAccountStatement(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 patronNpub: patron.npub
             )
             invoiceHistoryStates[op.npub] = .loaded(result.invoiceItems)
@@ -121,7 +120,6 @@ final class PatronAccountViewModel {
                         )
                         let result = try await self.mcpService.callAccountStatement(
                             endpointURL: endpointURL,
-                            bearerToken: token,
                             patronNpub: patronNpub
                         )
                         return (info.npub, result.invoiceItems)
@@ -178,7 +176,6 @@ final class PatronAccountViewModel {
             )
             let result = try await mcpService.callAccountStatementInfographic(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 patronNpub: patron.npub
             )
 
@@ -285,7 +282,6 @@ final class PatronAccountViewModel {
         )
         return try await mcpService.callPurchaseCredits(
             endpointURL: endpointURL,
-            bearerToken: token,
             amountSats: amountSats,
             patronNpub: patronNpub
         )
@@ -321,7 +317,6 @@ final class PatronAccountViewModel {
             do {
                 let result = try await mcpService.callCheckPayment(
                     endpointURL: endpointURL,
-                    bearerToken: token,
                     invoiceId: invoiceId,
                     npub: patronNpub
                 )
@@ -371,7 +366,6 @@ final class PatronAccountViewModel {
             )
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,
-                bearerToken: token,
                 patronNpub: patronNpub
             )
             return .loaded(result)

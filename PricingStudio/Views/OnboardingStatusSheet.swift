@@ -185,8 +185,7 @@ struct OnboardingStatusSheet: View {
             }
 
             status = try await MCPService().callGetOnboardingStatus(
-                endpointURL: endpointURL,
-                bearerToken: token
+                endpointURL: endpointURL
             )
         } catch {
             self.error = error.localizedDescription
@@ -216,8 +215,7 @@ struct OnboardingStatusSheet: View {
 
             // Call service_status to trigger bootstrap as a side effect
             _ = try? await MCPService().callServiceStatus(
-                endpointURL: endpointURL,
-                bearerToken: token
+                endpointURL: endpointURL
             )
         } catch {
             self.error = error.localizedDescription

@@ -4,22 +4,14 @@ import MCP
 actor MCPService {
 
     /// Create a transport with the SDK's built-in OAuth authorizer.
-    /// If bearerToken is non-empty, also adds it as a static fallback header.
-    private func makeTransport(
-        endpoint: URL,
-        bearerToken: String = ""
-    ) -> HTTPClientTransport {
-        let authorizer = MCPAuthFactory.makeAuthorizer(for: endpoint)
-        return HTTPClientTransport(
+        /// Create a transport with SDK-native OAuth. The authorizer handles 401
+    /// challenges automatically — no bearer token parameter needed.
+    private func makeTransport(endpoint: URL) -> HTTPClientTransport {
+        HTTPClientTransport(
             endpoint: endpoint,
             streaming: true,
             sseInitializationTimeout: 30,
-            authorizer: authorizer,
-            requestModifier: bearerToken.isEmpty ? { $0 } : { request in
-                var req = request
-                req.addValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
-                return req
-            }
+            authorizer: MCPAuthFactory.makeAuthorizer(for: endpoint)
         )
     }
 
@@ -32,12 +24,12 @@ actor MCPService {
         case done = "Done"
     }
 
-    func lookupOperator(npub: String, bearerToken: String, onStep: @Sendable (ConnectionStep) -> Void) async throws -> MemberRecord {
+    func lookupOperator(npub: String, onStep: @Sendable (ConnectionStep) -> Void) async throws -> MemberRecord {
         onStep(.resolvingOracle)
         let oracleURL = try await RegistryService.resolveOracleURL(forOperator: npub)
 
         onStep(.lookingUpOperator)
-        return try await callOracleLookup(oracleURL: oracleURL, npub: npub, bearerToken: bearerToken)
+        return try await callOracleLookup(oracleURL: oracleURL, npub: npub)
     }
 
     func resolveOracleURL(forOperator npub: String) async throws -> URL {
@@ -46,7 +38,6 @@ actor MCPService {
 
     func fetchPricingModel(
         endpointURL: URL,
-        bearerToken: String,
         onStep: @Sendable (ConnectionStep) -> Void
     ) async throws -> PricingModelResponse {
         onStep(.connectingToOperator)
@@ -54,7 +45,7 @@ actor MCPService {
         onStep(.fetchingPricing)
 
         // Load the operator's pricing model — never synthesize or guess
-        if let stored = try? await callGetPricingModel(endpointURL: endpointURL, bearerToken: bearerToken),
+        if let stored = try? await callGetPricingModel(endpointURL: endpointURL),
            stored.tools != nil {
             var result = stored
             result.source = .stored
@@ -69,11 +60,11 @@ actor MCPService {
 
     // MARK: - Oracle Lookup
 
-    private func callOracleLookup(oracleURL: URL, npub: String, bearerToken: String) async throws -> MemberRecord {
+    private func callOracleLookup(oracleURL: URL, npub: String) async throws -> MemberRecord {
         await traffic(.outbound, label: "Oracle Connect", detail: "SSE → \(oracleURL.absoluteString) (Bearer auth)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: oracleURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: oracleURL)
         defer { Task { await client.disconnect() } }
         do {
             try await client.connect(transport: transport)
@@ -145,13 +136,12 @@ actor MCPService {
     /// Call check_balance on an operator's MCP endpoint.
     func callCheckBalance(
         endpointURL: URL,
-        bearerToken: String,
         patronNpub: String = ""
     ) async throws -> PatronAccountViewModel.BalanceResult {
         await traffic(.outbound, label: "Balance Check", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -308,13 +298,12 @@ actor MCPService {
 
     func callAccountStatement(
         endpointURL: URL,
-        bearerToken: String,
         patronNpub: String = ""
     ) async throws -> AccountStatementResult {
         await traffic(.outbound, label: "Account Statement", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -412,13 +401,12 @@ actor MCPService {
     /// Returns SVG or PNG data for a rich balance visualization.
     func callAccountStatementInfographic(
         endpointURL: URL,
-        bearerToken: String,
         patronNpub: String = ""
     ) async throws -> InfographicResult {
         await traffic(.outbound, label: "Statement Infographic", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -491,14 +479,13 @@ actor MCPService {
 
     func callPurchaseCredits(
         endpointURL: URL,
-        bearerToken: String,
         amountSats: Int,
         patronNpub: String = ""
     ) async throws -> PurchaseResult {
         await traffic(.outbound, label: "Purchase Credits", detail: "SSE → \(endpointURL.absoluteString) amount=\(amountSats)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -578,14 +565,13 @@ actor MCPService {
 
     func callCheckPayment(
         endpointURL: URL,
-        bearerToken: String,
         invoiceId: String,
         npub: String = ""
     ) async throws -> CheckPaymentResult {
         await traffic(.outbound, label: "Check Payment", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -643,13 +629,12 @@ actor MCPService {
     /// Call get_pricing_model on an operator's MCP endpoint.
     /// Returns nil if the tool is not found (operator doesn't support stored pricing).
     func callGetPricingModel(
-        endpointURL: URL,
-        bearerToken: String
+        endpointURL: URL
     ) async throws -> PricingModelResponse? {
         await traffic(.outbound, label: "Get Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -703,20 +688,18 @@ actor MCPService {
     ///
     /// - Parameters:
     ///   - endpointURL: The operator's MCP SSE endpoint.
-    ///   - bearerToken: OAuth bearer token for the session.
-    ///   - model: The pricing model to save.
+        ///   - model: The pricing model to save.
     ///   - operatorNpub: If provided, generates a kind-27235 operator proof
     ///     so a patron session can prove operator authority.
     func callSetPricingModel(
         endpointURL: URL,
-        bearerToken: String,
         model: PricingModelResponse,
         operatorNpub: String? = nil
     ) async throws -> String {
         await traffic(.outbound, label: "Set Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -797,13 +780,12 @@ actor MCPService {
     /// Call `service_status` on an operator's MCP endpoint.
     /// Returns the versions dictionary (package → version string) or nil if the tool isn't found.
     func callServiceStatus(
-        endpointURL: URL,
-        bearerToken: String
+        endpointURL: URL
     ) async throws -> [String: String]? {
         await traffic(.outbound, label: "Service Status", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -864,13 +846,12 @@ actor MCPService {
     /// the adoption protocol. Returns the text response from the tool.
     func callRegisterAuthorityNpub(
         endpointURL: URL,
-        bearerToken: String,
         candidateNpub: String
     ) async throws -> String {
         await traffic(.outbound, label: "Register Authority Npub", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -907,13 +888,12 @@ actor MCPService {
     /// verify it, and escalate to the Prime Authority for approval.
     func callConfirmAuthorityClaim(
         endpointURL: URL,
-        bearerToken: String,
         candidateNpub: String
     ) async throws -> String {
         await traffic(.outbound, label: "Confirm Claim", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -950,13 +930,12 @@ actor MCPService {
     /// and on success activates the Authority and registers it in the community.
     func callCheckAuthorityApproval(
         endpointURL: URL,
-        bearerToken: String,
         candidateNpub: String
     ) async throws -> String {
         await traffic(.outbound, label: "Check Approval", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -992,14 +971,13 @@ actor MCPService {
     /// Returns the text response from the tool.
     func callRegisterOperator(
         endpointURL: URL,
-        bearerToken: String,
         operatorNpub: String,
         operatorServiceURL: String = ""
     ) async throws -> String {
         await traffic(.outbound, label: "Register Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1034,7 +1012,6 @@ actor MCPService {
 
     func callUpdateOperator(
         endpointURL: URL,
-        bearerToken: String,
         operatorNpub: String,
         serviceURL: String = "",
         displayName: String = ""
@@ -1042,7 +1019,7 @@ actor MCPService {
         await traffic(.outbound, label: "Update Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1079,13 +1056,12 @@ actor MCPService {
 
     func callDeregisterOperator(
         endpointURL: URL,
-        bearerToken: String,
         operatorNpub: String
     ) async throws -> String {
         await traffic(.outbound, label: "Deregister Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1165,13 +1141,12 @@ actor MCPService {
     }
 
     func callGetOnboardingStatus(
-        endpointURL: URL,
-        bearerToken: String
+        endpointURL: URL
     ) async throws -> OnboardingStatus {
         await traffic(.outbound, label: "Onboarding Status", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1209,13 +1184,12 @@ actor MCPService {
 
     func callGetPatronOnboardingStatus(
         endpointURL: URL,
-        bearerToken: String,
         patronNpub: String
     ) async throws -> PatronOnboardingStatus {
         await traffic(.outbound, label: "Patron Onboarding", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1256,14 +1230,13 @@ actor MCPService {
 
     func callRequestCredentialChannel(
         endpointURL: URL,
-        bearerToken: String,
         senderNpub: String,
         service: String
     ) async throws -> String {
         await traffic(.outbound, label: "Credential Channel", detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1297,7 +1270,6 @@ actor MCPService {
 
     func callReceiveCredentials(
         endpointURL: URL,
-        bearerToken: String,
         senderNpub: String,
         service: String = "",
         credentialCard: String = ""
@@ -1306,7 +1278,7 @@ actor MCPService {
         await traffic(.outbound, label: label, detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1346,14 +1318,13 @@ actor MCPService {
 
     func callForgetCredentials(
         endpointURL: URL,
-        bearerToken: String,
         service: String,
         npub: String
     ) async throws {
         await traffic(.outbound, label: "Forget Credentials", detail: "service=\(service) npub=\(npub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1385,11 +1356,11 @@ actor MCPService {
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model
     /// by inferring category and price from tool names.
-    private func synthesizePricingModel(endpointURL: URL, bearerToken: String) async throws -> PricingModelResponse {
+    private func synthesizePricingModel(endpointURL: URL) async throws -> PricingModelResponse {
         await traffic(.outbound, label: "Operator Connect", detail: "SSE → \(endpointURL.absoluteString) (Bearer auth)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
         do {
             try await client.connect(transport: transport)
@@ -1478,13 +1449,12 @@ actor MCPService {
     /// Connect to the live MCP endpoint, list tools, and compare against the stored pricing model.
     func detectToolMismatch(
         endpointURL: URL,
-        bearerToken: String,
         storedModel: PricingModelResponse
     ) async throws -> ToolMismatch {
         await traffic(.outbound, label: "Mismatch Detection", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1510,14 +1480,13 @@ actor MCPService {
     /// Handles SSE connect/call/disconnect lifecycle.
     func callToolGeneric(
         endpointURL: URL,
-        bearerToken: String,
         toolName: String,
         arguments: [String: Value] = [:]
     ) async throws -> String {
         await traffic(.outbound, label: "Test Call", detail: "\(toolName) → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1548,11 +1517,10 @@ actor MCPService {
 
     /// Fetch the tool list from an operator endpoint (connect, list, disconnect).
     func fetchToolList(
-        endpointURL: URL,
-        bearerToken: String
+        endpointURL: URL
     ) async throws -> [Tool] {
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1614,7 +1582,6 @@ extension MCPService {
     /// Publish a campaign to dpyc-community via the Oracle's publish_campaign tool.
     func callPublishCampaign(
         oracleURL: URL,
-        bearerToken: String,
         authorNpub: String,
         operatorNpub: String,
         campaignJSON: String,
@@ -1624,7 +1591,7 @@ extension MCPService {
         await traffic(.outbound, label: "Publish Campaign", detail: "SSE → \(oracleURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: oracleURL, bearerToken: bearerToken)
+        let transport = makeTransport(endpoint: oracleURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
