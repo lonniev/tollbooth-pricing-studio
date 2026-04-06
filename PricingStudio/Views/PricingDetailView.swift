@@ -20,6 +20,7 @@ struct PricingDetailView: View {
     @State private var onboardingLoading = false
     @State private var isInitializing = false
     @State private var showingResetConfirm = false
+    @State private var showingOnboardingSheet = false
     @State private var authorityBalanceVM = AuthorityBalanceViewModel()
     @State private var showingAuthorityTopOff = false
     @Environment(\.modelContext) private var modelContext
@@ -541,6 +542,11 @@ struct PricingDetailView: View {
                     }
                     Divider()
                     Button {
+                        showingOnboardingSheet = true
+                    } label: {
+                        Label("Operator Credentials", systemImage: "key")
+                    }
+                    Button {
                         showingEditRegistration = true
                     } label: {
                         Label("Edit Registration", systemImage: "pencil")
@@ -558,6 +564,11 @@ struct PricingDetailView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .sheet(isPresented: $showingOnboardingSheet) {
+                if target is Operator {
+                    OnboardingStatusSheet(operator_: target as! Operator)
+                }
+            }
             .sheet(isPresented: $showingEditRegistration) {
                 EditOperatorRegistrationSheet(operatorTarget: target)
             }
