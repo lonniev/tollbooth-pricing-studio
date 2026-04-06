@@ -570,21 +570,8 @@ struct SecureCourierCard: View {
 
     // MARK: - Network
 
-    private func resolveToken() async throws -> String {
-        let authId = effectiveSender
-        let host = endpointURL.host ?? operatorNpub
-        if let bundle = KeychainService.loadTokenBundle(forPatron: authId, operator: host),
-           !bundle.isExpired {
-            return bundle.accessToken
-        }
-        let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
-        try? KeychainService.saveTokenBundle(bundle, forPatron: authId, operator: host)
-        return bundle.accessToken
-    }
-
     private func beginCourierFlow() async {
         do {
-            let token = try await resolveToken()
             let result = try await MCPService().callRequestCredentialChannel(
                 endpointURL: endpointURL,
                 senderNpub: effectiveSender,
@@ -606,7 +593,6 @@ struct SecureCourierCard: View {
 
     private func collectCredentials(retryCount: Int = 0) async {
         do {
-            let token = try await resolveToken()
             let result = try await MCPService().callReceiveCredentials(
                 endpointURL: endpointURL,
                 senderNpub: effectiveSender,
@@ -650,7 +636,6 @@ struct SecureCourierCard: View {
 
     private func redeemNcred() async {
         do {
-            let token = try await resolveToken()
             let result = try await MCPService().callReceiveCredentials(
                 endpointURL: endpointURL,
                 senderNpub: effectiveSender,

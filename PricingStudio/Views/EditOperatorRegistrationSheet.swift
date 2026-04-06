@@ -169,20 +169,8 @@ struct EditOperatorRegistrationSheet: View {
 
         status = .updating
         let mcpService = MCPService()
-        let oauthService = OAuthService()
 
         do {
-            let host = endpointURL.host ?? authority.npub
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: operatorTarget.npub, operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: operatorTarget.npub, operator: host)
-                token = bundle.accessToken
-            }
-
             let result = try await mcpService.callUpdateOperator(
                 endpointURL: endpointURL,
                 operatorNpub: operatorTarget.npub,

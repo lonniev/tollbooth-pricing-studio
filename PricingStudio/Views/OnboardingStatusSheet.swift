@@ -172,18 +172,6 @@ struct OnboardingStatusSheet: View {
         error = nil
 
         do {
-            let oauthService = OAuthService()
-            let host = endpointURL.host ?? operator_.npub
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: operator_.npub, operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: operator_.npub, operator: host)
-                token = bundle.accessToken
-            }
-
             status = try await MCPService().callGetOnboardingStatus(
                 endpointURL: endpointURL
             )
@@ -202,17 +190,6 @@ struct OnboardingStatusSheet: View {
         guard let endpoint = operator_.mcpEndpointURL,
               let endpointURL = URL(string: endpoint) else { return }
         do {
-            let host = endpointURL.host ?? operator_.npub
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: operator_.npub, operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: operator_.npub, operator: host)
-                token = bundle.accessToken
-            }
-
             // Call service_status to trigger bootstrap as a side effect
             _ = try? await MCPService().callServiceStatus(
                 endpointURL: endpointURL

@@ -3,6 +3,21 @@ import MCP
 import AuthenticationServices
 import UIKit
 
+/// Persisted token bundle for Keychain storage.
+struct TokenBundle: Codable, Sendable {
+    let accessToken: String
+    let refreshToken: String?
+    let expiresAt: Date?
+    let tokenEndpoint: String
+    let clientId: String
+    let clientSecret: String?
+
+    var isExpired: Bool {
+        guard let expiresAt else { return false }
+        return Date() >= expiresAt.addingTimeInterval(-60)
+    }
+}
+
 /// Bridges KeychainService to the MCP SDK's TokenStorage protocol.
 /// One storage instance per host — tokens keyed by operator host.
 final class KeychainTokenStorage: TokenStorage, @unchecked Sendable {

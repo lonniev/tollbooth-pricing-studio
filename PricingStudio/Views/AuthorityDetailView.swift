@@ -404,19 +404,8 @@ private struct ConnectedOperatorsList: View {
         guard let endpointString = authorityEndpointURL,
               let endpointURL = URL(string: endpointString) else { return }
         let mcpService = MCPService()
-        let oauthService = OAuthService()
         for op in connectedOperators {
             do {
-                let host = endpointURL.host ?? authorityNpub
-                let token: String
-                if let bundle = KeychainService.loadTokenBundle(forPatron: op.npub, operator: host),
-                   !bundle.isExpired {
-                    token = bundle.accessToken
-                } else {
-                    let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-                    try KeychainService.saveTokenBundle(bundle, forPatron: op.npub, operator: host)
-                    token = bundle.accessToken
-                }
                 let result = try await mcpService.callCheckBalance(
                     endpointURL: endpointURL,
                     patronNpub: op.npub
@@ -438,20 +427,8 @@ private struct ConnectedOperatorsList: View {
         }
 
         let mcpService = MCPService()
-        let oauthService = OAuthService()
 
         do {
-            let host = endpointURL.host ?? authorityNpub
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: op.npub, operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: op.npub, operator: host)
-                token = bundle.accessToken
-            }
-
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
                 operatorNpub: op.npub
@@ -541,7 +518,6 @@ private struct AdoptOperatorSheet: View {
                     Button("Adopt") {
                         guard let op = selectedOperator else { return }
                         Task {
-                            let (_, token) = try await pricingVM.resolveEndpointAndToken(for: authority)
                             await authorityVM.adoptOperator(
                                 authority: authority,
                                 operatorToAdopt: op,
@@ -699,8 +675,6 @@ struct AuthorityTopOffSheet: View {
                 guard let endpointURL = URL(string: endpoint) else {
                     throw MCPError.connectionFailed("Invalid endpoint")
                 }
-                let host = endpointURL.host ?? authorityNpub
-                let token = try await resolveToken(host: host, endpointURL: endpointURL)
                 let result = try await mcpService.callPurchaseCredits(
                     endpointURL: endpointURL,
                     amountSats: effectiveAmount,
@@ -718,8 +692,6 @@ struct AuthorityTopOffSheet: View {
         Task {
             do {
                 guard let endpointURL = URL(string: endpoint) else { return }
-                let host = endpointURL.host ?? authorityNpub
-                let token = try await resolveToken(host: host, endpointURL: endpointURL)
                 let result = try await mcpService.callCheckPayment(
                     endpointURL: endpointURL,
                     invoiceId: invoiceId,
@@ -739,12 +711,4 @@ struct AuthorityTopOffSheet: View {
         }
     }
 
-    private func resolveToken(host: String, endpointURL: URL) async throws -> String {
-        if let bundle = KeychainService.loadTokenBundle(forPatron: authorityNpub, operator: host) {
-            if !bundle.isExpired { return bundle.accessToken }
-        }
-        let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
-        try KeychainService.saveTokenBundle(bundle, forPatron: authorityNpub, operator: host)
-        return bundle.accessToken
-    }
 }

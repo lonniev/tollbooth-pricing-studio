@@ -1005,20 +1005,8 @@ struct PricingDetailView: View {
         }
 
         let mcpService = MCPService()
-        let oauthService = OAuthService()
 
         do {
-            let host = endpointURL.host ?? authNpub
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: op.npub, operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: op.npub, operator: host)
-                token = bundle.accessToken
-            }
-
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
                 operatorNpub: op.npub

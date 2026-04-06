@@ -468,16 +468,6 @@ private struct OperatorBalanceCard: View {
               let endpointURL = URL(string: endpointString) else { return }
         loadingOnboarding = true
         do {
-            let host = endpointURL.host ?? balance.id
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: patron.npub, operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: patron.npub, operator: host)
-                token = bundle.accessToken
-            }
             patronOnboarding = try await MCPService().callGetPatronOnboardingStatus(
                 endpointURL: endpointURL,
                 patronNpub: patron.npub
@@ -492,16 +482,6 @@ private struct OperatorBalanceCard: View {
         guard let endpointString = self.operator?.mcpEndpointURL,
               let endpointURL = URL(string: endpointString) else { return }
         do {
-            let host = endpointURL.host ?? balance.id
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: patron.npub, operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await OAuthService().authenticate(mcpEndpoint: endpointURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: patron.npub, operator: host)
-                token = bundle.accessToken
-            }
             try await MCPService().callForgetCredentials(
                 endpointURL: endpointURL,
                 service: service,

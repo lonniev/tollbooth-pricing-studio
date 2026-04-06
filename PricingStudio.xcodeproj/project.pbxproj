@@ -17,7 +17,6 @@
 		AA00000100000000000000B3 /* MemberRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E3 /* MemberRecord.swift */; };
 		AA00000100000000000000B4 /* MCPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E4 /* MCPService.swift */; };
 		AA0000010000000000000F20 /* MCPAuthBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F21 /* MCPAuthBridge.swift */; };
-		AA00000100000000000000B5 /* OAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E5 /* OAuthService.swift */; };
 		AA00000100000000000000B6 /* RegistryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E6 /* RegistryService.swift */; };
 		AA00000100000000000000B7 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E7 /* KeychainService.swift */; };
 		AA00000100000000000000B8 /* OperatorCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */; };
@@ -170,7 +169,6 @@
 		AA00000100000000000000E3 /* MemberRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberRecord.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E4 /* MCPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F21 /* MCPAuthBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPAuthBridge.swift; sourceTree = "<group>"; };
-		AA00000100000000000000E5 /* OAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthService.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E6 /* RegistryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistryService.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E7 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorCollectionViewModel.swift; sourceTree = "<group>"; };
@@ -439,7 +437,6 @@
 				1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */,
 				AA00000100000000000000E4 /* MCPService.swift */,
 				AA0000010000000000000F21 /* MCPAuthBridge.swift */,
-				AA00000100000000000000E5 /* OAuthService.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
 				AA00000100000000000000E7 /* KeychainService.swift */,
 				AA00000100000000000000FC /* NostrKeyService.swift */,
@@ -885,7 +882,6 @@
 				AA00000100000000000000B3 /* MemberRecord.swift in Sources */,
 				AA00000100000000000000B4 /* MCPService.swift in Sources */,
 				AA0000010000000000000F20 /* MCPAuthBridge.swift in Sources */,
-				AA00000100000000000000B5 /* OAuthService.swift in Sources */,
 				AA00000100000000000000B6 /* RegistryService.swift in Sources */,
 				AA00000100000000000000B7 /* KeychainService.swift in Sources */,
 				AA00000100000000000000B8 /* OperatorCollectionViewModel.swift in Sources */,

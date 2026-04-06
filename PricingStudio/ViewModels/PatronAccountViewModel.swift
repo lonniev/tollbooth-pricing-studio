@@ -81,12 +81,6 @@ final class PatronAccountViewModel {
         invoiceHistoryStates[op.npub] = .loading
 
         do {
-            let host = endpointURL.host ?? op.npub
-            let token = try await resolvePatronToken(
-                patronNpub: patron.npub,
-                operatorHost: host,
-                endpointURL: endpointURL
-            )
             let result = try await mcpService.callAccountStatement(
                 endpointURL: endpointURL,
                 patronNpub: patron.npub
@@ -112,12 +106,6 @@ final class PatronAccountViewModel {
                         return (info.npub, [])
                     }
                     do {
-                        let host = endpointURL.host ?? info.npub
-                        let token = try await self.resolvePatronToken(
-                            patronNpub: patronNpub,
-                            operatorHost: host,
-                            endpointURL: endpointURL
-                        )
                         let result = try await self.mcpService.callAccountStatement(
                             endpointURL: endpointURL,
                             patronNpub: patronNpub
@@ -168,12 +156,6 @@ final class PatronAccountViewModel {
         infographicStates[op.npub] = .loading
 
         do {
-            let host = endpointURL.host ?? op.npub
-            let token = try await resolvePatronToken(
-                patronNpub: patron.npub,
-                operatorHost: host,
-                endpointURL: endpointURL
-            )
             let result = try await mcpService.callAccountStatementInfographic(
                 endpointURL: endpointURL,
                 patronNpub: patron.npub
@@ -195,7 +177,6 @@ final class PatronAccountViewModel {
     // MARK: - Services
 
     private let mcpService = MCPService()
-    private let oauthService = OAuthService()
 
     // MARK: - Load
 
@@ -274,12 +255,6 @@ final class PatronAccountViewModel {
         guard let endpointURL = URL(string: operatorEndpoint) else {
             throw MCPError.connectionFailed("Invalid endpoint URL")
         }
-        let host = endpointURL.host ?? operatorEndpoint
-        let token = try await resolvePatronToken(
-            patronNpub: patronNpub,
-            operatorHost: host,
-            endpointURL: endpointURL
-        )
         return try await mcpService.callPurchaseCredits(
             endpointURL: endpointURL,
             amountSats: amountSats,
@@ -304,12 +279,6 @@ final class PatronAccountViewModel {
         guard let endpointURL = URL(string: operatorEndpoint) else {
             throw MCPError.connectionFailed("Invalid endpoint URL")
         }
-        let host = endpointURL.host ?? operatorEndpoint
-        let token = try await resolvePatronToken(
-            patronNpub: patronNpub,
-            operatorHost: host,
-            endpointURL: endpointURL
-        )
 
         var settled = 0, expired = 0, stillPending = 0, creditsGained = 0
 
@@ -358,12 +327,6 @@ final class PatronAccountViewModel {
         endpointURL: URL
     ) async -> BalanceState {
         do {
-            let host = endpointURL.host ?? operatorNpub
-            let token = try await resolvePatronToken(
-                patronNpub: patronNpub,
-                operatorHost: host,
-                endpointURL: endpointURL
-            )
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,
                 patronNpub: patronNpub
@@ -374,36 +337,4 @@ final class PatronAccountViewModel {
         }
     }
 
-    /// Resolve a valid access token for a patron on a specific operator.
-    /// 3-tier cascade: cached bundle -> refresh -> full OAuth.
-    private func resolvePatronToken(
-        patronNpub: String,
-        operatorHost: String,
-        endpointURL: URL
-    ) async throws -> String {
-        // 1. Check for cached bundle
-        if let bundle = KeychainService.loadTokenBundle(forPatron: patronNpub, operator: operatorHost) {
-            if !bundle.isExpired {
-                return bundle.accessToken
-            }
-
-            // 2. Try refresh
-            if bundle.refreshToken != nil {
-                do {
-                    let refreshed = try await oauthService.refresh(bundle: bundle)
-                    try KeychainService.saveTokenBundle(refreshed, forPatron: patronNpub, operator: operatorHost)
-                    return refreshed.accessToken
-                } catch {
-                    TrafficLogger.shared.log(.error, label: "Patron Token Refresh Failed", detail: "\(operatorHost): \(error.localizedDescription)")
-                }
-            }
-
-            KeychainService.deleteTokenBundle(forPatron: patronNpub, operator: operatorHost)
-        }
-
-        // 3. Full OAuth dance
-        let bundle = try await oauthService.authenticate(mcpEndpoint: endpointURL)
-        try KeychainService.saveTokenBundle(bundle, forPatron: patronNpub, operator: operatorHost)
-        return bundle.accessToken
-    }
 }

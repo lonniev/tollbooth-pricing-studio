@@ -491,16 +491,10 @@ struct ClaimAuthoritySheet: View {
               let endpointStr = authority.mcpEndpointURL,
               let endpointURL = URL(string: endpointStr) else { return }
 
-        do {
-            let host = endpointURL.host ?? authority.npub
-            let token = try await resolveToken(for: endpointURL, host: host)
-            await viewModel.confirmAndCheckApproval(
-                authorityEndpoint: endpointURL,
-                candidateNpub: candidateNpub
-            )
-        } catch {
-            viewModel.claimStatus = .failed("Verification failed: \(error.localizedDescription)")
-        }
+        await viewModel.confirmAndCheckApproval(
+            authorityEndpoint: endpointURL,
+            candidateNpub: candidateNpub
+        )
     }
 
     private func deriveNpub(_ value: String) {
@@ -544,8 +538,6 @@ struct ClaimAuthoritySheet: View {
 
         Task {
             do {
-                let host = endpointURL.host ?? authority.npub
-                let token = try await resolveToken(for: endpointURL, host: host)
                 // Establish DPYC session before claim — server requires npub in _dpyc_sessions
                 let mcpService = MCPService()
                 _ = try await mcpService.callRegisterOperator(
@@ -566,31 +558,9 @@ struct ClaimAuthoritySheet: View {
                     chatVM.switchIdentity(to: identity)
                 }
             } catch {
-                viewModel.claimStatus = .failed("OAuth authentication failed: \(error.localizedDescription)")
+                viewModel.claimStatus = .failed("Session registration failed: \(error.localizedDescription)")
             }
         }
     }
 
-    private func resolveToken(for endpoint: URL, host: String) async throws -> String {
-        let oauthService = OAuthService()
-
-        if let bundle = KeychainService.loadTokenBundle(forOperator: host) {
-            if !bundle.isExpired {
-                return bundle.accessToken
-            }
-            if bundle.refreshToken != nil {
-                do {
-                    let refreshed = try await oauthService.refresh(bundle: bundle)
-                    try KeychainService.saveTokenBundle(refreshed, forOperator: host)
-                    return refreshed.accessToken
-                } catch { }
-            }
-            KeychainService.deleteTokenBundle(forOperator: host)
-        }
-
-        viewModel.claimStatus = .connecting
-        let bundle = try await oauthService.authenticate(mcpEndpoint: endpoint)
-        try KeychainService.saveTokenBundle(bundle, forOperator: host)
-        return bundle.accessToken
-    }
 }

@@ -791,18 +791,6 @@ struct PricingConsultantView: View {
         do {
             let oracleURL = try await MCPService().resolveOracleURL(forOperator: operatorNpub)
 
-            // Get a token for the Oracle
-            let host = oracleURL.host ?? "dpyc-oracle"
-            let token: String
-            if let bundle = KeychainService.loadTokenBundle(forPatron: operatorNpub, operator: host),
-               !bundle.isExpired {
-                token = bundle.accessToken
-            } else {
-                let bundle = try await OAuthService().authenticate(mcpEndpoint: oracleURL)
-                try? KeychainService.saveTokenBundle(bundle, forPatron: operatorNpub, operator: host)
-                token = bundle.accessToken
-            }
-
             let result = try await MCPService().callPublishCampaign(
                 oracleURL: oracleURL,
                 authorNpub: operatorNpub,
