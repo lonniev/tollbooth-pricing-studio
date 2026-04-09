@@ -325,7 +325,6 @@ final class TestCallViewModel {
         state = .executing
 
         do {
-            let npub = selectedPatronNpub ?? op.npub
             var args = buildArguments()
 
             // If the tool requires patron_proof (from pipeline), sign it

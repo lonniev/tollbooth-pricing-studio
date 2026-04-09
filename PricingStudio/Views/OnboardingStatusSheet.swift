@@ -189,14 +189,11 @@ struct OnboardingStatusSheet: View {
     private func reregister() async {
         guard let endpoint = operator_.mcpEndpointURL,
               let endpointURL = URL(string: endpoint) else { return }
-        do {
-            // Call service_status to trigger bootstrap as a side effect
-            _ = try? await MCPService().callServiceStatus(
-                endpointURL: endpointURL
-            )
-        } catch {
-            self.error = error.localizedDescription
-        }
+
+        // Call service_status to trigger bootstrap as a side effect
+        _ = try? await MCPService().callServiceStatus(
+            endpointURL: endpointURL
+        )
 
         // Refresh onboarding status
         await loadStatus()

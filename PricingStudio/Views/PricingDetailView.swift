@@ -512,7 +512,7 @@ struct PricingDetailView: View {
                         reconciliationVM = ReconciliationViewModel()
                         showingReconciliation = true
                         Task {
-                            if let (url, token) = try? await viewModel.resolveEndpointAndToken(for: target),
+                            if let url = try? await viewModel.resolveEndpoint(for: target),
                                let model = viewModel.pricingModel {
                                 reconciliationVM.detectMismatch(
                                     endpointURL: url,
@@ -877,7 +877,7 @@ struct PricingDetailView: View {
             guard let endpoint = target.mcpEndpointURL,
                   let endpointURL = URL(string: endpoint) else { return }
             do {
-                let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
+                _ = try await viewModel.resolveEndpoint(for: target)
                 let proof = try OperatorProofService.createProof(
                     toolName: "reset_pricing_model",
                     operatorNpub: target.npub
@@ -904,7 +904,7 @@ struct PricingDetailView: View {
         defer { onboardingLoading = false }
 
         do {
-            let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
+            _ = try await viewModel.resolveEndpoint(for: target)
             onboardingStatus = try await MCPService().callGetOnboardingStatus(
                 endpointURL: endpointURL
             )
@@ -924,7 +924,7 @@ struct PricingDetailView: View {
         defer { onboardingLoading = false }
 
         do {
-            let (_, token) = try await viewModel.resolveEndpointAndToken(for: target)
+            _ = try await viewModel.resolveEndpoint(for: target)
             _ = try? await MCPService().callServiceStatus(
                 endpointURL: endpointURL
             )

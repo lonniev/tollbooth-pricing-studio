@@ -48,41 +48,35 @@ final class AuthorityBalanceViewModel {
         isReconciling = true
         reconcileResult = nil
 
-        do {
-            var settled = 0, expired = 0, stillPending = 0, creditsGained = 0
+        var settled = 0, expired = 0, stillPending = 0, creditsGained = 0
 
-            for invoiceId in pendingIds {
-                do {
-                    let result = try await mcpService.callCheckPayment(
-                        endpointURL: endpointURL,
-                        invoiceId: invoiceId,
-                        npub: authority.npub
-                    )
-                    switch result.status {
-                    case "Settled":
-                        settled += 1
-                        creditsGained += result.creditsGranted
-                    case "Expired", "Invalid":
-                        expired += 1
-                    default:
-                        stillPending += 1
-                    }
-                } catch {
+        for invoiceId in pendingIds {
+            do {
+                let result = try await mcpService.callCheckPayment(
+                    endpointURL: endpointURL,
+                    invoiceId: invoiceId,
+                    npub: authority.npub
+                )
+                switch result.status {
+                case "Settled":
+                    settled += 1
+                    creditsGained += result.creditsGranted
+                case "Expired", "Invalid":
+                    expired += 1
+                default:
                     stillPending += 1
                 }
+            } catch {
+                stillPending += 1
             }
-
-            reconcileResult = PatronAccountViewModel.ReconcileResult(
-                settled: settled,
-                expired: expired,
-                stillPending: stillPending,
-                creditsGained: creditsGained
-            )
-        } catch {
-            reconcileResult = PatronAccountViewModel.ReconcileResult(
-                settled: 0, expired: 0, stillPending: pendingIds.count, creditsGained: 0
-            )
         }
+
+        reconcileResult = PatronAccountViewModel.ReconcileResult(
+            settled: settled,
+            expired: expired,
+            stillPending: stillPending,
+            creditsGained: creditsGained
+        )
 
         isReconciling = false
         await loadBalance(for: authority)

@@ -330,7 +330,7 @@ final class PricingViewModel {
         if target is Operator, let endpoint = target.mcpEndpointURL, let url = URL(string: endpoint) {
             state = .loading(step: "Checking configuration...")
             do {
-                let (_, token) = try await resolveEndpointAndToken(for: target)
+                _ = try await resolveEndpoint(for: target)
                 let status = try await mcpService.callGetOnboardingStatus(
                     endpointURL: url
                 )
@@ -373,8 +373,8 @@ final class PricingViewModel {
     private func fetchPricingSteps(for target: any PricingTarget) async throws {
         try Task.checkCancellation()
 
-        // Step 1: Resolve Oracle URL
-        let oracleURL = try await mcpService.resolveOracleURL(forOperator: target.npub)
+        // Step 1: Resolve Oracle URL (validates operator is discoverable)
+        _ = try await mcpService.resolveOracleURL(forOperator: target.npub)
 
         try Task.checkCancellation()
         state = .loading(step: MCPService.ConnectionStep.authenticating.rawValue)
@@ -600,12 +600,12 @@ final class PricingViewModel {
 
     /// Resolve the MCP endpoint URL for the current target.
     /// Auth is handled by the SDK's transport authorizer — no token needed.
-    func resolveEndpointAndToken(for target: any PricingTarget) async throws -> (URL, String) {
+    func resolveEndpoint(for target: any PricingTarget) async throws -> URL {
         guard let endpointString = target.mcpEndpointURL,
               let endpointURL = URL(string: endpointString) else {
             throw MCPError.connectionFailed("No MCP endpoint found for this entity")
         }
-        return (endpointURL, "")
+        return endpointURL
     }
 
     #if DEBUG

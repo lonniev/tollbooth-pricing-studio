@@ -161,7 +161,7 @@ struct OperatorStatsSheet: View {
     private func loadStats() async {
         let mcpService = MCPService()
         do {
-            let oracleURL = try await mcpService.resolveOracleURL(
+            _ = try await mcpService.resolveOracleURL(
                 forOperator: operator_.npub
             )
 
