@@ -148,7 +148,7 @@ final class ReconciliationViewModel {
 
     private func buildUserMessage(storedModel: PricingModelResponse, mismatch: MCPService.ToolMismatch) -> String {
         let existingTools = (storedModel.tools ?? []).map { tool in
-            "  {\"tool_name\": \"\(tool.toolName)\", \"price_sats\": \(tool.priceSats), \"category\": \"\(tool.category)\", \"intent\": \"\(tool.intent)\"}"
+            "  {\"tool_id\": \"\(tool.toolId)\", \"tool_name\": \"\(tool.toolName)\", \"price_sats\": \(tool.priceSats), \"category\": \"\(tool.category)\", \"intent\": \"\(tool.intent)\"}"
         }.joined(separator: ",\n")
 
         let newToolsList = mismatch.newTools.map { tool in

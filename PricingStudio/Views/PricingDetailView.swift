@@ -151,7 +151,7 @@ struct PricingDetailView: View {
                     viewModel: reconciliationVM,
                     storedModel: model,
                     onApply: { suggested, mismatch in
-                        viewModel.applyReconciliation(suggestedTools: suggested, mismatch: mismatch)
+                        viewModel.applyReconciliation(suggestedTools: suggested, mismatch: mismatch, storedModel: model)
                     }
                 )
             }

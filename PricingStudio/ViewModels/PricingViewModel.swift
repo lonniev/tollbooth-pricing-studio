@@ -558,10 +558,19 @@ final class PricingViewModel {
         mergeEdits(into: model)
     }
 
-    /// Stage reconciliation results: new/changed tools into localEdits, stale tools into localRemovals.
-    func applyReconciliation(suggestedTools: [ToolPrice], mismatch: MCPService.ToolMismatch) {
+    /// Stage reconciliation results: only genuinely new or changed tools into localEdits, stale tools into localRemovals.
+    func applyReconciliation(suggestedTools: [ToolPrice], mismatch: MCPService.ToolMismatch, storedModel: PricingModelResponse) {
+        let storedById = Dictionary((storedModel.tools ?? []).map { ($0.toolId, $0) }, uniquingKeysWith: { _, b in b })
         for tool in suggestedTools {
-            localEdits[tool.toolId] = tool
+            if let existing = storedById[tool.toolId] {
+                // Only stage if something actually changed
+                if existing.priceSats != tool.priceSats || existing.category != tool.category || existing.priced != tool.priced {
+                    localEdits[tool.toolId] = tool
+                }
+            } else {
+                // Genuinely new tool
+                localEdits[tool.toolId] = tool
+            }
         }
         for stale in mismatch.staleTools {
             localRemovals.insert(stale.toolId)
