@@ -5,11 +5,14 @@ struct ReconciliationSheet: View {
     let storedModel: PricingModelResponse
     var onApply: (([ToolPrice], MCPService.ToolMismatch) -> Void)?
     @Environment(\.dismiss) private var dismiss
+    @State private var applied = false
 
     var body: some View {
         NavigationStack {
             Group {
-                if viewModel.isDetecting {
+                if applied {
+                    appliedPhase
+                } else if viewModel.isDetecting {
                     detectingPhase
                 } else if viewModel.isReconciling {
                     processingPhase
@@ -27,7 +30,7 @@ struct ReconciliationSheet: View {
             }
             .navigationTitle("Reconcile Tools")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
@@ -216,7 +219,7 @@ struct ReconciliationSheet: View {
 
                     Button {
                         onApply?(suggested, mismatch)
-                        dismiss()
+                        applied = true
                     } label: {
                         Label("Apply as Edits", systemImage: "checkmark.circle")
                             .frame(maxWidth: .infinity)
@@ -228,7 +231,21 @@ struct ReconciliationSheet: View {
         }
     }
 
-    // MARK: - All Good
+    // MARK: - Applied (post-save confirmation)
+
+    private var appliedPhase: some View {
+        ContentUnavailableView {
+            Label("Pricing Model Updated", systemImage: "checkmark.seal.fill")
+                .foregroundStyle(.green)
+        } description: {
+            Text("Pricing model is now aligned with the latest code and conventions.")
+        } actions: {
+            Button("Done") { dismiss() }
+                .buttonStyle(.borderedProminent)
+        }
+    }
+
+    // MARK: - All Good (no mismatch detected)
 
     private func successPhase(_ message: String) -> some View {
         ContentUnavailableView {
@@ -249,6 +266,7 @@ struct ReconciliationSheet: View {
             Label("Reconciliation Issue", systemImage: "exclamationmark.triangle")
         } description: {
             Text(message)
+                .font(.caption)
         } actions: {
             Button("Dismiss") { dismiss() }
                 .buttonStyle(.bordered)
@@ -258,23 +276,20 @@ struct ReconciliationSheet: View {
     // MARK: - Helpers
 
     private var providerBadge: some View {
-        Text(viewModel.providerName)
-            .font(.caption.bold())
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.purple.opacity(0.15), in: Capsule())
-            .foregroundStyle(.purple)
+        Label(viewModel.providerName, systemImage: "brain")
+            .font(.caption)
+            .foregroundStyle(.blue)
     }
 
     private func categoryDisplayName(_ category: String) -> String {
         switch category {
         case "free": return "Free"
-        case "auth": return "Auth & Balance"
-        case "read": return "Read (1 sat)"
-        case "write": return "Write (5 sats)"
-        case "heavy": return "Heavy (10 sats)"
-        case "restricted": return "Restricted (Operator Only)"
-        default: return category.capitalized
+        case "auth": return "Authentication"
+        case "read": return "Read"
+        case "write": return "Write"
+        case "heavy": return "Heavy"
+        case "restricted": return "Restricted"
+        default: return category
         }
     }
 }
