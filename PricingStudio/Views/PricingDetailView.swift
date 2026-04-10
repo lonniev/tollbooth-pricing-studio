@@ -446,7 +446,7 @@ struct PricingDetailView: View {
 
     @ViewBuilder
     private func modelHeader(name: String, isActive: Bool, member: MemberRecord?, source: PricingSource) -> some View {
-        HStack {
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(name)
@@ -475,11 +475,11 @@ struct PricingDetailView: View {
                             .monospacedDigit()
                     }
                 }
-                if let versions = viewModel.serviceVersions {
-                    ServiceVersionsRow(versions: versions)
-                }
             }
             Spacer()
+            if let versions = viewModel.serviceVersions {
+                ServiceVersionsRow(versions: versions)
+            }
             if source == .stored {
                 if isEditingPipeline {
                     Button("Done Editing") {
