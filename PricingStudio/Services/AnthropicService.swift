@@ -104,17 +104,33 @@ final class AnthropicService: @unchecked Sendable {
         messages: [[String: String]],
         systemPrompt: String,
         apiKey: String,
-        maxTokens: Int = 2048
+        maxTokens: Int = 2048,
+        includeTools: Bool = true
     ) -> AsyncStream<String> {
         AsyncStream { continuation in
             Task {
-                await self.streamWithToolUse(
-                    messages: messages,
-                    systemPrompt: systemPrompt,
-                    apiKey: apiKey,
-                    maxTokens: maxTokens,
-                    continuation: continuation
-                )
+                if includeTools {
+                    await self.streamWithToolUse(
+                        messages: messages,
+                        systemPrompt: systemPrompt,
+                        apiKey: apiKey,
+                        maxTokens: maxTokens,
+                        continuation: continuation
+                    )
+                } else {
+                    let apiMessages = messages.map { msg in
+                        ["role": msg["role"] ?? "user", "content": msg["content"] ?? ""] as [String: Any]
+                    }
+                    _ = await self.sendRequest(
+                        messages: apiMessages,
+                        systemPrompt: systemPrompt,
+                        apiKey: apiKey,
+                        maxTokens: maxTokens,
+                        includeTools: false,
+                        continuation: continuation
+                    )
+                    continuation.finish()
+                }
             }
         }
     }

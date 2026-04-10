@@ -21,7 +21,8 @@ struct AnthropicProvider: LLMProvider, Sendable {
                     messages: messages,
                     systemPrompt: systemPrompt,
                     apiKey: apiKey,
-                    maxTokens: maxTokens
+                    maxTokens: maxTokens,
+                    includeTools: false
                 )
                 for await token in stream {
                     continuation.yield(token)
