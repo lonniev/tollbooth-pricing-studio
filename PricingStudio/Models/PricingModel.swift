@@ -24,8 +24,9 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     var minCost: Int = 0
     var maxCost: Int? = nil
 
-    init(toolId: String = "", toolName: String, priceSats: Int, priced: Bool = true, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil) {
-        self.toolId = toolId.isEmpty ? toolName : toolId
+    init(toolId: String, toolName: String, priceSats: Int, priced: Bool = true, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil) {
+        precondition(!toolId.isEmpty, "toolId is required for tool '\(toolName)'. Reset the pricing model.")
+        self.toolId = toolId
         self.toolName = toolName
         self.priceSats = priceSats
         self.priced = priced
@@ -52,7 +53,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         toolName = try container.decode(String.self, forKey: .toolName)
-        toolId = try container.decodeIfPresent(String.self, forKey: .toolId) ?? toolName
+        toolId = try container.decode(String.self, forKey: .toolId)
         priceSats = try container.decode(Int.self, forKey: .priceSats)
         priced = try container.decodeIfPresent(Bool.self, forKey: .priced) ?? true  // legacy = priced
         priceType = try container.decodeIfPresent(PriceType.self, forKey: .priceType) ?? .flat

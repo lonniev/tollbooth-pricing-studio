@@ -98,8 +98,8 @@ final class PricingViewModel {
         if let toolDicts = obj["tools"] as? [[String: Any]] {
             for toolDict in toolDicts {
                 guard let name = toolDict["tool_name"] as? String,
-                      let price = toolDict["price_sats"] as? Int else { continue }
-                let toolId = toolDict["tool_id"] as? String ?? name
+                      let price = toolDict["price_sats"] as? Int,
+                      let toolId = toolDict["tool_id"] as? String else { continue }
                 let category = toolDict["category"] as? String ?? "general"
                 let intent = toolDict["intent"] as? String ?? ""
                 let tool = ToolPrice(
