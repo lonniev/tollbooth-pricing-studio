@@ -1098,29 +1098,27 @@ struct ServiceVersionsRow: View {
     let versions: [String: String]
     @State private var expanded = false
 
-    /// Display order: show the MCP package first, then tollbooth_dpyc, then others.
-    private var sortedVersions: [(key: String, value: String)] {
-        let priority = ["excalibur_mcp", "tollbooth_authority", "tollbooth_dpyc", "fastmcp"]
-        return versions.sorted { a, b in
-            let ai = priority.firstIndex(of: a.key) ?? priority.count
-            let bi = priority.firstIndex(of: b.key) ?? priority.count
-            return ai < bi
-        }
+    /// The collapsed one-liner: slug + service version (e.g. "taxsort v0.22.0").
+    private var primaryLabel: String? {
+        guard let slug = versions["slug"], let version = versions["service"] else { return nil }
+        return "\(slug) v\(version)"
     }
 
-    /// Short label for the primary package version.
-    private var primaryVersion: (name: String, version: String)? {
-        let preferred = ["excalibur_mcp", "tollbooth_authority"]
-        for key in preferred {
-            if let v = versions[key] {
-                return (key, v)
+    /// Detail rows exclude slug and service (already shown in the primary label).
+    private var detailVersions: [(key: String, value: String)] {
+        let exclude: Set = ["slug", "service"]
+        let priority = ["tollbooth_dpyc", "git_commit", "repo"]
+        return versions
+            .filter { !exclude.contains($0.key) }
+            .sorted { a, b in
+                let ai = priority.firstIndex(of: a.key) ?? priority.count
+                let bi = priority.firstIndex(of: b.key) ?? priority.count
+                return ai < bi
             }
-        }
-        return sortedVersions.first.map { ($0.key, $0.value) }
     }
 
     var body: some View {
-        if let primary = primaryVersion {
+        if let label = primaryLabel {
             Button {
                 withAnimation { expanded.toggle() }
             } label: {
@@ -1128,7 +1126,7 @@ struct ServiceVersionsRow: View {
                     Image(systemName: "shippingbox")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text("\(formatName(primary.name)) \(primary.version)")
+                    Text(label)
                         .font(.caption)
                         .monospaced()
                         .foregroundStyle(.secondary)
@@ -1141,7 +1139,7 @@ struct ServiceVersionsRow: View {
 
             if expanded {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(sortedVersions, id: \.key) { entry in
+                    ForEach(detailVersions, id: \.key) { entry in
                         HStack(spacing: 6) {
                             Text(formatName(entry.key))
                                 .frame(width: 120, alignment: .trailing)
