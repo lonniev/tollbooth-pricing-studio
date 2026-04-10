@@ -13,14 +13,14 @@ struct ReconciliationSheet: View {
                     detectingPhase
                 } else if viewModel.isReconciling {
                     processingPhase
+                } else if let error = viewModel.error {
+                    errorPhase(error)
                 } else if let suggested = viewModel.suggestedTools, let mismatch = viewModel.mismatch {
                     reviewPhase(suggested: suggested, mismatch: mismatch)
                 } else if let mismatch = viewModel.mismatch, mismatch.hasMismatch {
                     diagnosticPhase(mismatch: mismatch)
                 } else if let msg = viewModel.noMismatchMessage {
                     successPhase(msg)
-                } else if let error = viewModel.error {
-                    errorPhase(error)
                 } else {
                     ProgressView("Preparing...")
                 }
