@@ -392,8 +392,13 @@ struct ContentView: View {
 
         VStack(spacing: 0) {
             HStack {
-                Text(op.displayName)
-                    .font(.headline)
+                if let endpoint = op.mcpEndpointURL {
+                    Text(endpoint)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
                 Spacer()
                 if let versions = pricingVM.serviceVersions {
                     ServiceVersionsRow(versions: versions)
