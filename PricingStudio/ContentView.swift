@@ -391,6 +391,17 @@ struct ContentView: View {
         let hasAuthority = op.authorityNpub != nil
 
         VStack(spacing: 0) {
+            HStack {
+                Text(op.displayName)
+                    .font(.headline)
+                Spacer()
+                if let versions = pricingVM.serviceVersions {
+                    ServiceVersionsRow(versions: versions)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
             Picker("View", selection: $detailTab) {
                 if hasAuthority {
                     Text("Authority").tag(ChatContainerTab.authority)

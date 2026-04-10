@@ -477,9 +477,6 @@ struct PricingDetailView: View {
                 }
             }
             Spacer()
-            if let versions = viewModel.serviceVersions {
-                ServiceVersionsRow(versions: versions)
-            }
             if source == .stored {
                 if isEditingPipeline {
                     Button("Done Editing") {
@@ -1097,7 +1094,7 @@ private struct MemberInfoButton: View {
 
 // MARK: - Service Versions Row
 
-private struct ServiceVersionsRow: View {
+struct ServiceVersionsRow: View {
     let versions: [String: String]
     @State private var expanded = false
 
