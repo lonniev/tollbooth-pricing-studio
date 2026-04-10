@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum PriceType: String, Codable, Sendable, CaseIterable {
@@ -12,6 +13,21 @@ enum PricingSource: String, Codable, Sendable {
 }
 
 struct ToolPrice: Codable, Identifiable, Sendable {
+    /// DPYC namespace for UUID v5 generation — must match tollbooth-dpyc's DPYC_NAMESPACE.
+    private static let dpycNamespace = UUID(uuidString: "d9a3f1c7-4e2b-4a8f-b6d5-1c3e7f9a2b4d")!
+
+    /// Generate a deterministic UUID v5 (SHA-1) from a capability name, matching Python's capability_uuid().
+    static func capabilityUUID(_ capability: String) -> String {
+        let ns = withUnsafeBytes(of: dpycNamespace.uuid) { Data($0) }
+        let hash = Insecure.SHA1.hash(data: ns + Data(capability.utf8))
+        var b = Array(hash.prefix(16))
+        b[6] = (b[6] & 0x0F) | 0x50  // version 5
+        b[8] = (b[8] & 0x3F) | 0x80  // variant RFC 4122
+        return String(format: "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+                      b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+                      b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15])
+    }
+
     var id: String { toolId }
     let toolId: String
     let toolName: String

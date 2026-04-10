@@ -439,6 +439,7 @@ final class PricingViewModel {
             for tool in liveTools {
                 if !knownNames.contains(tool.name) {
                     allTools.append(ToolPrice(
+                        toolId: ToolPrice.capabilityUUID(tool.name),
                         toolName: tool.name,
                         priceSats: 0,
                         category: "free",

@@ -1378,6 +1378,7 @@ actor MCPService {
         let toolPrices = allTools.map { tool -> ToolPrice in
             let (category, price) = inferCategoryAndPrice(for: tool)
             return ToolPrice(
+                toolId: ToolPrice.capabilityUUID(tool.name),
                 toolName: tool.name,
                 priceSats: price,
                 category: category,

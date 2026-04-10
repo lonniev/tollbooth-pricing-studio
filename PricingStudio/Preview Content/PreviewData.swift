@@ -22,18 +22,18 @@ enum PreviewData {
 
     static let sampleToolPrices: [ToolPrice] = [
         // Read tier (1 sat)
-        ToolPrice(toolName: "weather_current", priceSats: 1, category: "read", intent: "Current conditions"),
-        ToolPrice(toolName: "weather_forecast", priceSats: 1, category: "read", intent: "Multi-day forecast"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_current"), toolName: "weather_current", priceSats: 1, category: "read", intent: "Current conditions"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_forecast"), toolName: "weather_forecast", priceSats: 1, category: "read", intent: "Multi-day forecast"),
         // Write tier (5 sats)
-        ToolPrice(toolName: "weather_subscribe", priceSats: 5, category: "write", intent: "Subscribe to alerts"),
-        ToolPrice(toolName: "weather_set_location", priceSats: 5, category: "write", intent: "Set default location"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_subscribe"), toolName: "weather_subscribe", priceSats: 5, category: "write", intent: "Subscribe to alerts"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_set_location"), toolName: "weather_set_location", priceSats: 5, category: "write", intent: "Set default location"),
         // Heavy tier (10 sats)
-        ToolPrice(toolName: "weather_historical", priceSats: 10, category: "heavy", intent: "Historical archive query"),
-        ToolPrice(toolName: "weather_bulk_export", priceSats: 10, category: "heavy", intent: "Bulk CSV export"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_historical"), toolName: "weather_historical", priceSats: 10, category: "heavy", intent: "Historical archive query"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_bulk_export"), toolName: "weather_bulk_export", priceSats: 10, category: "heavy", intent: "Bulk CSV export"),
         // Free tools
-        ToolPrice(toolName: "weather_check_balance", priceSats: 0, category: "auth", intent: "Check credit balance"),
-        ToolPrice(toolName: "weather_service_status", priceSats: 0, category: "free", intent: "Health check"),
-        ToolPrice(toolName: "weather_how_to_join", priceSats: 0, category: "free", intent: "DPYC onboarding guide"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_check_balance"), toolName: "weather_check_balance", priceSats: 0, category: "auth", intent: "Check credit balance"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_service_status"), toolName: "weather_service_status", priceSats: 0, category: "free", intent: "Health check"),
+        ToolPrice(toolId: ToolPrice.capabilityUUID("weather_how_to_join"), toolName: "weather_how_to_join", priceSats: 0, category: "free", intent: "DPYC onboarding guide"),
     ]
 
     static let samplePipelineSteps: [PipelineStep] = [

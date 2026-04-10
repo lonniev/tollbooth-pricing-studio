@@ -141,6 +141,7 @@ final class TestCallViewModel {
                         description = tool.description ?? ""
                     }
                     availableTools.append(ToolPrice(
+                        toolId: ToolPrice.capabilityUUID(tool.name),
                         toolName: tool.name,
                         priceSats: 0,
                         category: "free",

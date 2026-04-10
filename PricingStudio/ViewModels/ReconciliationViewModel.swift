@@ -129,6 +129,7 @@ final class ReconciliationViewModel {
                 priceType = .flat
             }
             tools.append(ToolPrice(
+                toolId: dict["tool_id"] as? String ?? ToolPrice.capabilityUUID(name),
                 toolName: name,
                 priceSats: price,
                 priceType: priceType,
