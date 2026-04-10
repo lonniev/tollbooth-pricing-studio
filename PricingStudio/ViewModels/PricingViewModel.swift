@@ -432,20 +432,32 @@ final class PricingViewModel {
                 endpointURL: endpointURL
             )
             // Merge live MCP tools not already in the pricing model.
-            // With UUID-based identity, the pricing model is authoritative.
-            // Any MCP tool not in the model gets a placeholder entry for display.
-            let knownNames = Set((model.tools ?? []).map(\.toolName))
-            var allTools = model.tools ?? []
+            // Match by both UUID and name to avoid duplicates when the
+            // stored model uses bare capability names and the live MCP
+            // uses slug-prefixed names (e.g. "import_csv" vs "taxsort_import_csv").
+            let storedTools = model.tools ?? []
+            let knownIds = Set(storedTools.map(\.toolId))
+            let knownNames = Set(storedTools.map(\.toolName))
+            var allTools = storedTools
             for tool in liveTools {
-                if !knownNames.contains(tool.name) {
-                    allTools.append(ToolPrice(
-                        toolId: ToolPrice.capabilityUUID(tool.name),
-                        toolName: tool.name,
-                        priceSats: 0,
-                        category: "free",
-                        intent: tool.description ?? ""
-                    ))
+                let liveId = ToolPrice.capabilityUUID(tool.name)
+                if knownIds.contains(liveId) || knownNames.contains(tool.name) {
+                    continue
                 }
+                // Also check if a stored tool's name is a suffix of the live name
+                // (bare "import_csv" matches live "taxsort_import_csv")
+                let isSuffixMatch = knownNames.contains(where: {
+                    tool.name.hasSuffix("_\($0)") || $0.hasSuffix("_\(tool.name)")
+                })
+                if isSuffixMatch { continue }
+
+                allTools.append(ToolPrice(
+                    toolId: liveId,
+                    toolName: tool.name,
+                    priceSats: 0,
+                    category: "free",
+                    intent: tool.description ?? ""
+                ))
             }
             enrichedModel = PricingModelResponse(
                 status: model.status,

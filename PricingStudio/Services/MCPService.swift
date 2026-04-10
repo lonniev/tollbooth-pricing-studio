@@ -1461,13 +1461,32 @@ actor MCPService {
         try await client.connect(transport: transport)
 
         let liveTools = try await listAllTools(client: client)
-        let liveNames = Set(liveTools.map(\.name))
         let storedTools = storedModel.tools ?? []
-        let storedNames = Set(storedTools.map(\.toolName))
 
-        let newTools = liveTools.filter { !storedNames.contains($0.name) }
-        let staleTools = storedTools.filter { !liveNames.contains($0.toolName) }
-        let matchedTools = storedTools.filter { liveNames.contains($0.toolName) }
+        // Build lookup sets by both UUID and name for robust matching
+        // across bare capability names ("import_csv") vs slug-prefixed
+        // MCP names ("taxsort_import_csv").
+        let storedIds = Set(storedTools.map(\.toolId))
+        let storedNames = Set(storedTools.map(\.toolName))
+        let liveNames = Set(liveTools.map(\.name))
+
+        func liveToolMatchesStored(_ liveName: String) -> Bool {
+            if storedNames.contains(liveName) { return true }
+            let liveId = ToolPrice.capabilityUUID(liveName)
+            if storedIds.contains(liveId) { return true }
+            // Suffix match: bare "import_csv" ↔ "taxsort_import_csv"
+            return storedNames.contains { liveName.hasSuffix("_\($0)") || $0.hasSuffix("_\(liveName)") }
+        }
+
+        func storedToolMatchesLive(_ stored: ToolPrice) -> Bool {
+            if liveNames.contains(stored.toolName) { return true }
+            // Suffix match
+            return liveNames.contains { $0.hasSuffix("_\(stored.toolName)") || stored.toolName.hasSuffix("_\($0)") }
+        }
+
+        let newTools = liveTools.filter { !liveToolMatchesStored($0.name) }
+        let staleTools = storedTools.filter { !storedToolMatchesLive($0) }
+        let matchedTools = storedTools.filter { storedToolMatchesLive($0) }
 
         await traffic(.inbound, label: "Mismatch Detection",
                        detail: "Live: \(liveTools.count), Stored: \(storedTools.count), New: \(newTools.count), Stale: \(staleTools.count)")
