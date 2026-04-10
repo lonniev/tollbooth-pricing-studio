@@ -817,6 +817,9 @@ actor MCPService {
 
         // Build versions dict from top-level fields + build_info
         var versions: [String: String] = [:]
+        if let s = json["slug"] as? String {
+            versions["slug"] = s
+        }
         if let v = json["version"] as? String, v != "unknown" {
             versions["service"] = v
         }
@@ -1450,7 +1453,8 @@ actor MCPService {
     /// Connect to the live MCP endpoint, list tools, and compare against the stored pricing model.
     func detectToolMismatch(
         endpointURL: URL,
-        storedModel: PricingModelResponse
+        storedModel: PricingModelResponse,
+        operatorSlug: String? = nil
     ) async throws -> ToolMismatch {
         await traffic(.outbound, label: "Mismatch Detection", detail: "SSE → \(endpointURL.absoluteString)")
 
@@ -1460,7 +1464,17 @@ actor MCPService {
 
         try await client.connect(transport: transport)
 
-        let liveTools = try await listAllTools(client: client)
+        // Only consider tools in the operator's namespace as pricing candidates.
+        // Tools in other namespaces (e.g. oracle_) are free delegation tools
+        // that never appear in the pricing model.
+        let allLiveTools = try await listAllTools(client: client)
+        let liveTools: [Tool]
+        if let slug = operatorSlug, !slug.isEmpty {
+            let prefix = "\(slug)_"
+            liveTools = allLiveTools.filter { $0.name.hasPrefix(prefix) }
+        } else {
+            liveTools = allLiveTools
+        }
         let storedTools = storedModel.tools ?? []
 
         // Build lookup sets by both UUID and name for robust matching

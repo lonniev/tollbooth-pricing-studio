@@ -516,7 +516,8 @@ struct PricingDetailView: View {
                                let model = viewModel.pricingModel {
                                 reconciliationVM.detectMismatch(
                                     endpointURL: url,
-                                    storedModel: model
+                                    storedModel: model,
+                                    operatorSlug: viewModel.serviceVersions?["slug"]
                                 )
                             }
                         }
