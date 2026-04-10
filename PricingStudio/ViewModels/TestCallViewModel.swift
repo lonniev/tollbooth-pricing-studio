@@ -128,34 +128,8 @@ final class TestCallViewModel {
                 toolSchemas[tool.name] = tool.inputSchema
             }
 
-            // Merge MCP tools not already in the pricing model.
-            // Match by UUID and name to avoid duplicates across bare/prefixed names.
-            let knownIds = Set(availableTools.map(\.toolId))
-            let knownNames = Set(availableTools.map(\.toolName))
-            for tool in mcpTools {
-                let liveId = ToolPrice.capabilityUUID(tool.name)
-                if knownIds.contains(liveId) || knownNames.contains(tool.name) { continue }
-                let isSuffixMatch = knownNames.contains {
-                    tool.name.hasSuffix("_\($0)") || $0.hasSuffix("_\(tool.name)")
-                }
-                if isSuffixMatch { continue }
-
-                let description: String
-                if case .object(let obj) = tool.inputSchema,
-                   let descVal = obj["description"],
-                   case .string(let d) = descVal {
-                    description = d
-                } else {
-                    description = tool.description ?? ""
-                }
-                availableTools.append(ToolPrice(
-                    toolId: liveId,
-                    toolName: tool.name,
-                    priceSats: 0,
-                    category: "free",
-                    intent: description
-                ))
-            }
+            // No fabrication of placeholder entries — only tools in the
+            // pricing model are shown. Reconciliation handles discovery.
 
             state = .toolsLoaded
         } catch {

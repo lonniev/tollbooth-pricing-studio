@@ -119,7 +119,11 @@ final class ReconciliationViewModel {
         var tools: [ToolPrice] = []
         for dict in toolDicts {
             guard let name = dict["tool_name"] as? String,
-                  let price = dict["price_sats"] as? Int else { continue }
+                  let price = dict["price_sats"] as? Int,
+                  let toolId = dict["tool_id"] as? String, !toolId.isEmpty else {
+                logger.warning("Skipping tool without tool_id: \(dict["tool_name"] as? String ?? "?")")
+                continue
+            }
             let category = dict["category"] as? String ?? "read"
             let intent = dict["intent"] as? String ?? ""
             let priceType: PriceType
@@ -129,7 +133,7 @@ final class ReconciliationViewModel {
                 priceType = .flat
             }
             tools.append(ToolPrice(
-                toolId: dict["tool_id"] as? String ?? ToolPrice.capabilityUUID(name),
+                toolId: toolId,
                 toolName: name,
                 priceSats: price,
                 priceType: priceType,
@@ -195,8 +199,9 @@ final class ReconciliationViewModel {
     Infer category from tool name semantics and description. Match the operator's \
     existing pricing philosophy by analyzing their current price distribution.
 
-    Return ONLY a JSON object: {"tools": [{"tool_name": "...", "price_sats": N, \
-    "price_type": "flat", "category": "...", "intent": "..."}]}
+    Return ONLY a JSON object: {"tools": [{"tool_id": "...", "tool_name": "...", \
+    "price_sats": N, "price_type": "flat", "category": "...", "intent": "..."}]}
+    Every tool MUST include its tool_id (UUID from the existing model or new tools list).
     Do NOT include stale tools. Do NOT modify existing tool prices.
     """
 }

@@ -424,54 +424,11 @@ final class PricingViewModel {
 
         try Task.checkCancellation()
 
-        // Merge live MCP tools so ALL tools appear in the pricing view,
-        // not just those with explicit prices in the stored model.
-        let enrichedModel: PricingModelResponse
-        do {
-            let liveTools = try await mcpService.fetchToolList(
-                endpointURL: endpointURL
-            )
-            // Merge live MCP tools not already in the pricing model.
-            // Match by both UUID and name to avoid duplicates when the
-            // stored model uses bare capability names and the live MCP
-            // uses slug-prefixed names (e.g. "import_csv" vs "taxsort_import_csv").
-            let storedTools = model.tools ?? []
-            let knownIds = Set(storedTools.map(\.toolId))
-            let knownNames = Set(storedTools.map(\.toolName))
-            var allTools = storedTools
-            for tool in liveTools {
-                let liveId = ToolPrice.capabilityUUID(tool.name)
-                if knownIds.contains(liveId) || knownNames.contains(tool.name) {
-                    continue
-                }
-                // Also check if a stored tool's name is a suffix of the live name
-                // (bare "import_csv" matches live "taxsort_import_csv")
-                let isSuffixMatch = knownNames.contains(where: {
-                    tool.name.hasSuffix("_\($0)") || $0.hasSuffix("_\(tool.name)")
-                })
-                if isSuffixMatch { continue }
-
-                allTools.append(ToolPrice(
-                    toolId: liveId,
-                    toolName: tool.name,
-                    priceSats: 0,
-                    category: "free",
-                    intent: tool.description ?? ""
-                ))
-            }
-            enrichedModel = PricingModelResponse(
-                status: model.status,
-                modelId: model.modelId,
-                name: model.name,
-                isActive: model.isActive,
-                tools: allTools,
-                pipeline: model.pipeline,
-                source: model.source
-            )
-        } catch {
-            // Live tool fetch failed — fall back to pricing model only
-            enrichedModel = model
-        }
+        // The pricing model from Neon is authoritative. No fabrication
+        // of placeholder entries from live MCP tool listings — if a tool
+        // isn't in the pricing model, it doesn't appear until the operator
+        // adds it via set_pricing_model or reconciliation.
+        let enrichedModel = model
 
         try Task.checkCancellation()
 
