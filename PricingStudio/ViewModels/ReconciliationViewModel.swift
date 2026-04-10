@@ -95,10 +95,14 @@ final class ReconciliationViewModel {
             }
 
             reconciliationText = fullResponse
+            logger.info("Raw LLM response (\(fullResponse.count) chars):\n\(fullResponse.prefix(2000))")
             suggestedTools = parseReconciledTools(from: fullResponse)
 
             if suggestedTools == nil {
-                error = "Could not parse reconciled tools from AI response."
+                // Show the raw response in the error so the user can diagnose
+                let preview = String(fullResponse.prefix(500))
+                error = "Could not parse reconciled tools from AI response.\n\nRaw response:\n\(preview)"
+                logger.error("Parse failed. Full response:\n\(fullResponse)")
             }
 
             isReconciling = false
