@@ -1251,7 +1251,7 @@ struct AccountStatementView: View {
                             operatorNpub: serviceNpub,
                             endpointURL: url,
                             credentialService: "operator",
-                            missingSecrets: ["btcpay_host", "btcpay_api_key", "btcpay_store_id"],
+                            missingSecrets: [],
                             senderNpub: patronNpub
                         ))
                     }
