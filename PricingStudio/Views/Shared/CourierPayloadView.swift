@@ -11,6 +11,7 @@ struct CourierPayloadView: View {
     var onSend: ((String) -> Void)?
 
     @State private var showProvenance = false
+    @State private var sent = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -79,16 +80,17 @@ struct CourierPayloadView: View {
                 Button {
                     let serialized = payload.serialize()
                     onSend(serialized)
+                    sent = true
                 } label: {
                     Label(
-                        payload.isComplete ? "Send Credentials" : "Fill All Fields First",
-                        systemImage: "paperplane.fill"
+                        sent ? "Credentials Sent" : (payload.isComplete ? "Send Credentials" : "Fill All Fields First"),
+                        systemImage: sent ? "checkmark.circle.fill" : "paperplane.fill"
                     )
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(payload.isComplete ? .accentColor : .gray)
-                .disabled(!payload.isComplete)
+                .tint(sent ? .secondary : (payload.isComplete ? .accentColor : .gray))
+                .disabled(sent || !payload.isComplete)
             }
         }
         .padding()
