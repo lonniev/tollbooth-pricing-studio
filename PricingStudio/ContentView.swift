@@ -531,7 +531,10 @@ struct ContentView: View {
                         serviceName: authority.displayName,
                         serviceNpub: authNpub,
                         serviceEndpoint: endpoint,
-                        accountVM: patronAccountVM
+                        accountVM: patronAccountVM,
+                        onRequestCourier: { params in
+                            withAnimation { activeCourier = params }
+                        }
                     )
                 } else {
                     ContentUnavailableView("No Authority", systemImage: "building.columns",

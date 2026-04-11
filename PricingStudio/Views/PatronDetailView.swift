@@ -986,17 +986,25 @@ struct AccountStatementView: View {
     let serviceNpub: String
     let serviceEndpoint: String
     @Bindable var accountVM: PatronAccountViewModel
+    var onRequestCourier: ((CourierParams) -> Void)?
 
     @State private var balanceState: PatronAccountViewModel.BalanceState = .loading
     @State private var showingTopOff = false
     @State private var showingInfographic = false
     @State private var isReconciling = false
     @State private var reconcileResult: PatronAccountViewModel.ReconcileResult?
+    @State private var showingForgetConfirm = false
+    @State private var forgetState: ForgetState = .idle
+
+    private enum ForgetState { case idle, forgetting, done(String), error(String) }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 balanceCard
+                if onRequestCourier != nil {
+                    credentialSection
+                }
             }
             .padding()
         }
@@ -1224,5 +1232,92 @@ struct AccountStatementView: View {
         )
         await loadBalance()
         isReconciling = false
+    }
+
+    // MARK: - Credential Management
+
+    @ViewBuilder
+    private var credentialSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Secure Credentials", systemImage: "key.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Button {
+                    if let url = URL(string: serviceEndpoint) {
+                        onRequestCourier?(CourierParams(
+                            operatorName: serviceName,
+                            operatorNpub: serviceNpub,
+                            endpointURL: url,
+                            credentialService: "operator",
+                            missingSecrets: ["btcpay_host", "btcpay_api_key", "btcpay_store_id"],
+                            senderNpub: patronNpub
+                        ))
+                    }
+                } label: {
+                    Label("Re-deliver", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button(role: .destructive) {
+                    showingForgetConfirm = true
+                } label: {
+                    Label("Forget", systemImage: "trash")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            switch forgetState {
+            case .idle: EmptyView()
+            case .forgetting:
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.mini)
+                    Text("Forgetting credentials\u{2026}").font(.caption2).foregroundStyle(.secondary)
+                }
+            case .done(let msg):
+                Label(msg, systemImage: "checkmark.circle.fill")
+                    .font(.caption2).foregroundStyle(.green)
+            case .error(let msg):
+                Label(msg, systemImage: "xmark.circle.fill")
+                    .font(.caption2).foregroundStyle(.red)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .confirmationDialog(
+            "Forget Credentials",
+            isPresented: $showingForgetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Forget credentials for \(serviceName)", role: .destructive) {
+                Task { await forgetCredentials() }
+            }
+        } message: {
+            Text("This removes the vaulted credentials. You'll need to re-deliver them via Secure Courier to use this service again.")
+        }
+    }
+
+    private func forgetCredentials() async {
+        forgetState = .forgetting
+        guard let url = URL(string: serviceEndpoint) else {
+            forgetState = .error("Invalid endpoint")
+            return
+        }
+        do {
+            _ = try await MCPService().callForgetCredentials(
+                endpointURL: url,
+                service: "operator",
+                npub: patronNpub
+            )
+            forgetState = .done("Credentials forgotten. Re-deliver via Secure Courier.")
+        } catch {
+            forgetState = .error(error.localizedDescription)
+        }
     }
 }
