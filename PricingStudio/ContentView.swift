@@ -378,9 +378,62 @@ struct ContentView: View {
 
     @ViewBuilder
     private func authorityDetail(_ auth: Authority) -> some View {
-        ChatContainerView(identity: ChatIdentity(from: auth), chatVM: chatVM, selectedTab: $detailTab) {
-            AuthorityDetailView(authority: auth, pricingVM: pricingVM, authorityVM: authorityVM) { op in
-                operatorVM.selectedOperator = op
+        let identity = ChatIdentity(from: auth)
+
+        VStack(spacing: 0) {
+            HStack {
+                if let endpoint = auth.mcpEndpointURL {
+                    Text(endpoint)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            Picker("View", selection: $detailTab) {
+                Text("Authority").tag(ChatContainerTab.authority)
+                Text("Pricing").tag(ChatContainerTab.pricing)
+                Text("Invoices").tag(ChatContainerTab.invoices)
+                Text("Messages").tag(ChatContainerTab.messages)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            switch detailTab {
+            case .authority:
+                AuthorityDetailView(authority: auth, pricingVM: pricingVM, authorityVM: authorityVM) { op in
+                    operatorVM.selectedOperator = op
+                }
+            case .pricing:
+                if auth.mcpEndpointURL != nil {
+                    PricingDetailView(target: auth, viewModel: pricingVM)
+                } else {
+                    ContentUnavailableView(
+                        "No MCP Endpoint",
+                        systemImage: "link.badge.plus",
+                        description: Text("This authority's MCP endpoint hasn't been discovered yet.")
+                    )
+                }
+            case .invoices:
+                ContentUnavailableView(
+                    "Invoices",
+                    systemImage: "doc.text",
+                    description: Text("Invoice history for credit purchases will appear here.")
+                )
+            case .messages:
+                if identity.hasNsec {
+                    ChatView(chatVM: chatVM)
+                        .onAppear { chatVM.switchIdentity(to: identity) }
+                } else {
+                    NoNsecView(entityName: identity.displayName)
+                }
+            case .consultant:
+                EmptyView()
             }
         }
     }
@@ -412,6 +465,7 @@ struct ContentView: View {
                     Text("Authority").tag(ChatContainerTab.authority)
                 }
                 Text("Pricing").tag(ChatContainerTab.pricing)
+                Text("Invoices").tag(ChatContainerTab.invoices)
                 Text("Campaign Advisor").tag(ChatContainerTab.consultant)
                 Text("Messages").tag(ChatContainerTab.messages)
             }
@@ -450,7 +504,11 @@ struct ContentView: View {
                     NoNsecView(entityName: identity.displayName)
                 }
             case .invoices:
-                EmptyView()
+                ContentUnavailableView(
+                    "Invoices",
+                    systemImage: "doc.text",
+                    description: Text("Invoice history for Authority credit purchases will appear here.")
+                )
             }
         }
     }

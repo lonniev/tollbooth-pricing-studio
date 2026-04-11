@@ -15,18 +15,18 @@ struct AuthorityDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            authorityHeader
-            Divider()
-            if !isLinked { claimAuthorityButton }
-            if authority.mcpEndpointURL != nil {
+        ScrollView {
+            VStack(spacing: 0) {
+                authorityHeader
                 Divider()
-                authorityBalanceSection
+                if !isLinked { claimAuthorityButton }
+                if authority.mcpEndpointURL != nil {
+                    Divider()
+                    authorityBalanceSection
+                }
+                Divider()
+                connectedOperatorsSection
             }
-            Divider()
-            connectedOperatorsSection
-            Divider()
-            pricingSection
         }
         .navigationTitle(authority.displayName)
         .sheet(isPresented: Binding(
@@ -270,22 +270,7 @@ struct AuthorityDetailView: View {
         )
     }
 
-    // MARK: - Pricing
-
-    @ViewBuilder
-    private var pricingSection: some View {
-        if authority.mcpEndpointURL != nil {
-            PricingDetailView(target: authority, viewModel: pricingVM)
-                .frame(maxHeight: .infinity)
-        } else {
-            ContentUnavailableView(
-                "No MCP Endpoint",
-                systemImage: "link.badge.plus",
-                description: Text("This authority's MCP endpoint hasn't been discovered yet.")
-            )
-            .frame(maxHeight: .infinity)
-        }
-    }
+    // Pricing is now a separate tab in the Authority View picker.
 }
 
 // MARK: - Connected Operators List

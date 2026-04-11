@@ -319,6 +319,37 @@ final class PricingViewModel {
     }
 
     private func fetchPricing(for target: any PricingTarget) async {
+        // Authority with MCP endpoint: skip Oracle discovery, go straight
+        // to the pricing model fetch.
+        if target is Authority, let endpoint = target.mcpEndpointURL, let url = URL(string: endpoint) {
+            state = .loading(step: MCPService.ConnectionStep.fetchingPricing.rawValue)
+            do {
+                let model = try await mcpService.fetchPricingModel(
+                    endpointURL: url
+                ) { [weak self] step in
+                    guard !Task.isCancelled else { return }
+                    Task { @MainActor in
+                        guard !Task.isCancelled else { return }
+                        self?.state = .loading(step: step.rawValue)
+                    }
+                }
+                let versions = try? await mcpService.callServiceStatus(endpointURL: url)
+                serviceVersions = versions
+                let now = Date()
+                cache[target.npub] = CacheEntry(model: model, memberRecord: nil, versions: versions, cachedAt: now)
+                loadedAt = now
+                state = .loaded(model)
+            } catch {
+                let msg = error.localizedDescription
+                if msg.contains("No pricing model") || msg.contains("not configured pricing") {
+                    state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, pipeline: nil))
+                } else {
+                    state = .error(msg)
+                }
+            }
+            return
+        }
+
         // Operator with no Authority link → not registered (skip network)
         if let op = target as? Operator, op.authorityNpub == nil, op.mcpEndpointURL == nil {
             state = .notRegistered
