@@ -440,7 +440,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Statement Infographic", detail: "Text response (\(text.count) chars)")
+        await traffic(.inbound, label: "Statement Infographic", detail: String(text.prefix(4000)))
 
         // Try JSON with svg/png fields first (most common response format)
         // Must check JSON before raw SVG since JSON may contain embedded <svg

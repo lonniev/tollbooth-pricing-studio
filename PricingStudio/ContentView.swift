@@ -382,17 +382,21 @@ struct ContentView: View {
         let identity = ChatIdentity(from: auth)
 
         VStack(spacing: 0) {
-            HStack {
-                if let endpoint = auth.mcpEndpointURL {
-                    Text(endpoint)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer()
-                if let versions = pricingVM.serviceVersions {
-                    ServiceVersionsRow(versions: versions)
+            VStack(spacing: 4) {
+                Text(auth.displayName)
+                    .font(.headline)
+                HStack {
+                    if let endpoint = auth.mcpEndpointURL {
+                        Text(endpoint)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    if let versions = pricingVM.serviceVersions {
+                        ServiceVersionsRow(versions: versions)
+                    }
                 }
             }
             .padding(.horizontal)
@@ -455,17 +459,21 @@ struct ContentView: View {
         let hasAuthority = op.authorityNpub != nil
 
         VStack(spacing: 0) {
-            HStack {
-                if let endpoint = op.mcpEndpointURL {
-                    Text(endpoint)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer()
-                if let versions = pricingVM.serviceVersions {
-                    ServiceVersionsRow(versions: versions)
+            VStack(spacing: 4) {
+                Text(op.displayName)
+                    .font(.headline)
+                HStack {
+                    if let endpoint = op.mcpEndpointURL {
+                        Text(endpoint)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    if let versions = pricingVM.serviceVersions {
+                        ServiceVersionsRow(versions: versions)
+                    }
                 }
             }
             .padding(.horizontal)
