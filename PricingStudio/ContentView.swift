@@ -534,7 +534,8 @@ struct ContentView: View {
                         accountVM: patronAccountVM,
                         onRequestCourier: { params in
                             withAnimation { activeCourier = params }
-                        }
+                        },
+                        ownEndpoint: op.mcpEndpointURL
                     )
                 } else {
                     ContentUnavailableView("No Authority", systemImage: "building.columns",
