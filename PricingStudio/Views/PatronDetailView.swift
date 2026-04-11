@@ -974,3 +974,255 @@ private struct SVGWebView: UIViewRepresentable {
         webView.loadHTMLString(html, baseURL: nil)
     }
 }
+
+// MARK: - Account Statement View (reusable for any patron-at-service)
+
+/// Shows balance, tranches with expiration, Top Off, Statement infographic,
+/// and Reconcile. Works for Patron→Operator, Operator→Authority, or
+/// Authority→Upstream.
+struct AccountStatementView: View {
+    let patronNpub: String
+    let serviceName: String
+    let serviceNpub: String
+    let serviceEndpoint: String
+    @Bindable var accountVM: PatronAccountViewModel
+
+    @State private var balanceState: PatronAccountViewModel.BalanceState = .loading
+    @State private var showingTopOff = false
+    @State private var showingInfographic = false
+    @State private var isReconciling = false
+    @State private var reconcileResult: PatronAccountViewModel.ReconcileResult?
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                balanceCard
+            }
+            .padding()
+        }
+        .task { await loadBalance() }
+        .refreshable { await loadBalance() }
+        .sheet(isPresented: $showingTopOff) {
+            TopOffSheet(
+                patronNpub: patronNpub,
+                operatorName: serviceName,
+                endpoint: serviceEndpoint,
+                accountVM: accountVM,
+                onNotifyOperator: nil
+            )
+        }
+        .sheet(isPresented: $showingInfographic) {
+            InfographicSheet(
+                patronName: String(patronNpub.prefix(16)) + "\u{2026}",
+                operatorName: serviceName,
+                operatorNpub: serviceNpub,
+                accountVM: accountVM
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var balanceCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Account at \(serviceName)")
+                        .font(.subheadline.bold())
+                    Text(serviceEndpoint)
+                        .font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                }
+                Spacer()
+                balanceBadge
+            }
+            .padding(12)
+
+            switch balanceState {
+            case .loading:
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Loading account\u{2026}").font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12).padding(.bottom, 12)
+            case .loaded(let result):
+                expandedDetail(result).padding(.horizontal, 12).padding(.bottom, 12)
+            case .error(let msg):
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Balance unavailable", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.bold()).foregroundStyle(.red)
+                    Text(msg).font(.caption2).foregroundStyle(.secondary)
+                    Button("Retry") { Task { await loadBalance() } }
+                        .font(.caption).buttonStyle(.bordered).controlSize(.mini)
+                }
+                .padding(.horizontal, 12).padding(.bottom, 12)
+            }
+        }
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private var balanceBadge: some View {
+        switch balanceState {
+        case .loading:
+            ProgressView().controlSize(.small)
+        case .loaded(let result):
+            HStack(spacing: 6) {
+                Text("\(result.balanceApiSats) sats")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundColor(result.balanceApiSats > 0 ? .primary : .red)
+                if result.pendingInvoiceCount > 0 {
+                    Text("\(result.pendingInvoiceCount) pending")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(.orange.opacity(0.2), in: Capsule())
+                        .foregroundStyle(.orange)
+                }
+            }
+        case .error:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.red)
+        }
+    }
+
+    @ViewBuilder
+    private func expandedDetail(_ result: PatronAccountViewModel.BalanceResult) -> some View {
+        Divider().padding(.bottom, 8)
+
+        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+            GridRow {
+                Text("Deposited").font(.caption).foregroundStyle(.secondary)
+                Text("\(result.totalDeposited) sats").font(.caption.monospacedDigit())
+            }
+            GridRow {
+                Text("Consumed").font(.caption).foregroundStyle(.secondary)
+                Text("\(result.totalConsumed) sats").font(.caption.monospacedDigit())
+            }
+            if result.totalExpired > 0 {
+                GridRow {
+                    Text("Expired").font(.caption).foregroundStyle(.red)
+                    Text("\(result.totalExpired) sats").font(.caption.monospacedDigit()).foregroundStyle(.red)
+                }
+            }
+            GridRow {
+                Text("Active Tranches").font(.caption).foregroundStyle(.secondary)
+                Text("\(result.activeTranches)").font(.caption.monospacedDigit())
+            }
+            if result.expiringWithin24h > 0 {
+                GridRow {
+                    Text("Expiring <24h").font(.caption).foregroundStyle(.orange)
+                    Text("\(result.expiringWithin24h) sats").font(.caption.monospacedDigit()).foregroundStyle(.orange)
+                }
+            }
+            if let next = result.nextExpiration {
+                GridRow {
+                    Text("Next Expiry").font(.caption).foregroundStyle(.secondary)
+                    Text(next.formatted(date: .abbreviated, time: .shortened)).font(.caption.monospacedDigit())
+                }
+            }
+        }
+
+        if !result.tranches.isEmpty {
+            Divider().padding(.vertical, 4)
+            ForEach(result.tranches) { tranche in
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(tranche.remainingSats) sats")
+                        .font(.caption.monospacedDigit().bold())
+                        .foregroundColor(tranche.remainingSats > 0 ? .primary : .red)
+                    Text("of \(tranche.amountSats)")
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    Spacer()
+                    if let exp = tranche.expiresAt {
+                        let remaining = exp.timeIntervalSinceNow
+                        if remaining <= 0 {
+                            Text("Expired").font(.caption2).foregroundStyle(.red)
+                        } else if remaining < 86400 {
+                            Text("\(Int(remaining / 3600))h left").font(.caption2).foregroundStyle(.orange)
+                        } else {
+                            Text("\(Int(remaining / 86400))d left").font(.caption2).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("No expiration").font(.caption2).foregroundStyle(.green)
+                    }
+                }
+            }
+        }
+
+        Divider().padding(.vertical, 4)
+
+        HStack(spacing: 12) {
+            Button { showingTopOff = true } label: {
+                Label("Top Off", systemImage: "plus.circle.fill").font(.caption.bold())
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(result.balanceApiSats < 100 || result.expiringWithin24h > 0 ? .orange : Color.accentColor)
+            .controlSize(.small)
+
+            Button {
+                showingInfographic = true
+                Task {
+                    await accountVM.fetchInfographic(
+                        patronNpub: patronNpub,
+                        serviceNpub: serviceNpub,
+                        endpoint: serviceEndpoint
+                    )
+                }
+            } label: {
+                Label("Statement", systemImage: "chart.bar.doc.horizontal").font(.caption.bold())
+            }
+            .buttonStyle(.bordered).controlSize(.small)
+
+            if !result.pendingInvoiceIds.isEmpty {
+                Button {
+                    Task { await reconcilePending(result) }
+                } label: {
+                    if isReconciling {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Label("Reconcile", systemImage: "arrow.triangle.2.circlepath").font(.caption.bold())
+                    }
+                }
+                .buttonStyle(.bordered).controlSize(.small).disabled(isReconciling)
+            }
+        }
+
+        if let rr = reconcileResult {
+            HStack(spacing: 8) {
+                if rr.settled > 0 {
+                    Label("\(rr.settled) settled (+\(rr.creditsGained) sats)", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+                if rr.expired > 0 {
+                    Label("\(rr.expired) expired", systemImage: "xmark.circle.fill").foregroundStyle(.red)
+                }
+                if rr.stillPending > 0 {
+                    Label("\(rr.stillPending) still pending", systemImage: "clock").foregroundStyle(.orange)
+                }
+            }
+            .font(.caption2).padding(.top, 4)
+        }
+    }
+
+    private func loadBalance() async {
+        balanceState = .loading
+        guard let url = URL(string: serviceEndpoint) else {
+            balanceState = .error("Invalid endpoint URL")
+            return
+        }
+        do {
+            let result = try await MCPService().callCheckBalance(endpointURL: url, patronNpub: patronNpub)
+            balanceState = .loaded(result)
+        } catch {
+            balanceState = .error(error.localizedDescription)
+        }
+    }
+
+    private func reconcilePending(_ result: PatronAccountViewModel.BalanceResult) async {
+        isReconciling = true
+        reconcileResult = try? await accountVM.reconcilePendingInvoices(
+            patronNpub: patronNpub,
+            operatorEndpoint: serviceEndpoint,
+            pendingInvoiceIds: result.pendingInvoiceIds
+        )
+        await loadBalance()
+        isReconciling = false
+    }
+}

@@ -3,6 +3,7 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Authority.addedAt) private var authorities: [Authority]
     @State private var authorityVM = AuthorityCollectionViewModel()
     @State private var operatorVM = OperatorCollectionViewModel()
     @State private var patronVM = PatronCollectionViewModel()
@@ -400,7 +401,7 @@ struct ContentView: View {
             Picker("View", selection: $detailTab) {
                 Text("Authority").tag(ChatContainerTab.authority)
                 Text("Pricing").tag(ChatContainerTab.pricing)
-                Text("Invoices").tag(ChatContainerTab.invoices)
+                Text("Account").tag(ChatContainerTab.invoices)
                 Text("Messages").tag(ChatContainerTab.messages)
             }
             .pickerStyle(.segmented)
@@ -423,7 +424,18 @@ struct ContentView: View {
                     )
                 }
             case .invoices:
-                InvoiceListView(patronNpub: auth.npub, accountVM: patronAccountVM)
+                if let endpoint = auth.mcpEndpointURL {
+                    AccountStatementView(
+                        patronNpub: auth.npub,
+                        serviceName: auth.displayName,
+                        serviceNpub: auth.npub,
+                        serviceEndpoint: endpoint,
+                        accountVM: patronAccountVM
+                    )
+                } else {
+                    ContentUnavailableView("No Endpoint", systemImage: "link.badge.plus",
+                        description: Text("MCP endpoint required for account data."))
+                }
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
@@ -464,7 +476,7 @@ struct ContentView: View {
                     Text("Authority").tag(ChatContainerTab.authority)
                 }
                 Text("Pricing").tag(ChatContainerTab.pricing)
-                Text("Invoices").tag(ChatContainerTab.invoices)
+                Text("Account").tag(ChatContainerTab.invoices)
                 Text("Campaign Advisor").tag(ChatContainerTab.consultant)
                 Text("Messages").tag(ChatContainerTab.messages)
             }
@@ -503,7 +515,20 @@ struct ContentView: View {
                     NoNsecView(entityName: identity.displayName)
                 }
             case .invoices:
-                InvoiceListView(patronNpub: op.npub, accountVM: patronAccountVM)
+                if let authNpub = op.authorityNpub,
+                   let authority = authorities.first(where: { $0.npub == authNpub }),
+                   let endpoint = authority.mcpEndpointURL {
+                    AccountStatementView(
+                        patronNpub: op.npub,
+                        serviceName: authority.displayName,
+                        serviceNpub: authNpub,
+                        serviceEndpoint: endpoint,
+                        accountVM: patronAccountVM
+                    )
+                } else {
+                    ContentUnavailableView("No Authority", systemImage: "building.columns",
+                        description: Text("Connect to an Authority to view your cert-sat account."))
+                }
             }
         }
     }

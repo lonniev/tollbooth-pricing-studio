@@ -156,27 +156,31 @@ final class PatronAccountViewModel {
     var infographicStates: [String: InfographicState] = [:]
 
     func fetchInfographic(for patron: Patron, operator op: Operator) async {
-        guard let endpointString = op.mcpEndpointURL,
-              let endpointURL = URL(string: endpointString) else { return }
+        guard let endpoint = op.mcpEndpointURL else { return }
+        await fetchInfographic(patronNpub: patron.npub, serviceNpub: op.npub, endpoint: endpoint)
+    }
 
-        infographicStates[op.npub] = .loading
+    func fetchInfographic(patronNpub: String, serviceNpub: String, endpoint: String) async {
+        guard let endpointURL = URL(string: endpoint) else { return }
+
+        infographicStates[serviceNpub] = .loading
 
         do {
             let result = try await mcpService.callAccountStatementInfographic(
                 endpointURL: endpointURL,
-                patronNpub: patron.npub
+                patronNpub: patronNpub
             )
 
             if let svg = result.svgContent {
-                infographicStates[op.npub] = .loaded(.svg(svg))
+                infographicStates[serviceNpub] = .loaded(.svg(svg))
             } else if let pngBase64 = result.pngBase64,
                       let data = Data(base64Encoded: pngBase64) {
-                infographicStates[op.npub] = .loaded(.png(data))
+                infographicStates[serviceNpub] = .loaded(.png(data))
             } else {
-                infographicStates[op.npub] = .error("No image data in response")
+                infographicStates[serviceNpub] = .error("No image data in response")
             }
         } catch {
-            infographicStates[op.npub] = .error(error.localizedDescription)
+            infographicStates[serviceNpub] = .error(error.localizedDescription)
         }
     }
 
