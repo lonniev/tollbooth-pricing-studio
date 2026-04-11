@@ -14,8 +14,6 @@ struct ReconciliationSheet: View {
                     appliedPhase
                 } else if viewModel.isDetecting {
                     detectingPhase
-                } else if viewModel.isReconciling {
-                    processingPhase
                 } else if let error = viewModel.error {
                     errorPhase(error)
                 } else if let suggested = viewModel.suggestedTools, let mismatch = viewModel.mismatch {
@@ -37,7 +35,7 @@ struct ReconciliationSheet: View {
         }
     }
 
-    // MARK: - Phase 1: Detecting
+    // MARK: - Detecting
 
     private var detectingPhase: some View {
         VStack(spacing: 16) {
@@ -53,7 +51,7 @@ struct ReconciliationSheet: View {
         .padding()
     }
 
-    // MARK: - Phase 2: Diagnostic
+    // MARK: - Diagnostic (mismatch found, offer to reconcile)
 
     @ViewBuilder
     private func diagnosticPhase(mismatch: MCPService.ToolMismatch) -> some View {
@@ -70,7 +68,7 @@ struct ReconciliationSheet: View {
                                 Text(tool.name)
                                     .font(.caption.monospaced())
                                 Spacer()
-                                Text("unpriced")
+                                Text("will be added at 0 sats")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -92,7 +90,7 @@ struct ReconciliationSheet: View {
                                 Text(tool.toolName)
                                     .font(.caption.monospaced())
                                 Spacer()
-                                Text("\(tool.priceSats) sats")
+                                Text("will be removed")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -108,9 +106,9 @@ struct ReconciliationSheet: View {
                     .foregroundStyle(.secondary)
 
                 Button {
-                    viewModel.requestReconciliation(storedModel: storedModel)
+                    viewModel.reconcile(storedModel: storedModel)
                 } label: {
-                    Label("Reconcile with AI", systemImage: "wand.and.stars")
+                    Label("Reconcile", systemImage: "arrow.triangle.2.circlepath")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -120,40 +118,12 @@ struct ReconciliationSheet: View {
         }
     }
 
-    // MARK: - Phase 3: Processing
-
-    private var processingPhase: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .controlSize(.large)
-
-            providerBadge
-
-            Text("Generating reconciled pricing...")
-                .font(.headline)
-
-            if !viewModel.reconciliationText.isEmpty {
-                ScrollView {
-                    Text(viewModel.reconciliationText)
-                        .font(.caption.monospaced())
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                }
-                .frame(maxHeight: 200)
-                .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 8))
-            }
-        }
-        .padding()
-    }
-
-    // MARK: - Phase 4: Review
+    // MARK: - Review (reconciled result, offer to apply)
 
     @ViewBuilder
     private func reviewPhase(suggested: [ToolPrice], mismatch: MCPService.ToolMismatch) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                providerBadge
-
                 let newToolNames = Set(mismatch.newTools.map(\.name))
                 let grouped = Dictionary(grouping: suggested) { $0.category }
                 let order = ["free", "auth", "read", "write", "heavy", "restricted"]
@@ -221,7 +191,7 @@ struct ReconciliationSheet: View {
                         onApply?(suggested, mismatch)
                         applied = true
                     } label: {
-                        Label("Apply as Edits", systemImage: "checkmark.circle")
+                        Label("Apply", systemImage: "checkmark.circle")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -231,7 +201,7 @@ struct ReconciliationSheet: View {
         }
     }
 
-    // MARK: - Applied (post-save confirmation)
+    // MARK: - Applied
 
     private var appliedPhase: some View {
         ContentUnavailableView {
@@ -245,7 +215,7 @@ struct ReconciliationSheet: View {
         }
     }
 
-    // MARK: - All Good (no mismatch detected)
+    // MARK: - All Good
 
     private func successPhase(_ message: String) -> some View {
         ContentUnavailableView {
@@ -274,12 +244,6 @@ struct ReconciliationSheet: View {
     }
 
     // MARK: - Helpers
-
-    private var providerBadge: some View {
-        Label(viewModel.providerName, systemImage: "brain")
-            .font(.caption)
-            .foregroundStyle(.blue)
-    }
 
     private func categoryDisplayName(_ category: String) -> String {
         switch category {
