@@ -103,7 +103,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        let preview = String(text.prefix(500))
+        let preview = String(text.prefix(4000))
         await traffic(.inbound, label: "Oracle lookup_member response", detail: preview)
 
         // Oracle may wrap response in {"result": <MemberRecord or String>}
@@ -167,7 +167,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Balance Check", detail: String(text.prefix(300)))
+        await traffic(.inbound, label: "Balance Check", detail: String(text.prefix(4000)))
 
         return try parseBalanceResponse(data)
     }
@@ -332,7 +332,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Account Statement", detail: String(text.prefix(300)))
+        await traffic(.inbound, label: "Account Statement", detail: String(text.prefix(4000)))
 
         return try parseAccountStatementResponse(data)
     }
@@ -516,7 +516,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Purchase Credits", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Purchase Credits", detail: String(text.prefix(4000)))
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MCPError.invalidResponse
@@ -602,7 +602,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Check Payment", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Check Payment", detail: String(text.prefix(4000)))
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MCPError.invalidResponse
@@ -658,7 +658,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Get Pricing Model", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Get Pricing Model", detail: String(text.prefix(4000)))
 
         let response = try JSONDecoder().decode(PricingModelResponse.self, from: data)
 
@@ -743,7 +743,7 @@ actor MCPService {
         let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
         let arguments: [String: Value] = ["model_json": .string(jsonString)]
 
-        await traffic(.outbound, label: "callTool: \(setTool.name)", detail: "model_json: \(String(jsonString.prefix(500)))")
+        await traffic(.outbound, label: "callTool: \(setTool.name)", detail: "model_json: \(String(jsonString.prefix(4000)))")
 
         let (content, isError) = try await client.callTool(
             name: setTool.name,
@@ -761,7 +761,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Set Pricing Model", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Set Pricing Model", detail: String(text.prefix(4000)))
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MCPError.invalidResponse
@@ -809,7 +809,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Service Status", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Service Status", detail: String(text.prefix(4000)))
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MCPError.invalidResponse
@@ -880,7 +880,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Register Authority Npub", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Register Authority Npub", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -922,7 +922,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Confirm Claim", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Confirm Claim", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -964,7 +964,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Check Approval", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Check Approval", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -1009,7 +1009,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Register Operator", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Register Operator", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -1053,7 +1053,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Update Operator", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Update Operator", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -1090,7 +1090,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Deregister Operator", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Deregister Operator", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -1225,7 +1225,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Patron Onboarding", detail: String(text.prefix(300)))
+        await traffic(.inbound, label: "Patron Onboarding", detail: String(text.prefix(4000)))
         return try JSONDecoder().decode(PatronOnboardingStatus.self, from: data)
     }
 
@@ -1267,7 +1267,7 @@ actor MCPService {
             return "Secure Courier channel opened. Check your Nostr DMs for the credential template."
         }
 
-        await traffic(.inbound, label: "Credential Channel", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Credential Channel", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -1315,7 +1315,7 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Receive Credentials", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Receive Credentials", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -1352,7 +1352,7 @@ actor MCPService {
         }
 
         let text = content.compactMap { extractText($0) }.first ?? ""
-        await traffic(.inbound, label: "Forget Credentials", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Forget Credentials", detail: String(text.prefix(4000)))
     }
 
     // MARK: - Pricing Synthesis
@@ -1545,7 +1545,7 @@ actor MCPService {
         }
 
         let text = content.compactMap { extractText($0) }.joined(separator: "\n")
-        await traffic(.inbound, label: "Test Call Result", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Test Call Result", detail: String(text.prefix(4000)))
         return text
     }
 
@@ -1654,7 +1654,7 @@ extension MCPService {
             throw MCPError.toolCallFailed(text)
         }
 
-        await traffic(.inbound, label: "Publish Campaign", detail: String(text.prefix(500)))
+        await traffic(.inbound, label: "Publish Campaign", detail: String(text.prefix(4000)))
         return text
     }
 }
