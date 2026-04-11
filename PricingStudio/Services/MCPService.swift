@@ -1495,15 +1495,7 @@ actor MCPService {
         func storedToolMatchesLive(_ stored: ToolPrice) -> Bool {
             if liveNames.contains(stored.toolName) { return true }
             // Suffix match: bare "import_csv" ↔ "taxsort_import_csv"
-            if liveNames.contains(where: { $0.hasSuffix("_\(stored.toolName)") || stored.toolName.hasSuffix("_\($0)") }) {
-                return true
-            }
-            // Billing variant: stored "excalibur_post_tweet_image" is a pricing
-            // tier of live tool "excalibur_post_tweet" — not stale.
-            if liveNames.contains(where: { stored.toolName.hasPrefix($0) && stored.toolName != $0 }) {
-                return true
-            }
-            return false
+            return liveNames.contains { $0.hasSuffix("_\(stored.toolName)") || stored.toolName.hasSuffix("_\($0)") }
         }
 
         let newTools = liveTools.filter { !liveToolMatchesStored($0.name) }
