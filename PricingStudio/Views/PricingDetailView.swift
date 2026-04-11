@@ -529,15 +529,15 @@ struct PricingDetailView: View {
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                if target is Operator {
-                    if KeychainService.loadNsec(forNpub: target.npub) != nil {
-                        Divider()
-                        Button(role: .destructive) {
-                            showingResetConfirm = true
-                        } label: {
-                            Label("Reset Pricing Model", systemImage: "arrow.counterclockwise")
-                        }
+                if KeychainService.loadNsec(forNpub: target.npub) != nil {
+                    Divider()
+                    Button(role: .destructive) {
+                        showingResetConfirm = true
+                    } label: {
+                        Label("Reset Pricing Model", systemImage: "arrow.counterclockwise")
                     }
+                }
+                if target is Operator {
                     Divider()
                     Button {
                         showingOnboardingSheet = true

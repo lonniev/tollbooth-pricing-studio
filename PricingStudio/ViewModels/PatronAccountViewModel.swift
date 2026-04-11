@@ -91,10 +91,16 @@ final class PatronAccountViewModel {
         }
     }
 
+    func loadAllInvoiceHistory(forNpub npub: String, operators: [Operator]) async {
+        await _loadAllInvoiceHistory(patronNpub: npub, operators: operators)
+    }
+
     func loadAllInvoiceHistory(for patron: Patron, operators: [Operator]) async {
+        await _loadAllInvoiceHistory(patronNpub: patron.npub, operators: operators)
+    }
+
+    private func _loadAllInvoiceHistory(patronNpub: String, operators: [Operator]) async {
         let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
-        // Extract sendable values before entering task group
-        let patronNpub = patron.npub
         let opInfos: [(npub: String, endpoint: String)] = mcpOperators.compactMap { op in
             guard let endpoint = op.mcpEndpointURL else { return nil }
             return (op.npub, endpoint)
@@ -242,9 +248,13 @@ final class PatronAccountViewModel {
         state = .loaded
     }
 
+    func forceRefresh(forNpub npub: String, operators: [Operator]) async {
+        balanceCache.removeValue(forKey: npub)
+        await loadAllInvoiceHistory(forNpub: npub, operators: operators)
+    }
+
     func forceRefresh(for patron: Patron, operators: [Operator]) async {
-        balanceCache.removeValue(forKey: patron.npub)
-        await loadBalances(for: patron, operators: operators)
+        await forceRefresh(forNpub: patron.npub, operators: operators)
     }
 
     func purchaseCredits(

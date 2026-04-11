@@ -390,6 +390,9 @@ struct ContentView: View {
                         .truncationMode(.middle)
                 }
                 Spacer()
+                if let versions = pricingVM.serviceVersions {
+                    ServiceVersionsRow(versions: versions)
+                }
             }
             .padding(.horizontal)
             .padding(.top, 8)
@@ -420,11 +423,7 @@ struct ContentView: View {
                     )
                 }
             case .invoices:
-                ContentUnavailableView(
-                    "Invoices",
-                    systemImage: "doc.text",
-                    description: Text("Invoice history for credit purchases will appear here.")
-                )
+                InvoiceListView(patronNpub: auth.npub, accountVM: patronAccountVM)
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
@@ -504,11 +503,7 @@ struct ContentView: View {
                     NoNsecView(entityName: identity.displayName)
                 }
             case .invoices:
-                ContentUnavailableView(
-                    "Invoices",
-                    systemImage: "doc.text",
-                    description: Text("Invoice history for Authority credit purchases will appear here.")
-                )
+                InvoiceListView(patronNpub: op.npub, accountVM: patronAccountVM)
             }
         }
     }

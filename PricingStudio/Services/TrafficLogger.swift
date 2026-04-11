@@ -104,10 +104,10 @@ final class TrafficLogger {
             method: method,
             url: redactSecrets(url),
             requestHeaders: requestHeaders?.mapValues { redactSecrets($0) },
-            requestBody: requestBody.map { redactSecrets(String($0.prefix(4000))) },
+            requestBody: requestBody.map { redactSecrets(String($0.prefix(16000))) },
             statusCode: statusCode,
             responseHeaders: responseHeaders?.mapValues { redactSecrets($0) },
-            responseBody: responseBody.map { redactSecrets(String($0.prefix(4000))) }
+            responseBody: responseBody.map { redactSecrets(String($0.prefix(16000))) }
         ))
     }
 

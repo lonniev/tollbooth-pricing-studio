@@ -2,10 +2,22 @@ import SwiftUI
 import SwiftData
 
 struct InvoiceListView: View {
-    let patron: Patron
+    let patronNpub: String
     @Bindable var accountVM: PatronAccountViewModel
     var onOpenMessages: ((_ operatorNpub: String) -> Void)?
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
+
+    init(patron: Patron, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
+        self.patronNpub = patron.npub
+        self.accountVM = accountVM
+        self.onOpenMessages = onOpenMessages
+    }
+
+    init(patronNpub: String, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
+        self.patronNpub = patronNpub
+        self.accountVM = accountVM
+        self.onOpenMessages = onOpenMessages
+    }
 
     @State private var isReconciling = false
     @State private var reconcileResults: [String: PatronAccountViewModel.ReconcileResult] = [:]
@@ -40,11 +52,11 @@ struct InvoiceListView: View {
         .task {
             guard !hasLoadedHistory else { return }
             hasLoadedHistory = true
-            await accountVM.loadAllInvoiceHistory(for: patron, operators: operators)
+            await accountVM.loadAllInvoiceHistory(forNpub: patronNpub, operators: operators)
         }
         .sheet(item: $topOffOperator) { target in
             TopOffSheet(
-                patronNpub: patron.npub,
+                patronNpub: patronNpub,
                 operatorName: target.operatorName,
                 endpoint: target.endpoint,
                 accountVM: accountVM,
@@ -336,7 +348,7 @@ struct InvoiceListView: View {
 
             do {
                 let rr = try await accountVM.reconcilePendingInvoices(
-                    patronNpub: patron.npub,
+                    patronNpub: patronNpub,
                     operatorEndpoint: balance.endpoint,
                     pendingInvoiceIds: result.pendingInvoiceIds
                 )
@@ -351,8 +363,8 @@ struct InvoiceListView: View {
         }
 
         // Refresh balances and invoice history
-        await accountVM.forceRefresh(for: patron, operators: operators)
-        await accountVM.loadAllInvoiceHistory(for: patron, operators: operators)
+        await accountVM.forceRefresh(forNpub: patronNpub, operators: operators)
+        await accountVM.loadAllInvoiceHistory(forNpub: patronNpub, operators: operators)
         isReconciling = false
     }
 
@@ -360,7 +372,7 @@ struct InvoiceListView: View {
         checkingInvoices.insert(invoiceId)
         do {
             let rr = try await accountVM.reconcilePendingInvoices(
-                patronNpub: patron.npub,
+                patronNpub: patronNpub,
                 operatorEndpoint: endpoint,
                 pendingInvoiceIds: [invoiceId]
             )
