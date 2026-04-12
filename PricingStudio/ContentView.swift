@@ -982,9 +982,9 @@ private struct AuthorityRowInline: View {
                     .foregroundStyle(.green)
             }
             if (DMPollingService.shared.unreadCounts[authority.npub] ?? 0) > 0 {
-                Image(systemName: "message.fill")
+                Image(systemName: "envelope.badge.fill")
                     .font(.caption2)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(.orange)
                     .accessibilityIdentifier("dmIndicator_\(authority.npub)")
             }
         }
@@ -1086,9 +1086,9 @@ private struct OperatorRowInline: View {
                     .foregroundStyle(.green)
             }
             if (DMPollingService.shared.unreadCounts[op.npub] ?? 0) > 0 {
-                Image(systemName: "message.fill")
+                Image(systemName: "envelope.badge.fill")
                     .font(.caption2)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(.orange)
                     .accessibilityIdentifier("dmIndicator_\(op.npub)")
             }
         }
