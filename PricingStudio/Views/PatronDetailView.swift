@@ -883,11 +883,31 @@ private struct InfographicSheet: View {
                     }
 
                 case .error(let message):
-                    ContentUnavailableView(
-                        "Infographic Unavailable",
-                        systemImage: "chart.bar.xaxis.ascending.badge.clock",
-                        description: Text(message)
-                    )
+                    if message.contains("not been priced yet") || message.contains("TBD") {
+                        ContentUnavailableView(
+                            "Tool Not Priced",
+                            systemImage: "dollarsign.circle",
+                            description: Text("The operator hasn't set a price for this tool yet. Ask them to configure it in their pricing model.")
+                        )
+                    } else if message.contains("Insufficient balance") {
+                        ContentUnavailableView(
+                            "Insufficient Balance",
+                            systemImage: "creditcard.trianglebadge.exclamationmark",
+                            description: Text("Top off your credits to use this tool.")
+                        )
+                    } else if message.contains("not yet in the pricing model") {
+                        ContentUnavailableView(
+                            "Tool Not Available",
+                            systemImage: "puzzlepiece",
+                            description: Text("This tool isn't in the operator's pricing model yet.")
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Infographic Unavailable",
+                            systemImage: "chart.bar.xaxis.ascending.badge.clock",
+                            description: Text(message)
+                        )
+                    }
                 }
             }
             .navigationTitle("\(patronName) with \(operatorName) Statement")
