@@ -15,6 +15,24 @@ actor MCPService {
         )
     }
 
+    /// Generate a proof for the given npub + tool name. Returns empty string
+    /// if nsec is not available (the server will reject the call).
+    private func makeProof(npub: String, toolName: String) -> String {
+        guard !npub.isEmpty else { return "" }
+        return (try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub)) ?? ""
+    }
+
+    /// Add npub + proof to an args dict. Tool name is extracted from the
+    /// tool's registered name (e.g., "schwab_check_balance" → "check_balance").
+    private func argsWithProof(npub: String, toolName: String, extra: [String: Value] = [:]) -> [String: Value] {
+        var args = extra
+        if !npub.isEmpty {
+            args["npub"] = .string(npub)
+            args["proof"] = .string(makeProof(npub: npub, toolName: toolName))
+        }
+        return args
+    }
+
     enum ConnectionStep: String, Sendable {
         case resolvingOracle = "Resolving Oracle endpoint..."
         case lookingUpOperator = "Looking up operator..."
@@ -152,8 +170,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No check_balance tool found")
         }
 
-        var args: [String: Value] = [:]
-        if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
+        let args = argsWithProof(npub: patronNpub, toolName: "check_balance")
         let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: args)
 
         if isError == true {
@@ -317,8 +334,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement tool found")
         }
 
-        var args: [String: Value] = [:]
-        if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
+        let args = argsWithProof(npub: patronNpub, toolName: "account_statement")
         let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
 
         if isError == true {
@@ -417,8 +433,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement_infographic tool found")
         }
 
-        var args: [String: Value] = [:]
-        if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
+        let args = argsWithProof(npub: patronNpub, toolName: "account_statement_infographic")
         let (content, isError) = try await client.callTool(name: infoTool.name, arguments: args)
 
         if isError == true {
@@ -498,11 +513,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: purchaseTool.name,
-            arguments: {
-                var args: [String: Value] = ["amount_sats": .int(amountSats)]
-                if !patronNpub.isEmpty { args["npub"] = .string(patronNpub) }
-                return args
-            }()
+            arguments: argsWithProof(npub: patronNpub, toolName: "purchase_credits", extra: ["amount_sats": .int(amountSats)])
         )
 
         if isError == true {
@@ -584,11 +595,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: paymentTool.name,
-            arguments: {
-                var args: [String: Value] = ["invoice_id": .string(invoiceId)]
-                if !npub.isEmpty { args["npub"] = .string(npub) }
-                return args
-            }()
+            arguments: argsWithProof(npub: npub, toolName: "check_payment", extra: ["invoice_id": .string(invoiceId)])
         )
 
         if isError == true {
@@ -993,10 +1000,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: registerTool.name,
-            arguments: [
-                "npub": .string(operatorNpub),
-                "service_url": .string(operatorServiceURL),
-            ]
+            arguments: argsWithProof(npub: operatorNpub, toolName: "register_operator", extra: ["service_url": .string(operatorServiceURL)])
         )
 
         if isError == true {
@@ -1033,8 +1037,8 @@ actor MCPService {
             throw MCPError.toolCallFailed("No update_operator tool found on this Authority")
         }
 
-        // Build arguments — always include npub, optionally include changed fields
-        var args: [String: Value] = ["npub": .string(operatorNpub)]
+        // Build arguments — always include npub + proof, optionally include changed fields
+        var args = argsWithProof(npub: operatorNpub, toolName: "update_operator")
         if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
         if !displayName.isEmpty { args["display_name"] = .string(displayName) }
 
@@ -1077,7 +1081,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: ["npub": .string(operatorNpub)]
+            arguments: argsWithProof(npub: operatorNpub, toolName: "deregister_operator")
         )
 
         if isError == true {
@@ -1340,10 +1344,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: [
-                "service": .string(service),
-                "npub": .string(npub),
-            ]
+            arguments: argsWithProof(npub: npub, toolName: "forget_credentials", extra: ["service": .string(service)])
         )
 
         if isError == true {
