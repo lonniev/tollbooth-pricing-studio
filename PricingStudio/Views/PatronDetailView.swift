@@ -163,7 +163,9 @@ private struct OperatorBalanceCard: View {
                 patronName: patron.displayName,
                 operatorName: balance.operatorName,
                 operatorNpub: balance.id,
-                accountVM: accountVM
+                accountVM: accountVM,
+                serviceEndpoint: balance.endpoint,
+                patronNpub: patron.npub
             )
         }
         .task {
@@ -832,8 +834,12 @@ private struct InfographicSheet: View {
     let operatorName: String
     let operatorNpub: String
     let accountVM: PatronAccountViewModel
+    var serviceEndpoint: String = ""
+    var patronNpub: String = ""
     @Environment(\.dismiss) private var dismiss
     @State private var showingShareSheet = false
+    @State private var statementJSON: String?
+    @State private var loadingStatement = false
 
     /// The current SVG string (if loaded).
     private var svgString: String? {
@@ -883,27 +889,38 @@ private struct InfographicSheet: View {
                     }
 
                 case .error(let message):
-                    if message.contains("not been priced yet") || message.contains("TBD") {
-                        ContentUnavailableView(
-                            "Tool Not Priced",
-                            systemImage: "dollarsign.circle",
-                            description: Text("The operator hasn't set a price for this tool yet. Ask them to configure it in their pricing model.")
-                        )
-                    } else if message.contains("Insufficient balance") {
-                        ContentUnavailableView(
-                            "Insufficient Balance",
-                            systemImage: "creditcard.trianglebadge.exclamationmark",
-                            description: Text("Top off your credits to use this tool.")
-                        )
-                    } else if message.contains("not yet in the pricing model") {
-                        ContentUnavailableView(
-                            "Tool Not Available",
-                            systemImage: "puzzlepiece",
-                            description: Text("This tool isn't in the operator's pricing model yet.")
-                        )
+                    // Infographic unavailable — fall back to free JSON statement
+                    if let json = statementJSON {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label(
+                                    message.contains("Insufficient") ? "Infographic requires credits — showing free statement"
+                                    : message.contains("TBD") ? "Infographic not yet priced — showing free statement"
+                                    : "Showing free statement",
+                                    systemImage: "doc.text"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.bottom, 4)
+
+                                Text(json)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .padding(12)
+                                    .background(Color(.secondarySystemGroupedBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            .padding()
+                        }
+                    } else if loadingStatement {
+                        VStack(spacing: 16) {
+                            ProgressView().controlSize(.large)
+                            Text("Loading free statement\u{2026}").foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ContentUnavailableView(
-                            "Infographic Unavailable",
+                            "Statement Unavailable",
                             systemImage: "chart.bar.xaxis.ascending.badge.clock",
                             description: Text(message)
                         )
@@ -942,6 +959,54 @@ private struct InfographicSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .task {
+            // If infographic already errored, fetch free statement immediately
+            if case .error = accountVM.infographicStates[operatorNpub] {
+                await fetchFreeStatement()
+            }
+        }
+        .onChange(of: accountVM.infographicStates[operatorNpub]?.isError) { _, isErr in
+            if isErr == true {
+                Task { await fetchFreeStatement() }
+            }
+        }
+    }
+
+    private func fetchFreeStatement() async {
+        guard !serviceEndpoint.isEmpty, !patronNpub.isEmpty else { return }
+        guard let url = URL(string: serviceEndpoint) else { return }
+        loadingStatement = true
+        do {
+            let result = try await MCPService().callAccountStatement(
+                endpointURL: url,
+                patronNpub: patronNpub
+            )
+            let items = result.invoiceItems
+            let dicts: [[String: Any]] = items.map { item in
+                var d: [String: Any] = [
+                    "id": item.id,
+                    "status": item.status,
+                    "amount_sats": item.amountSats,
+                    "api_sats_credited": item.apiSatsCredited,
+                ]
+                if let created = item.createdAt {
+                    d["created_at"] = created.formatted(date: .abbreviated, time: .shortened)
+                }
+                if let settled = item.settledAt {
+                    d["settled_at"] = settled.formatted(date: .abbreviated, time: .shortened)
+                }
+                return d
+            }
+            if let jsonData = try? JSONSerialization.data(withJSONObject: dicts, options: [.prettyPrinted, .sortedKeys]),
+               let jsonStr = String(data: jsonData, encoding: .utf8) {
+                statementJSON = jsonStr
+            } else {
+                statementJSON = "[\(items.count) invoice(s)]"
+            }
+        } catch {
+            statementJSON = "{ \"error\": \"\(error.localizedDescription)\" }"
+        }
+        loadingStatement = false
     }
 }
 
@@ -1049,7 +1114,9 @@ struct AccountStatementView: View {
                 patronName: String(patronNpub.prefix(16)) + "\u{2026}",
                 operatorName: serviceName,
                 operatorNpub: serviceNpub,
-                accountVM: accountVM
+                accountVM: accountVM,
+                serviceEndpoint: serviceEndpoint,
+                patronNpub: patronNpub
             )
         }
     }

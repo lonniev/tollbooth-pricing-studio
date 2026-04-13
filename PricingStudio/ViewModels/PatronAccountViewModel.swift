@@ -140,14 +140,28 @@ final class PatronAccountViewModel {
 
     // MARK: - Infographic
 
-    enum InfographicState {
+    enum InfographicState: Equatable {
         case idle
         case loading
         case loaded(InfographicContent)
         case error(String)
+
+        var isError: Bool {
+            if case .error = self { return true }
+            return false
+        }
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            switch (lhs, rhs) {
+            case (.idle, .idle), (.loading, .loading): return true
+            case (.error(let a), .error(let b)): return a == b
+            case (.loaded(let a), .loaded(let b)): return a == b
+            default: return false
+            }
+        }
     }
 
-    enum InfographicContent {
+    enum InfographicContent: Equatable {
         case svg(String)
         case png(Data)
     }
