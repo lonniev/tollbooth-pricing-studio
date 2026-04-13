@@ -49,11 +49,6 @@ private struct PatronRow: View {
                         .font(.caption)
                     Text(patron.displayName)
                         .font(.headline)
-                    if (DMPollingService.shared.unreadCounts[patron.npub] ?? 0) > 0 {
-                        Image(systemName: "envelope.badge.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
                 }
                 Text(truncatedNpub(patron.npub))
                     .font(.caption)
@@ -65,6 +60,11 @@ private struct PatronRow: View {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
+            }
+            if (DMPollingService.shared.unreadCounts[patron.npub] ?? 0) > 0 {
+                Image(systemName: "envelope.badge.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
             }
         }
         .padding(.vertical, 2)
