@@ -878,7 +878,7 @@ struct PricingDetailView: View {
                 _ = try await MCPService().callToolGeneric(
                     endpointURL: endpointURL,
                     toolName: "reset_pricing_model",
-                    arguments: ["operator_proof": .string(proof)]
+                    arguments: ["proof": .string(proof)]
                 )
                 viewModel.forceRefresh(for: target)
             } catch {
