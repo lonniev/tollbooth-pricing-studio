@@ -271,14 +271,27 @@ enum TreeLayout {
 
         let maxX = positionedNodes.map(\.position.x).max() ?? 0
         let maxY = positionedNodes.map(\.position.y).max() ?? 0
+        let treeWidth = maxX + leftPadding
+        let treeHeight = maxY + topPadding
+        let finalWidth = max(canvasSize.width, treeWidth + leftPadding)
+        let finalHeight = max(canvasSize.height, treeHeight + topPadding)
+
+        // Center the tree in the canvas
+        let offsetX = max(0, (finalWidth - treeWidth) / 2 - leftPadding)
+        let offsetY = max(0, (finalHeight - treeHeight) / 2 - topPadding)
+        let centeredNodes = positionedNodes.map { pn in
+            PositionedNode(node: pn.node, position: CGPoint(x: pn.position.x + offsetX, y: pn.position.y + offsetY))
+        }
+        let centeredEdges = edges.map { e in
+            Edge(id: e.id,
+                 from: CGPoint(x: e.from.x + offsetX, y: e.from.y + offsetY),
+                 to: CGPoint(x: e.to.x + offsetX, y: e.to.y + offsetY))
+        }
 
         return LayoutResult(
-            nodes: positionedNodes,
-            edges: edges,
-            canvasSize: CGSize(
-                width: max(canvasSize.width, maxX + leftPadding * 2),
-                height: max(canvasSize.height, maxY + topPadding * 2)
-            )
+            nodes: centeredNodes,
+            edges: centeredEdges,
+            canvasSize: CGSize(width: finalWidth, height: finalHeight)
         )
     }
 
