@@ -28,7 +28,7 @@ struct AuthorityDetailView: View {
                 connectedOperatorsSection
             }
         }
-        .navigationTitle(authority.displayName)
+        // navigationTitle removed — shared entityHeader provides the name
         .sheet(isPresented: Binding(
             get: { authorityVM?.showingAdoptSheet ?? false },
             set: { authorityVM?.showingAdoptSheet = $0 }
@@ -84,21 +84,7 @@ struct AuthorityDetailView: View {
     // MARK: - Header
 
     private var authorityHeader: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "building.columns.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.blue)
-
-            HStack(spacing: 4) {
-                Text(authority.displayName)
-                    .font(.title2.bold())
-                if (DMPollingService.shared.unreadCounts[authority.npub] ?? 0) > 0 {
-                    Image(systemName: "envelope.badge.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-            }
-
+        HStack(spacing: 8) {
             Text(authority.npub)
                 .font(.caption)
                 .monospaced()
@@ -107,20 +93,21 @@ struct AuthorityDetailView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
 
-            HStack(spacing: 8) {
-                if authority.isAutoDiscovered {
-                    Label("Auto-discovered", systemImage: "sparkles")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                if isLinked {
-                    Label("Identity Linked", systemImage: "checkmark.seal.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.green)
-                }
+            Spacer()
+
+            if authority.isAutoDiscovered {
+                Label("Auto-discovered", systemImage: "sparkles")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if isLinked {
+                Label("Identity Linked", systemImage: "checkmark.seal.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
             }
         }
-        .padding()
+        .padding(.horizontal)
+        .padding(.vertical, 6)
     }
 
     // MARK: - Authority Balance
