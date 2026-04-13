@@ -31,7 +31,7 @@ struct MessageBubble: View {
 
                 HStack(spacing: 4) {
                     // Actor + direction indicator
-                    Text(dm.isFromMe ? "\u{1F916}\u{2192}" : "\u{2190}\u{1F464}")
+                    Text(dm.isFromMe ? "\u{1F464}\u{2192}" : "\u{2190}\u{1F916}")
                         .font(.caption2)
 
                     // Encryption badge
