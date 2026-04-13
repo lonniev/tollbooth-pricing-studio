@@ -1130,6 +1130,7 @@ struct ServiceVersionsRow: View {
                         .font(.caption)
                         .monospaced()
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: true, vertical: false)
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)

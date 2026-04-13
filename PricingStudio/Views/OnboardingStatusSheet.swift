@@ -125,22 +125,24 @@ struct OnboardingStatusSheet: View {
                     Button {
                         Task { await loadStatus() }
                     } label: {
-                        Label("Check", systemImage: "checkmark.circle")
+                        Label("\u{1F50D} Check", systemImage: "checkmark.circle")
                             .font(.caption)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(.blue)
+                    .help("Re-check the operator's configuration status")
 
                     Button {
                         Task { await reregister() }
                     } label: {
-                        Label("Reattempt", systemImage: "square.and.pencil")
+                        Label("\u{1F504} Reattempt", systemImage: "arrow.counterclockwise")
                             .font(.caption)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(.indigo)
+                    .help("Re-register with the Authority and refresh credentials")
                 }
             }
 
