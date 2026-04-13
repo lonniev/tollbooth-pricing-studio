@@ -626,6 +626,8 @@ private struct SidebarView: View {
     var onOpenCampaign: ((Operator, Campaign) -> Void)?
     @State private var showingKeypairGenerator = false
     @State private var categoryOrder: [SidebarCategory] = [.authorities, .operators, .patrons]
+    @State private var expandedCategories: Set<SidebarCategory> = Set(SidebarCategory.allCases)
+    @State private var isReorderingCategories = false
 
     enum SidebarCategory: String, CaseIterable, Identifiable, Codable {
         case authorities, operators, patrons
@@ -663,25 +665,30 @@ private struct SidebarView: View {
 
     var body: some View {
         List {
-            ForEach($categoryOrder) { $category in
-                Section {
-                    switch category {
-                    case .authorities: authoritiesSectionContent
-                    case .operators: operatorsSectionContent
-                    case .patrons: patronsSectionContent
-                    }
-                } header: {
-                    HStack {
+            if isReorderingCategories {
+                ForEach($categoryOrder) { $category in
+                    Label(category.label, systemImage: category.icon)
+                }
+                .onMove { indices, newOffset in
+                    categoryOrder.move(fromOffsets: indices, toOffset: newOffset)
+                }
+            } else {
+                ForEach(categoryOrder) { category in
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { expandedCategories.contains(category) },
+                            set: { if $0 { expandedCategories.insert(category) } else { expandedCategories.remove(category) } }
+                        )
+                    ) {
+                        switch category {
+                        case .authorities: authoritiesSectionContent
+                        case .operators: operatorsSectionContent
+                        case .patrons: patronsSectionContent
+                        }
+                    } label: {
                         Label(category.label, systemImage: category.icon)
-                        Spacer()
-                        Image(systemName: "line.3.horizontal")
-                            .font(.caption2)
-                            .foregroundStyle(.quaternary)
                     }
                 }
-            }
-            .onMove { indices, newOffset in
-                categoryOrder.move(fromOffsets: indices, toOffset: newOffset)
             }
 
             Section {
@@ -692,7 +699,7 @@ private struct SidebarView: View {
                 }
             }
         }
-        .environment(\.editMode, .constant(.active))
+        .environment(\.editMode, isReorderingCategories ? .constant(.active) : .constant(.inactive))
         .navigationTitle("Pricing Studio")
         .toolbar { sidebarToolbarContent }
         .modifier(sidebarAlerts)
@@ -764,6 +771,15 @@ private struct SidebarView: View {
                 }
 
                 Spacer()
+
+                Button {
+                    withAnimation { isReorderingCategories.toggle() }
+                } label: {
+                    Label(
+                        isReorderingCategories ? "Done" : "Reorder",
+                        systemImage: isReorderingCategories ? "checkmark" : "arrow.up.arrow.down"
+                    )
+                }
 
                 Button {
                     showingSettings = true
