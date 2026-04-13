@@ -377,28 +377,40 @@ struct ContentView: View {
 
     // MARK: - Graph Node Selection
 
+    /// Shared header bar for all entity detail views.
+    @ViewBuilder
+    private func entityHeader(name: String, endpoint: String?, icon: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(name)
+                .font(.headline)
+            if let member = pricingVM.memberRecord {
+                MemberInfoButton(member: member)
+            }
+            if let endpoint {
+                Text(endpoint)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            if let versions = pricingVM.serviceVersions {
+                ServiceVersionsRow(versions: versions)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+
     @ViewBuilder
     private func authorityDetail(_ auth: Authority) -> some View {
         let identity = ChatIdentity(from: auth)
 
         VStack(spacing: 0) {
-            HStack {
-                Text(auth.displayName)
-                    .font(.headline)
-                if let endpoint = auth.mcpEndpointURL {
-                    Text(endpoint)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer()
-                if let versions = pricingVM.serviceVersions {
-                    ServiceVersionsRow(versions: versions)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
+            entityHeader(name: auth.displayName, endpoint: auth.mcpEndpointURL, icon: "building.columns.fill")
 
             Picker("View", selection: $detailTab) {
                 Text("Authority").tag(ChatContainerTab.authority)
@@ -457,23 +469,7 @@ struct ContentView: View {
         let hasAuthority = op.authorityNpub != nil
 
         VStack(spacing: 0) {
-            HStack {
-                Text(op.displayName)
-                    .font(.headline)
-                if let endpoint = op.mcpEndpointURL {
-                    Text(endpoint)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer()
-                if let versions = pricingVM.serviceVersions {
-                    ServiceVersionsRow(versions: versions)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
+            entityHeader(name: op.displayName, endpoint: op.mcpEndpointURL, icon: "server.rack")
 
             Picker("View", selection: $detailTab) {
                 if hasAuthority {
@@ -543,12 +539,37 @@ struct ContentView: View {
 
     @ViewBuilder
     private func patronDetail(_ patron: Patron) -> some View {
-        ChatContainerView(identity: ChatIdentity(from: patron), chatVM: chatVM, selectedTab: $detailTab, firstTabLabel: "Account") {
-            PatronDetailView(patron: patron, accountVM: patronAccountVM, onOpenMessages: openMessagesFor, onRequestCourier: { params in
-                withAnimation { activeCourier = params }
-            })
-        } invoicesContent: {
-            InvoiceListView(patron: patron, accountVM: patronAccountVM, onOpenMessages: openMessagesFor)
+        let identity = ChatIdentity(from: patron)
+
+        VStack(spacing: 0) {
+            entityHeader(name: patron.displayName, endpoint: nil, icon: "person.badge.key.fill")
+
+            Picker("View", selection: $detailTab) {
+                Text("Account").tag(ChatContainerTab.pricing)
+                Text("Invoices").tag(ChatContainerTab.invoices)
+                Text("Messages").tag(ChatContainerTab.messages)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            switch detailTab {
+            case .pricing:
+                PatronDetailView(patron: patron, accountVM: patronAccountVM, onOpenMessages: openMessagesFor, onRequestCourier: { params in
+                    withAnimation { activeCourier = params }
+                })
+            case .invoices:
+                InvoiceListView(patron: patron, accountVM: patronAccountVM, onOpenMessages: openMessagesFor)
+            case .messages:
+                if identity.hasNsec {
+                    ChatView(chatVM: chatVM)
+                        .onAppear { chatVM.switchIdentity(to: identity) }
+                } else {
+                    NoNsecView(entityName: identity.displayName)
+                }
+            default:
+                EmptyView()
+            }
         }
     }
 

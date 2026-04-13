@@ -59,7 +59,7 @@ struct PricingDetailView: View {
                 }
             }
         }
-        .navigationTitle(target.displayName)
+        // navigationTitle removed — shared entityHeader provides the actor name
         .onAppear {
             // Ensure we're showing the right target's data — shared VM may
             // still hold data from a previously viewed operator/authority.
@@ -448,14 +448,8 @@ struct PricingDetailView: View {
     private func modelHeader(name: String, isActive: Bool, member: MemberRecord?, source: PricingSource) -> some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(name)
-                        .font(.title2.bold())
-
-                    if let member {
-                        MemberInfoButton(member: member)
-                    }
-                }
+                Text(name)
+                    .font(.subheadline.bold())
                 HStack(spacing: 12) {
                     if isActive {
                         Label("Active", systemImage: "checkmark.circle.fill")
@@ -1032,7 +1026,7 @@ struct PricingDetailView: View {
 
 // MARK: - Member Info Popover
 
-private struct MemberInfoButton: View {
+struct MemberInfoButton: View {
     let member: MemberRecord
     @State private var showingInfo = false
 
