@@ -149,6 +149,18 @@ final class DMPollingService {
                     }
                 }
                 if let dm = decrypted {
+                    // Auto-respond to npub proof requests before badging
+                    if !dm.isFromMe {
+                        let proofNpub = npub
+                        let proofDM = dm
+                        Task.detached(priority: .utility) {
+                            let _ = await NpubProofAutoResponder.handleIfProofRequest(
+                                dm: proofDM,
+                                recipientNpub: proofNpub,
+                                dmService: dmService
+                            )
+                        }
+                    }
                     await MainActor.run {
                         // Always deliver to ChatViewModel for live conversation update
                         self.onLiveDM?(npub, dm)
