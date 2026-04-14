@@ -118,7 +118,6 @@
 		DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E02 /* NostrRelayTests.swift */; };
 		DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E03 /* NostrDMServiceTests.swift */; };
 		73CAFAD62513454B9CD36981 /* OperatorProofService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */; };
-		A1B2C3D4E5F60001DEADBEEF /* NpubProofAutoResponder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002DEADBEEF /* NpubProofAutoResponder.swift */; };
 		9E3FAA7C1B6E45B59CBDB128 /* ToolRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7115326FE3DE4906B756A9D5 /* ToolRole.swift */; };
 		1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */; };
 		E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9844C99A73C4999A2235C1B /* PricingDiffView.swift */; };
@@ -273,7 +272,6 @@
 		DD0000010000000000000E03 /* NostrDMServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrDMServiceTests.swift; sourceTree = "<group>"; };
 		AA0000010000000000000DFF /* PricingStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PricingStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorProofService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002DEADBEEF /* NpubProofAutoResponder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NpubProofAutoResponder.swift; sourceTree = "<group>"; };
 		7115326FE3DE4906B756A9D5 /* ToolRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolRole.swift; sourceTree = "<group>"; };
 		DECD000100000000000001A1 /* InterviewAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewAnalysis.swift; sourceTree = "<group>"; };
 		DECD000100000000000002A1 /* PricingProposal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingProposal.swift; sourceTree = "<group>"; };
@@ -437,7 +435,6 @@
 			isa = PBXGroup;
 			children = (
 				1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */,
-				A1B2C3D4E5F60002DEADBEEF /* NpubProofAutoResponder.swift */,
 				AA00000100000000000000E4 /* MCPService.swift */,
 				AA0000010000000000000F21 /* MCPAuthBridge.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
@@ -868,7 +865,6 @@
 			files = (
 				1A9E319668E94E4F9FFDF88F /* ForkInterviewSheet.swift in Sources */,
 				73CAFAD62513454B9CD36981 /* OperatorProofService.swift in Sources */,
-				A1B2C3D4E5F60001DEADBEEF /* NpubProofAutoResponder.swift in Sources */,
 				9E3FAA7C1B6E45B59CBDB128 /* ToolRole.swift in Sources */,
 				1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */,
 				E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */,
