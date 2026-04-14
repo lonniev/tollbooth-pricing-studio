@@ -4,14 +4,28 @@ struct ToolPriceRow: View {
     let tool: ToolPrice
     let viewModel: PricingViewModel?
     var target: (any PricingTarget)?
+    /// When non-empty, edits apply to every selected tool (batch mode).
+    var selectedToolIds: Set<String> = []
+    var allTools: [ToolPrice] = []
     @State private var showingInfo = false
     @State private var showingEditor = false
     @State private var showingTestCall = false
 
-    init(tool: ToolPrice, viewModel: PricingViewModel? = nil, target: (any PricingTarget)? = nil) {
+    init(tool: ToolPrice, viewModel: PricingViewModel? = nil, target: (any PricingTarget)? = nil,
+         selectedToolIds: Set<String> = [], allTools: [ToolPrice] = []) {
         self.tool = tool
         self.viewModel = viewModel
         self.target = target
+        self.selectedToolIds = selectedToolIds
+        self.allTools = allTools
+    }
+
+    /// Tool names for batch apply — all selected tools except this one (this one is handled directly).
+    private var batchToolNames: [String] {
+        guard !selectedToolIds.isEmpty, selectedToolIds.contains(tool.toolId) else { return [] }
+        return allTools
+            .filter { selectedToolIds.contains($0.toolId) && $0.toolId != tool.toolId }
+            .map(\.toolName)
     }
 
     private var effectiveTool: ToolPrice {
@@ -89,7 +103,8 @@ struct ToolPriceRow: View {
                 ToolPriceEditor(
                     tool: effectiveTool,
                     viewModel: viewModel,
-                    isPresented: $showingEditor
+                    isPresented: $showingEditor,
+                    batchToolNames: batchToolNames
                 )
                 .presentationCompactAdaptation(.popover)
             }
@@ -128,6 +143,8 @@ private struct ToolPriceEditor: View {
     let tool: ToolPrice
     let viewModel: PricingViewModel
     @Binding var isPresented: Bool
+    /// Additional tool names to apply the same edit to (batch mode).
+    var batchToolNames: [String] = []
 
     @State private var editType: PriceType
     @State private var editSats: String
@@ -147,10 +164,11 @@ private struct ToolPriceEditor: View {
         ("restricted", "Restricted (Operator Only)")
     ]
 
-    init(tool: ToolPrice, viewModel: PricingViewModel, isPresented: Binding<Bool>) {
+    init(tool: ToolPrice, viewModel: PricingViewModel, isPresented: Binding<Bool>, batchToolNames: [String] = []) {
         self.tool = tool
         self.viewModel = viewModel
         self._isPresented = isPresented
+        self.batchToolNames = batchToolNames
         self._editType = State(initialValue: tool.priceType)
         self._editSats = State(initialValue: "\(tool.priceSats)")
         self._editPercent = State(initialValue: "\(tool.priceSats)")
@@ -173,9 +191,15 @@ private struct ToolPriceEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(tool.toolName)
-                .font(.headline.monospaced())
-                .lineLimit(1)
+            if batchToolNames.isEmpty {
+                Text(tool.toolName)
+                    .font(.headline.monospaced())
+                    .lineLimit(1)
+            } else {
+                Text("\(tool.toolName) + \(batchToolNames.count) more")
+                    .font(.headline.monospaced())
+                    .lineLimit(1)
+            }
 
             Picker("Category", selection: $editCategory) {
                 ForEach(Self.categoryOptions, id: \.value) { option in
@@ -259,15 +283,18 @@ private struct ToolPriceEditor: View {
                     }
                     let minCost = Int(editMinCost) ?? 0
                     let maxCost = editMaxCost.isEmpty ? nil : Int(editMaxCost)
-                    viewModel.applyEdit(
-                        toolName: tool.toolName,
-                        priceSats: sats,
-                        priceType: editType,
-                        priceFormula: formula,
-                        minCost: minCost,
-                        maxCost: maxCost,
-                        category: editCategory
-                    )
+                    let names = [tool.toolName] + batchToolNames
+                    for name in names {
+                        viewModel.applyEdit(
+                            toolName: name,
+                            priceSats: sats,
+                            priceType: editType,
+                            priceFormula: formula,
+                            minCost: minCost,
+                            maxCost: maxCost,
+                            category: editCategory
+                        )
+                    }
                     isPresented = false
                 }
                 .buttonStyle(.borderedProminent)

@@ -558,11 +558,24 @@ struct TopOffSheet: View {
     private enum PaymentCheckState {
         case idle
         case checking
+        case settled(String)
         case checked(String)
 
         var isChecking: Bool {
             if case .checking = self { return true }
             return false
+        }
+
+        var isSettled: Bool {
+            if case .settled = self { return true }
+            return false
+        }
+
+        var message: String? {
+            switch self {
+            case .settled(let msg), .checked(let msg): return msg
+            default: return nil
+            }
         }
     }
 
@@ -622,7 +635,7 @@ struct TopOffSheet: View {
                 case .success(let result):
                     Section("Invoice") {
                         if let bolt11 = result.lightningInvoice {
-                            qrCodeImage(for: bolt11)
+                            qrCodeImage(for: "lightning:\(bolt11)")
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 8)
                         } else if !result.checkoutLink.isEmpty {
@@ -663,10 +676,10 @@ struct TopOffSheet: View {
                             .disabled(paymentCheckState.isChecking)
                         }
 
-                        if case .checked(let msg) = paymentCheckState {
+                        if let msg = paymentCheckState.message {
                             Text(msg)
                                 .font(.caption)
-                                .foregroundStyle(.green)
+                                .foregroundStyle(paymentCheckState.isSettled ? .green : .secondary)
                         }
                     }
 
@@ -716,7 +729,7 @@ struct TopOffSheet: View {
             .navigationTitle("Top Off Credits")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(paymentCheckState.isSettled ? "Done" : "Cancel") { dismiss() }
                 }
             }
         }
@@ -733,6 +746,17 @@ struct TopOffSheet: View {
 
     private static func purchaseErrorGuidance(_ message: String, operatorName: String) -> ErrorGuidance {
         let lower = message.lowercased()
+
+        if lower.contains("proof is required") || lower.contains("invalid proof") {
+            return ErrorGuidance(
+                headline: "Operator Identity Verification",
+                icon: "key.fill",
+                color: .orange,
+                explanation: "\(operatorName) needs to update their Tollbooth SDK — the Authority now requires a Nostr proof on each certification request.",
+                isRetryable: false,
+                canNotify: true
+            )
+        }
 
         if lower.contains("authority") && lower.contains("insufficient") || lower.contains("certification failed") {
             return ErrorGuidance(
@@ -809,7 +833,7 @@ struct TopOffSheet: View {
                     pendingInvoiceIds: [invoiceId]
                 )
                 if result.settled > 0 {
-                    paymentCheckState = .checked("Settled! +\(result.creditsGained) sats credited.")
+                    paymentCheckState = .settled("Settled! +\(result.creditsGained) sats credited.")
                 } else if result.expired > 0 {
                     paymentCheckState = .checked("Invoice expired.")
                 } else {

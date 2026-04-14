@@ -379,27 +379,34 @@ struct ContentView: View {
 
     /// Shared header bar for all entity detail views.
     @ViewBuilder
-    private func entityHeader(name: String, endpoint: String?, icon: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.subheadline)
+    private func entityHeader(name: String, npub: String, endpoint: String?, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(name)
+                    .font(.headline)
+                if let member = pricingVM.memberRecord {
+                    MemberInfoButton(member: member)
+                }
+                if let endpoint {
+                    Text(endpoint)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer()
+                if let versions = pricingVM.serviceVersions {
+                    ServiceVersionsRow(versions: versions)
+                }
+            }
+            Text(npub)
+                .font(.caption2.monospaced())
                 .foregroundStyle(.secondary)
-            Text(name)
-                .font(.headline)
-            if let member = pricingVM.memberRecord {
-                MemberInfoButton(member: member)
-            }
-            if let endpoint {
-                Text(endpoint)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer()
-            if let versions = pricingVM.serviceVersions {
-                ServiceVersionsRow(versions: versions)
-            }
+                .textSelection(.enabled)
+                .lineLimit(1)
         }
         .padding(.horizontal)
         .padding(.top, 8)
@@ -410,7 +417,7 @@ struct ContentView: View {
         let identity = ChatIdentity(from: auth)
 
         VStack(spacing: 0) {
-            entityHeader(name: auth.displayName, endpoint: auth.mcpEndpointURL, icon: "building.columns.fill")
+            entityHeader(name: auth.displayName, npub: auth.npub, endpoint: auth.mcpEndpointURL, icon: "building.columns.fill")
 
             Picker("View", selection: $detailTab) {
                 Text("Authority").tag(ChatContainerTab.authority)
@@ -469,7 +476,7 @@ struct ContentView: View {
         let hasAuthority = op.authorityNpub != nil
 
         VStack(spacing: 0) {
-            entityHeader(name: op.displayName, endpoint: op.mcpEndpointURL, icon: "server.rack")
+            entityHeader(name: op.displayName, npub: op.npub, endpoint: op.mcpEndpointURL, icon: "server.rack")
 
             Picker("View", selection: $detailTab) {
                 if hasAuthority {
@@ -542,7 +549,7 @@ struct ContentView: View {
         let identity = ChatIdentity(from: patron)
 
         VStack(spacing: 0) {
-            entityHeader(name: patron.displayName, endpoint: nil, icon: "person.badge.key.fill")
+            entityHeader(name: patron.displayName, npub: patron.npub, endpoint: nil, icon: "person.badge.key.fill")
 
             Picker("View", selection: $detailTab) {
                 Text("Account").tag(ChatContainerTab.pricing)
