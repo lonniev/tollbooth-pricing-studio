@@ -54,12 +54,13 @@ enum NpubProofAutoResponder {
             let privKeyHex = try NostrKeyService.privateKeyHexFromNsec(nsec)
             let pubKeyHex = try NostrKeyService.publicKeyHexFromNpub(recipientNpub)
 
-            // Reply to the operator that sent the request
+            // Reply in Secure Courier @@@ delimited format
+            let courierReply = "proof_json = @@@\(proofJSON)@@@"
             try await dmService.sendDM(
                 privateKeyHex: privKeyHex,
                 publicKeyHex: pubKeyHex,
                 recipientPubkeyHex: dm.senderPubkeyHex,
-                message: proofJSON
+                message: courierReply
             )
 
             await MainActor.run {
