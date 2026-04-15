@@ -1354,46 +1354,60 @@ struct AccountStatementView: View {
 
     @ViewBuilder
     private var credentialSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Operator Credentials", systemImage: "key.fill")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
+        Divider()
+            .padding(.vertical, 4)
 
-            if loadingOnboarding {
-                HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: onboardingStatus?.ready == true ? "checkmark.shield.fill" : "shield.slash")
+                    .foregroundStyle(onboardingStatus?.ready == true ? .green : .secondary)
+                Text("Operator Secrets")
+                    .font(.caption.bold())
+                Spacer()
+                if loadingOnboarding {
                     ProgressView().controlSize(.mini)
-                    Text("Checking credentials\u{2026}").font(.caption2).foregroundStyle(.secondary)
                 }
-            } else if let status = onboardingStatus {
-                // Configured fields
-                if !status.configured.isEmpty {
-                    ForEach(status.configured, id: \.field) { field in
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill").font(.caption2).foregroundStyle(.green)
-                            Text(field.field).font(.caption2.monospaced())
-                            if let how = field.how {
-                                Text("(\(how))").font(.caption2).foregroundStyle(.tertiary)
-                            }
-                        }
+            }
+
+            if let status = onboardingStatus {
+                ForEach(status.configured, id: \.field) { field in
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                        Text(fieldLabel(field.field))
+                            .font(.caption2)
                     }
                 }
-                // Missing fields
-                if !status.missing.isEmpty {
-                    ForEach(status.missing, id: \.field) { field in
-                        HStack(spacing: 4) {
-                            Image(systemName: "exclamationmark.triangle.fill").font(.caption2).foregroundStyle(.orange)
-                            Text(field.field).font(.caption2.monospaced())
-                            if let how = field.how {
-                                Text("(\(how))").font(.caption2).foregroundStyle(.tertiary)
-                            }
-                        }
+
+                ForEach(status.missing, id: \.field) { field in
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text(fieldLabel(field.field))
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
                     }
                 }
             }
 
-            HStack(spacing: 12) {
-                Button {
-                    if let ep = ownEndpoint, let url = URL(string: ep) {
+            HStack(spacing: 8) {
+                if onboardingStatus == nil && !loadingOnboarding {
+                    Button {
+                        Task { await loadOnboardingStatus() }
+                    } label: {
+                        Label("Check", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                let hasMissing = !(onboardingStatus?.missing.isEmpty ?? true)
+                if hasMissing,
+                   let ep = ownEndpoint, let url = URL(string: ep) {
+                    Button {
                         let missing = onboardingStatus?.missing.map(\.field) ?? []
                         let svc = onboardingStatus?.credentialService ?? "operator"
                         onRequestCourier?(CourierParams(
@@ -1405,18 +1419,25 @@ struct AccountStatementView: View {
                             greeting: onboardingStatus?.credentialGreeting ?? "",
                             senderNpub: patronNpub
                         ))
+                    } label: {
+                        Label("Deliver", systemImage: "lock.shield")
+                            .font(.caption)
                     }
-                } label: {
-                    Label("Re-deliver", systemImage: "arrow.triangle.2.circlepath").font(.caption)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.orange)
                 }
-                .buttonStyle(.bordered).controlSize(.small)
 
-                Button(role: .destructive) {
-                    showingForgetConfirm = true
-                } label: {
-                    Label("Forget", systemImage: "trash").font(.caption)
+                if onboardingStatus != nil {
+                    Button(role: .destructive) {
+                        showingForgetConfirm = true
+                    } label: {
+                        Label("Forget", systemImage: "trash")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
-                .buttonStyle(.bordered).controlSize(.small)
             }
 
             switch forgetState {
@@ -1432,9 +1453,6 @@ struct AccountStatementView: View {
                 Label(msg, systemImage: "xmark.circle.fill").font(.caption2).foregroundStyle(.red)
             }
         }
-        .padding(12)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
         .task {
             if onboardingStatus == nil { await loadOnboardingStatus() }
         }
@@ -1472,5 +1490,12 @@ struct AccountStatementView: View {
         } catch {
             forgetState = .error(error.localizedDescription)
         }
+    }
+
+    private func fieldLabel(_ field: String) -> String {
+        field.replacingOccurrences(of: "_", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 }

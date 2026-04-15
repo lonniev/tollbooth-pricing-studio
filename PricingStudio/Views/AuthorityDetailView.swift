@@ -9,6 +9,15 @@ struct AuthorityDetailView: View {
     @State private var balanceVM = AuthorityBalanceViewModel()
     @State private var showingTopOff = false
     @State private var fundingOperator: Operator?
+    @State private var onboardingStatus: MCPService.OnboardingStatus?
+    @State private var loadingOnboarding = false
+    @State private var showingCourierCard = false
+    @State private var showingForgetConfirm = false
+    @State private var forgetState: ForgetState = .idle
+
+    private enum ForgetState {
+        case idle, forgetting, done(String), error(String)
+    }
 
     private var isLinked: Bool {
         KeychainService.loadNsec(forNpub: authority.npub) != nil
@@ -23,12 +32,33 @@ struct AuthorityDetailView: View {
                 if authority.mcpEndpointURL != nil {
                     Divider()
                     authorityBalanceSection
+                    Divider()
+                    operatorCredentialSection
                 }
                 Divider()
                 connectedOperatorsSection
             }
         }
         // navigationTitle removed — shared entityHeader provides the name
+        .overlay(alignment: .bottomTrailing) {
+            if showingCourierCard,
+               let endpoint = authority.mcpEndpointURL,
+               let url = URL(string: endpoint),
+               let status = onboardingStatus {
+                SecureCourierCard(
+                    operatorName: authority.displayName,
+                    operatorNpub: authority.npub,
+                    endpointURL: url,
+                    credentialService: status.credentialService ?? "",
+                    missingSecrets: status.missing
+                        .filter { $0.category == "secret" }
+                        .map { fieldLabel($0.field) },
+                    onDismiss: { showingCourierCard = false }
+                )
+                .frame(width: 340)
+                .padding()
+            }
+        }
         .sheet(isPresented: Binding(
             get: { authorityVM?.showingAdoptSheet ?? false },
             set: { authorityVM?.showingAdoptSheet = $0 }
@@ -241,6 +271,150 @@ struct AuthorityDetailView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Operator Credential Section
+
+    @ViewBuilder
+    private var operatorCredentialSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: onboardingStatus?.ready == true ? "checkmark.shield.fill" : "shield.slash")
+                    .foregroundStyle(onboardingStatus?.ready == true ? .green : .secondary)
+                Text("Operator Secrets")
+                    .font(.caption.bold())
+                Spacer()
+                if loadingOnboarding {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+
+            if let status = onboardingStatus {
+                ForEach(status.configured, id: \.field) { field in
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                        Text(fieldLabel(field.field))
+                            .font(.caption2)
+                    }
+                }
+
+                ForEach(status.missing, id: \.field) { field in
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text(fieldLabel(field.field))
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                if onboardingStatus == nil && !loadingOnboarding {
+                    Button {
+                        Task { await loadAuthorityOnboardingStatus() }
+                    } label: {
+                        Label("Check", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                let hasMissing = !(onboardingStatus?.missing.isEmpty ?? true)
+                if hasMissing {
+                    Button {
+                        showingCourierCard = true
+                    } label: {
+                        Label("Deliver", systemImage: "lock.shield")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.orange)
+                }
+
+                if onboardingStatus != nil {
+                    Button(role: .destructive) {
+                        showingForgetConfirm = true
+                    } label: {
+                        Label("Forget", systemImage: "trash")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            switch forgetState {
+            case .idle: EmptyView()
+            case .forgetting:
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.mini)
+                    Text("Forgetting\u{2026}").font(.caption2).foregroundStyle(.secondary)
+                }
+            case .done(let msg):
+                Label(msg, systemImage: "checkmark.circle.fill").font(.caption2).foregroundStyle(.green)
+            case .error(let msg):
+                Label(msg, systemImage: "xmark.circle.fill").font(.caption2).foregroundStyle(.red)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .task {
+            if onboardingStatus == nil { await loadAuthorityOnboardingStatus() }
+        }
+        .confirmationDialog("Forget Credentials", isPresented: $showingForgetConfirm, titleVisibility: .visible) {
+            Button("Forget operator credentials", role: .destructive) {
+                Task { await forgetAuthorityCredentials() }
+            }
+        } message: {
+            Text("This removes the vaulted credentials. Re-deliver via Secure Courier to restore.")
+        }
+    }
+
+    // MARK: - Credential Helpers
+
+    private func loadAuthorityOnboardingStatus() async {
+        guard let endpoint = authority.mcpEndpointURL,
+              let endpointURL = URL(string: endpoint) else { return }
+        loadingOnboarding = true
+        do {
+            onboardingStatus = try await MCPService().callGetOnboardingStatus(endpointURL: endpointURL)
+        } catch {
+            // Non-fatal — credential section just won't show field details
+        }
+        loadingOnboarding = false
+    }
+
+    private func forgetAuthorityCredentials() async {
+        let svc = onboardingStatus?.credentialService ?? ""
+        guard !svc.isEmpty,
+              let endpoint = authority.mcpEndpointURL,
+              let endpointURL = URL(string: endpoint) else {
+            forgetState = .error("No credential service or endpoint")
+            return
+        }
+        forgetState = .forgetting
+        do {
+            _ = try await MCPService().callForgetCredentials(
+                endpointURL: endpointURL, service: svc, npub: authority.npub
+            )
+            forgetState = .done("Credentials forgotten. Re-deliver via Secure Courier.")
+            await loadAuthorityOnboardingStatus()
+        } catch {
+            forgetState = .error(error.localizedDescription)
+        }
+    }
+
+    private func fieldLabel(_ field: String) -> String {
+        field.replacingOccurrences(of: "_", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 
     // MARK: - Connected Operators
