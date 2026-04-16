@@ -71,7 +71,8 @@ enum PreviewData {
         name: "Acme Weather Standard",
         isActive: true,
         tools: sampleToolPrices,
-        pipeline: samplePipelineSteps
+        pipeline: samplePipelineSteps,
+        trancheLifetime: .default
     )
 
     static let sampleOperatorStats = OperatorStats(
@@ -107,6 +108,7 @@ enum PreviewData {
         name: nil,
         isActive: nil,
         tools: nil,
-        pipeline: nil
+        pipeline: nil,
+        trancheLifetime: nil
     )
 }

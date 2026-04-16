@@ -6,12 +6,12 @@ struct AuthorityDetailView: View {
     @Bindable var pricingVM: PricingViewModel
     var authorityVM: AuthorityCollectionViewModel?
     var onOperatorSelected: ((Operator) -> Void)?
+    var onRequestCourier: ((CourierParams) -> Void)?
     @State private var balanceVM = AuthorityBalanceViewModel()
     @State private var showingTopOff = false
     @State private var fundingOperator: Operator?
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var loadingOnboarding = false
-    @State private var showingCourierCard = false
     @State private var showingForgetConfirm = false
     @State private var forgetState: ForgetState = .idle
 
@@ -40,25 +40,6 @@ struct AuthorityDetailView: View {
             }
         }
         // navigationTitle removed — shared entityHeader provides the name
-        .overlay(alignment: .bottomTrailing) {
-            if showingCourierCard,
-               let endpoint = authority.mcpEndpointURL,
-               let url = URL(string: endpoint),
-               let status = onboardingStatus {
-                SecureCourierCard(
-                    operatorName: authority.displayName,
-                    operatorNpub: authority.npub,
-                    endpointURL: url,
-                    credentialService: status.credentialService ?? "",
-                    missingSecrets: status.missing
-                        .filter { $0.category == "secret" }
-                        .map { fieldLabel($0.field) },
-                    onDismiss: { showingCourierCard = false }
-                )
-                .frame(width: 340)
-                .padding()
-            }
-        }
         .sheet(isPresented: Binding(
             get: { authorityVM?.showingAdoptSheet ?? false },
             set: { authorityVM?.showingAdoptSheet = $0 }
@@ -325,9 +306,20 @@ struct AuthorityDetailView: View {
                 }
 
                 let hasMissing = !(onboardingStatus?.missing.isEmpty ?? true)
-                if hasMissing {
+                if hasMissing, let onRequestCourier,
+                   let endpoint = authority.mcpEndpointURL,
+                   let url = URL(string: endpoint),
+                   let status = onboardingStatus {
                     Button {
-                        showingCourierCard = true
+                        onRequestCourier(CourierParams(
+                            operatorName: authority.displayName,
+                            operatorNpub: authority.npub,
+                            endpointURL: url,
+                            credentialService: status.credentialService ?? "",
+                            missingSecrets: status.missing
+                                .filter { $0.category == "secret" }
+                                .map { fieldLabel($0.field) }
+                        ))
                     } label: {
                         Label("Deliver", systemImage: "lock.shield")
                             .font(.caption)

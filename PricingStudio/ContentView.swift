@@ -420,10 +420,10 @@ struct ContentView: View {
             entityHeader(name: auth.displayName, npub: auth.npub, endpoint: auth.mcpEndpointURL, icon: "building.columns.fill")
 
             Picker("View", selection: $detailTab) {
-                Text("Authority").tag(ChatContainerTab.authority)
-                Text("Pricing").tag(ChatContainerTab.pricing)
-                Text("Account").tag(ChatContainerTab.invoices)
-                Text("Messages").tag(ChatContainerTab.messages)
+                Text("🏛️ Authority").tag(ChatContainerTab.authority)
+                Text("💰 Pricing").tag(ChatContainerTab.pricing)
+                Text("📊 Account").tag(ChatContainerTab.invoices)
+                Text("💬 Messages").tag(ChatContainerTab.messages)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -431,9 +431,13 @@ struct ContentView: View {
 
             switch detailTab {
             case .authority:
-                AuthorityDetailView(authority: auth, pricingVM: pricingVM, authorityVM: authorityVM) { op in
-                    operatorVM.selectedOperator = op
-                }
+                AuthorityDetailView(
+                    authority: auth,
+                    pricingVM: pricingVM,
+                    authorityVM: authorityVM,
+                    onOperatorSelected: { op in operatorVM.selectedOperator = op },
+                    onRequestCourier: { params in withAnimation { activeCourier = params } }
+                )
             case .pricing:
                 if auth.mcpEndpointURL != nil {
                     PricingDetailView(target: auth, viewModel: pricingVM)
@@ -480,12 +484,12 @@ struct ContentView: View {
 
             Picker("View", selection: $detailTab) {
                 if hasAuthority {
-                    Text("Authority").tag(ChatContainerTab.authority)
+                    Text("🏛️ Authority").tag(ChatContainerTab.authority)
                 }
-                Text("Pricing").tag(ChatContainerTab.pricing)
-                Text("Account").tag(ChatContainerTab.invoices)
-                Text("Campaign Advisor").tag(ChatContainerTab.consultant)
-                Text("Messages").tag(ChatContainerTab.messages)
+                Text("💰 Pricing").tag(ChatContainerTab.pricing)
+                Text("📊 Account").tag(ChatContainerTab.invoices)
+                Text("🧭 Advisor").tag(ChatContainerTab.consultant)
+                Text("💬 Messages").tag(ChatContainerTab.messages)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -552,9 +556,9 @@ struct ContentView: View {
             entityHeader(name: patron.displayName, npub: patron.npub, endpoint: nil, icon: "person.badge.key.fill")
 
             Picker("View", selection: $detailTab) {
-                Text("Account").tag(ChatContainerTab.pricing)
-                Text("Invoices").tag(ChatContainerTab.invoices)
-                Text("Messages").tag(ChatContainerTab.messages)
+                Text("📊 Account").tag(ChatContainerTab.pricing)
+                Text("🧾 Invoices").tag(ChatContainerTab.invoices)
+                Text("💬 Messages").tag(ChatContainerTab.messages)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)

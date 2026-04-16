@@ -683,10 +683,12 @@ actor MCPService {
         let name: String
         let tools: [ToolPrice]
         let pipeline: [PipelineStep]?
+        let trancheLifetime: TrancheLifetime?
 
         enum CodingKeys: String, CodingKey {
             case modelId = "model_id"
             case name, tools, pipeline
+            case trancheLifetime = "tranche_lifetime"
         }
     }
 
@@ -723,7 +725,8 @@ actor MCPService {
             modelId: effectiveModelId,
             name: model.name ?? "Pricing Model",
             tools: model.tools ?? [],
-            pipeline: model.pipeline
+            pipeline: model.pipeline,
+            trancheLifetime: model.trancheLifetime
         )
         var jsonData = try JSONEncoder().encode(payload)
 
@@ -1388,7 +1391,8 @@ actor MCPService {
             name: "Live Tool Pricing",
             isActive: true,
             tools: toolPrices,
-            pipeline: nil
+            pipeline: nil,
+            trancheLifetime: nil
         )
     }
 

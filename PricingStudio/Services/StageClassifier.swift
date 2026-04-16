@@ -36,7 +36,7 @@ enum StageClassifier {
         2 = Demand (users, usage patterns, market size)
         3 = Value (willingness to pay, competitive positioning)
         4 = Cost (serving costs, margins, infrastructure)
-        5 = Constraints (free tiers, rate limits, demurrage, pipeline rules)
+        5 = Constraints & Tranche Lifetime (free tiers, rate limits, tranche lifetime, pipeline rules)
         6 = Recommendation (final pricing proposal, revenue projections)
 
         PROBLEM: The interviewer naturally bleeds across topic boundaries:

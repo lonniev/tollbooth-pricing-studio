@@ -36,6 +36,7 @@ final class PricingViewModel {
     var localEdits: [String: ToolPrice] = [:]
     var localRemovals: Set<String> = []
     var localPipeline: [PipelineStep]? = nil
+    var localTrancheLifetime: TrancheLifetime? = nil
     var campaignApplied = false  // true when edits came from a campaign recommendation
 
     /// Warnings from client-side pipeline validation (displayed before save).
@@ -85,6 +86,7 @@ final class PricingViewModel {
         localEdits.removeAll()
         localRemovals.removeAll()
         localPipeline = nil
+        localTrancheLifetime = nil
         campaignApplied = false
     }
 
@@ -119,15 +121,25 @@ final class PricingViewModel {
             var steps: [PipelineStep] = []
             for stepDict in pipelineDicts {
                 guard let type = stepDict["type"] as? String else { continue }
-                var params: [String: AnyCodableValue] = [:]
+                var codableParams: [String: AnyCodableValue] = [:]
                 if let paramDict = stepDict["params"] as? [String: Any] {
                     for (key, value) in paramDict {
-                        params[key] = anyCodableValue(from: value)
+                        codableParams[key] = anyCodableValue(from: value)
                     }
                 }
-                steps.append(PipelineStep.create(type: type, params: params))
+                steps.append(PipelineStep.create(type: type, params: codableParams))
             }
             localPipeline = steps
+        }
+
+        // Apply tranche_lifetime
+        if let tlDict = obj["tranche_lifetime"] as? [String: Any] {
+            localTrancheLifetime = TrancheLifetime(
+                ttlDays: tlDict["ttl_days"] as? Int,
+                targetUsagePct: tlDict["target_usage_pct"] as? Double ?? 0.75,
+                minDays: tlDict["min_days"] as? Int ?? 3,
+                maxDays: tlDict["max_days"] as? Int ?? 90
+            )
         }
 
         campaignApplied = true
@@ -204,14 +216,20 @@ final class PricingViewModel {
         return .null
     }
 
+    var hasTrancheLifetimeEdits: Bool {
+        guard let local = localTrancheLifetime else { return false }
+        return local != pricingModel?.trancheLifetime
+    }
+
     var hasEdits: Bool {
-        !localEdits.isEmpty || !localRemovals.isEmpty || hasPipelineEdits
+        !localEdits.isEmpty || !localRemovals.isEmpty || hasPipelineEdits || hasTrancheLifetimeEdits
     }
 
     // MARK: - Pipeline Edits
 
     func beginPipelineEditing() {
         localPipeline = pricingModel?.pipeline ?? []
+        localTrancheLifetime = pricingModel?.trancheLifetime
     }
 
     func addPipelineStep(type: String, params: [String: AnyCodableValue]) {
@@ -236,6 +254,7 @@ final class PricingViewModel {
 
     func resetPipeline() {
         localPipeline = nil
+        localTrancheLifetime = nil
     }
 
     // MARK: - In-Memory Discovery Cache (5-minute TTL)
@@ -291,6 +310,7 @@ final class PricingViewModel {
         localEdits.removeAll()
         localRemovals.removeAll()
         localPipeline = nil
+        localTrancheLifetime = nil
         resolvedOperatorNpub = nil
 
         currentOperatorNpub = target.npub
@@ -313,6 +333,7 @@ final class PricingViewModel {
         localEdits.removeAll()
         localRemovals.removeAll()
         localPipeline = nil
+        localTrancheLifetime = nil
         resolvedOperatorNpub = nil
         currentOperatorNpub = nil  // allow loadPricing guard to pass
         startLoading(for: target)
@@ -342,7 +363,7 @@ final class PricingViewModel {
             } catch {
                 let msg = error.localizedDescription
                 if msg.contains("No pricing model") || msg.contains("not configured pricing") {
-                    state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, pipeline: nil))
+                    state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, pipeline: nil, trancheLifetime: nil))
                 } else {
                     state = .error(msg)
                 }
@@ -392,7 +413,7 @@ final class PricingViewModel {
             let msg = error.localizedDescription
             // "No pricing model" is not a fatal error — show empty loaded state
             if msg.contains("No pricing model") || msg.contains("not configured pricing") {
-                state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, pipeline: nil))
+                state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, pipeline: nil, trancheLifetime: nil))
             } else {
                 let detail = "\(msg)\n\nUnderlying: \(String(describing: error))"
                 TrafficLogger.shared.log(.error, label: "Load Failed: \(target.displayName)", detail: detail)
@@ -529,6 +550,7 @@ final class PricingViewModel {
         localEdits.removeAll()
         localRemovals.removeAll()
         localPipeline = nil
+        localTrancheLifetime = nil
 
         // Invalidate cache and reload
         cache.removeValue(forKey: target.npub)
@@ -573,6 +595,7 @@ final class PricingViewModel {
         }
 
         let pipeline = localPipeline ?? model.pipeline
+        let trancheLifetime = localTrancheLifetime ?? model.trancheLifetime
         return PricingModelResponse(
             status: model.status,
             modelId: model.modelId,
@@ -580,6 +603,7 @@ final class PricingViewModel {
             isActive: model.isActive,
             tools: tools,
             pipeline: pipeline,
+            trancheLifetime: trancheLifetime,
             source: model.source
         )
     }

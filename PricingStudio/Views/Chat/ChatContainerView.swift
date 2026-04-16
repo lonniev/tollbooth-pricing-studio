@@ -42,14 +42,14 @@ struct ChatContainerView<PricingContent: View, InvoicesContent: View, Consultant
     var body: some View {
         VStack(spacing: 0) {
             Picker("View", selection: $selectedTab) {
-                Text(firstTabLabel).tag(ChatContainerTab.pricing)
+                Text("💰 \(firstTabLabel)").tag(ChatContainerTab.pricing)
                 if invoicesContent != nil {
-                    Text("Invoices").tag(ChatContainerTab.invoices)
+                    Text("🧾 Invoices").tag(ChatContainerTab.invoices)
                 }
                 if consultantContent != nil {
-                    Text("Campaign Advisor").tag(ChatContainerTab.consultant)
+                    Text("🧭 Advisor").tag(ChatContainerTab.consultant)
                 }
-                Text("Messages").tag(ChatContainerTab.messages)
+                Text("💬 Messages").tag(ChatContainerTab.messages)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)

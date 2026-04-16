@@ -720,14 +720,14 @@ final class PricingConsultantViewModel {
                 "When you have a cost picture, summarize your findings clearly.",
             5: "You are in the CONSTRAINTS & DEMURRAGE phase. Cover two topics:\n\n" +
                 "1. Promotional mechanics: fairness rules, rate limits, free-tier policies, discounts.\n\n" +
-                "2. Demurrage (IMPORTANT — you have everything you need here, do NOT call Oracle tools " +
+                "2. Tranche Lifetime (IMPORTANT — you have everything you need here, do NOT call Oracle tools " +
                 "for this):\n\n" +
-                "Demurrage is a core concept in the DPYC economy, inspired by Austrian economics. " +
+                "Tranche lifetime is a core concept in the DPYC economy, inspired by Austrian economics. " +
                 "It encourages healthy velocity of circulation by giving credits a finite shelf life. " +
-                "This is not a penalty — it is a natural, positive property of the credit that aligns " +
-                "patron incentives with operator sustainability. Recommend demurrage by default, but " +
+                "This is not a penalty — it is a natural, positive property of the tranche that aligns " +
+                "patron incentives with operator sustainability. Recommend a tranche lifetime by default, but " +
                 "respect the operator's choice if they prefer credits that never expire.\n\n" +
-                "The constraint type is 'demurrage' — NEVER 'tranche_expiration' or any other name. " +
+                "Tranche lifetime is NOT a pipeline constraint — it is a top-level field on the pricing model. " +
                 "The minimum invoice is 1000 sats. Ask the operator how many tool calls they expect " +
                 "a typical patron to make per day. Then compute a recommended TTL:\n\n" +
                 "  avg_cost = median of tool prices from the pricing model\n" +
@@ -735,9 +735,9 @@ final class PricingConsultantViewModel {
                 "  ttl_days = ceil((1000 * 0.75) / expected_daily_sats)\n\n" +
                 "Clamp to 3-90 days. Present the recommendation: " +
                 "\"A patron spending ~X sats/day will use 75% of a 1000-sat tranche in Y days, " +
-                "so I recommend Y-day demurrage.\" The operator can accept or override.\n\n" +
-                "Include a demurrage step in the CAMPAIGN_JSON pipeline with " +
-                "params: {\"ttl_days\": N, \"target_usage_pct\": 0.75, \"min_days\": 3, \"max_days\": 90}.\n\n" +
+                "so I recommend a Y-day tranche lifetime.\" The operator can accept or override.\n\n" +
+                "Include tranche_lifetime as a TOP-LEVEL field in CAMPAIGN_JSON (NOT in the pipeline): " +
+                "\"tranche_lifetime\": {\"ttl_days\": N, \"target_usage_pct\": 0.75, \"min_days\": 3, \"max_days\": 90}.\n\n" +
                 "3. Patron Proof (for high-value tools):\n\n" +
                 "If any tools are priced at 50+ sats, recommend adding a 'patron_proof' constraint " +
                 "to those specific tools. This requires the patron to sign each call with their nsec, " +
@@ -985,9 +985,10 @@ final class PricingConsultantViewModel {
 
     When the operator explicitly approves the design (or a specific variant), output a \
     fenced JSON block with "name", "tools" (array of tool_name/price_sats/category/intent), \
-    and "pipeline" (array of type/params constraint steps). The credit expiration constraint \
-    type is "demurrage" — NEVER use "tranche_expiration" or any other name. Example pipeline \
-    step: {"type": "demurrage", "params": {"ttl_days": 15, "target_usage_pct": 0.75}}. \
+    and "pipeline" (array of type/params constraint steps), and optionally \
+    "tranche_lifetime" (a top-level object, NOT a pipeline step) with ttl_days, \
+    target_usage_pct, min_days, max_days. Example: \
+    "tranche_lifetime": {"ttl_days": 15, "target_usage_pct": 0.75, "min_days": 3, "max_days": 90}. \
     Do NOT output JSON until the operator approves.
     """
 }

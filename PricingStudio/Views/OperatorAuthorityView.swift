@@ -9,8 +9,6 @@ struct OperatorAuthorityView: View {
     let authorityNpub: String
 
     @Query private var authorities: [Authority]
-    @State private var balanceVM = AuthorityBalanceViewModel()
-    @State private var showingTopOff = false
     @State private var operatorBalance: Int?
     @State private var isLoadingBalance = false
 
@@ -23,23 +21,10 @@ struct OperatorAuthorityView: View {
             VStack(alignment: .leading, spacing: 16) {
                 authorityCard
                 operatorBalanceCard
-                topOffSection
             }
             .padding()
         }
         .task { await loadOperatorBalance() }
-        .sheet(isPresented: $showingTopOff) {
-            if let auth = authority {
-                AuthorityTopOffSheet(
-                    authorityName: "\(`operator`.displayName) at \(auth.displayName)",
-                    authorityNpub: auth.npub,
-                    endpoint: auth.mcpEndpointURL ?? "",
-                    balanceVM: balanceVM,
-                    authority: auth,
-                    purchaserNpub: `operator`.npub
-                )
-            }
-        }
     }
 
     // MARK: - Authority Card
@@ -132,26 +117,6 @@ struct OperatorAuthorityView: View {
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-
-    // MARK: - Top Off
-
-    @ViewBuilder
-    private var topOffSection: some View {
-        if authority?.mcpEndpointURL != nil {
-            Button {
-                showingTopOff = true
-            } label: {
-                Label("Top Off Operator Account", systemImage: "bolt.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .controlSize(.large)
-        } else {
-            Label("Authority has no MCP endpoint configured", systemImage: "link.badge.plus")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 
     // MARK: - Balance Loading

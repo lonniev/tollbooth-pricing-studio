@@ -110,6 +110,7 @@ final class ReconciliationViewModel {
             "receive_patron_credentials", "check_authority_balance",
             "get_pricing_model", "check_price", "list_constraint_types",
             "get_notarization_proof", "list_notarizations",
+            "request_npub_proof", "receive_npub_proof",
         ]
 
         // Known restricted tools

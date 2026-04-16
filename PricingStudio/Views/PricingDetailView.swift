@@ -117,6 +117,8 @@ struct PricingDetailView: View {
                             NotarizationStatusView(operatorNpub: target.npub, endpointURL: endpoint)
                         }
 
+                        trancheLifetimeSection(model: model)
+
                         pipelineSection(model.pipeline ?? [])
 
                         ToolPriceListView(tools: allTools, viewModel: viewModel, target: target)
@@ -430,6 +432,82 @@ struct PricingDetailView: View {
     private func resolveAuthority(npub: String) -> Authority? {
         let descriptor = FetchDescriptor<Authority>(predicate: #Predicate { $0.npub == npub })
         return try? modelContext.fetch(descriptor).first
+    }
+
+    @ViewBuilder
+    private func trancheLifetimeSection(model: PricingModelResponse) -> some View {
+        let effective = viewModel.localTrancheLifetime ?? model.trancheLifetime
+        let isEnabled = effective?.ttlDays != nil
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "hourglass")
+                    .foregroundStyle(.secondary)
+                Text("Tranche Lifetime")
+                    .font(.subheadline.bold())
+                Spacer()
+                if isEditingPipeline {
+                    Toggle("", isOn: Binding(
+                        get: { isEnabled },
+                        set: { on in
+                            if on {
+                                viewModel.localTrancheLifetime = .default
+                            } else {
+                                viewModel.localTrancheLifetime = TrancheLifetime(ttlDays: nil)
+                            }
+                        }
+                    ))
+                    .labelsHidden()
+                }
+            }
+
+            if isEnabled, let tl = effective {
+                VStack(alignment: .leading, spacing: 4) {
+                    if isEditingPipeline {
+                        HStack {
+                            Text("Expires after")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                            TextField("days", value: Binding(
+                                get: { tl.ttlDays ?? 15 },
+                                set: { days in
+                                    var updated = viewModel.localTrancheLifetime ?? tl
+                                    updated.ttlDays = max(updated.minDays, min(updated.maxDays, days))
+                                    viewModel.localTrancheLifetime = updated
+                                }
+                            ), format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                            .keyboardType(.numberPad)
+                            Text("days")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    } else {
+                        HStack(spacing: 12) {
+                            Label("\(tl.ttlDays ?? 15) days", systemImage: "calendar.badge.clock")
+                                .font(.subheadline.monospacedDigit())
+                            Text("target \(Int(tl.targetUsagePct * 100))% usage")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(8)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else if !isEditingPipeline {
+                Text("Credits never expire")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.separator), lineWidth: 0.5)
+        )
     }
 
     private func pipelineSection(_ serverPipeline: [PipelineStep]) -> some View {

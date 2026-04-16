@@ -99,6 +99,41 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     }
 }
 
+struct TrancheLifetime: Codable, Sendable, Equatable {
+    var ttlDays: Int?
+    var targetUsagePct: Double
+    var minDays: Int
+    var maxDays: Int
+
+    init(ttlDays: Int? = nil, targetUsagePct: Double = 0.75, minDays: Int = 3, maxDays: Int = 90) {
+        if let days = ttlDays {
+            self.ttlDays = max(minDays, min(maxDays, days))
+        } else {
+            self.ttlDays = nil
+        }
+        self.targetUsagePct = targetUsagePct
+        self.minDays = minDays
+        self.maxDays = maxDays
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case ttlDays = "ttl_days"
+        case targetUsagePct = "target_usage_pct"
+        case minDays = "min_days"
+        case maxDays = "max_days"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ttlDays = try container.decodeIfPresent(Int.self, forKey: .ttlDays)
+        targetUsagePct = try container.decodeIfPresent(Double.self, forKey: .targetUsagePct) ?? 0.75
+        minDays = try container.decodeIfPresent(Int.self, forKey: .minDays) ?? 3
+        maxDays = try container.decodeIfPresent(Int.self, forKey: .maxDays) ?? 90
+    }
+
+    static let `default` = TrancheLifetime(ttlDays: 15)
+}
+
 struct PipelineStep: Codable, Identifiable, Sendable {
     let id: String
     let type: String
@@ -124,7 +159,6 @@ enum PipelineStepType: String, Sendable {
     case happyHour = "happy_hour"
     case jsonExpression = "json_expression"
     case surgePricing = "surge_pricing"
-    case demurrage = "demurrage"
     case patronProof = "patron_proof"
     case unknown
 
@@ -140,7 +174,6 @@ enum PipelineStepType: String, Sendable {
         case .happyHour: return "party.popper"
         case .jsonExpression: return "curlybraces"
         case .surgePricing: return "chart.line.uptrend.xyaxis"
-        case .demurrage: return "hourglass"
         case .patronProof: return "lock.shield"
         case .unknown: return "questionmark.circle"
         }
@@ -158,7 +191,6 @@ enum PipelineStepType: String, Sendable {
         case .happyHour: return "Happy Hour"
         case .jsonExpression: return "JSON Expression"
         case .surgePricing: return "Surge Pricing"
-        case .demurrage: return "Demurrage"
         case .patronProof: return "Patron Proof"
         case .unknown: return "Unknown"
         }
@@ -172,6 +204,7 @@ struct PricingModelResponse: Codable, Sendable {
     let isActive: Bool?
     let tools: [ToolPrice]?
     let pipeline: [PipelineStep]?
+    let trancheLifetime: TrancheLifetime?
     var source: PricingSource = .synthesized
 
     enum CodingKeys: String, CodingKey {
@@ -181,6 +214,7 @@ struct PricingModelResponse: Codable, Sendable {
         case isActive = "is_active"
         case tools
         case pipeline
+        case trancheLifetime = "tranche_lifetime"
         // source excluded — set programmatically, not from JSON
     }
 }
