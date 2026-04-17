@@ -60,7 +60,7 @@ struct OperatorAuthorityView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    // MARK: - Operator Balance at Authority
+    // MARK: - Certification Tax Balance
 
     @ViewBuilder
     private var operatorBalanceCard: some View {
@@ -68,7 +68,7 @@ struct OperatorAuthorityView: View {
             HStack {
                 Image(systemName: "creditcard.fill")
                     .foregroundStyle(.orange)
-                Text("Operator Balance at Authority")
+                Text("Balance at \(authority?.displayName ?? "Authority") for \(`operator`.displayName)")
                     .font(.subheadline.bold())
                 Spacer()
                 Button {
@@ -103,8 +103,8 @@ struct OperatorAuthorityView: View {
                     }
                 }
 
-                Text("This is \(`operator`.displayName)'s tax account at the Authority. " +
-                     "The Authority deducts a 2% fee (min 10 sats) from this balance " +
+                Text("\(`operator`.displayName)'s certification tax account. " +
+                     "The Authority deducts a fee from this balance " +
                      "each time a patron purchases credits.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
