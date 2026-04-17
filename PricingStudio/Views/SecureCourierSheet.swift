@@ -75,15 +75,9 @@ struct SecureCourierCard: View {
                 .frame(maxHeight: 300)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(
-            for: UIApplication.willEnterForegroundNotification
-        )) { _ in
-            // Auto-collect when returning from Messages (user likely sent their DM)
-            if case .ready = phase {
-                phase = .collecting
-                Task { await collectCredentials() }
-            }
-        }
+        // No auto-collect on foreground re-entry. The human may still be
+        // composing their reply in the Nostr client. Each collect call
+        // destructively drains the relay — wait for "Collect Reply" tap.
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary, lineWidth: 1))
         .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
