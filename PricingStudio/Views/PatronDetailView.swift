@@ -1122,7 +1122,12 @@ struct AccountStatementView: View {
             }
             .padding()
         }
-        .task { await loadBalance() }
+        .task(id: "\(patronNpub):\(serviceNpub)") {
+            balanceState = .loading
+            onboardingStatus = nil
+            forgetState = .idle
+            await loadBalance()
+        }
         .refreshable { await loadBalance() }
         .sheet(isPresented: $showingTopOff) {
             TopOffSheet(
