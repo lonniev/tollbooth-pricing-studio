@@ -55,8 +55,14 @@ struct ChatContainerView<PricingContent: View, InvoicesContent: View, Consultant
             .padding(.horizontal)
             .padding(.vertical, 8)
             .accessibilityIdentifier("detailTabPicker")
-            .onAppear {
+            .onChange(of: identity.npub) { _, _ in
                 // Reset to first tab if current selection isn't available in this view
+                if selectedTab == .authority || selectedTab == .consultant && consultantContent == nil
+                    || selectedTab == .invoices && invoicesContent == nil {
+                    selectedTab = .pricing
+                }
+            }
+            .onAppear {
                 if selectedTab == .authority || selectedTab == .consultant && consultantContent == nil
                     || selectedTab == .invoices && invoicesContent == nil {
                     selectedTab = .pricing
@@ -77,7 +83,7 @@ struct ChatContainerView<PricingContent: View, InvoicesContent: View, Consultant
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
-                        .onAppear {
+                        .task(id: identity.npub) {
                             chatVM.switchIdentity(to: identity)
                         }
                 } else {

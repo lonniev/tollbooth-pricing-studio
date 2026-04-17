@@ -356,8 +356,11 @@ struct AuthorityDetailView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .task {
-            if onboardingStatus == nil { await loadAuthorityOnboardingStatus() }
+        .task(id: authority.npub) {
+            onboardingStatus = nil
+            balanceVM = AuthorityBalanceViewModel()
+            forgetState = .idle
+            await loadAuthorityOnboardingStatus()
         }
         .confirmationDialog("Forget Credentials", isPresented: $showingForgetConfirm, titleVisibility: .visible) {
             Button("Forget operator credentials", role: .destructive) {
@@ -525,7 +528,7 @@ private struct ConnectedOperatorsList: View {
                     .padding(.horizontal)
                 }
                 .padding(.bottom, 8)
-                .task { await loadOperatorBalances() }
+                .task(id: authorityNpub) { await loadOperatorBalances() }
             }
         }
         .alert("Disconnect Failed", isPresented: Binding(

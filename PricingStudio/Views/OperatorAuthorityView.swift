@@ -24,7 +24,10 @@ struct OperatorAuthorityView: View {
             }
             .padding()
         }
-        .task { await loadOperatorBalance() }
+        .task(id: `operator`.npub) {
+            operatorBalance = nil
+            await loadOperatorBalance()
+        }
     }
 
     // MARK: - Authority Card

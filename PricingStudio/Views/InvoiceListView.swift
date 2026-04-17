@@ -49,10 +49,10 @@ struct InvoiceListView: View {
             .padding()
         }
         .navigationTitle("Invoices")
-        .task {
-            guard !hasLoadedHistory else { return }
-            hasLoadedHistory = true
+        .task(id: patronNpub) {
+            hasLoadedHistory = false
             await accountVM.loadAllInvoiceHistory(forNpub: patronNpub, operators: operators)
+            hasLoadedHistory = true
         }
         .sheet(item: $topOffOperator) { target in
             TopOffSheet(
