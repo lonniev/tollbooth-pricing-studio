@@ -8,6 +8,7 @@ struct ConstraintParamEditor: View {
     @State private var values: [String: String] = [:]
     @State private var boolValues: [String: Bool] = [:]
     @State private var daySetValues: [String: Set<Int>] = [:]
+    @State private var dateValues: [String: Date] = [:]
 
     var body: some View {
         NavigationStack {
@@ -108,6 +109,24 @@ struct ConstraintParamEditor: View {
                     ))
                 }
             }
+
+        case .date:
+            DatePicker(
+                param.name.replacingOccurrences(of: "_", with: " ").capitalized,
+                selection: dateBinding(for: param.name),
+                displayedComponents: .date
+            )
+            .datePickerStyle(.compact)
+
+        case .picklist:
+            Picker(
+                param.name.replacingOccurrences(of: "_", with: " ").capitalized,
+                selection: binding(for: param.name)
+            ) {
+                ForEach(param.options ?? [], id: \.self) { option in
+                    Text(option.capitalized).tag(option)
+                }
+            }
         }
     }
 
@@ -124,6 +143,13 @@ struct ConstraintParamEditor: View {
         Binding(
             get: { boolValues[key, default: false] },
             set: { boolValues[key] = $0 }
+        )
+    }
+
+    private func dateBinding(for key: String) -> Binding<Date> {
+        Binding(
+            get: { dateValues[key] ?? Date() },
+            set: { dateValues[key] = $0 }
         )
     }
 
@@ -183,6 +209,17 @@ struct ConstraintParamEditor: View {
                     })
                 } else {
                     daySetValues[param.name] = Set(0...4) // weekdays default
+                }
+
+            case .date:
+                let isoFormatter = ISO8601DateFormatter()
+                isoFormatter.formatOptions = [.withFullDate]
+                if let existing = existingParams?[param.name],
+                   case .string(let s) = existing,
+                   let d = isoFormatter.date(from: s) {
+                    dateValues[param.name] = d
+                } else {
+                    dateValues[param.name] = Date()
                 }
 
             default:
@@ -245,6 +282,19 @@ struct ConstraintParamEditor: View {
             case .daysOfWeek:
                 let days = daySetValues[param.name, default: []]
                 result[param.name] = .array(days.sorted().map { .int($0) })
+
+            case .date:
+                if let d = dateValues[param.name] {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    result[param.name] = .string(formatter.string(from: d))
+                }
+
+            case .picklist:
+                let raw = values[param.name, default: ""]
+                if !raw.isEmpty {
+                    result[param.name] = .string(raw)
+                }
             }
         }
 

@@ -7,10 +7,12 @@ enum ParamType {
     case float
     case string
     case bool
-    case schedule      // "HH:MM-HH:MM" time range
+    case schedule      // HH:MM time field
     case timezone      // IANA timezone identifier
     case tiers         // array of tier dictionaries
     case daysOfWeek    // array of day indices (0=Mon..6=Sun, ISO 8601)
+    case date          // YYYY-MM-DD calendar date picker
+    case picklist      // selection from a fixed list of options
 }
 
 // MARK: - Parameter specification
@@ -21,6 +23,16 @@ struct ParamSpec {
     let required: Bool
     let defaultValue: AnyCodableValue?
     let description: String
+    let options: [String]?  // for .picklist type
+
+    init(name: String, type: ParamType, required: Bool = true, defaultValue: AnyCodableValue? = nil, description: String, options: [String]? = nil) {
+        self.name = name
+        self.type = type
+        self.required = required
+        self.defaultValue = defaultValue
+        self.description = description
+        self.options = options
+    }
 }
 
 // MARK: - Constraint specification
@@ -207,17 +219,18 @@ struct ConstraintCatalog {
                 ),
                 ParamSpec(
                     name: "repeats_when",
-                    type: .string,
+                    type: .picklist,
                     required: false,
                     defaultValue: .string("weekly"),
-                    description: "Recurrence: never (one-shot), weekly, biweekly, monthly, or annually."
+                    description: "Recurrence pattern.",
+                    options: ["never", "weekly", "biweekly", "monthly", "annually"]
                 ),
                 ParamSpec(
                     name: "starts_on",
-                    type: .string,
+                    type: .date,
                     required: false,
                     defaultValue: nil,
-                    description: "Start date (YYYY-MM-DD) for recurrence. Required for never/biweekly/monthly/annually."
+                    description: "Start date for recurrence. Required for never/biweekly/monthly/annually."
                 ),
             ]
         ),

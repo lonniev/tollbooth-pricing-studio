@@ -517,7 +517,7 @@ struct PricingDetailView: View {
                     get: { viewModel.localPipeline ?? serverPipeline },
                     set: { viewModel.localPipeline = $0 }
                 )
-                : .constant(serverPipeline),
+                : .constant(viewModel.localPipeline ?? serverPipeline),
             isEditing: isEditingPipeline,
             tools: viewModel.pricingModel?.tools ?? []
         )
