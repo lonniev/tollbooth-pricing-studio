@@ -69,12 +69,14 @@ jobs:
       - name: Compute version
         id: ver
         run: |
-          # Read base version from pbxproj (e.g. 1.7.0)
+          # Read MAJOR.MINOR from pbxproj (e.g. 1.7 from 1.7.0)
           BASE=$(grep 'MARKETING_VERSION' PricingStudio.xcodeproj/project.pbxproj \
             | grep -v '1.0' | head -1 | sed 's/.*= //' | tr -d ';[:space:]')
-          # Append build number: 1.7.0.608
-          echo "marketing=${BASE}.${{ github.run_number }}" >> $GITHUB_OUTPUT
-          echo "Marketing version: ${BASE}.${{ github.run_number }}"
+          MAJOR=$(echo "$BASE" | cut -d. -f1)
+          MINOR=$(echo "$BASE" | cut -d. -f2)
+          # MAJOR.MINOR.BUILD_NUMBER → e.g. 1.7.610
+          echo "marketing=${MAJOR}.${MINOR}.${{ github.run_number }}" >> $GITHUB_OUTPUT
+          echo "Marketing version: ${MAJOR}.${MINOR}.${{ github.run_number }}"
 
       - name: Build and archive
         run: |
