@@ -66,6 +66,16 @@ jobs:
           echo "uuid=$PP_UUID" >> $GITHUB_OUTPUT
           echo "name=$PP_NAME" >> $GITHUB_OUTPUT
 
+      - name: Compute version
+        id: ver
+        run: |
+          # Read base version from pbxproj (e.g. 1.7.0)
+          BASE=$(grep 'MARKETING_VERSION' PricingStudio.xcodeproj/project.pbxproj \
+            | grep -v '1.0' | head -1 | sed 's/.*= //' | tr -d ';[:space:]')
+          # Append build number: 1.7.0.608
+          echo "marketing=${BASE}.${{ github.run_number }}" >> $GITHUB_OUTPUT
+          echo "Marketing version: ${BASE}.${{ github.run_number }}"
+
       - name: Build and archive
         run: |
           xcodebuild archive \
@@ -73,6 +83,7 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath $RUNNER_TEMP/PricingStudio.xcarchive \
             -clonedSourcePackagesDirPath $RUNNER_TEMP/spm \
+            MARKETING_VERSION=${{ steps.ver.outputs.marketing }} \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
