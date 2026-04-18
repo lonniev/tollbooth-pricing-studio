@@ -379,8 +379,15 @@ struct ContentView: View {
 
     private func messagesTabLabel(npub: String) -> some View {
         let hasUnread = DMPollingService.shared.hasUnread(for: npub)
-        return Text(hasUnread ? "✉️ Messages" : "💬 Messages")
-            .tag(ChatContainerTab.messages)
+        return Group {
+            if hasUnread {
+                (Text(Image(systemName: "envelope.badge.fill")) + Text(" Messages"))
+                    .foregroundStyle(.orange)
+            } else {
+                Text("💬 Messages")
+            }
+        }
+        .tag(ChatContainerTab.messages)
     }
 
     private func entityHeader(name: String, npub: String, endpoint: String?, icon: String) -> some View {
