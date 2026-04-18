@@ -3,6 +3,7 @@ import SwiftUI
 struct PipelineView: View {
     @Binding var steps: [PipelineStep]
     let isEditing: Bool
+    var tools: [ToolPrice] = []
 
     @State private var showingAddSheet = false
     @State private var editingStep: PipelineStep?
@@ -33,9 +34,9 @@ struct PipelineView: View {
             }
         }
         .sheet(isPresented: $showingAddSheet) {
-            AddConstraintSheet { type, params in
+            AddConstraintSheet(tools: tools) { type, params, toolIds, patronNpubs in
                 withAnimation {
-                    steps.append(PipelineStep.create(type: type, params: params))
+                    steps.append(PipelineStep.create(type: type, params: params, toolIds: toolIds, patronNpubs: patronNpubs))
                 }
             }
         }
@@ -46,7 +47,10 @@ struct PipelineView: View {
                     existingParams: step.params,
                     onSave: { newParams in
                         if let idx = steps.firstIndex(where: { $0.id == step.id }) {
-                            steps[idx] = PipelineStep.create(type: step.type, params: newParams)
+                            steps[idx] = PipelineStep(
+                                id: step.id, type: step.type, params: newParams,
+                                toolIds: step.toolIds, patronNpubs: step.patronNpubs
+                            )
                         }
                     }
                 )
@@ -84,16 +88,36 @@ struct PipelineView: View {
                         }
 
                     if isEditing {
-                        Button(role: .destructive) {
-                            withAnimation {
-                                steps.removeAll { $0.id == step.id }
+                        VStack(spacing: 8) {
+                            Button {
+                                withAnimation {
+                                    let clone = PipelineStep.create(
+                                        type: step.type, params: step.params,
+                                        toolIds: step.toolIds, patronNpubs: step.patronNpubs
+                                    )
+                                    if let idx = steps.firstIndex(where: { $0.id == step.id }) {
+                                        steps.insert(clone, at: idx + 1)
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                                    .foregroundStyle(.blue)
+                                    .imageScale(.medium)
                             }
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .foregroundStyle(.red)
-                                .imageScale(.large)
+                            .buttonStyle(.plain)
+                            .help("Clone constraint")
+
+                            Button(role: .destructive) {
+                                withAnimation {
+                                    steps.removeAll { $0.id == step.id }
+                                }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(.red)
+                                    .imageScale(.medium)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .accessibilityIdentifier("pipelineStepRow_\(index)")

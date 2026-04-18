@@ -989,6 +989,11 @@ final class PricingConsultantViewModel {
     "tranche_lifetime" (a top-level object, NOT a pipeline step) with ttl_days, \
     target_usage_pct, min_days, max_days. Example: \
     "tranche_lifetime": {"ttl_days": 15, "target_usage_pct": 0.75, "min_days": 3, "max_days": 90}. \
+    Pipeline steps can optionally include "tool_ids" (array of tool UUIDs) to scope \
+    the constraint to specific tools, and "patron_npubs" (array of up to 10 npub strings) \
+    to scope to specific patrons. Omit both for wildcard (all tools, all patrons). \
+    Schedule-based constraints use "schedule_start" and "schedule_end" (separate HH:MM fields), \
+    NOT a combined "schedule" field. \
     Do NOT output JSON until the operator approves.
     """
 }

@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct AddConstraintSheet: View {
-    let onAdd: (String, [String: AnyCodableValue]) -> Void
+    let tools: [ToolPrice]
+    let onAdd: (String, [String: AnyCodableValue], [String]?, [String]?) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var selectedType: PipelineStepType?
     @State private var showingParamEditor = false
+    @State private var pendingParams: [String: AnyCodableValue]?
+    @State private var showingScopeSheet = false
 
     var body: some View {
         NavigationStack {
@@ -41,10 +44,18 @@ struct AddConstraintSheet: View {
                         spec: ConstraintCatalog.spec(for: type)!,
                         existingParams: nil,
                         onSave: { params in
-                            onAdd(type.rawValue, params)
-                            dismiss()
+                            pendingParams = params
+                            showingScopeSheet = true
                         }
                     )
+                }
+            }
+            .sheet(isPresented: $showingScopeSheet) {
+                if let type = selectedType, let params = pendingParams {
+                    ConstraintScopeSheet(tools: tools) { toolIds, patronNpubs in
+                        onAdd(type.rawValue, params, toolIds, patronNpubs)
+                        dismiss()
+                    }
                 }
             }
         }
