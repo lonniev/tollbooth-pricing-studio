@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// Displays the list of conversation partners, sorted by recency.
+/// Supports pinning one conversation and collapsing the rest.
 struct ConversationListView: View {
     let conversations: [DMConversation]
     @Binding var selectedId: String?
@@ -14,59 +15,137 @@ struct ConversationListView: View {
     /// Current identity's pubkey hex — used to filter self-conversations at the view level
     var currentIdentityPubHex: String?
 
-    var body: some View {
-        let filtered = currentIdentityPubHex != nil
+    @State private var pinnedId: String?
+    @State private var othersExpanded = true
+
+    private var filtered: [DMConversation] {
+        let base = currentIdentityPubHex != nil
             ? conversations.filter { $0.counterpartyPubkeyHex != currentIdentityPubHex }
             : conversations
-        List(filtered, selection: $selectedId) { convo in
-            VStack(alignment: .leading, spacing: 4) {
-                if let name = displayName(for: convo.counterpartyPubkeyHex) {
-                    HStack(spacing: 4) {
-                        Text(name)
-                            .font(.headline)
-                            .lineLimit(1)
-                        if let npub = convo.counterpartyNpub,
-                           (DMPollingService.shared.unreadCounts[npub] ?? 0) > 0 {
-                            Circle()
-                                .fill(.blue)
-                                .frame(width: 8, height: 8)
-                        }
-                    }
-                    Text(convo.counterpartyDisplayName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospaced()
-                        .lineLimit(1)
-                } else {
-                    HStack(spacing: 4) {
-                        Text(convo.counterpartyDisplayName)
-                            .font(.headline)
-                            .monospaced()
-                            .lineLimit(1)
-                        if let npub = convo.counterpartyNpub,
-                           (DMPollingService.shared.unreadCounts[npub] ?? 0) > 0 {
-                            Circle()
-                                .fill(.blue)
-                                .frame(width: 8, height: 8)
-                        }
-                    }
-                }
+        return base
+    }
 
-                if let latest = convo.latestMessage {
-                    Text(latest.content)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+    private var pinnedConvo: DMConversation? {
+        guard let id = pinnedId else { return nil }
+        return filtered.first { $0.id == id }
+    }
 
-                    Text(latest.createdAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+    private var otherConvos: [DMConversation] {
+        guard let id = pinnedId else { return filtered }
+        return filtered.filter { $0.id != id }
+    }
+
+    var body: some View {
+        List(selection: $selectedId) {
+            if let pinned = pinnedConvo {
+                Section {
+                    conversationRow(pinned)
+                        .contextMenu { unpinButton(pinned) }
+                } header: {
+                    HStack {
+                        Label("Pinned", systemImage: "pin.fill")
+                            .font(.caption2)
+                        Spacer()
+                    }
                 }
             }
-            .padding(.vertical, 4)
-            .tag(convo.id)
+
+            Section(isExpanded: pinnedId != nil ? $othersExpanded : .constant(true)) {
+                ForEach(otherConvos) { convo in
+                    conversationRow(convo)
+                        .contextMenu { pinButton(convo) }
+                }
+            } header: {
+                if pinnedId != nil {
+                    HStack {
+                        Label(othersExpanded ? "Others" : "\(otherConvos.count) more", systemImage: "bubble.left.and.bubble.right")
+                            .font(.caption2)
+                        Spacer()
+                        Button {
+                            withAnimation { othersExpanded.toggle() }
+                        } label: {
+                            Image(systemName: othersExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
         .listStyle(.sidebar)
+    }
+
+    @ViewBuilder
+    private func conversationRow(_ convo: DMConversation) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let name = displayName(for: convo.counterpartyPubkeyHex) {
+                HStack(spacing: 4) {
+                    Text(name)
+                        .font(.headline)
+                        .lineLimit(1)
+                    if let npub = convo.counterpartyNpub,
+                       (DMPollingService.shared.unreadCounts[npub] ?? 0) > 0 {
+                        Circle()
+                            .fill(.blue)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                Text(convo.counterpartyDisplayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospaced()
+                    .lineLimit(1)
+            } else {
+                HStack(spacing: 4) {
+                    Text(convo.counterpartyDisplayName)
+                        .font(.headline)
+                        .monospaced()
+                        .lineLimit(1)
+                    if let npub = convo.counterpartyNpub,
+                       (DMPollingService.shared.unreadCounts[npub] ?? 0) > 0 {
+                        Circle()
+                            .fill(.blue)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+            }
+
+            if let latest = convo.latestMessage {
+                Text(latest.content)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+
+                Text(latest.createdAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 4)
+        .tag(convo.id)
+    }
+
+    private func pinButton(_ convo: DMConversation) -> some View {
+        Button {
+            withAnimation {
+                pinnedId = convo.id
+                selectedId = convo.id
+                othersExpanded = false
+            }
+        } label: {
+            Label("Pin Conversation", systemImage: "pin")
+        }
+    }
+
+    private func unpinButton(_ convo: DMConversation) -> some View {
+        Button {
+            withAnimation {
+                pinnedId = nil
+                othersExpanded = true
+            }
+        } label: {
+            Label("Unpin", systemImage: "pin.slash")
+        }
     }
 
     /// Resolve a pubkey hex to a known entity's display name.

@@ -377,17 +377,10 @@ struct ContentView: View {
 
     // MARK: - Graph Node Selection
 
-    @ViewBuilder
     private func messagesTabLabel(npub: String) -> some View {
         let hasUnread = DMPollingService.shared.hasUnread(for: npub)
-        if hasUnread {
-            Label("Messages", systemImage: "envelope.badge.fill")
-                .foregroundStyle(.orange)
-                .tag(ChatContainerTab.messages)
-        } else {
-            Text("💬 Messages")
-                .tag(ChatContainerTab.messages)
-        }
+        return Text(hasUnread ? "✉️ Messages" : "💬 Messages")
+            .tag(ChatContainerTab.messages)
     }
 
     private func entityHeader(name: String, npub: String, endpoint: String?, icon: String) -> some View {
@@ -1035,11 +1028,13 @@ private struct AuthorityRowInline: View {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
+                    .help("Signing key (nsec) stored in your Keychain")
             }
             if (DMPollingService.shared.unreadCounts[authority.npub] ?? 0) > 0 {
                 Image(systemName: "envelope.badge.fill")
                     .font(.caption2)
                     .foregroundStyle(.orange)
+                    .help("You have new Nostr DMs")
                     .accessibilityIdentifier("dmIndicator_\(authority.npub)")
             }
         }
@@ -1139,11 +1134,13 @@ private struct OperatorRowInline: View {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
+                    .help("Signing key (nsec) stored in your Keychain")
             }
             if (DMPollingService.shared.unreadCounts[op.npub] ?? 0) > 0 {
                 Image(systemName: "envelope.badge.fill")
                     .font(.caption2)
                     .foregroundStyle(.orange)
+                    .help("You have new Nostr DMs")
                     .accessibilityIdentifier("dmIndicator_\(op.npub)")
             }
         }

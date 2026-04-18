@@ -60,11 +60,13 @@ private struct PatronRow: View {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
+                    .help("Signing key (nsec) stored in your Keychain")
             }
             if (DMPollingService.shared.unreadCounts[patron.npub] ?? 0) > 0 {
                 Image(systemName: "envelope.badge.fill")
                     .font(.caption2)
                     .foregroundStyle(.orange)
+                    .help("You have new Nostr DMs")
             }
         }
         .padding(.vertical, 2)
