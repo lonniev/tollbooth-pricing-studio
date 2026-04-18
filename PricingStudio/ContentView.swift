@@ -377,12 +377,17 @@ struct ContentView: View {
 
     // MARK: - Graph Node Selection
 
-    /// Shared header bar for all entity detail views.
     @ViewBuilder
     private func messagesTabLabel(npub: String) -> some View {
         let hasUnread = DMPollingService.shared.hasUnread(for: npub)
-        return Text(hasUnread ? "📩 Messages" : "💬 Messages")
-            .tag(ChatContainerTab.messages)
+        if hasUnread {
+            Label("Messages", systemImage: "envelope.badge.fill")
+                .foregroundStyle(.orange)
+                .tag(ChatContainerTab.messages)
+        } else {
+            Text("💬 Messages")
+                .tag(ChatContainerTab.messages)
+        }
     }
 
     private func entityHeader(name: String, npub: String, endpoint: String?, icon: String) -> some View {
