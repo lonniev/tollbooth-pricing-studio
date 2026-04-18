@@ -381,7 +381,7 @@ struct ContentView: View {
     @ViewBuilder
     private func messagesTabLabel(npub: String) -> some View {
         let hasUnread = DMPollingService.shared.hasUnread(for: npub)
-        return Text(hasUnread ? "🟢 Messages" : "💬 Messages")
+        return Text(hasUnread ? "📩 Messages" : "💬 Messages")
             .tag(ChatContainerTab.messages)
     }
 
