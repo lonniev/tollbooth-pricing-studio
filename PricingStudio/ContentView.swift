@@ -427,8 +427,8 @@ struct ContentView: View {
 
             Picker("View", selection: $detailTab) {
                 Text("🏛️ Authority").tag(ChatContainerTab.authority)
-                Text("💰 Pricing").tag(ChatContainerTab.pricing)
                 Text("📊 Account").tag(ChatContainerTab.invoices)
+                Text("💰 Pricing").tag(ChatContainerTab.pricing)
                 messagesTabLabel(npub: auth.npub)
             }
             .pickerStyle(.segmented)
@@ -492,8 +492,8 @@ struct ContentView: View {
                 if hasAuthority {
                     Text("🏛️ Authority").tag(ChatContainerTab.authority)
                 }
-                Text("💰 Pricing").tag(ChatContainerTab.pricing)
                 Text("📊 Account").tag(ChatContainerTab.invoices)
+                Text("💰 Pricing").tag(ChatContainerTab.pricing)
                 Text("🧭 Advisor").tag(ChatContainerTab.consultant)
                 messagesTabLabel(npub: op.npub)
             }
