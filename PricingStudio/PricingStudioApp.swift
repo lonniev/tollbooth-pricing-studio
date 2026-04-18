@@ -22,6 +22,9 @@ struct PricingStudioApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onAppear {
+                    Authority.ensurePrimeExists(in: modelContainer.mainContext)
+                }
         }
         .modelContainer(modelContainer)
     }

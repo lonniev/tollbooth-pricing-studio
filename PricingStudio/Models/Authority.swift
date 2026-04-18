@@ -3,11 +3,16 @@ import SwiftData
 
 @Model
 final class Authority: PricingTarget {
+    static let primeNpub = "npub1l94pd4qu4eszrl6ek032ftcnsu3tt9a7xvq2zp7eaxeklp6mrpzssmq8pf"
+    static let primeDisplayName = "DPYC Prime Authority"
+
     var npub: String = ""
     var displayName: String = ""
     var mcpEndpointURL: String?
     var addedAt: Date = Date()
     var isAutoDiscovered: Bool = false
+
+    var isPrime: Bool { npub == Self.primeNpub }
 
     init(npub: String, displayName: String, mcpEndpointURL: String? = nil, isAutoDiscovered: Bool = false) {
         self.npub = npub
@@ -15,5 +20,15 @@ final class Authority: PricingTarget {
         self.mcpEndpointURL = mcpEndpointURL
         self.addedAt = Date()
         self.isAutoDiscovered = isAutoDiscovered
+    }
+
+    static func ensurePrimeExists(in context: ModelContext) {
+        let descriptor = FetchDescriptor<Authority>(predicate: #Predicate { $0.npub == primeNpub })
+        let existing = (try? context.fetch(descriptor)) ?? []
+        if existing.isEmpty {
+            let prime = Authority(npub: primeNpub, displayName: primeDisplayName)
+            prime.addedAt = Date.distantPast // sorts first
+            context.insert(prime)
+        }
     }
 }

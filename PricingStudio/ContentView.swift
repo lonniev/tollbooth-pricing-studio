@@ -837,10 +837,12 @@ private struct SidebarView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { authorityVM.selectedAuthority = auth }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            authorityVM.requestDelete(auth)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+                        if !auth.isPrime {
+                            Button(role: .destructive) {
+                                authorityVM.requestDelete(auth)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
                     .contextMenu {
@@ -849,11 +851,13 @@ private struct SidebarView: View {
                         } label: {
                             Label("Edit", systemImage: "pencil")
                         }
-                        Divider()
-                        Button(role: .destructive) {
-                            authorityVM.requestDelete(auth)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+                        if !auth.isPrime {
+                            Divider()
+                            Button(role: .destructive) {
+                                authorityVM.requestDelete(auth)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
             }
