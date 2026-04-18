@@ -91,6 +91,7 @@
 		AA0000010000000000000531 /* ConstraintCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000521 /* ConstraintCatalog.swift */; };
 		AA0000010000000000000611 /* AddConstraintSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000601 /* AddConstraintSheet.swift */; };
 		AA0000010000000000000931 /* ConstraintScopeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000930 /* ConstraintScopeSheet.swift */; };
+		AA0000010000000000000941 /* CommunityCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000940 /* CommunityCanvasView.swift */; };
 		AA0000010000000000000612 /* ConstraintParamEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000602 /* ConstraintParamEditor.swift */; };
 		AA0000010000000000000711 /* RelaySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000701 /* RelaySettings.swift */; };
 		AA0000010000000000000712 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000702 /* SettingsSheet.swift */; };
@@ -244,6 +245,7 @@
 		AA0000010000000000000521 /* ConstraintCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintCatalog.swift; sourceTree = "<group>"; };
 		AA0000010000000000000601 /* AddConstraintSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddConstraintSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000930 /* ConstraintScopeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintScopeSheet.swift; sourceTree = "<group>"; };
+		AA0000010000000000000940 /* CommunityCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityCanvasView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000602 /* ConstraintParamEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintParamEditor.swift; sourceTree = "<group>"; };
 		AA0000010000000000000701 /* RelaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySettings.swift; sourceTree = "<group>"; };
 		AA0000010000000000000702 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
@@ -531,6 +533,7 @@
 				AA0000010000000000000415 /* AssistantAPIKeySheet.swift */,
 				AA0000010000000000000601 /* AddConstraintSheet.swift */,
 				AA0000010000000000000930 /* ConstraintScopeSheet.swift */,
+				AA0000010000000000000940 /* CommunityCanvasView.swift */,
 				AA0000010000000000000602 /* ConstraintParamEditor.swift */,
 				AA0000010000000000000702 /* SettingsSheet.swift */,
 				AA0000010000000000000250 /* Chat */,
@@ -959,6 +962,7 @@
 				AA0000010000000000000531 /* ConstraintCatalog.swift in Sources */,
 				AA0000010000000000000611 /* AddConstraintSheet.swift in Sources */,
 				AA0000010000000000000931 /* ConstraintScopeSheet.swift in Sources */,
+				AA0000010000000000000941 /* CommunityCanvasView.swift in Sources */,
 				AA0000010000000000000612 /* ConstraintParamEditor.swift in Sources */,
 				AA0000010000000000000711 /* RelaySettings.swift in Sources */,
 				AA0000010000000000000712 /* SettingsSheet.swift in Sources */,

@@ -446,11 +446,7 @@ struct ContentView: View {
                 if auth.mcpEndpointURL != nil {
                     PricingDetailView(target: auth, viewModel: pricingVM)
                 } else {
-                    ContentUnavailableView(
-                        "No MCP Endpoint",
-                        systemImage: "link.badge.plus",
-                        description: Text("This authority's MCP endpoint hasn't been discovered yet.")
-                    )
+                    CommunityCanvasView()
                 }
             case .invoices:
                 if let endpoint = auth.mcpEndpointURL {
@@ -462,8 +458,7 @@ struct ContentView: View {
                         accountVM: patronAccountVM
                     )
                 } else {
-                    ContentUnavailableView("No Endpoint", systemImage: "link.badge.plus",
-                        description: Text("MCP endpoint required for account data."))
+                    CommunityCanvasView()
                 }
             case .messages:
                 if identity.hasNsec {
