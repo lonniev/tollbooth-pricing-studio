@@ -205,6 +205,20 @@ struct ConstraintCatalog {
                     defaultValue: .array([.int(0), .int(1), .int(2), .int(3), .int(4)]),
                     description: "Days when the happy hour is active (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun)."
                 ),
+                ParamSpec(
+                    name: "repeats_when",
+                    type: .string,
+                    required: false,
+                    defaultValue: .string("weekly"),
+                    description: "Recurrence: never (one-shot), weekly, biweekly, monthly, or annually."
+                ),
+                ParamSpec(
+                    name: "starts_on",
+                    type: .string,
+                    required: false,
+                    defaultValue: nil,
+                    description: "Start date (YYYY-MM-DD) for recurrence. Required for never/biweekly/monthly/annually."
+                ),
             ]
         ),
 
