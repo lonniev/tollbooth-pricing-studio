@@ -66,18 +66,9 @@ struct ConstraintParamEditor: View {
             )
 
         case .schedule:
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Start")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("HH:mm or cron expression", text: binding(for: "\(param.name)_start"))
-                    .monospaced()
-                Text("End")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("HH:mm or cron expression", text: binding(for: "\(param.name)_end"))
-                    .monospaced()
-            }
+            TextField("HH:MM (24-hour)", text: binding(for: param.name))
+                .monospaced()
+                .keyboardType(.numbersAndPunctuation)
 
         case .timezone:
             Picker(
@@ -158,26 +149,12 @@ struct ConstraintParamEditor: View {
                 }
 
             case .schedule:
-                if let existing = existingParams?[param.name],
-                   case .string(let s) = existing {
-                    // Expect "start|end" format stored as a single string
-                    let parts = s.split(separator: "|", maxSplits: 1)
-                    values["\(param.name)_start"] = parts.count > 0 ? String(parts[0]) : ""
-                    values["\(param.name)_end"] = parts.count > 1 ? String(parts[1]) : ""
-                } else if let existing = existingParams {
-                    // Also support separate start/end keys in the params dict
-                    if let startVal = existing["\(param.name)_start"] {
-                        values["\(param.name)_start"] = stringFrom(startVal)
-                    }
-                    if let endVal = existing["\(param.name)_end"] {
-                        values["\(param.name)_end"] = stringFrom(endVal)
-                    }
-                }
-                if values["\(param.name)_start"] == nil {
-                    values["\(param.name)_start"] = ""
-                }
-                if values["\(param.name)_end"] == nil {
-                    values["\(param.name)_end"] = ""
+                if let existing = existingParams?[param.name] {
+                    values[param.name] = stringFrom(existing)
+                } else if let def = param.defaultValue {
+                    values[param.name] = stringFrom(def)
+                } else {
+                    values[param.name] = ""
                 }
 
             case .tiers:
@@ -249,11 +226,9 @@ struct ConstraintParamEditor: View {
                 result[param.name] = .bool(boolValues[param.name, default: false])
 
             case .schedule:
-                let start = values["\(param.name)_start", default: ""]
-                let end = values["\(param.name)_end", default: ""]
-                if !start.isEmpty || !end.isEmpty {
-                    result["\(param.name)_start"] = .string(start)
-                    result["\(param.name)_end"] = .string(end)
+                let raw = values[param.name, default: ""]
+                if !raw.isEmpty {
+                    result[param.name] = .string(raw)
                 }
 
             case .timezone:

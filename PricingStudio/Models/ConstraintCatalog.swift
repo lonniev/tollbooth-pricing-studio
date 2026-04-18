@@ -157,11 +157,18 @@ struct ConstraintCatalog {
             description: "Apply a pricing discount during a temporal window.",
             params: [
                 ParamSpec(
-                    name: "schedule",
+                    name: "schedule_start",
                     type: .schedule,
                     required: true,
-                    defaultValue: .string("17:00-19:00"),
-                    description: "HH:MM-HH:MM time range (24-hour). Wraps midnight when end < start."
+                    defaultValue: .string("17:00"),
+                    description: "Start time HH:MM (24-hour)."
+                ),
+                ParamSpec(
+                    name: "schedule_end",
+                    type: .schedule,
+                    required: true,
+                    defaultValue: .string("19:00"),
+                    description: "End time HH:MM (24-hour). Wraps midnight when end < start."
                 ),
                 ParamSpec(
                     name: "timezone",
@@ -240,11 +247,18 @@ struct ConstraintCatalog {
             description: "Restrict tool access to a configurable time-of-day window.",
             params: [
                 ParamSpec(
-                    name: "schedule",
+                    name: "schedule_start",
                     type: .schedule,
                     required: true,
-                    defaultValue: .string("09:00-17:00"),
-                    description: "HH:MM-HH:MM time range (24-hour). Wraps midnight when end < start."
+                    defaultValue: .string("09:00"),
+                    description: "Start time HH:MM (24-hour)."
+                ),
+                ParamSpec(
+                    name: "schedule_end",
+                    type: .schedule,
+                    required: true,
+                    defaultValue: .string("17:00"),
+                    description: "End time HH:MM (24-hour). Wraps midnight when end < start."
                 ),
                 ParamSpec(
                     name: "timezone",
