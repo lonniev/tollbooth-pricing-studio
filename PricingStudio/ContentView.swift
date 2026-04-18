@@ -379,6 +379,12 @@ struct ContentView: View {
 
     /// Shared header bar for all entity detail views.
     @ViewBuilder
+    private func messagesTabLabel(npub: String) -> some View {
+        let hasUnread = DMPollingService.shared.hasUnread(for: npub)
+        return Text(hasUnread ? "🟢 Messages" : "💬 Messages")
+            .tag(ChatContainerTab.messages)
+    }
+
     private func entityHeader(name: String, npub: String, endpoint: String?, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
@@ -423,7 +429,7 @@ struct ContentView: View {
                 Text("🏛️ Authority").tag(ChatContainerTab.authority)
                 Text("💰 Pricing").tag(ChatContainerTab.pricing)
                 Text("📊 Account").tag(ChatContainerTab.invoices)
-                Text("💬 Messages").tag(ChatContainerTab.messages)
+                messagesTabLabel(npub: auth.npub)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -489,7 +495,7 @@ struct ContentView: View {
                 Text("💰 Pricing").tag(ChatContainerTab.pricing)
                 Text("📊 Account").tag(ChatContainerTab.invoices)
                 Text("🧭 Advisor").tag(ChatContainerTab.consultant)
-                Text("💬 Messages").tag(ChatContainerTab.messages)
+                messagesTabLabel(npub: op.npub)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -558,7 +564,7 @@ struct ContentView: View {
             Picker("View", selection: $detailTab) {
                 Text("📊 Account").tag(ChatContainerTab.pricing)
                 Text("🧾 Invoices").tag(ChatContainerTab.invoices)
-                Text("💬 Messages").tag(ChatContainerTab.messages)
+                messagesTabLabel(npub: patron.npub)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
