@@ -195,7 +195,9 @@ final class PricingViewModel {
                 steps[i] = PipelineStep(
                     id: step.id,
                     type: step.type,
-                    params: params
+                    params: params,
+                    toolIds: step.toolIds,
+                    patronNpubs: step.patronNpubs
                 )
             }
         }
@@ -232,10 +234,17 @@ final class PricingViewModel {
         localTrancheLifetime = pricingModel?.trancheLifetime
     }
 
-    func addPipelineStep(type: String, params: [String: AnyCodableValue]) {
+    func addPipelineStep(type: String, params: [String: AnyCodableValue], toolIds: [String]? = nil, patronNpubs: [String]? = nil) {
         guard localPipeline != nil else { return }
-        let step = PipelineStep(id: UUID().uuidString, type: type, params: params)
+        let step = PipelineStep.create(type: type, params: params, toolIds: toolIds, patronNpubs: patronNpubs)
         localPipeline?.append(step)
+    }
+
+    func clonePipelineStep(at index: Int) {
+        guard let steps = localPipeline, index < steps.count else { return }
+        let original = steps[index]
+        let clone = PipelineStep.create(type: original.type, params: original.params, toolIds: original.toolIds, patronNpubs: original.patronNpubs)
+        localPipeline?.insert(clone, at: index + 1)
     }
 
     func removePipelineStep(at offsets: IndexSet) {
@@ -246,10 +255,14 @@ final class PricingViewModel {
         localPipeline?.move(fromOffsets: source, toOffset: destination)
     }
 
-    func updatePipelineStepParams(stepId: String, params: [String: AnyCodableValue]) {
+    func updatePipelineStepParams(stepId: String, params: [String: AnyCodableValue], toolIds: [String]? = nil, patronNpubs: [String]? = nil) {
         guard let idx = localPipeline?.firstIndex(where: { $0.id == stepId }) else { return }
         let existing = localPipeline![idx]
-        localPipeline![idx] = PipelineStep(id: existing.id, type: existing.type, params: params)
+        localPipeline![idx] = PipelineStep(
+            id: existing.id, type: existing.type, params: params,
+            toolIds: toolIds ?? existing.toolIds,
+            patronNpubs: patronNpubs ?? existing.patronNpubs
+        )
     }
 
     func resetPipeline() {

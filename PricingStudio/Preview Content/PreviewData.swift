@@ -37,32 +37,20 @@ enum PreviewData {
     ]
 
     static let samplePipelineSteps: [PipelineStep] = [
-        PipelineStep(
-            id: "step-1",
-            type: "free_trial",
-            params: [
-                "seed_sats": .int(50),
-                "description": .string("First-time users receive 50 sats to explore")
-            ]
-        ),
-        PipelineStep(
-            id: "step-2",
-            type: "bulk_bonus",
-            params: [
-                "threshold_sats": .int(1000),
-                "bonus_percent": .int(10),
-                "description": .string("10% bonus on purchases over 1000 sats")
-            ]
-        ),
-        PipelineStep(
-            id: "step-3",
-            type: "loyalty_discount",
-            params: [
-                "after_purchases": .int(5),
-                "discount_percent": .int(5),
-                "description": .string("5% discount after 5 purchases")
-            ]
-        ),
+        .create(type: "free_trial", params: [
+            "seed_sats": .int(50),
+            "description": .string("First-time users receive 50 sats to explore"),
+        ]),
+        .create(type: "bulk_bonus", params: [
+            "threshold_sats": .int(1000),
+            "bonus_percent": .int(10),
+            "description": .string("10% bonus on purchases over 1000 sats"),
+        ]),
+        .create(type: "loyalty_discount", params: [
+            "after_purchases": .int(5),
+            "discount_percent": .int(5),
+            "description": .string("5% discount after 5 purchases"),
+        ]),
     ]
 
     static let samplePricingModel = PricingModelResponse(

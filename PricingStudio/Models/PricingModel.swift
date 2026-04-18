@@ -138,13 +138,30 @@ struct PipelineStep: Codable, Identifiable, Sendable {
     let id: String
     let type: String
     let params: [String: AnyCodableValue]
+    let toolIds: [String]?
+    let patronNpubs: [String]?
 
     var displayType: PipelineStepType {
         PipelineStepType(rawValue: type) ?? .unknown
     }
 
-    static func create(type: String, params: [String: AnyCodableValue] = [:]) -> PipelineStep {
-        PipelineStep(id: UUID().uuidString, type: type, params: params)
+    var isScoped: Bool {
+        (toolIds != nil && !(toolIds!.isEmpty)) || (patronNpubs != nil && !(patronNpubs!.isEmpty))
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, params
+        case toolIds = "tool_ids"
+        case patronNpubs = "patron_npubs"
+    }
+
+    static func create(
+        type: String,
+        params: [String: AnyCodableValue] = [:],
+        toolIds: [String]? = nil,
+        patronNpubs: [String]? = nil
+    ) -> PipelineStep {
+        PipelineStep(id: UUID().uuidString, type: type, params: params, toolIds: toolIds, patronNpubs: patronNpubs)
     }
 }
 

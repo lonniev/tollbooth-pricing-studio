@@ -33,6 +33,22 @@ struct PipelineStepCard: View {
                     }
                 }
             }
+
+            if step.isScoped {
+                Divider()
+                HStack(spacing: 12) {
+                    if let tools = step.toolIds, !tools.isEmpty {
+                        Label("\(tools.count) tool\(tools.count == 1 ? "" : "s")", systemImage: "wrench")
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                    }
+                    if let patrons = step.patronNpubs, !patrons.isEmpty {
+                        Label("\(patrons.count) patron\(patrons.count == 1 ? "" : "s")", systemImage: "person")
+                            .font(.caption2)
+                            .foregroundStyle(.purple)
+                    }
+                }
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
