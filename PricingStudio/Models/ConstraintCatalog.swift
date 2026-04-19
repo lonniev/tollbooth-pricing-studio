@@ -169,18 +169,18 @@ struct ConstraintCatalog {
             description: "Apply a pricing discount during a temporal window.",
             params: [
                 ParamSpec(
-                    name: "schedule_start",
+                    name: "in_effect",
                     type: .schedule,
                     required: true,
                     defaultValue: .string("17:00"),
-                    description: "In Effect — start time HH:MM (24-hour)."
+                    description: "Start time HH:MM (24-hour)."
                 ),
                 ParamSpec(
-                    name: "schedule_end",
+                    name: "until",
                     type: .schedule,
                     required: true,
                     defaultValue: .string("19:00"),
-                    description: "Until — end time HH:MM (24-hour). Wraps midnight when end < start."
+                    description: "End time HH:MM (24-hour). Wraps midnight when end < start."
                 ),
                 ParamSpec(
                     name: "timezone",
@@ -197,14 +197,14 @@ struct ConstraintCatalog {
                     description: "Days when the happy hour is active."
                 ),
                 ParamSpec(
-                    name: "starts_on",
+                    name: "apply_on",
                     type: .date,
                     required: false,
                     defaultValue: nil,
-                    description: "Apply On — recurrence start date. Defaults to today."
+                    description: "Recurrence start date. Defaults to today."
                 ),
                 ParamSpec(
-                    name: "repeats_when",
+                    name: "repeats",
                     type: .picklist,
                     required: false,
                     defaultValue: .string("weekly"),
@@ -216,21 +216,21 @@ struct ConstraintCatalog {
                     type: .bool,
                     required: false,
                     defaultValue: .bool(false),
-                    description: "Free — all tool calls are free during this window."
+                    description: "All tool calls are free during this window."
                 ),
                 ParamSpec(
-                    name: "discount_percent",
+                    name: "percent_off",
                     type: .float,
                     required: false,
                     defaultValue: .double(0.0),
-                    description: "Percent Off — percentage discount (0-100). Ignored when Free is on."
+                    description: "Percentage discount (0-100). Ignored when Free is on."
                 ),
                 ParamSpec(
-                    name: "discount_sats",
+                    name: "max_discount",
                     type: .int,
                     required: false,
                     defaultValue: .int(0),
-                    description: "Max Discount — absolute cap in api-sats. 0 = unlimited."
+                    description: "Absolute cap in api-sats. 0 = unlimited."
                 ),
             ]
         ),

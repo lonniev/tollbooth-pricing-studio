@@ -60,7 +60,15 @@ struct PipelineStepCard: View {
     }
 
     /// Legacy param keys that should never display — remnants of old data formats.
-    private static let hiddenParams: Set<String> = ["schedule"]
+    private static let hiddenParams: Set<String> = [
+        "schedule",           // legacy concatenated HH:MM-HH:MM
+        "schedule_start",     // renamed to in_effect
+        "schedule_end",       // renamed to until
+        "discount_percent",   // renamed to percent_off
+        "discount_sats",      // renamed to max_discount
+        "repeats_when",       // renamed to repeats
+        "starts_on",          // renamed to apply_on
+    ]
 
     private var sortedParams: [(key: String, value: AnyCodableValue)] {
         // Use catalog param order if available; filter out legacy keys
