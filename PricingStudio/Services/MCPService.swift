@@ -728,7 +728,7 @@ actor MCPService {
             pipeline: model.pipeline,
             trancheLifetime: model.trancheLifetime
         )
-        var jsonData = try JSONEncoder().encode(payload)
+        let jsonData = try JSONEncoder().encode(payload)
 
         let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
 
