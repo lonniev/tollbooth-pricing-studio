@@ -129,9 +129,6 @@ struct PricingDetailView: View {
                     viewModel.retry(for: target)
                 }
 
-                if viewModel.hasEdits {
-                    unifiedSaveBar
-                }
             }
             .sheet(isPresented: $showingDiff) {
                 NavigationStack {
