@@ -568,6 +568,14 @@ struct PricingDetailView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
+                if viewModel.hasEdits {
+                    Button("Save Changes") {
+                        showingSaveConfirmation = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.green)
+                }
                 Button {
                     showingReconcileConfirmation = true
                 } label: {
