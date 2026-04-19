@@ -548,12 +548,37 @@ struct PricingDetailView: View {
             }
             Spacer()
             if source == .stored {
-                if isEditingPipeline {
-                    Button("Done Editing") {
-                        isEditingPipeline = false
+                if isEditingPipeline || viewModel.hasEdits {
+                    if viewModel.hasEdits {
+                        Button("Save Changes") {
+                            Task {
+                                do {
+                                    try await viewModel.savePricing(for: target)
+                                    isEditingPipeline = false
+                                    showSaveSuccess = true
+                                } catch {
+                                    saveError = "Could not save to operator. The operator may retain the former model. (\(error.localizedDescription))"
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.green)
+
+                        Button("Forget Changes") {
+                            viewModel.resetAllEdits()
+                            isEditingPipeline = false
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(.red)
+                    } else {
+                        Button("Done Editing") {
+                            isEditingPipeline = false
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 } else {
                     Button {
                         viewModel.beginPipelineEditing()
@@ -564,14 +589,6 @@ struct PricingDetailView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                }
-                if viewModel.hasEdits {
-                    Button("Save Changes") {
-                        showingSaveConfirmation = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(.green)
                 }
                 Button {
                     showingReconcileConfirmation = true
