@@ -78,10 +78,18 @@ final class TestCallViewModel {
 
     var selectedPatronNpub: String? {
         didSet {
-            // Auto-fill npub param when identity is selected
+            // Auto-fill npub and proof params when identity is selected
             if let npub = selectedPatronNpub {
                 if toolParams.contains(where: { $0.name == "npub" }) {
                     paramValues["npub"] = npub
+                }
+                if toolParams.contains(where: { $0.name == "proof" }),
+                   KeychainService.loadNsec(forNpub: npub) != nil,
+                   let proof = try? OperatorProofService.createProof(
+                       toolName: selectedTool?.toolName ?? "",
+                       operatorNpub: npub
+                   ) {
+                    paramValues["proof"] = proof
                 }
             }
         }
