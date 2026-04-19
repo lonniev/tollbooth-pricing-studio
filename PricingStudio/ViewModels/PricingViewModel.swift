@@ -50,6 +50,11 @@ final class PricingViewModel {
         guard localPipeline.count == serverPipeline.count else { return true }
         for (local, server) in zip(localPipeline, serverPipeline) {
             if local.id != server.id || local.type != server.type { return true }
+            if local.params.count != server.params.count { return true }
+            for (key, val) in local.params {
+                guard let serverVal = server.params[key] else { return true }
+                if val.description != serverVal.description { return true }
+            }
         }
         return false
     }
