@@ -331,10 +331,10 @@ struct ConstraintParamEditor: View {
     ]
 
     private static let commonTimezones: [String] = [
-        "US/Eastern",
-        "US/Central",
-        "US/Mountain",
-        "US/Pacific",
+        "America/New_York",
+        "America/Chicago",
+        "America/Denver",
+        "America/Los_Angeles",
         "UTC",
         "Europe/London",
         "Europe/Berlin",
