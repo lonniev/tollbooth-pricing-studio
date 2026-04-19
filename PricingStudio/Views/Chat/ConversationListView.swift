@@ -22,7 +22,9 @@ struct ConversationListView: View {
         let base = currentIdentityPubHex != nil
             ? conversations.filter { $0.counterpartyPubkeyHex != currentIdentityPubHex }
             : conversations
-        return base
+        return base.sorted { a, b in
+            (a.latestMessage?.createdAt ?? .distantPast) > (b.latestMessage?.createdAt ?? .distantPast)
+        }
     }
 
     private var pinnedConvo: DMConversation? {
@@ -30,6 +32,8 @@ struct ConversationListView: View {
         return filtered.first { $0.id == id }
     }
 
+    /// Unpinned conversations, sorted by most recent message first.
+    /// Pinned conversation stays in its own section regardless of recency.
     private var otherConvos: [DMConversation] {
         guard let id = pinnedId else { return filtered }
         return filtered.filter { $0.id != id }
