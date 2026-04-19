@@ -59,13 +59,29 @@ struct PipelineStepCard: View {
         )
     }
 
+    /// Legacy param keys that should never display — remnants of old data formats.
+    private static let hiddenParams: Set<String> = ["schedule"]
+
     private var sortedParams: [(key: String, value: AnyCodableValue)] {
-        // Put description first, then alphabetical
-        let pairs = step.params.map { (key: $0.key, value: $0.value) }
+        // Use catalog param order if available; filter out legacy keys
+        let spec = ConstraintCatalog.spec(for: step.displayType)
+        let catalogOrder = spec?.params.map(\.name) ?? []
+        let pairs = step.params
+            .filter { !Self.hiddenParams.contains($0.key) }
+            .map { (key: $0.key, value: $0.value) }
+
+        if catalogOrder.isEmpty {
+            return pairs.sorted { a, b in
+                if a.key == "description" { return true }
+                if b.key == "description" { return false }
+                return a.key < b.key
+            }
+        }
+
         return pairs.sorted { a, b in
-            if a.key == "description" { return true }
-            if b.key == "description" { return false }
-            return a.key < b.key
+            let ai = catalogOrder.firstIndex(of: a.key) ?? Int.max
+            let bi = catalogOrder.firstIndex(of: b.key) ?? Int.max
+            return ai < bi
         }
     }
 

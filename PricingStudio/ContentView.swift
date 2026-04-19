@@ -23,6 +23,8 @@ struct ContentView: View {
     @State private var showingPushError = false
     @State private var campaignForOverview: Campaign?
     @State private var detailTab: ChatContainerTab = .pricing
+    @State private var showingUnsavedEditsAlert = false
+    @State private var pendingActorSwitch: (() -> Void)?
 
     var body: some View {
         NavigationSplitView {
@@ -170,6 +172,18 @@ struct ContentView: View {
         } message: {
             Text(pushError ?? "An unknown error occurred.")
         }
+        .alert("Unsaved Pricing Edits", isPresented: $showingUnsavedEditsAlert) {
+            Button("Discard", role: .destructive) {
+                pricingVM.resetAllEdits()
+                pendingActorSwitch?()
+                pendingActorSwitch = nil
+            }
+            Button("Stay", role: .cancel) {
+                pendingActorSwitch = nil
+            }
+        } message: {
+            Text("You have unsaved constraint or pricing changes. Switching actors will discard them.")
+        }
         .alert(
             "Delete Campaign",
             isPresented: $operatorVM.showingCampaignDeleteConfirmation,
@@ -224,22 +238,36 @@ struct ContentView: View {
         }
         // KeypairGeneratorSheet is in SidebarView (scoping)
         .onChange(of: authorityVM.selectedAuthority) { _, newAuth in
-            if let auth = newAuth {
+            guard let auth = newAuth else { return }
+            let doSwitch = {
                 operatorVM.selectedOperator = nil
                 patronVM.selectedPatron = nil
                 pricingVM.reset()
                 chatVM.switchIdentity(to: ChatIdentity(from: auth))
             }
+            if pricingVM.hasEdits {
+                pendingActorSwitch = doSwitch
+                showingUnsavedEditsAlert = true
+            } else {
+                doSwitch()
+            }
         }
         .onChange(of: operatorVM.selectedOperator) { _, newOp in
-            if let op = newOp {
-                authorityVM.selectedAuthority = nil
-                patronVM.selectedPatron = nil
-                chatVM.switchIdentity(to: ChatIdentity(from: op))
+            let doSwitch = {
+                if let op = newOp {
+                    authorityVM.selectedAuthority = nil
+                    patronVM.selectedPatron = nil
+                    chatVM.switchIdentity(to: ChatIdentity(from: op))
+                }
+                pricingVM.reset()
+                operatorVM.selectedCampaign = nil
             }
-            pricingVM.reset()
-            // Clear campaign selection when switching operators
-            operatorVM.selectedCampaign = nil
+            if pricingVM.hasEdits {
+                pendingActorSwitch = doSwitch
+                showingUnsavedEditsAlert = true
+            } else {
+                doSwitch()
+            }
         }
         .onChange(of: operatorVM.selectedCampaign) { old, new in
             // Auto-save outgoing campaign (skip during delete to avoid writing to a doomed object)

@@ -173,49 +173,35 @@ struct ConstraintCatalog {
                     type: .schedule,
                     required: true,
                     defaultValue: .string("17:00"),
-                    description: "Start time HH:MM (24-hour)."
+                    description: "In Effect — start time HH:MM (24-hour)."
                 ),
                 ParamSpec(
                     name: "schedule_end",
                     type: .schedule,
                     required: true,
                     defaultValue: .string("19:00"),
-                    description: "End time HH:MM (24-hour). Wraps midnight when end < start."
+                    description: "Until — end time HH:MM (24-hour). Wraps midnight when end < start."
                 ),
                 ParamSpec(
                     name: "timezone",
                     type: .timezone,
                     required: false,
                     defaultValue: .string("UTC"),
-                    description: "IANA timezone name (e.g. US/Eastern)."
-                ),
-                ParamSpec(
-                    name: "discount_percent",
-                    type: .float,
-                    required: false,
-                    defaultValue: .double(25.0),
-                    description: "Percentage discount during the happy hour window."
-                ),
-                ParamSpec(
-                    name: "discount_sats",
-                    type: .int,
-                    required: false,
-                    defaultValue: .int(0),
-                    description: "Absolute discount in api-sats during the happy hour window."
-                ),
-                ParamSpec(
-                    name: "free",
-                    type: .bool,
-                    required: false,
-                    defaultValue: .bool(false),
-                    description: "If true, the tool call is free during the happy hour window."
+                    description: "IANA timezone (e.g. US/Eastern)."
                 ),
                 ParamSpec(
                     name: "days_of_week",
                     type: .daysOfWeek,
                     required: false,
                     defaultValue: .array([.int(0), .int(1), .int(2), .int(3), .int(4)]),
-                    description: "Days when the happy hour is active (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun)."
+                    description: "Days when the happy hour is active."
+                ),
+                ParamSpec(
+                    name: "starts_on",
+                    type: .date,
+                    required: false,
+                    defaultValue: nil,
+                    description: "Apply On — recurrence start date. Defaults to today."
                 ),
                 ParamSpec(
                     name: "repeats_when",
@@ -226,11 +212,25 @@ struct ConstraintCatalog {
                     options: ["never", "weekly", "biweekly", "monthly", "annually"]
                 ),
                 ParamSpec(
-                    name: "starts_on",
-                    type: .date,
+                    name: "free",
+                    type: .bool,
                     required: false,
-                    defaultValue: nil,
-                    description: "Start date for recurrence. Required for never/biweekly/monthly/annually."
+                    defaultValue: .bool(false),
+                    description: "Free — all tool calls are free during this window."
+                ),
+                ParamSpec(
+                    name: "discount_percent",
+                    type: .float,
+                    required: false,
+                    defaultValue: .double(0.0),
+                    description: "Percent Off — percentage discount (0-100). Ignored when Free is on."
+                ),
+                ParamSpec(
+                    name: "discount_sats",
+                    type: .int,
+                    required: false,
+                    defaultValue: .int(0),
+                    description: "Max Discount — absolute cap in api-sats. 0 = unlimited."
                 ),
             ]
         ),
