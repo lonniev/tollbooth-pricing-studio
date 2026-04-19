@@ -24,13 +24,12 @@ final class TestCallViewModel {
     struct ToolCostEstimate: Sendable {
         let toolName: String
         let intent: String
-        let estimatedCostSats: Int      // effective cost after constraints
+        let effectiveCostSats: Int      // after constraint chain
+        let baseCostSats: Int           // before constraint chain
         let currentBalanceSats: Int
-        var canAfford: Bool { estimatedCostSats == 0 || currentBalanceSats >= estimatedCostSats }
         let requiredRole: ToolRole
-        var baseCostSats: Int = 0       // cost before constraints
-        var isFree: Bool = false        // true when Happy Hour / free trial active
-        var constraintsActive: Bool = false
+        var canAfford: Bool { effectiveCostSats == 0 || currentBalanceSats >= effectiveCostSats }
+        var isDiscounted: Bool { effectiveCostSats != baseCostSats }
     }
 
     /// A parameter from the tool's input schema.
@@ -277,7 +276,8 @@ final class TestCallViewModel {
             state = .ready(ToolCostEstimate(
                 toolName: tool.toolName,
                 intent: tool.intent,
-                estimatedCostSats: 0,
+                effectiveCostSats: 0,
+                baseCostSats: 0,
                 currentBalanceSats: 0,
                 requiredRole: role
             ))
@@ -301,12 +301,10 @@ final class TestCallViewModel {
             state = .ready(ToolCostEstimate(
                 toolName: tool.toolName,
                 intent: tool.intent,
-                estimatedCostSats: price.effectiveCostSats,
-                currentBalanceSats: balance.balanceApiSats,
-                requiredRole: role,
+                effectiveCostSats: price.effectiveCostSats,
                 baseCostSats: price.baseCostSats,
-                isFree: price.isFree,
-                constraintsActive: price.constraintsEnabled
+                currentBalanceSats: balance.balanceApiSats,
+                requiredRole: role
             ))
         } catch {
             state = .error("Affordability check failed: \(error.localizedDescription)")
