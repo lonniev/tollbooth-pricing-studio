@@ -22,6 +22,38 @@ actor MCPService {
         return (try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub)) ?? ""
     }
 
+    struct EffectivePrice {
+        let baseCostSats: Int
+        let effectiveCostSats: Int
+        let constraintsEnabled: Bool
+        let isFree: Bool
+    }
+
+    func callCheckPrice(endpointURL: URL, toolId: String, patronNpub: String) async throws -> EffectivePrice {
+        let result = try await callToolGeneric(
+            endpointURL: endpointURL,
+            toolName: "check_price",
+            arguments: [
+                "tool_id": .string(toolId),
+                "npub": .string(patronNpub),
+            ]
+        )
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["success"] as? Bool == true else {
+            throw MCPError.toolCallFailed("check_price failed")
+        }
+        let base = json["base_cost_api_sats"] as? Int ?? 0
+        let effective = json["effective_cost_api_sats"] as? Int ?? base
+        let enabled = json["constraints_enabled"] as? Bool ?? false
+        return EffectivePrice(
+            baseCostSats: base,
+            effectiveCostSats: effective,
+            constraintsEnabled: enabled,
+            isFree: effective == 0 && base > 0
+        )
+    }
+
     /// Add npub + proof to an args dict. Tool name is extracted from the
     /// tool's registered name (e.g., "schwab_check_balance" → "check_balance").
     private func argsWithProof(npub: String, toolName: String, extra: [String: Value] = [:]) -> [String: Value] {

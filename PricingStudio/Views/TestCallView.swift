@@ -268,12 +268,39 @@ struct TestCallView: View {
                 .disabled(!estimate.canAfford && estimate.requiredRole != .operator)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Tool Cost:")
-                        Spacer()
-                        Text("\(estimate.estimatedCostSats) sats")
-                            .bold()
-                            .foregroundStyle(estimate.estimatedCostSats == 0 ? .green : .primary)
+                    if estimate.isFree {
+                        HStack {
+                            Text("Effective Cost:")
+                            Spacer()
+                            Text("FREE")
+                                .bold()
+                                .foregroundStyle(.green)
+                        }
+                        if estimate.baseCostSats > 0 {
+                            HStack {
+                                Text("Base Price:")
+                                Spacer()
+                                Text("\(estimate.baseCostSats) sats")
+                                    .strikethrough()
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            Text("Effective Cost:")
+                            Spacer()
+                            Text("\(estimate.estimatedCostSats) sats")
+                                .bold()
+                        }
+                        if estimate.constraintsActive && estimate.baseCostSats != estimate.estimatedCostSats {
+                            HStack {
+                                Text("Base Price:")
+                                Spacer()
+                                Text("\(estimate.baseCostSats) sats")
+                                    .strikethrough()
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
 
                     if estimate.requiredRole != .operator {

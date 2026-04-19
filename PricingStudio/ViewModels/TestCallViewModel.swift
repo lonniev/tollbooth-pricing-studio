@@ -24,10 +24,13 @@ final class TestCallViewModel {
     struct ToolCostEstimate: Sendable {
         let toolName: String
         let intent: String
-        let estimatedCostSats: Int
+        let estimatedCostSats: Int      // effective cost after constraints
         let currentBalanceSats: Int
-        var canAfford: Bool { currentBalanceSats >= estimatedCostSats }
+        var canAfford: Bool { estimatedCostSats == 0 || currentBalanceSats >= estimatedCostSats }
         let requiredRole: ToolRole
+        var baseCostSats: Int = 0       // cost before constraints
+        var isFree: Bool = false        // true when Happy Hour / free trial active
+        var constraintsActive: Bool = false
     }
 
     /// A parameter from the tool's input schema.
@@ -284,19 +287,29 @@ final class TestCallViewModel {
         state = .checkingBalance
 
         do {
-            let balance = try await mcpService.callCheckBalance(
+            async let balanceTask = mcpService.callCheckBalance(
                 endpointURL: endpoint,
                 patronNpub: patronNpub
             )
+            async let priceTask = mcpService.callCheckPrice(
+                endpointURL: endpoint,
+                toolId: tool.toolId,
+                patronNpub: patronNpub
+            )
+            let balance = try await balanceTask
+            let price = try await priceTask
             state = .ready(ToolCostEstimate(
                 toolName: tool.toolName,
                 intent: tool.intent,
-                estimatedCostSats: tool.priceSats,
+                estimatedCostSats: price.effectiveCostSats,
                 currentBalanceSats: balance.balanceApiSats,
-                requiredRole: role
+                requiredRole: role,
+                baseCostSats: price.baseCostSats,
+                isFree: price.isFree,
+                constraintsActive: price.constraintsEnabled
             ))
         } catch {
-            state = .error("Balance check failed: \(error.localizedDescription)")
+            state = .error("Affordability check failed: \(error.localizedDescription)")
         }
     }
 
