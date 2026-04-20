@@ -22,6 +22,11 @@ struct ConnectionStatusView: View {
                 .buttonStyle(.bordered)
                 .padding(.top, 8)
             }
+
+            Spacer()
+                .frame(height: 24)
+
+            LoadingQuoteView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

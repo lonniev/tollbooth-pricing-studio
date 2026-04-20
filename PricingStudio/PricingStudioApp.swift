@@ -24,6 +24,7 @@ struct PricingStudioApp: App {
             ContentView()
                 .onAppear {
                     Authority.ensurePrimeExists(in: modelContainer.mainContext)
+                    LoadingQuoteView.prefetch()
                 }
         }
         .modelContainer(modelContainer)
