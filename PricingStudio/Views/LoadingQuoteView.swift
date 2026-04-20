@@ -7,60 +7,68 @@ struct LoadingQuoteView: View {
     @State private var opacity: Double = 0.0
     @State private var quotes: [Quote] = []
 
-    private let timer = Timer.publish(every: 8, on: .main, in: .common).autoconnect()
+    private let timer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
+
+    private var displayQuotes: [Quote] {
+        quotes.isEmpty ? Self.inlineDefaults : quotes
+    }
+
+    private static let inlineDefaults: [Quote] = [
+        Quote(text: "Sound money is an instrument of protection of civil liberties against despotic inroads on the part of governments.", author: "Ludwig von Mises"),
+        Quote(text: "The curious task of economics is to demonstrate to men how little they really know about what they imagine they can design.", author: "F.A. Hayek"),
+        Quote(text: "The root problem with conventional currency is all the trust that's required to make it work.", author: "Satoshi Nakamoto"),
+    ]
 
     var body: some View {
-        Group {
-            if quotes.isEmpty {
-                Color.clear.frame(height: 80)
-            } else {
-                let quote = quotes[currentIndex]
-                VStack(spacing: 12) {
-                    Text("\u{201C}\(quote.text)\u{201D}")
-                        .font(.body)
-                        .italic()
-                        .foregroundStyle(.secondary.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 480)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
+        let active = displayQuotes
+        let quote = active[currentIndex % active.count]
 
-                    Text(quote.author)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .tracking(1.5)
-                        .textCase(.uppercase)
-                        .foregroundStyle(.tertiary)
-                }
-                .opacity(opacity)
-                .onReceive(timer) { _ in
-                    advance()
-                }
-                .padding(.horizontal, 32)
+        VStack(spacing: 12) {
+            Text("\u{201C}\(quote.text)\u{201D}")
+                .font(.body)
+                .italic()
+                .foregroundStyle(.secondary.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 480)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(quote.author)
+                .font(.caption)
+                .fontWeight(.medium)
+                .tracking(1.5)
+                .textCase(.uppercase)
+                .foregroundStyle(.tertiary)
+        }
+        .opacity(opacity)
+        .onReceive(timer) { _ in
+            advance()
+        }
+        .padding(.horizontal, 32)
+        .onAppear {
+            currentIndex = Int.random(in: 0..<active.count)
+            withAnimation(.easeIn(duration: 0.5)) {
+                opacity = 1.0
             }
         }
         .task {
-            quotes = await QuoteStore.shared.shuffled()
-            if !quotes.isEmpty {
+            let remote = await QuoteStore.shared.shuffled()
+            if !remote.isEmpty {
+                quotes = remote
                 currentIndex = 0
-                // Gentle initial fade-in
-                withAnimation(.easeIn(duration: 1.2)) {
-                    opacity = 1.0
-                }
             }
         }
     }
 
     private func advance() {
-        guard quotes.count > 1 else { return }
-        // Fade out slowly
-        withAnimation(.easeOut(duration: 1.0)) {
+        let active = displayQuotes
+        guard active.count > 1 else { return }
+        withAnimation(.easeOut(duration: 0.4)) {
             opacity = 0.0
         }
-        // Swap text while invisible, then fade back in
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
-            currentIndex = (currentIndex + 1) % quotes.count
-            withAnimation(.easeIn(duration: 1.2)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            currentIndex = (currentIndex + 1) % active.count
+            withAnimation(.easeIn(duration: 0.5)) {
                 opacity = 1.0
             }
         }
