@@ -107,24 +107,26 @@ private actor QuoteStore {
     /// Prefetch quotes in the background. Call early (e.g. at app launch).
     func prefetch() {
         guard fetchTask == nil else { return }
-        fetchTask = Task {
-            await load()
+        fetchTask = Task.detached { [self] in
+            await self.fetchAndCache()
         }
     }
 
     /// Return a shuffled copy of the quote corpus.
     func shuffled() async -> [Quote] {
-        let all = await load()
-        return all.shuffled()
+        if let cached { return cached.shuffled() }
+        // Wait for in-flight prefetch if one exists
+        if let fetchTask {
+            let result = await fetchTask.value
+            return result.shuffled()
+        }
+        // No prefetch running — fetch now
+        let result = await fetchAndCache()
+        return result.shuffled()
     }
 
-    private func load() async -> [Quote] {
+    private func fetchAndCache() async -> [Quote] {
         if let cached { return cached }
-
-        if let fetchTask {
-            return await fetchTask.value
-        }
-
         let quotes = await fetchRemote()
         cached = quotes
         return quotes
