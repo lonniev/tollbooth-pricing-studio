@@ -67,7 +67,9 @@ struct LoadingQuoteView: View {
             opacity = 0.0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            currentIndex = (currentIndex + 1) % active.count
+            var next = Int.random(in: 0..<active.count)
+            if active.count > 1 { while next == currentIndex { next = Int.random(in: 0..<active.count) } }
+            currentIndex = next
             withAnimation(.easeIn(duration: 0.5)) {
                 opacity = 1.0
             }
