@@ -5,28 +5,34 @@ struct ConnectionStatusView: View {
     var onCancel: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .controlSize(.large)
+        VStack(spacing: 0) {
+            Spacer()
 
-            Text(step)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .animation(.easeInOut, value: step)
+            LoadingQuoteView()
+                .padding(.bottom, 48)
 
-            if let onCancel {
-                Button("Cancel", role: .cancel) {
-                    onCancel()
+            // Spinner + step label cluster
+            VStack(spacing: 16) {
+                ProgressView()
+                    .controlSize(.large)
+
+                Text(step)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .animation(.easeInOut, value: step)
+
+                if let onCancel {
+                    Button("Cancel", role: .cancel) {
+                        onCancel()
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.top, 4)
                 }
-                .buttonStyle(.bordered)
-                .padding(.top, 8)
             }
 
             Spacer()
-                .frame(height: 24)
-
-            LoadingQuoteView()
+            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

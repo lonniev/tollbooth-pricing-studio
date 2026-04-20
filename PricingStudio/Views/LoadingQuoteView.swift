@@ -1,55 +1,68 @@
 import SwiftUI
 
 /// Rotating quotes fetched from the dpyc-community registry,
-/// displayed during loading screens.
+/// displayed during loading screens with gentle fade transitions.
 struct LoadingQuoteView: View {
     @State private var currentIndex: Int = 0
-    @State private var opacity: Double = 1.0
+    @State private var opacity: Double = 0.0
     @State private var quotes: [Quote] = []
 
-    private let timer = Timer.publish(every: 6, on: .main, in: .common).autoconnect()
+    private let timer = Timer.publish(every: 8, on: .main, in: .common).autoconnect()
 
     var body: some View {
         Group {
             if quotes.isEmpty {
-                EmptyView()
+                Color.clear.frame(height: 80)
             } else {
                 let quote = quotes[currentIndex]
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
                     Text("\u{201C}\(quote.text)\u{201D}")
-                        .font(.callout)
+                        .font(.body)
                         .italic()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondary.opacity(0.7))
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: 440)
-                        .lineSpacing(3)
+                        .frame(maxWidth: 480)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    Text("— \(quote.author)")
+                    Text(quote.author)
                         .font(.caption)
+                        .fontWeight(.medium)
+                        .tracking(1.5)
+                        .textCase(.uppercase)
                         .foregroundStyle(.tertiary)
                 }
                 .opacity(opacity)
-                .animation(.easeInOut(duration: 0.8), value: opacity)
                 .onReceive(timer) { _ in
                     advance()
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 32)
             }
         }
         .task {
             quotes = await QuoteStore.shared.shuffled()
             if !quotes.isEmpty {
                 currentIndex = 0
+                // Gentle initial fade-in
+                withAnimation(.easeIn(duration: 1.2)) {
+                    opacity = 1.0
+                }
             }
         }
     }
 
     private func advance() {
         guard quotes.count > 1 else { return }
-        opacity = 0
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        // Fade out slowly
+        withAnimation(.easeOut(duration: 1.0)) {
+            opacity = 0.0
+        }
+        // Swap text while invisible, then fade back in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
             currentIndex = (currentIndex + 1) % quotes.count
-            opacity = 1
+            withAnimation(.easeIn(duration: 1.2)) {
+                opacity = 1.0
+            }
         }
     }
 }
@@ -98,7 +111,6 @@ private actor QuoteStore {
     private func load() async -> [Quote] {
         if let cached { return cached }
 
-        // Wait for in-flight fetch if one exists
         if let fetchTask {
             return await fetchTask.value
         }
@@ -138,5 +150,5 @@ extension LoadingQuoteView {
 
 #Preview {
     LoadingQuoteView()
-        .frame(width: 500, height: 200)
+        .frame(width: 500, height: 300)
 }
