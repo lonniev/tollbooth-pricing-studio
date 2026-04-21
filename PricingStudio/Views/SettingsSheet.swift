@@ -24,6 +24,7 @@ struct SettingsSheet: View {
     @State private var xaiKey: String = ""
     @State private var keySaveStatus: String?
     @State private var pollInterval: Double = DMPollingService.shared.pollIntervalSeconds
+    @State private var notificationMode: DMPollingService.NotificationMode = DMPollingService.shared.notificationMode
 
     private var isValidNewRelay: Bool {
         newRelayURL.hasPrefix("wss://") && newRelayURL.count > 6
@@ -176,6 +177,23 @@ struct SettingsSheet: View {
                     Label("Nostr Polling", systemImage: "timer")
                 } footer: {
                     Text("How often to check relays for new messages. Lower = faster updates, more bandwidth.")
+                }
+
+                // MARK: - DM Notifications
+
+                Section {
+                    Picker("Notification Mode", selection: $notificationMode) {
+                        ForEach(DMPollingService.NotificationMode.allCases, id: \.self) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .onChange(of: notificationMode) {
+                        DMPollingService.shared.notificationMode = notificationMode
+                    }
+                } header: {
+                    Label("DM Notifications", systemImage: "bell")
+                } footer: {
+                    Text(notificationMode.description)
                 }
 
             }

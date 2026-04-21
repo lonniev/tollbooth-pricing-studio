@@ -244,11 +244,72 @@ final class DMPollingService {
 
     // MARK: - OS Notifications
 
+    enum NotificationMode: String, CaseIterable {
+        case off = "off"
+        case deduplicated = "deduplicated"
+        case allRelays = "all_relays"
+
+        var label: String {
+            switch self {
+            case .off: "Off"
+            case .deduplicated: "Deduplicated"
+            case .allRelays: "All Relays"
+            }
+        }
+
+        var description: String {
+            switch self {
+            case .off: "No DM notifications"
+            case .deduplicated: "One notification per message (recommended)"
+            case .allRelays: "Notify for every relay delivery"
+            }
+        }
+    }
+
+    private static let notificationModeKey = "dm.notificationMode"
+
+    var notificationMode: NotificationMode {
+        get {
+            let raw = UserDefaults.standard.string(forKey: Self.notificationModeKey) ?? "deduplicated"
+            return NotificationMode(rawValue: raw) ?? .deduplicated
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.notificationModeKey)
+        }
+    }
+
+    /// Event IDs that have already triggered a notification (dedup window).
+    private var notifiedEventIds: Set<String> = []
+    private var notifiedEventTimestamps: [String: Date] = [:]
+    private static let dedupWindow: TimeInterval = 300  // 5 minutes
+
+    private func pruneNotifiedEvents() {
+        let cutoff = Date().addingTimeInterval(-Self.dedupWindow)
+        let expired = notifiedEventTimestamps.filter { $0.value < cutoff }.map(\.key)
+        for id in expired {
+            notifiedEventIds.remove(id)
+            notifiedEventTimestamps.removeValue(forKey: id)
+        }
+    }
+
     func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
     private func postLocalNotification(npub: String, preview: String? = nil, dm: DecryptedDM? = nil) {
+        switch notificationMode {
+        case .off:
+            return
+        case .deduplicated:
+            if let dm {
+                pruneNotifiedEvents()
+                guard !notifiedEventIds.contains(dm.rawEventId) else { return }
+                notifiedEventIds.insert(dm.rawEventId)
+                notifiedEventTimestamps[dm.rawEventId] = Date()
+            }
+        case .allRelays:
+            break  // no filtering
+        }
         let resolve = resolveDisplayName ?? { key in String(key.prefix(16)) + "…" }
 
         let senderName: String
