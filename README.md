@@ -1,10 +1,10 @@
 # Pricing Studio
 
 [![Platform](https://img.shields.io/badge/platform-iPadOS_18-black?logo=apple)](https://developer.apple.com/ipados/)
-[![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://www.swift.org)
+[![Swift](https://img.shields.io/badge/Swift-6.1-orange?logo=swift)](https://www.swift.org)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Native iPadOS workbench for [DPYC](https://github.com/lonniev/dpyc-community) Operators to inspect, design, simulate, and deploy Tollbooth pricing models. Connects to any Tollbooth MCP endpoint over SSE with OAuth2 Bearer auth. Includes a built-in Nostr DM client for multi-identity encrypted messaging and a 6-phase AI pricing consultant powered by Claude.
+Native iPadOS workbench for [DPYC](https://github.com/lonniev/dpyc-community) Operators to inspect, design, simulate, and deploy Tollbooth pricing models. Connects to any Tollbooth MCP endpoint over SSE with automatic OAuth2 Bearer auth. Includes a built-in Nostr DM client for multi-identity encrypted messaging, a 6-phase AI pricing consultant powered by Claude, and an independent pricing review from xAI Grok.
 
 <p align="center">
   <img src="assets/pricing-studio-bluf-mar18.jpeg" width="80%" alt="Pricing Studio — BLUF revenue projections and constraint pipeline" />
@@ -14,37 +14,50 @@ Native iPadOS workbench for [DPYC](https://github.com/lonniev/dpyc-community) Op
 
 ### Live Pricing Editor
 
-Load any Operator's pricing model from its MCP endpoint. Edit per-tool prices inline, add or remove constraint pipeline steps (free trial, bulk discount, loyalty, happy hour, surge, floor, cap), and diff your changes against the live server state before pushing.
+Load any Operator's pricing model from its MCP endpoint. Edit per-tool prices inline, add or remove constraint pipeline steps, and diff your changes against the live server state before pushing. Push changes directly to the Operator's MCP endpoint or keep them as local edits.
 
 <p align="center">
   <img src="assets/pricing-studio-pipeline-mar18.jpeg" width="80%" alt="Pricing Studio — constraint pipeline editor" />
 </p>
 
+#### Constraint Pipeline
+
+11 constraint types across four categories:
+
+| Category | Constraints |
+|----------|------------|
+| **Pricing** | `free_trial` (first N free), `coupon` (code-gated discounts with global/per-patron caps and expiry), `loyalty_discount` (threshold-based), `bulk_bonus` (tiered multipliers), `happy_hour` (temporal window with timezone, day-of-week recurrence), `surge_pricing` (demand-elastic from global counters) |
+| **Access** | `temporal_window` (time-of-day restriction), `finite_supply` (global or per-patron invocation cap), `periodic_refresh` (rate-limit per rolling ISO-8601 window) |
+| **Dynamic** | `json_expression` (safe expression tree with and/or/not combinators) |
+| **Identity** | `patron_proof` (require Schnorr signature proof of npub ownership) |
+
 ### 6-Phase Pricing Campaign Interview
 
-An AI pricing consultant (Claude) walks you through a structured 6-phase interview to design a complete pricing model from scratch:
+An AI pricing consultant (Claude) walks Operators through a structured interview to design a complete pricing model:
 
-1. **Discovery** — understand the Operator's service, market, and goals
-2. **Demand Analysis** — probe usage patterns and price sensitivity
-3. **Value Assessment** — map tool value to willingness-to-pay
-4. **Cost Analysis** — establish floor costs and margin requirements
-5. **Competitive Context** — position against alternatives
+1. **Inventory** — discover the Operator's tool catalog and service context
+2. **Demand** — probe usage patterns and price sensitivity
+3. **Value** — map tool value to willingness-to-pay
+4. **Cost** — establish floor costs and margin requirements
+5. **Constraints & Demurrage** — design the constraint pipeline and decay policies
 6. **Recommendation** — Bottom Line Up Front with 3 revenue scenarios (conservative, moderate, aggressive), A/B/C variant proposals, and a deployable pricing model
 
 Each phase runs as an isolated conversation with synthesized context from prior stages. Revisit any stage to refine without losing progress. Fork campaigns for what-if exploration.
 
 ### Second Opinion from Grok
 
-Before deploying, get an independent pricing review from xAI Grok. The second opinion is structured into section cards (Strengths, Risks, Alternatives, Revenue Impact, Verdict) with automatic feedback loop — dismissing the review feeds Grok's suggestions back to Claude for revision.
+Before deploying, get an independent pricing review from xAI Grok. The review is structured into section cards (Strengths, Risks, Alternatives, Revenue Impact, Verdict). Dismissing the review automatically feeds Grok's suggestions back to Claude for revision.
 
 ### Multi-Identity Nostr Chat
 
-A full encrypted DM client built on NIP-04, NIP-44, and NIP-17 — no external dependencies. Switch between Operator, Authority, and Patron identities for independent conversation threads. Features include:
+A full encrypted DM client built on NIP-04, NIP-44v2, and NIP-17 gift wrap. Switch between Operator, Authority, and Patron identities for independent conversation threads. Features include:
 
 - **Identity switching** — each sidebar entity has its own Nostr keypair and conversation history
 - **Background DM polling** — parallel relay fetching across all identities with unread indicators
 - **Secure Courier** — interactive credential forms rendered inline from `@@@field@@@` payloads with anti-replay poison and provenance metadata
-- **Authority claim protocol** — 4-phase guided flow for claiming Authority control via Nostr DM challenge-response
+- **Authority claim protocol** — 4-phase guided flow (Form, Challenge, Verifying, Result) for claiming Authority control via Nostr DM challenge-response
+- **NIP-09 deletion** — delete messages from relays after receipt
+- **Duplicate deduplication** — prefers NIP-44 over NIP-04 when both versions exist
 
 ### Network Topology
 
@@ -53,6 +66,14 @@ Visual graph of the DPYC Honor Chain hierarchy: Prime Authority &rarr; Authoriti
 <p align="center">
   <img src="assets/pricing-studio-launch.png" width="50%" alt="Pricing Studio — network topology view" />
 </p>
+
+### Operator Management
+
+- **Adopt Operator** — register unclaimed operators via an Authority's MCP endpoint
+- **Onboarding status** — credential readiness dashboard for operators and patrons
+- **Account statements** — SVG/PNG infographic rendering of patron balances
+- **Bitcoin notarization** — Merkle tree construction + OpenTimestamps submission with per-patron inclusion proofs
+- **Operator proof (NIP-98)** — kind-27235 Schnorr-signed events for high-value MCP tool authorization
 
 ### Traffic Log
 
@@ -63,19 +84,20 @@ Real-time inspector for all MCP, HTTP, and Nostr relay traffic. Nostr events hid
 | Layer | Technology |
 |---|---|
 | UI | SwiftUI `NavigationSplitView` — three-pane iPad layout |
-| Persistence | SwiftData with optional CloudKit sync |
-| MCP Transport | SSE (Server-Sent Events) with OAuth2 Bearer tokens |
-| Nostr | NIP-04 + NIP-44 encryption, NIP-17 gift-wrap, Starscream WebSocket |
-| AI Consultant | Claude (Anthropic API) — streaming, 6-phase isolated conversations |
-| Second Opinion | xAI Grok (preferred) or Claude fallback |
+| Persistence | SwiftData with CloudKit sync (fallback to local-only) |
+| MCP Transport | SSE (Server-Sent Events) with automatic OAuth2 Bearer auth (401 challenge handling) |
+| Nostr | NIP-04 + NIP-44v2 encryption, NIP-17 gift wrap, NIP-59 seal, NIP-09 deletion, NIP-98 HTTP auth |
+| AI Consultant | Claude (Anthropic API) — streaming, per-stage isolated conversations |
+| Second Opinion | xAI Grok (OpenAI-compatible API) |
 | Identity | Nostr keypairs (nsec/npub) stored in iOS Keychain |
+| Local MCP SDK | [swift-sdk](LocalPackages/swift-sdk/) — SSE transport, swift-nio, swift-log |
 
 ### Entity Model
 
 - **Authority** — certification body in the DPYC Honor Chain with MCP endpoint
 - **Operator** — MCP service provider with pricing model, tool catalog, and constraint pipeline
-- **Patron** — end user with Nostr identity for multi-identity DM support
-- **Campaign** — persisted pricing interview with stage messages, revenue projections, and deployment state
+- **Patron** — end user with Nostr identity for multi-identity DM support (alias detection for shared npubs)
+- **Campaign** — persisted pricing interview with per-stage messages, revenue projections, A/B/C variants, and deployment state
 
 ## Build & Deploy
 
@@ -91,8 +113,8 @@ make dev-wifi
 # Full release archive + signed IPA
 make export
 
-# Run unit tests (simulator)
-make test-ui-sim
+# Run BDD feature tests (simulator)
+make test-bdd-sim
 ```
 
 | Target | Description |
@@ -102,16 +124,19 @@ make test-ui-sim
 | `make dev-install` | Debug build + USB install |
 | `make archive` | Release .xcarchive |
 | `make export` | Archive + signed IPA |
+| `make install` | Full release + USB install |
+| `make wifi-install` | Full release + WiFi install |
 | `make test-ui-sim` | XCUITests on simulator |
 | `make test-bdd-sim` | BDD feature tests on simulator |
+| `make stamp` | Auto-increment build number + write timestamp |
 
 ## Testing
 
 | Target | Framework | Coverage |
 |---|---|---|
-| `PricingStudioTests` | XCTest | Model/service unit tests (CourierPayload, etc.) |
-| `PricingStudioUITests` | XCUITest | 6 UI automation test classes |
-| `PricingStudioBDDTests` | Gherkin/Cucumberish | 4 `.feature` files for business journeys |
+| `PricingStudioTests` | XCTest | Model/service unit tests (CourierPayload, constraint catalog, etc.) |
+| `PricingStudioUITests` | XCUITest | 6 UI automation test classes (launch, apply, pipeline, diff, traffic log) |
+| `PricingStudioBDDTests` | Gherkin/Cucumberish | 7 step definition files covering entity CRUD, Nostr messaging, operator registration, pipeline editing, traffic log |
 
 ## Prior Art & Attribution
 
