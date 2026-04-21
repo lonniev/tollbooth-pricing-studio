@@ -138,6 +138,22 @@ make test-bdd-sim
 | `PricingStudioUITests` | XCUITest | 6 UI automation test classes (launch, apply, pipeline, diff, traffic log) |
 | `PricingStudioBDDTests` | Gherkin/Cucumberish | 7 step definition files covering entity CRUD, Nostr messaging, operator registration, pipeline editing, traffic log |
 
+## DPYC Ecosystem
+
+| Repo | Role |
+|------|------|
+| [tollbooth-dpyc](https://github.com/lonniev/tollbooth-dpyc) | Python SDK — vault, auth, pricing, payments, Nostr identity |
+| [dpyc-community](https://github.com/lonniev/dpyc-community) | Governance registry, membership, advisories, threat model |
+| [dpyc-oracle](https://github.com/lonniev/dpyc-oracle) | Community concierge — free onboarding help and membership lookup |
+| [tollbooth-authority](https://github.com/lonniev/tollbooth-authority) | Certification backbone — Schnorr-signed purchase order certificates |
+| [tollbooth-sample](https://github.com/lonniev/tollbooth-sample) | Sample Operator — canonical template for new MCP services |
+| [schwab-mcp](https://github.com/lonniev/schwab-mcp) | Charles Schwab brokerage data (operational example) |
+| [thebrain-mcp](https://github.com/lonniev/thebrain-mcp) | TheBrain personal knowledge graph (operational example) |
+| [excalibur-mcp](https://github.com/lonniev/excalibur-mcp) | X/Twitter posting (operational example) |
+| [taxsort-mcp](https://github.com/lonniev/taxsort-mcp) | Tax classification + Cloudflare Pages UI (operational example) |
+| [tollbooth-oauth2-collector](https://github.com/lonniev/tollbooth-oauth2-collector) | OAuth2 callback handler — shared advocate service |
+| [stablecoin.myshopify.com](https://stablecoin.myshopify.com) | DPYC merch and Austrian economics |
+
 ## Prior Art & Attribution
 
 The methods, algorithms, and implementations contained in this repository may represent original work by Lonnie VanZandt, first published on March 12, 2026. This public disclosure establishes prior art under U.S. patent law (35 U.S.C. 102).
