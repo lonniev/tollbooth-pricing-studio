@@ -69,8 +69,9 @@ jobs:
       - name: Compute version
         id: ver
         run: |
-          # Read MAJOR.MINOR from pbxproj (e.g. 1.7 from 1.7.0)
-          BASE=$(grep 'MARKETING_VERSION' PricingStudio.xcodeproj/project.pbxproj \
+          # Read MAJOR.MINOR from pbxproj (e.g. 1.7 from 1.7.2)
+          # Match only assignment lines (TAB + KEY = VALUE;), skip shell script references
+          BASE=$(grep -E '^\s+MARKETING_VERSION = [0-9]' PricingStudio.xcodeproj/project.pbxproj \
             | grep -v '1.0' | head -1 | sed 's/.*= //' | tr -d ';[:space:]')
           MAJOR=$(echo "$BASE" | cut -d. -f1)
           MINOR=$(echo "$BASE" | cut -d. -f2)

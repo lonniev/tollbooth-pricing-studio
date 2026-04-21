@@ -106,6 +106,7 @@ private struct OperatorRow: View {
                     Image(systemName: "envelope.badge.fill")
                         .font(.caption2)
                         .foregroundStyle(.orange)
+                        .help("Unread Nostr DMs from this operator")
                 }
             }
             Text(truncatedNpub(op.npub))

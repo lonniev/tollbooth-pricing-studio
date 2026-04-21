@@ -92,6 +92,7 @@ struct ConversationListView: View {
                         Circle()
                             .fill(.blue)
                             .frame(width: 8, height: 8)
+                            .help("Unread Nostr DMs from this contact")
                     }
                 }
                 Text(convo.counterpartyDisplayName)
@@ -110,6 +111,7 @@ struct ConversationListView: View {
                         Circle()
                             .fill(.blue)
                             .frame(width: 8, height: 8)
+                            .help("Unread Nostr DMs from this contact")
                     }
                 }
             }
