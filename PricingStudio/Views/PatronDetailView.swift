@@ -82,7 +82,12 @@ struct PatronDetailView: View {
                             operator: operators.first(where: { $0.npub == balance.id }),
                             accountVM: accountVM,
                             onOpenMessages: onOpenMessages,
-                            onRequestCourier: onRequestCourier
+                            onRequestCourier: onRequestCourier,
+                            onRefreshNeeded: {
+                                Task {
+                                    await accountVM.forceRefresh(for: patron, operators: operators)
+                                }
+                            }
                         )
                     }
                 }
@@ -100,6 +105,7 @@ private struct OperatorBalanceCard: View {
     let accountVM: PatronAccountViewModel
     var onOpenMessages: ((_ operatorNpub: String) -> Void)?
     var onRequestCourier: ((CourierParams) -> Void)?
+    var onRefreshNeeded: (() -> Void)?
     @State private var isExpanded = false
     @State private var showingTopOff = false
     @State private var showingInfographic = false
@@ -155,7 +161,8 @@ private struct OperatorBalanceCard: View {
                 accountVM: accountVM,
                 onNotifyOperator: onOpenMessages.map { callback in
                     { callback(balance.id) }
-                }
+                },
+                onSettled: { onRefreshNeeded?() }
             )
         }
         .sheet(isPresented: $showingInfographic) {
@@ -233,24 +240,29 @@ private struct OperatorBalanceCard: View {
             GridRow {
                 Text("Deposited").font(.caption).foregroundStyle(.secondary)
                 Text("\(result.totalDeposited) sats").font(.caption.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             GridRow {
                 Text("Consumed").font(.caption).foregroundStyle(.secondary)
                 Text("\(result.totalConsumed) sats").font(.caption.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             GridRow {
                 Text("Expired").font(.caption).foregroundStyle(.secondary)
                 Text("\(result.totalExpired) sats").font(.caption.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             GridRow {
                 Text("Active Tranches").font(.caption).foregroundStyle(.secondary)
                 Text("\(result.activeTranches)").font(.caption.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             if result.expiringWithin24h > 0 {
                 GridRow {
                     Text("Expiring <24h").font(.caption).foregroundStyle(.orange)
                     Text("\(result.expiringWithin24h) sats").font(.caption.monospacedDigit()).foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
 
@@ -259,6 +271,7 @@ private struct OperatorBalanceCard: View {
                     Text("Next Expiry").font(.caption).foregroundStyle(.secondary)
                     Text(next.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption.monospacedDigit())
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
@@ -539,6 +552,7 @@ struct TopOffSheet: View {
     let endpoint: String
     let accountVM: PatronAccountViewModel
     var onNotifyOperator: (() -> Void)?
+    var onSettled: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedAmount = 500
@@ -834,6 +848,7 @@ struct TopOffSheet: View {
                 )
                 if result.settled > 0 {
                     paymentCheckState = .settled("Settled! +\(result.creditsGained) sats credited.")
+                    onSettled?()
                 } else if result.expired > 0 {
                     paymentCheckState = .checked("Invoice expired.")
                 } else {
@@ -1135,7 +1150,8 @@ struct AccountStatementView: View {
                 operatorName: serviceName,
                 endpoint: serviceEndpoint,
                 accountVM: accountVM,
-                onNotifyOperator: nil
+                onNotifyOperator: nil,
+                onSettled: { Task { await loadBalance() } }
             )
         }
         .sheet(isPresented: $showingInfographic) {
@@ -1221,31 +1237,37 @@ struct AccountStatementView: View {
             GridRow {
                 Text("Deposited").font(.caption).foregroundStyle(.secondary)
                 Text("\(result.totalDeposited) sats").font(.caption.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             GridRow {
                 Text("Consumed").font(.caption).foregroundStyle(.secondary)
                 Text("\(result.totalConsumed) sats").font(.caption.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             if result.totalExpired > 0 {
                 GridRow {
                     Text("Expired").font(.caption).foregroundStyle(.red)
                     Text("\(result.totalExpired) sats").font(.caption.monospacedDigit()).foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
             GridRow {
                 Text("Active Tranches").font(.caption).foregroundStyle(.secondary)
                 Text("\(result.activeTranches)").font(.caption.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             if result.expiringWithin24h > 0 {
                 GridRow {
                     Text("Expiring <24h").font(.caption).foregroundStyle(.orange)
                     Text("\(result.expiringWithin24h) sats").font(.caption.monospacedDigit()).foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
             if let next = result.nextExpiration {
                 GridRow {
                     Text("Next Expiry").font(.caption).foregroundStyle(.secondary)
                     Text(next.formatted(date: .abbreviated, time: .shortened)).font(.caption.monospacedDigit())
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }

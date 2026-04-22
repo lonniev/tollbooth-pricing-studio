@@ -221,6 +221,18 @@ final class PatronAccountViewModel {
             return
         }
 
+        await _loadBalances(patronNpub: patron.npub, operators: operators)
+    }
+
+    private func _loadBalances(patronNpub: String, operators: [Operator]) async {
+        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
+
+        guard !mcpOperators.isEmpty else {
+            operatorBalances = []
+            state = .loaded
+            return
+        }
+
         // Initialize with loading states
         operatorBalances = mcpOperators.map { op in
             OperatorBalance(
@@ -233,7 +245,6 @@ final class PatronAccountViewModel {
         state = .loading
 
         // Fetch all balances in parallel
-        let patronNpub = patron.npub
         let opEndpoints: [(npub: String, endpoint: String)] = mcpOperators.compactMap { op in
             guard let ep = op.mcpEndpointURL else { return nil }
             return (op.npub, ep)
@@ -259,7 +270,7 @@ final class PatronAccountViewModel {
             }
         }
 
-        balanceCache[patron.npub] = CachedBalance(
+        balanceCache[patronNpub] = CachedBalance(
             balances: operatorBalances,
             fetchedAt: Date()
         )
@@ -268,7 +279,11 @@ final class PatronAccountViewModel {
 
     func forceRefresh(forNpub npub: String, operators: [Operator]) async {
         balanceCache.removeValue(forKey: npub)
-        await loadAllInvoiceHistory(forNpub: npub, operators: operators)
+
+        // Both methods are internally parallelized across operators,
+        // so sequential dispatch here avoids Sendable issues with SwiftData models.
+        await _loadBalances(patronNpub: npub, operators: operators)
+        await _loadAllInvoiceHistory(patronNpub: npub, operators: operators)
     }
 
     func forceRefresh(for patron: Patron, operators: [Operator]) async {

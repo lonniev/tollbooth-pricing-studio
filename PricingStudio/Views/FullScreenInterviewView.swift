@@ -326,11 +326,11 @@ struct FullScreenInterviewView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Header
                 HStack(spacing: 0) {
-                    Text("Scenario").font(.caption.bold()).frame(width: 100, alignment: .leading)
-                    Text("Users/Mo").font(.caption.bold()).frame(width: 80, alignment: .trailing)
-                    Text("Calls/User").font(.caption.bold()).frame(width: 80, alignment: .trailing)
-                    Text("Sats/Mo").font(.caption.bold()).frame(width: 100, alignment: .trailing)
-                    Text("USD/Mo").font(.caption.bold()).frame(width: 80, alignment: .trailing)
+                    Text("Scenario").font(.caption.bold()).frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Users/Mo").font(.caption.bold()).frame(maxWidth: .infinity, alignment: .trailing)
+                    Text("Calls/User").font(.caption.bold()).frame(maxWidth: .infinity, alignment: .trailing)
+                    Text("Sats/Mo").font(.caption.bold()).frame(maxWidth: .infinity, alignment: .trailing)
+                    Text("USD/Mo").font(.caption.bold()).frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
@@ -339,11 +339,11 @@ struct FullScreenInterviewView: View {
 
                 ForEach(projections.projections, id: \.scenario) { proj in
                     HStack(spacing: 0) {
-                        Text(proj.scenario.capitalized).font(.caption).frame(width: 100, alignment: .leading)
-                        Text("\(proj.monthlyUsers)").font(.caption.monospacedDigit()).frame(width: 80, alignment: .trailing)
-                        Text("\(proj.callsPerUserPerMonth)").font(.caption.monospacedDigit()).frame(width: 80, alignment: .trailing)
-                        Text("\(proj.revenueSats.formatted())").font(.caption.monospacedDigit()).frame(width: 100, alignment: .trailing)
-                        Text("$\(proj.revenueUsd, specifier: "%.2f")").font(.caption.monospacedDigit()).frame(width: 80, alignment: .trailing)
+                        Text(proj.scenario.capitalized).font(.caption).frame(maxWidth: .infinity, alignment: .leading)
+                        Text("\(proj.monthlyUsers)").font(.caption.monospacedDigit()).frame(maxWidth: .infinity, alignment: .trailing)
+                        Text("\(proj.callsPerUserPerMonth)").font(.caption.monospacedDigit()).frame(maxWidth: .infinity, alignment: .trailing)
+                        Text("\(proj.revenueSats.formatted())").font(.caption.monospacedDigit()).frame(maxWidth: .infinity, alignment: .trailing)
+                        Text("$\(proj.revenueUsd, specifier: "%.2f")").font(.caption.monospacedDigit()).frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)

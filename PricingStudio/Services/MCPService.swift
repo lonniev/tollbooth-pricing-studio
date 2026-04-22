@@ -400,8 +400,10 @@ actor MCPService {
             let amountSats = (dict["amount_sats"] as? Int) ?? Int(dict["amount_sats"] as? String ?? "") ?? 0
             let apiSats = (dict["api_sats_credited"] as? Int) ?? Int(dict["api_sats_credited"] as? String ?? "") ?? 0
             let multiplier = (dict["multiplier"] as? Int) ?? Int(dict["multiplier"] as? String ?? "") ?? 1
-            let createdAt = (dict["created_at"] as? String).flatMap { parseISO8601($0) }
+            let rawCreatedAt = (dict["created_at"] as? String).flatMap { parseISO8601($0) }
             let settledAt = (dict["settled_at"] as? String).flatMap { parseISO8601($0) }
+            // Fall back to settled_at when created_at is missing or empty
+            let createdAt = rawCreatedAt ?? settledAt
 
             return InvoiceLineItem(
                 id: invoiceId,
@@ -419,17 +421,39 @@ actor MCPService {
 
     private func parseISO8601(_ str: String) -> Date? {
         let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // ISO8601DateFormatter handles up to milliseconds (3 fractional digits).
+        // Python's .isoformat() emits microseconds (6 digits), which the
+        // system formatter silently rejects. Truncate to 3 digits so the
+        // standard parser succeeds.
+        let normalized = Self.truncateMicroseconds(trimmed)
+
         let fmt1 = ISO8601DateFormatter()
         fmt1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = fmt1.date(from: trimmed) { return d }
+        if let d = fmt1.date(from: normalized) { return d }
         let fmt2 = ISO8601DateFormatter()
         fmt2.formatOptions = [.withInternetDateTime]
-        if let d = fmt2.date(from: trimmed) { return d }
+        if let d = fmt2.date(from: normalized) { return d }
         // Bare datetime without timezone
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        return df.date(from: trimmed)
+        if let d = df.date(from: normalized) { return d }
+        // Space-separated (e.g. "2026-04-22 14:30:00+00:00")
+        df.dateFormat = "yyyy-MM-dd HH:mm:ssxxx"
+        return df.date(from: normalized)
+    }
+
+    /// Truncate microsecond fractional seconds (.123456) to milliseconds (.123)
+    /// so ISO8601DateFormatter can parse them.
+    private static func truncateMicroseconds(_ iso: String) -> String {
+        // Match ".NNNNNN" (4-6 fractional digits) before a timezone suffix or EOL
+        guard let range = iso.range(of: #"\.\d{4,6}"#, options: .regularExpression) else {
+            return iso
+        }
+        let frac = iso[range]            // e.g. ".123456"
+        let millis = frac.prefix(4)      // e.g. ".123"
+        return iso.replacingCharacters(in: range, with: String(millis))
     }
 
     // MARK: - Account Statement Infographic

@@ -33,9 +33,9 @@ struct DMConversation: Identifiable, Sendable {
         return seen.values.sorted { $0.createdAt < $1.createdAt }
     }
 
-    /// Most recent message in the conversation.
+    /// Most recent message in the conversation (after deduplication).
     var latestMessage: DecryptedDM? {
-        messages.last
+        dedupedMessages.last
     }
 
     /// Display-friendly counterparty identifier.

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct InvoiceListView: View {
     let patronNpub: String
@@ -25,6 +26,7 @@ struct InvoiceListView: View {
     @State private var invoiceStatuses: [String: String] = [:]
     @State private var hasLoadedHistory = false
     @State private var topOffOperator: TopOffTarget?
+    @State private var showingExportSheet = false
 
     private struct TopOffTarget: Identifiable {
         let id: String  // operator npub
@@ -49,10 +51,23 @@ struct InvoiceListView: View {
             .padding()
         }
         .navigationTitle("Invoices")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showingExportSheet = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .disabled(allInvoiceItems.isEmpty)
+            }
+        }
         .task(id: patronNpub) {
             hasLoadedHistory = false
             await accountVM.loadAllInvoiceHistory(forNpub: patronNpub, operators: operators)
             hasLoadedHistory = true
+        }
+        .refreshable {
+            await accountVM.forceRefresh(forNpub: patronNpub, operators: operators)
         }
         .sheet(item: $topOffOperator) { target in
             TopOffSheet(
@@ -62,7 +77,19 @@ struct InvoiceListView: View {
                 accountVM: accountVM,
                 onNotifyOperator: onOpenMessages.map { callback in
                     { callback(target.id) }
+                },
+                onSettled: {
+                    Task {
+                        await accountVM.forceRefresh(forNpub: patronNpub, operators: operators)
+                    }
                 }
+            )
+        }
+        .sheet(isPresented: $showingExportSheet) {
+            InvoiceExportSheet(
+                patronNpub: patronNpub,
+                allItems: allInvoiceItemsByOperator,
+                dateFormatter: Self.dateFormatter
             )
         }
     }
@@ -224,14 +251,15 @@ struct InvoiceListView: View {
         // Column headers
         HStack(spacing: 0) {
             Text("Date")
-                .frame(width: 130, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Text("Amount")
-                .frame(width: 70, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             Text("Credits")
-                .frame(width: 70, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             Text("Status")
-                .frame(minWidth: 60, alignment: .center)
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .center)
+            // Reserve space for action button column
+            Color.clear.frame(width: 36)
         }
         .font(.caption2.bold())
         .foregroundStyle(.secondary)
@@ -254,46 +282,50 @@ struct InvoiceListView: View {
                         Text("--")
                     }
                 }
-                .frame(width: 130, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Amount (real sats)
                 Text("\(item.amountSats)")
-                    .frame(width: 70, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
 
                 // Credits granted
                 Text(item.apiSatsCredited > 0 ? "\(item.apiSatsCredited)" : "--")
-                    .frame(width: 70, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
 
                 // Status badge
                 statusBadge(for: item.status)
-                    .frame(minWidth: 60, alignment: .center)
-
-                Spacer()
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                 // Check button for pending invoices
-                if item.status == "Pending" {
-                    Button {
-                        Task { await checkSingleInvoice(invoiceId: item.id, endpoint: endpoint) }
-                    } label: {
-                        if checkingInvoices.contains(item.id) {
-                            ProgressView().controlSize(.mini)
-                        } else {
-                            Image(systemName: "magnifyingglass")
+                Group {
+                    if item.status == "Pending" {
+                        Button {
+                            Task { await checkSingleInvoice(invoiceId: item.id, endpoint: endpoint) }
+                        } label: {
+                            if checkingInvoices.contains(item.id) {
+                                ProgressView().controlSize(.mini)
+                            } else {
+                                Image(systemName: "magnifyingglass")
+                            }
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .disabled(checkingInvoices.contains(item.id))
+                    } else {
+                        Color.clear
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .disabled(checkingInvoices.contains(item.id))
                 }
+                .frame(width: 36)
             }
             .font(.caption.monospacedDigit())
 
-            // Invoice tracking ID
+            // Invoice tracking ID — copyable
             Text(item.id)
                 .font(.caption2.monospaced())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .textSelection(.enabled)
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 4)
@@ -364,7 +396,6 @@ struct InvoiceListView: View {
 
         // Refresh balances and invoice history
         await accountVM.forceRefresh(forNpub: patronNpub, operators: operators)
-        await accountVM.loadAllInvoiceHistory(forNpub: patronNpub, operators: operators)
         isReconciling = false
     }
 
@@ -432,12 +463,294 @@ struct InvoiceListView: View {
         }.flatMap { $0 }
     }
 
+    /// All loaded invoice items, flat list for export.
+    private var allInvoiceItems: [MCPService.InvoiceLineItem] {
+        accountVM.invoiceHistoryStates.values.compactMap { state in
+            if case .loaded(let items) = state { return items }
+            return nil
+        }.flatMap { $0 }
+    }
+
+    /// All loaded invoice items grouped by operator name, for export.
+    private var allInvoiceItemsByOperator: [(operatorName: String, items: [MCPService.InvoiceLineItem])] {
+        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
+        return mcpOperators.compactMap { op in
+            guard case .loaded(let items) = accountVM.invoiceHistoryStates[op.npub],
+                  !items.isEmpty else { return nil }
+            return (operatorName: op.displayName, items: items)
+        }
+    }
+
     private func statusColor(for status: String) -> Color {
         if status.hasPrefix("Settled") { return .green }
         if status == "Expired" || status == "Invalid" { return .red }
         if status == "Pending" || status == "Still pending" { return .orange }
         return .secondary
     }
+}
+
+// MARK: - Export Sheet
+
+private struct InvoiceExportSheet: View {
+    let patronNpub: String
+    let allItems: [(operatorName: String, items: [MCPService.InvoiceLineItem])]
+    let dateFormatter: DateFormatter
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingShareSheet = false
+    @State private var exportItems: [Any] = []
+
+    private var totalCount: Int {
+        allItems.reduce(0) { $0 + $1.items.count }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("\(totalCount) invoices across \(allItems.count) operator(s)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Export As") {
+                    Button {
+                        exportCSV()
+                    } label: {
+                        Label("CSV Spreadsheet", systemImage: "tablecells")
+                    }
+
+                    Button {
+                        exportPDF()
+                    } label: {
+                        Label("PDF Document", systemImage: "doc.richtext")
+                    }
+
+                    Button {
+                        exportImage()
+                    } label: {
+                        Label("Image (PNG)", systemImage: "photo")
+                    }
+                }
+            }
+            .navigationTitle("Export Invoices")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showingShareSheet) {
+                InvoiceShareSheet(items: exportItems)
+            }
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - CSV
+
+    private static let csvDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return df
+    }()
+
+    private func exportCSV() {
+        var csv = "Operator,Invoice ID,Status,Amount (sats),Credits,Multiplier,Created,Settled\n"
+        for group in allItems {
+            for item in group.items {
+                let created = item.createdAt.map { Self.csvDateFormatter.string(from: $0) } ?? ""
+                let settled = item.settledAt.map { Self.csvDateFormatter.string(from: $0) } ?? ""
+                // Escape fields that might contain commas
+                let escapedId = item.id.contains(",") ? "\"\(item.id)\"" : item.id
+                csv += "\(group.operatorName),\(escapedId),\(item.status),\(item.amountSats),\(item.apiSatsCredited),\(item.multiplier),\(created),\(settled)\n"
+            }
+        }
+        let filename = "invoices-\(shortNpub).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try? csv.write(to: url, atomically: true, encoding: .utf8)
+        exportItems = [url]
+        showingShareSheet = true
+    }
+
+    // MARK: - PDF
+
+    private func exportPDF() {
+        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
+        let data = renderer.pdfData { context in
+            context.beginPage()
+            var y: CGFloat = 40
+
+            let titleAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 16)
+            ]
+            let headerAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 9),
+                .foregroundColor: UIColor.secondaryLabel
+            ]
+            let cellAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
+            ]
+            let sectionAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 12),
+                .foregroundColor: UIColor.label
+            ]
+            let idAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.monospacedSystemFont(ofSize: 7, weight: .regular),
+                .foregroundColor: UIColor.secondaryLabel
+            ]
+
+            let title = "Invoice Report — \(shortNpub)"
+            (title as NSString).draw(at: CGPoint(x: 40, y: y), withAttributes: titleAttrs)
+            y += 28
+
+            let colX: [CGFloat] = [40, 160, 230, 300, 380]
+            let headers = ["Date", "Amount", "Credits", "Status", "Invoice ID"]
+
+            for group in allItems {
+                // Check if we need a new page
+                if y > 720 {
+                    context.beginPage()
+                    y = 40
+                }
+
+                (group.operatorName as NSString).draw(at: CGPoint(x: 40, y: y), withAttributes: sectionAttrs)
+                y += 20
+
+                for (i, header) in headers.enumerated() {
+                    (header as NSString).draw(at: CGPoint(x: colX[i], y: y), withAttributes: headerAttrs)
+                }
+                y += 16
+
+                for item in group.items {
+                    if y > 750 {
+                        context.beginPage()
+                        y = 40
+                    }
+
+                    let dateStr = item.createdAt.map { dateFormatter.string(from: $0) } ?? "--"
+                    (dateStr as NSString).draw(at: CGPoint(x: colX[0], y: y), withAttributes: cellAttrs)
+                    ("\(item.amountSats)" as NSString).draw(at: CGPoint(x: colX[1], y: y), withAttributes: cellAttrs)
+                    let creditsStr = item.apiSatsCredited > 0 ? "\(item.apiSatsCredited)" : "--"
+                    (creditsStr as NSString).draw(at: CGPoint(x: colX[2], y: y), withAttributes: cellAttrs)
+                    (item.status as NSString).draw(at: CGPoint(x: colX[3], y: y), withAttributes: cellAttrs)
+
+                    // Truncate long invoice IDs for PDF
+                    let truncId = item.id.count > 30 ? String(item.id.prefix(14)) + "..." + String(item.id.suffix(14)) : item.id
+                    (truncId as NSString).draw(at: CGPoint(x: colX[4], y: y), withAttributes: idAttrs)
+                    y += 14
+                }
+
+                y += 12
+            }
+        }
+
+        let filename = "invoices-\(shortNpub).pdf"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try? data.write(to: url)
+        exportItems = [url]
+        showingShareSheet = true
+    }
+
+    // MARK: - Image
+
+    private func exportImage() {
+        let rowHeight: CGFloat = 18
+        let headerHeight: CGFloat = 30
+        let sectionGap: CGFloat = 24
+        let titleHeight: CGFloat = 40
+        let padding: CGFloat = 20
+        let width: CGFloat = 700
+
+        var totalHeight = titleHeight + padding * 2
+        for group in allItems {
+            totalHeight += headerHeight + sectionGap + CGFloat(group.items.count) * rowHeight + 12
+        }
+
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: totalHeight))
+        let image = renderer.image { ctx in
+            // Background
+            UIColor.systemBackground.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: width, height: totalHeight))
+
+            var y = padding
+
+            let titleAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 14),
+                .foregroundColor: UIColor.label
+            ]
+            let headerAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 9),
+                .foregroundColor: UIColor.secondaryLabel
+            ]
+            let cellAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
+                .foregroundColor: UIColor.label
+            ]
+            let sectionAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 11),
+                .foregroundColor: UIColor.label
+            ]
+            let idAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.monospacedSystemFont(ofSize: 7, weight: .regular),
+                .foregroundColor: UIColor.secondaryLabel
+            ]
+
+            let title = "Invoice Report — \(shortNpub)"
+            (title as NSString).draw(at: CGPoint(x: padding, y: y), withAttributes: titleAttrs)
+            y += titleHeight
+
+            let colX: [CGFloat] = [padding, 150, 220, 290, 360]
+            let headers = ["Date", "Amount", "Credits", "Status", "Invoice ID"]
+
+            for group in allItems {
+                (group.operatorName as NSString).draw(at: CGPoint(x: padding, y: y), withAttributes: sectionAttrs)
+                y += 18
+
+                for (i, header) in headers.enumerated() {
+                    (header as NSString).draw(at: CGPoint(x: colX[i], y: y), withAttributes: headerAttrs)
+                }
+                y += 14
+
+                for item in group.items {
+                    let dateStr = item.createdAt.map { dateFormatter.string(from: $0) } ?? "--"
+                    (dateStr as NSString).draw(at: CGPoint(x: colX[0], y: y), withAttributes: cellAttrs)
+                    ("\(item.amountSats)" as NSString).draw(at: CGPoint(x: colX[1], y: y), withAttributes: cellAttrs)
+                    let creditsStr = item.apiSatsCredited > 0 ? "\(item.apiSatsCredited)" : "--"
+                    (creditsStr as NSString).draw(at: CGPoint(x: colX[2], y: y), withAttributes: cellAttrs)
+                    (item.status as NSString).draw(at: CGPoint(x: colX[3], y: y), withAttributes: cellAttrs)
+                    let truncId = item.id.count > 40 ? String(item.id.prefix(18)) + "..." + String(item.id.suffix(18)) : item.id
+                    (truncId as NSString).draw(at: CGPoint(x: colX[4], y: y), withAttributes: idAttrs)
+                    y += rowHeight
+                }
+
+                y += 12
+            }
+        }
+
+        exportItems = [image]
+        showingShareSheet = true
+    }
+
+    private var shortNpub: String {
+        if patronNpub.count > 16 {
+            return String(patronNpub.prefix(12)) + "..." + String(patronNpub.suffix(4))
+        }
+        return patronNpub
+    }
+}
+
+// MARK: - Share Sheet
+
+private struct InvoiceShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Stat Badge
