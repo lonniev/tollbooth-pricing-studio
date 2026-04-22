@@ -39,6 +39,7 @@ struct SettingsSheet: View {
                     LabeledContent("App", value: Bundle.main.appName)
                     LabeledContent("Version", value: Bundle.main.appVersion)
                     LabeledContent("Build", value: Bundle.main.buildTimestamp)
+                    LabeledContent("Patent", value: "Pending — US 64/045,999")
                 } header: {
                     Label("About", systemImage: "info.circle")
                 }
