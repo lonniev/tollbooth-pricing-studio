@@ -27,6 +27,13 @@ struct InvoiceListView: View {
     @State private var hasLoadedHistory = false
     @State private var topOffOperator: TopOffTarget?
     @State private var showingExportSheet = false
+    @State private var sortColumn: SortColumn = .date
+    @State private var sortAscending = false
+    @State private var hideExpired = false
+
+    private enum SortColumn: String {
+        case date, amount, credits, status
+    }
 
     private struct TopOffTarget: Identifiable {
         let id: String  // operator npub
@@ -45,6 +52,7 @@ struct InvoiceListView: View {
         ScrollView {
             VStack(spacing: 16) {
                 summaryHeader
+                filterBar
                 reconcileAllButton
                 invoiceHistoryByOperator
             }
@@ -130,6 +138,24 @@ struct InvoiceListView: View {
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Filter Bar
+
+    @ViewBuilder
+    private var filterBar: some View {
+        HStack {
+            Toggle(isOn: $hideExpired) {
+                Label("Hide Expired", systemImage: "line.3.horizontal.decrease.circle")
+                    .font(.caption)
+            }
+            .toggleStyle(.button)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .tint(hideExpired ? .accentColor : .secondary)
+
+            Spacer()
+        }
     }
 
     // MARK: - Reconcile All
@@ -226,13 +252,19 @@ struct InvoiceListView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
             case .loaded(let items):
+                let visible = sortedAndFiltered(items)
                 if items.isEmpty {
                     Text("No invoices yet")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 8)
+                } else if visible.isEmpty {
+                    Text("All invoices hidden by filter")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
                 } else {
-                    invoiceTable(items: items, endpoint: op.mcpEndpointURL ?? "")
+                    invoiceTable(items: visible, endpoint: op.mcpEndpointURL ?? "")
                 }
             case .error(let message):
                 Label(message, systemImage: "exclamationmark.triangle")
@@ -246,20 +278,44 @@ struct InvoiceListView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
+    // MARK: - Sorting & Filtering
+
+    private func sortedAndFiltered(_ items: [MCPService.InvoiceLineItem]) -> [MCPService.InvoiceLineItem] {
+        var result = items
+        if hideExpired {
+            result = result.filter { $0.status != "Expired" && $0.status != "Invalid" }
+        }
+        result.sort { a, b in
+            let cmp: Bool
+            switch sortColumn {
+            case .date:
+                cmp = (a.createdAt ?? .distantPast) < (b.createdAt ?? .distantPast)
+            case .amount:
+                cmp = a.amountSats < b.amountSats
+            case .credits:
+                cmp = a.apiSatsCredited < b.apiSatsCredited
+            case .status:
+                cmp = a.status < b.status
+            }
+            return sortAscending ? cmp : !cmp
+        }
+        return result
+    }
+
+    // MARK: - Invoice Table
+
     @ViewBuilder
     private func invoiceTable(items: [MCPService.InvoiceLineItem], endpoint: String) -> some View {
-        // Column headers
+        // Column headers — tappable for sorting
         HStack(spacing: 0) {
-            Text("Date")
+            sortableHeader("Date", column: .date)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Amount")
+            sortableHeader("Amount", column: .amount)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-            Text("Credits")
+            sortableHeader("Credits", column: .credits)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-            Text("Status")
-                .frame(maxWidth: .infinity, alignment: .center)
-            // Reserve space for action button column
-            Color.clear.frame(width: 36)
+            sortableHeader("Status", column: .status)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .font(.caption2.bold())
         .foregroundStyle(.secondary)
@@ -268,6 +324,27 @@ struct InvoiceListView: View {
         ForEach(items) { item in
             invoiceLineItemRow(item: item, endpoint: endpoint)
         }
+    }
+
+    @ViewBuilder
+    private func sortableHeader(_ title: String, column: SortColumn) -> some View {
+        Button {
+            if sortColumn == column {
+                sortAscending.toggle()
+            } else {
+                sortColumn = column
+                sortAscending = column == .status // status ascending by default, others descending
+            }
+        } label: {
+            HStack(spacing: 2) {
+                Text(title)
+                if sortColumn == column {
+                    Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -292,12 +369,10 @@ struct InvoiceListView: View {
                 Text(item.apiSatsCredited > 0 ? "\(item.apiSatsCredited)" : "--")
                     .frame(maxWidth: .infinity, alignment: .trailing)
 
-                // Status badge
-                statusBadge(for: item.status)
-                    .frame(maxWidth: .infinity, alignment: .center)
-
-                // Check button for pending invoices
-                Group {
+                // Status badge + optional check button
+                HStack(spacing: 4) {
+                    Spacer(minLength: 0)
+                    statusBadge(for: item.status)
                     if item.status == "Pending" {
                         Button {
                             Task { await checkSingleInvoice(invoiceId: item.id, endpoint: endpoint) }
@@ -306,16 +381,15 @@ struct InvoiceListView: View {
                                 ProgressView().controlSize(.mini)
                             } else {
                                 Image(systemName: "magnifyingglass")
+                                    .font(.caption2)
                             }
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                         .disabled(checkingInvoices.contains(item.id))
-                    } else {
-                        Color.clear
                     }
                 }
-                .frame(width: 36)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .font(.caption.monospacedDigit())
 
@@ -562,7 +636,6 @@ private struct InvoiceExportSheet: View {
             for item in group.items {
                 let created = item.createdAt.map { Self.csvDateFormatter.string(from: $0) } ?? ""
                 let settled = item.settledAt.map { Self.csvDateFormatter.string(from: $0) } ?? ""
-                // Escape fields that might contain commas
                 let escapedId = item.id.contains(",") ? "\"\(item.id)\"" : item.id
                 csv += "\(group.operatorName),\(escapedId),\(item.status),\(item.amountSats),\(item.apiSatsCredited),\(item.multiplier),\(created),\(settled)\n"
             }
@@ -609,7 +682,6 @@ private struct InvoiceExportSheet: View {
             let headers = ["Date", "Amount", "Credits", "Status", "Invoice ID"]
 
             for group in allItems {
-                // Check if we need a new page
                 if y > 720 {
                     context.beginPage()
                     y = 40
@@ -636,7 +708,6 @@ private struct InvoiceExportSheet: View {
                     (creditsStr as NSString).draw(at: CGPoint(x: colX[2], y: y), withAttributes: cellAttrs)
                     (item.status as NSString).draw(at: CGPoint(x: colX[3], y: y), withAttributes: cellAttrs)
 
-                    // Truncate long invoice IDs for PDF
                     let truncId = item.id.count > 30 ? String(item.id.prefix(14)) + "..." + String(item.id.suffix(14)) : item.id
                     (truncId as NSString).draw(at: CGPoint(x: colX[4], y: y), withAttributes: idAttrs)
                     y += 14
@@ -670,7 +741,6 @@ private struct InvoiceExportSheet: View {
 
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: totalHeight))
         let image = renderer.image { ctx in
-            // Background
             UIColor.systemBackground.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: width, height: totalHeight))
 
