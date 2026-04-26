@@ -9,6 +9,7 @@ struct AddAuthoritySheet: View {
     @State private var npub = ""
     @State private var nsec = ""
     @State private var displayName = ""
+    @State private var nip05 = ""
     @State private var derivedNpub: String?
     @State private var keyError: String?
     @State private var generatedKeys = false
@@ -115,6 +116,18 @@ struct AddAuthoritySheet: View {
                 } footer: {
                     Text("A friendly name for this authority.")
                 }
+
+                Section {
+                    TextField("user@domain.org", text: $nip05)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                        .font(.callout)
+                } header: {
+                    Text("NIP-05 Identity")
+                } footer: {
+                    Text("Optional. Nostr-verifiable name.")
+                }
             }
             .navigationTitle("Add Authority")
             .navigationBarTitleDisplayMode(.inline)
@@ -127,11 +140,16 @@ struct AddAuthoritySheet: View {
                         let finalNpub = effectiveNpub.trimmingCharacters(in: .whitespacesAndNewlines)
                         let trimmedNsec = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
 
+                        let trimmedNip05 = nip05.trimmingCharacters(in: .whitespacesAndNewlines)
                         viewModel.addAuthority(
                             npub: finalNpub,
                             displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
                             context: modelContext
                         )
+                        if !trimmedNip05.isEmpty {
+                            viewModel.selectedAuthority?.nip05 = trimmedNip05
+                            try? modelContext.save()
+                        }
 
                         if !trimmedNsec.isEmpty {
                             try? KeychainService.saveNsec(trimmedNsec, forNpub: finalNpub)

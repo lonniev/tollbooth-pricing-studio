@@ -8,15 +8,17 @@ final class Authority: PricingTarget {
 
     var npub: String = ""
     var displayName: String = ""
+    var nip05: String?
     var mcpEndpointURL: String?
     var addedAt: Date = Date()
     var isAutoDiscovered: Bool = false
 
     var isPrime: Bool { npub == Self.primeNpub }
 
-    init(npub: String, displayName: String, mcpEndpointURL: String? = nil, isAutoDiscovered: Bool = false) {
+    init(npub: String, displayName: String, nip05: String? = nil, mcpEndpointURL: String? = nil, isAutoDiscovered: Bool = false) {
         self.npub = npub
         self.displayName = displayName
+        self.nip05 = nip05
         self.mcpEndpointURL = mcpEndpointURL
         self.addedAt = Date()
         self.isAutoDiscovered = isAutoDiscovered

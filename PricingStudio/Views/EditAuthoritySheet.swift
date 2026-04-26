@@ -7,6 +7,7 @@ struct EditAuthoritySheet: View {
     let authority: Authority
 
     @State private var displayName: String
+    @State private var nip05: String
     @State private var nsec: String = ""
     @State private var showNsec = false
     @State private var hasStoredNsec = false
@@ -15,13 +16,15 @@ struct EditAuthoritySheet: View {
         self.viewModel = viewModel
         self.authority = authority
         self._displayName = State(initialValue: authority.displayName)
+        self._nip05 = State(initialValue: authority.nip05 ?? "")
     }
 
     private var hasChanges: Bool {
         let nameChanged = !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && displayName != authority.displayName
+        let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (authority.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty
-        return nameChanged || nsecChanged
+        return nameChanged || nip05Changed || nsecChanged
     }
 
     var body: some View {
@@ -43,6 +46,18 @@ struct EditAuthoritySheet: View {
                     TextField("Display Name", text: $displayName)
                 } header: {
                     Text("Display Name")
+                }
+
+                Section {
+                    TextField("user@domain.org", text: $nip05)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                        .font(.callout)
+                } header: {
+                    Text("NIP-05 Identity")
+                } footer: {
+                    Text("Optional. Nostr-verifiable name.")
                 }
 
                 Section {
@@ -97,6 +112,8 @@ struct EditAuthoritySheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedNip05 = nip05.trimmingCharacters(in: .whitespacesAndNewlines)
+                        authority.nip05 = trimmedNip05.isEmpty ? nil : trimmedNip05
                         if trimmedName != authority.displayName {
                             viewModel.updateAuthority(authority, displayName: trimmedName, context: modelContext)
                         }

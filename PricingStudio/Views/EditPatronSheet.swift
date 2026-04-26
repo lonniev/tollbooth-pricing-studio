@@ -7,6 +7,7 @@ struct EditPatronSheet: View {
     let patron: Patron
 
     @State private var displayName: String
+    @State private var nip05: String
     @State private var nsec: String = ""
     @State private var showNsec = false
     @State private var hasStoredNsec = false
@@ -16,13 +17,15 @@ struct EditPatronSheet: View {
         self.viewModel = viewModel
         self.patron = patron
         self._displayName = State(initialValue: patron.displayName)
+        self._nip05 = State(initialValue: patron.nip05 ?? "")
     }
 
     private var hasChanges: Bool {
         let nameChanged = !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && displayName != patron.displayName
+        let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (patron.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty && keyError == nil
-        return nameChanged || nsecChanged
+        return nameChanged || nip05Changed || nsecChanged
     }
 
     var body: some View {
@@ -44,6 +47,18 @@ struct EditPatronSheet: View {
                     TextField("Display Name", text: $displayName)
                 } header: {
                     Text("Display Name")
+                }
+
+                Section {
+                    TextField("user@domain.org", text: $nip05)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                        .font(.callout)
+                } header: {
+                    Text("NIP-05 Identity")
+                } footer: {
+                    Text("Optional. Nostr-verifiable name (e.g. prime-curator@tollbooth-dpyc.org).")
                 }
 
                 Section {
@@ -94,7 +109,9 @@ struct EditPatronSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedNip05 = nip05.trimmingCharacters(in: .whitespacesAndNewlines)
                         let trimmedNsec = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
+                        patron.nip05 = trimmedNip05.isEmpty ? nil : trimmedNip05
                         viewModel.updatePatron(
                             patron,
                             displayName: trimmedName,

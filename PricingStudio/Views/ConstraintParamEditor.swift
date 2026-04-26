@@ -9,6 +9,7 @@ struct ConstraintParamEditor: View {
     @State private var boolValues: [String: Bool] = [:]
     @State private var daySetValues: [String: Set<Int>] = [:]
     @State private var dateValues: [String: Date] = [:]
+    @State private var tierRows: [String: [[String: String]]] = [:]
 
     var body: some View {
         NavigationStack {
@@ -82,19 +83,7 @@ struct ConstraintParamEditor: View {
             }
 
         case .tiers:
-            VStack(alignment: .leading, spacing: 4) {
-                Text("JSON array of tier objects")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextEditor(text: binding(for: param.name))
-                    .monospaced()
-                    .font(.callout)
-                    .frame(minHeight: 120)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                    )
-            }
+            tierEditor(for: param)
 
         case .daysOfWeek:
             let days = daySetBinding(for: param.name)
@@ -128,6 +117,78 @@ struct ConstraintParamEditor: View {
                 }
             }
         }
+    }
+
+    // MARK: - Tier Editor
+
+    @ViewBuilder
+    private func tierEditor(for param: ParamSpec) -> some View {
+        let fields = param.tierFields ?? []
+        let rows = tierRowsBinding(for: param.name)
+
+        VStack(alignment: .leading, spacing: 8) {
+            // Column headers
+            if !fields.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(fields, id: \.name) { field in
+                        Text(field.label)
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    // Space for delete button
+                    Color.clear.frame(width: 28)
+                }
+                .padding(.horizontal, 4)
+            }
+
+            // Tier rows
+            ForEach(Array(rows.wrappedValue.indices), id: \.self) { rowIndex in
+                HStack(spacing: 8) {
+                    ForEach(fields, id: \.name) { field in
+                        TextField(field.placeholder, text: Binding(
+                            get: { rows.wrappedValue[rowIndex][field.name, default: ""] },
+                            set: { rows.wrappedValue[rowIndex][field.name] = $0 }
+                        ))
+                        .keyboardType(field.type == .int ? .numberPad : .decimalPad)
+                        .monospaced()
+                        .font(.callout)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    Button(role: .destructive) {
+                        rows.wrappedValue.remove(at: rowIndex)
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 28)
+                }
+            }
+
+            // Add tier button
+            Button {
+                var newRow: [String: String] = [:]
+                for field in fields {
+                    newRow[field.name] = ""
+                }
+                rows.wrappedValue.append(newRow)
+            } label: {
+                Label("Add Tier", systemImage: "plus.circle")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+
+    private func tierRowsBinding(for key: String) -> Binding<[[String: String]]> {
+        Binding(
+            get: { tierRows[key, default: []] },
+            set: { tierRows[key] = $0 }
+        )
     }
 
     // MARK: - Bindings
@@ -184,14 +245,18 @@ struct ConstraintParamEditor: View {
                 }
 
             case .tiers:
-                if let existing = existingParams?[param.name],
-                   case .array(let arr) = existing {
-                    // Pretty-print the array description
-                    values[param.name] = "[\(arr.map(\.description).joined(separator: ", "))]"
-                } else if let def = param.defaultValue {
-                    values[param.name] = stringFrom(def)
+                let source: AnyCodableValue? = existingParams?[param.name] ?? param.defaultValue
+                if let source, case .array(let arr) = source {
+                    tierRows[param.name] = arr.compactMap { item -> [String: String]? in
+                        guard case .dictionary(let dict) = item else { return nil }
+                        var row: [String: String] = [:]
+                        for (k, v) in dict {
+                            row[k] = stringFrom(v)
+                        }
+                        return row
+                    }
                 } else {
-                    values[param.name] = "[]"
+                    tierRows[param.name] = []
                 }
 
             case .daysOfWeek:
@@ -275,9 +340,25 @@ struct ConstraintParamEditor: View {
                 }
 
             case .tiers:
-                let raw = values[param.name, default: "[]"]
-                // Store as raw string; the server will parse the JSON
-                result[param.name] = .string(raw)
+                let rows = tierRows[param.name, default: []]
+                let fields = param.tierFields ?? []
+                let arr: [AnyCodableValue] = rows.compactMap { row in
+                    var dict: [String: AnyCodableValue] = [:]
+                    for field in fields {
+                        let raw = row[field.name, default: ""]
+                        guard !raw.isEmpty else { continue }
+                        switch field.type {
+                        case .int:
+                            if let v = Int(raw) { dict[field.name] = .int(v) }
+                        case .float:
+                            if let v = Double(raw) { dict[field.name] = .double(v) }
+                        default:
+                            dict[field.name] = .string(raw)
+                        }
+                    }
+                    return dict.isEmpty ? nil : .dictionary(dict)
+                }
+                result[param.name] = .array(arr)
 
             case .daysOfWeek:
                 let days = daySetValues[param.name, default: []]

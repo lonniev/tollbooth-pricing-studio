@@ -491,6 +491,7 @@ struct ContentView: View {
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
+                        .id(identity.npub)
                         .task(id: identity.npub) { chatVM.switchIdentity(to: identity) }
                 } else {
                     NoNsecView(entityName: identity.displayName)
@@ -548,6 +549,7 @@ struct ContentView: View {
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
+                        .id(identity.npub)
                         .task(id: identity.npub) { chatVM.switchIdentity(to: identity) }
                 } else {
                     NoNsecView(entityName: identity.displayName)
@@ -601,6 +603,7 @@ struct ContentView: View {
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
+                        .id(identity.npub)
                         .task(id: identity.npub) { chatVM.switchIdentity(to: identity) }
                 } else {
                     NoNsecView(entityName: identity.displayName)

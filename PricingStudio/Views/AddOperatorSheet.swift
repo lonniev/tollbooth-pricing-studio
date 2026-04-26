@@ -9,6 +9,7 @@ struct AddOperatorSheet: View {
     @State private var npub = ""
     @State private var nsec = ""
     @State private var displayName = ""
+    @State private var nip05 = ""
     @State private var mcpEndpointURL = ""
     @State private var derivedNpub: String?
     @State private var keyError: String?
@@ -118,6 +119,18 @@ struct AddOperatorSheet: View {
                 }
 
                 Section {
+                    TextField("user@domain.org", text: $nip05)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                        .font(.callout)
+                } header: {
+                    Text("NIP-05 Identity")
+                } footer: {
+                    Text("Optional. Nostr-verifiable name.")
+                }
+
+                Section {
                     TextField("https://my-service.fastmcp.app/mcp", text: $mcpEndpointURL)
                         .textContentType(.URL)
                         .textInputAutocapitalization(.never)
@@ -142,12 +155,17 @@ struct AddOperatorSheet: View {
                         let trimmedNsec = nsec.trimmingCharacters(in: .whitespacesAndNewlines)
 
                         let trimmedURL = mcpEndpointURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedNip05 = nip05.trimmingCharacters(in: .whitespacesAndNewlines)
                         viewModel.addOperator(
                             npub: finalNpub,
                             displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
                             mcpEndpointURL: trimmedURL.isEmpty ? nil : trimmedURL,
                             context: modelContext
                         )
+                        if !trimmedNip05.isEmpty {
+                            viewModel.selectedOperator?.nip05 = trimmedNip05
+                            try? modelContext.save()
+                        }
 
                         if !trimmedNsec.isEmpty {
                             try? KeychainService.saveNsec(trimmedNsec, forNpub: finalNpub)

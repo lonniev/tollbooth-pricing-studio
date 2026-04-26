@@ -7,6 +7,7 @@ struct EditOperatorSheet: View {
     let operator_: Operator
 
     @State private var displayName: String
+    @State private var nip05: String
     @State private var mcpEndpointURL: String
     @State private var nsec: String = ""
     @State private var showNsec = false
@@ -16,6 +17,7 @@ struct EditOperatorSheet: View {
         self.viewModel = viewModel
         self.operator_ = operator_
         self._displayName = State(initialValue: operator_.displayName)
+        self._nip05 = State(initialValue: operator_.nip05 ?? "")
         self._mcpEndpointURL = State(initialValue: operator_.mcpEndpointURL ?? "")
     }
 
@@ -27,8 +29,9 @@ struct EditOperatorSheet: View {
     private var hasChanges: Bool {
         let nameChanged = !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && displayName != operator_.displayName
+        let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (operator_.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty
-        return nameChanged || nsecChanged || urlChanged
+        return nameChanged || nip05Changed || nsecChanged || urlChanged
     }
 
     var body: some View {
@@ -50,6 +53,18 @@ struct EditOperatorSheet: View {
                     TextField("Display Name", text: $displayName)
                 } header: {
                     Text("Display Name")
+                }
+
+                Section {
+                    TextField("user@domain.org", text: $nip05)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                        .font(.callout)
+                } header: {
+                    Text("NIP-05 Identity")
+                } footer: {
+                    Text("Optional. Nostr-verifiable name.")
                 }
 
                 Section {
@@ -113,6 +128,8 @@ struct EditOperatorSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedNip05 = nip05.trimmingCharacters(in: .whitespacesAndNewlines)
+                        operator_.nip05 = trimmedNip05.isEmpty ? nil : trimmedNip05
                         if trimmedName != operator_.displayName {
                             viewModel.updateOperator(
                                 operator_,

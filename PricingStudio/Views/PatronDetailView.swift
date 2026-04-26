@@ -40,6 +40,13 @@ struct PatronDetailView: View {
             Text(patron.displayName)
                 .font(.title2.bold())
 
+            if let nip05 = patron.nip05 {
+                Text(nip05)
+                    .font(.subheadline)
+                    .foregroundColor(.accentColor)
+                    .textSelection(.enabled)
+            }
+
             Text(patron.npub)
                 .font(.caption)
                 .monospaced()

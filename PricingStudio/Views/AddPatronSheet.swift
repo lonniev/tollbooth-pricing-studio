@@ -7,6 +7,7 @@ struct AddPatronSheet: View {
     var viewModel: PatronCollectionViewModel
 
     @State private var displayName = ""
+    @State private var nip05 = ""
     @State private var nsec = ""
     @State private var showNsec = false
     @State private var derivedNpub: String?
@@ -44,6 +45,18 @@ struct AddPatronSheet: View {
                     Text("Display Name")
                 } footer: {
                     Text("A friendly name for this patron.")
+                }
+
+                Section {
+                    TextField("user@domain.org", text: $nip05)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                        .font(.callout)
+                } header: {
+                    Text("NIP-05 Identity")
+                } footer: {
+                    Text("Optional. Nostr-verifiable name (e.g. prime-curator@tollbooth-dpyc.org).")
                 }
 
                 Section {
@@ -120,12 +133,17 @@ struct AddPatronSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
                         guard let npub = derivedNpub else { return }
+                        let trimmedNip05 = nip05.trimmingCharacters(in: .whitespacesAndNewlines)
                         viewModel.addPatron(
                             npub: npub,
                             displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
                             nsec: nsec.trimmingCharacters(in: .whitespacesAndNewlines),
                             context: modelContext
                         )
+                        if !trimmedNip05.isEmpty {
+                            viewModel.selectedPatron?.nip05 = trimmedNip05
+                            try? modelContext.save()
+                        }
                         dismiss()
                     }
                     .disabled(!isValid)

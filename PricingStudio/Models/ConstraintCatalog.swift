@@ -17,21 +17,31 @@ enum ParamType {
 
 // MARK: - Parameter specification
 
+/// Describes one column in a tier row (e.g. "capacity_pct" as a float 0-1).
+struct TierFieldSpec {
+    let name: String
+    let label: String
+    let type: ParamType   // .float or .int
+    let placeholder: String
+}
+
 struct ParamSpec {
     let name: String
     let type: ParamType
     let required: Bool
     let defaultValue: AnyCodableValue?
     let description: String
-    let options: [String]?  // for .picklist type
+    let options: [String]?      // for .picklist type
+    let tierFields: [TierFieldSpec]?  // for .tiers type — column definitions
 
-    init(name: String, type: ParamType, required: Bool = true, defaultValue: AnyCodableValue? = nil, description: String, options: [String]? = nil) {
+    init(name: String, type: ParamType, required: Bool = true, defaultValue: AnyCodableValue? = nil, description: String, options: [String]? = nil, tierFields: [TierFieldSpec]? = nil) {
         self.name = name
         self.type = type
         self.required = required
         self.defaultValue = defaultValue
         self.description = description
         self.options = options
+        self.tierFields = tierFields
     }
 }
 
@@ -157,8 +167,15 @@ struct ConstraintCatalog {
                     name: "tiers",
                     type: .tiers,
                     required: true,
-                    defaultValue: nil,
-                    description: "Array of tiers, each with min_consumed (api-sats) and bonus_multiplier."
+                    defaultValue: .array([
+                        .dictionary(["min_consumed": .int(100), "bonus_multiplier": .double(1.1)]),
+                        .dictionary(["min_consumed": .int(500), "bonus_multiplier": .double(1.25)]),
+                    ]),
+                    description: "After spending min_consumed api-sats, the patron gets a bonus multiplier on future credits.",
+                    tierFields: [
+                        TierFieldSpec(name: "min_consumed", label: "Min Consumed (sats)", type: .int, placeholder: "100"),
+                        TierFieldSpec(name: "bonus_multiplier", label: "Bonus Multiplier", type: .float, placeholder: "1.1"),
+                    ]
                 ),
             ]
         ),
@@ -258,8 +275,16 @@ struct ConstraintCatalog {
                     name: "tiers",
                     type: .tiers,
                     required: true,
-                    defaultValue: nil,
-                    description: "Array of tiers, each with capacity_pct (0-1) and multiplier."
+                    defaultValue: .array([
+                        .dictionary(["capacity_pct": .double(0.5), "multiplier": .double(1.0)]),
+                        .dictionary(["capacity_pct": .double(0.8), "multiplier": .double(1.5)]),
+                        .dictionary(["capacity_pct": .double(0.95), "multiplier": .double(2.0)]),
+                    ]),
+                    description: "When demand reaches a capacity threshold, the price multiplier kicks in.",
+                    tierFields: [
+                        TierFieldSpec(name: "capacity_pct", label: "Capacity %", type: .float, placeholder: "0.80"),
+                        TierFieldSpec(name: "multiplier", label: "Multiplier", type: .float, placeholder: "1.5"),
+                    ]
                 ),
             ]
         ),
@@ -311,10 +336,11 @@ struct ConstraintCatalog {
                 ),
                 ParamSpec(
                     name: "scope",
-                    type: .string,
+                    type: .picklist,
                     required: false,
                     defaultValue: .string("global"),
-                    description: "Scope of the cap: \"global\" or \"per_patron\"."
+                    description: "Scope of the cap.",
+                    options: ["global", "per_patron"]
                 ),
             ]
         ),
@@ -337,6 +363,14 @@ struct ConstraintCatalog {
                     required: true,
                     defaultValue: .string("PT1H"),
                     description: "ISO-8601 duration string (e.g. PT5H for 5 hours, P1D for 1 day)."
+                ),
+                ParamSpec(
+                    name: "scope",
+                    type: .picklist,
+                    required: false,
+                    defaultValue: .string("global"),
+                    description: "Scope of the rate limit.",
+                    options: ["global", "per_patron"]
                 ),
             ]
         ),
