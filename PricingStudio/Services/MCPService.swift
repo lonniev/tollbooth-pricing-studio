@@ -15,12 +15,68 @@ actor MCPService {
         )
     }
 
-    /// Generate a proof for the given npub + tool name. Returns empty string
-    /// if nsec is not available (the server will reject the call).
-    private func makeProof(npub: String, toolName: String) -> String {
-        guard !npub.isEmpty else { return "" }
-        return (try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub)) ?? ""
+    // MARK: - Proof Strategies
+
+    /// For restricted tools — Schnorr signature against operator npub.
+    private func argsWithOperatorProof(npub: String, toolName: String, extra: [String: Value] = [:]) -> [String: Value] {
+        var args = extra
+        guard !npub.isEmpty else { return args }
+        args["npub"] = .string(npub)
+        let proof = (try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub)) ?? ""
+        args["proof"] = .string(proof)
+        return args
     }
+
+    /// For paid tools — poison-keyed proof token from Keychain.
+    private func argsWithProofToken(npub: String, operatorHost: String, extra: [String: Value] = [:]) -> [String: Value] {
+        var args = extra
+        guard !npub.isEmpty else { return args }
+        args["npub"] = .string(npub)
+        let token = KeychainService.loadProofToken(forPatron: npub, operator: operatorHost) ?? ""
+        args["proof"] = .string(token)
+        return args
+    }
+
+    // MARK: - Npub Proof Exchange
+
+    /// Request a poison-keyed npub ownership proof from the MCP.
+    /// Returns the proof_token (poison phrase) that the application must remember.
+    func callRequestNpubProof(endpointURL: URL, patronNpub: String) async throws -> String {
+        let result = try await callToolGeneric(
+            endpointURL: endpointURL,
+            toolName: "request_npub_proof",
+            arguments: ["patron_npub": .string(patronNpub)]
+        )
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["success"] as? Bool == true,
+              let proofToken = json["proof_token"] as? String else {
+            throw MCPError.toolCallFailed("request_npub_proof failed: \(result)")
+        }
+        return proofToken
+    }
+
+    /// Receive and confirm a poison-keyed npub ownership proof.
+    /// Returns the proof_token and stores it in Keychain for the patron+operator pair.
+    func callReceiveNpubProof(endpointURL: URL, patronNpub: String) async throws -> String {
+        let result = try await callToolGeneric(
+            endpointURL: endpointURL,
+            toolName: "receive_npub_proof",
+            arguments: ["patron_npub": .string(patronNpub)]
+        )
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["success"] as? Bool == true,
+              let proofToken = json["proof_token"] as? String else {
+            throw MCPError.toolCallFailed("receive_npub_proof failed: \(result)")
+        }
+        // Persist to Keychain for this patron+operator
+        let host = endpointURL.host ?? endpointURL.absoluteString
+        try KeychainService.saveProofToken(proofToken, forPatron: patronNpub, operator: host)
+        return proofToken
+    }
+
+    // MARK: - Free Tools
 
     struct EffectivePrice {
         let baseCostSats: Int
@@ -47,17 +103,6 @@ actor MCPService {
             baseCostSats: base,
             effectiveCostSats: effective
         )
-    }
-
-    /// Add npub + proof to an args dict. Tool name is extracted from the
-    /// tool's registered name (e.g., "schwab_check_balance" → "check_balance").
-    private func argsWithProof(npub: String, toolName: String, extra: [String: Value] = [:]) -> [String: Value] {
-        var args = extra
-        if !npub.isEmpty {
-            args["npub"] = .string(npub)
-            args["proof"] = .string(makeProof(npub: npub, toolName: toolName))
-        }
-        return args
     }
 
     enum ConnectionStep: String, Sendable {
@@ -197,7 +242,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No check_balance tool found")
         }
 
-        let args = argsWithProof(npub: patronNpub, toolName: "check_balance")
+        let args = argsWithProofToken(npub: patronNpub, operatorHost: endpointURL.host ?? endpointURL.absoluteString)
         let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: args)
 
         if isError == true {
@@ -361,7 +406,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement tool found")
         }
 
-        let args = argsWithProof(npub: patronNpub, toolName: "account_statement")
+        let args = argsWithProofToken(npub: patronNpub, operatorHost: endpointURL.host ?? endpointURL.absoluteString)
         let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
 
         if isError == true {
@@ -484,7 +529,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement_infographic tool found")
         }
 
-        let args = argsWithProof(npub: patronNpub, toolName: "account_statement_infographic")
+        let args = argsWithProofToken(npub: patronNpub, operatorHost: endpointURL.host ?? endpointURL.absoluteString)
         let (content, isError) = try await client.callTool(name: infoTool.name, arguments: args)
 
         if isError == true {
@@ -564,7 +609,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: purchaseTool.name,
-            arguments: argsWithProof(npub: patronNpub, toolName: "purchase_credits", extra: ["amount_sats": .int(amountSats)])
+            arguments: argsWithProofToken(npub: patronNpub, operatorHost: endpointURL.host ?? endpointURL.absoluteString, extra: ["amount_sats": .int(amountSats)])
         )
 
         if isError == true {
@@ -646,7 +691,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: paymentTool.name,
-            arguments: argsWithProof(npub: npub, toolName: "check_payment", extra: ["invoice_id": .string(invoiceId)])
+            arguments: argsWithProofToken(npub: npub, operatorHost: endpointURL.host ?? endpointURL.absoluteString, extra: ["invoice_id": .string(invoiceId)])
         )
 
         if isError == true {
@@ -783,10 +828,10 @@ actor MCPService {
 
         let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
 
-        // Pass proof as a separate parameter (not embedded in model_json)
+        // Pass operator Schnorr proof as a separate parameter (restricted tool)
         var arguments: [String: Value] = ["model_json": .string(jsonString)]
         if let npub = operatorNpub {
-            let proof = makeProof(npub: npub, toolName: "set_pricing_model")
+            let proof = (try? OperatorProofService.createProof(toolName: "set_pricing_model", operatorNpub: npub)) ?? ""
             if !proof.isEmpty {
                 arguments["proof"] = .string(proof)
             }
@@ -1043,7 +1088,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: registerTool.name,
-            arguments: argsWithProof(npub: operatorNpub, toolName: "register_operator", extra: ["service_url": .string(operatorServiceURL)])
+            arguments: argsWithOperatorProof(npub: operatorNpub, toolName: "register_operator", extra: ["service_url": .string(operatorServiceURL)])
         )
 
         if isError == true {
@@ -1081,7 +1126,7 @@ actor MCPService {
         }
 
         // Build arguments — always include npub + proof, optionally include changed fields
-        var args = argsWithProof(npub: operatorNpub, toolName: "update_operator")
+        var args = argsWithOperatorProof(npub: operatorNpub, toolName: "update_operator")
         if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
         if !displayName.isEmpty { args["display_name"] = .string(displayName) }
 
@@ -1124,7 +1169,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: argsWithProof(npub: operatorNpub, toolName: "deregister_operator")
+            arguments: argsWithOperatorProof(npub: operatorNpub, toolName: "deregister_operator")
         )
 
         if isError == true {
@@ -1387,7 +1432,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: argsWithProof(npub: npub, toolName: "forget_credentials", extra: ["service": .string(service)])
+            arguments: argsWithOperatorProof(npub: npub, toolName: "forget_credentials", extra: ["service": .string(service)])
         )
 
         if isError == true {

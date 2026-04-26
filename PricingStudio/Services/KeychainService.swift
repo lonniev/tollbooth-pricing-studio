@@ -131,6 +131,28 @@ enum KeychainService {
         delete(service: ncredService, account: account)
     }
 
+    // MARK: - Proof Token Storage (poison-keyed npub proof)
+
+    private static let proofTokenService = "com.tollbooth.dpyc.PricingStudio.proof_token"
+
+    /// Save a poison proof token for a patron+operator pair.
+    static func saveProofToken(_ token: String, forPatron patronNpub: String, operator operatorHost: String) throws {
+        let account = "\(patronNpub):\(operatorHost)"
+        try save(data: Data(token.utf8), service: proofTokenService, account: account)
+    }
+
+    /// Load a saved proof token for a patron+operator pair.
+    static func loadProofToken(forPatron patronNpub: String, operator operatorHost: String) -> String? {
+        let account = "\(patronNpub):\(operatorHost)"
+        return load(service: proofTokenService, account: account)
+    }
+
+    /// Delete a saved proof token.
+    static func deleteProofToken(forPatron patronNpub: String, operator operatorHost: String) {
+        let account = "\(patronNpub):\(operatorHost)"
+        delete(service: proofTokenService, account: account)
+    }
+
     // MARK: - Generic Keychain Operations
 
     private static func save(data: Data, service: String, account: String) throws {

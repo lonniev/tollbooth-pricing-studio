@@ -78,6 +78,13 @@ final class TestCallViewModel {
         }
     }
 
+    /// Known restricted tools that require operator Schnorr proof.
+    private static let restrictedTools: Set<String> = [
+        "set_pricing_model", "reset_pricing_model", "notarize_ledger",
+        "register_operator", "update_operator", "deregister_operator",
+        "forget_credentials",
+    ]
+
     var selectedPatronNpub: String? {
         didSet {
             // Auto-fill npub and proof params when identity is selected
@@ -85,13 +92,26 @@ final class TestCallViewModel {
                 if toolParams.contains(where: { $0.name == "npub" }) {
                     paramValues["npub"] = npub
                 }
-                if toolParams.contains(where: { $0.name == "proof" }),
-                   KeychainService.loadNsec(forNpub: npub) != nil,
-                   let proof = try? OperatorProofService.createProof(
-                       toolName: selectedTool?.toolName ?? "",
-                       operatorNpub: npub
-                   ) {
-                    paramValues["proof"] = proof
+                if toolParams.contains(where: { $0.name == "proof" }) {
+                    let toolName = selectedTool?.toolName ?? ""
+                    if Self.restrictedTools.contains(toolName) {
+                        // Restricted tools: Schnorr signature from nsec
+                        if KeychainService.loadNsec(forNpub: npub) != nil,
+                           let proof = try? OperatorProofService.createProof(
+                               toolName: toolName, operatorNpub: npub
+                           ) {
+                            paramValues["proof"] = proof
+                        }
+                    } else {
+                        // Paid tools: poison-keyed proof token from Keychain
+                        let host = selectedOperator?.mcpEndpointURL
+                            .flatMap { URL(string: $0)?.host } ?? ""
+                        if let token = KeychainService.loadProofToken(
+                            forPatron: npub, operator: host
+                        ) {
+                            paramValues["proof"] = token
+                        }
+                    }
                 }
             }
         }
