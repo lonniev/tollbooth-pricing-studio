@@ -66,12 +66,12 @@ struct PatronDetailView: View {
         }
     }
 
-    // MARK: - Authenticated Patron Balances
+    // MARK: - Patron Credit Balances
 
     @ViewBuilder
     private var operatorAccountsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Authenticated Patron at")
+            Text("Credit Balances")
                 .font(.headline)
 
             if accountVM.operatorBalances.isEmpty {
