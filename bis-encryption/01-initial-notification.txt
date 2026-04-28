@@ -1,0 +1,55 @@
+To: crypt@bis.doc.gov, enc@nsa.gov
+Subject: TSU Notification — Encryption Source Code — Tollbooth Pricing Studio
+
+Dear Sir or Madam,
+
+Pursuant to 15 CFR 742.15(b) and 15 CFR 740.13(e), this email serves
+as notification that the following publicly available encryption source
+code is being made available for export/re-export under License
+Exception TSU.
+
+PRODUCT NAME:    Tollbooth Pricing Studio
+VERSION:         1.7.2
+ECCN:            5D002
+MANUFACTURER:    Lonnie VanZandt
+TYPE:            iOS mobile application (Swift)
+
+SOURCE CODE URL: https://github.com/lonniev/tollbooth-pricing-studio
+
+ENCRYPTION FUNCTIONALITY:
+
+The application implements the following cryptographic algorithms for
+the Nostr decentralized messaging protocol:
+
+1. AES-256-CBC (NIP-04) — Encrypt/decrypt peer-to-peer direct messages
+   using ECDH shared secret on secp256k1.
+
+2. ChaCha20 + HMAC-SHA256 (NIP-44v2) — Encrypt/decrypt gift-wrapped
+   private messages using HKDF-SHA256 key derivation and ECDH on
+   secp256k1.
+
+3. Schnorr Signatures (BIP-340) — Sign Nostr events for identity
+   verification using secp256k1 elliptic curve with SHA-256 hashing.
+
+4. ECDH Key Agreement — secp256k1 elliptic curve Diffie-Hellman for
+   deriving shared encryption keys between Nostr identities.
+
+5. HKDF-SHA256 (RFC 5869) — Key derivation for NIP-44v2 message
+   encryption.
+
+6. Standard HTTPS/TLS — All network communication uses TLS via Apple's
+   URLSession framework.
+
+The application does not implement any proprietary or novel
+cryptographic algorithms. All encryption follows published open
+standards (Nostr NIPs, BIP-340, RFC 5869).
+
+The source code is publicly available at the URL listed above under
+the MIT license.
+
+Sincerely,
+
+Lonnie VanZandt
+720-201-1349
+205 Ridgeline Road
+Panton, VT 05491
