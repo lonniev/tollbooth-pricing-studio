@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!--
+	  The app DOES use encryption (AES-256-CBC, ChaCha20, Schnorr, ECDH, HKDF)
+	  for Nostr DMs and identity proofs. However, this key is set to false
+	  because BIS self-classification was filed 2026-04-27 under License
+	  Exception TSU for publicly available source code (ECCN 5D002).
+	  See bis-encryption/ for the filing documents.
+	  Setting false allows TestFlight builds to auto-process without
+	  manual compliance approval in App Store Connect.
+	-->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>
