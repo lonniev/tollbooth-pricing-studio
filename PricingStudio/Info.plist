@@ -3,9 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<true/>
-	<key>ITSEncryptionExportComplianceCode</key>
-	<string>5D002</string>
+	<false/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
