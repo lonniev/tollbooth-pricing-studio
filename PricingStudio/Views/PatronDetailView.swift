@@ -734,8 +734,11 @@ struct TopOffSheet: View {
                                 dismiss()
                                 onNotifyOperator()
                             } label: {
-                                Label("Message \(operatorName)", systemImage: "message.fill")
-                                    .font(.caption)
+                                HStack(spacing: 4) {
+                                    Image(systemName: "message.fill")
+                                    Text("Message \(operatorName)")
+                                }
+                                .font(.caption)
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.blue)
