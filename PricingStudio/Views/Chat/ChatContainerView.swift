@@ -5,6 +5,7 @@ enum ChatContainerTab: String, CaseIterable {
     case authority = "Authority"
     case pricing = "Pricing"
     case invoices = "Invoices"
+    case invoiceHistory = "Invoice History"
     case consultant = "Campaign Advisor"
     case messages = "Messages"
 }
@@ -93,6 +94,9 @@ struct ChatContainerView<PricingContent: View, InvoicesContent: View, Consultant
                 if let consultantContent {
                     consultantContent()
                 }
+            case .invoiceHistory:
+                // Handled by ContentView for operator detail.
+                pricingContent()
             }
         }
     }

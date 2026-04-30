@@ -498,6 +498,8 @@ struct ContentView: View {
                 }
             case .consultant:
                 EmptyView()
+            case .invoiceHistory:
+                EmptyView()
             }
         }
     }
@@ -515,6 +517,9 @@ struct ContentView: View {
                     Text("🏛️ Authority").tag(ChatContainerTab.authority)
                 }
                 Text("📊 Account").tag(ChatContainerTab.invoices)
+                if hasAuthority {
+                    Text("🧾 Invoices").tag(ChatContainerTab.invoiceHistory)
+                }
                 Text("💰 Pricing").tag(ChatContainerTab.pricing)
                 Text("🧭 Advisor").tag(ChatContainerTab.consultant)
                 messagesTabLabel(npub: op.npub)
@@ -553,6 +558,19 @@ struct ContentView: View {
                         .task(id: identity.npub) { chatVM.switchIdentity(to: identity) }
                 } else {
                     NoNsecView(entityName: identity.displayName)
+                }
+            case .invoiceHistory:
+                if let authNpub = op.authorityNpub,
+                   let authority = authorities.first(where: { $0.npub == authNpub }) {
+                    InvoiceListView(
+                        operatorNpub: op.npub,
+                        authority: authority,
+                        accountVM: patronAccountVM,
+                        onOpenMessages: openMessagesFor
+                    )
+                } else {
+                    ContentUnavailableView("No Authority", systemImage: "building.columns",
+                        description: Text("Connect to an Authority to view invoice history."))
                 }
             case .invoices:
                 if let authNpub = op.authorityNpub,

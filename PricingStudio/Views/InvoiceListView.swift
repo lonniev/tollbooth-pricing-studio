@@ -3,21 +3,43 @@ import SwiftData
 import UIKit
 
 struct InvoiceListView: View {
-    let patronNpub: String
+    let entityNpub: String
     @Bindable var accountVM: PatronAccountViewModel
     var onOpenMessages: ((_ operatorNpub: String) -> Void)?
-    @Query(sort: \Operator.addedAt) private var operators: [Operator]
+    /// Explicit service sources override the @Query operators.
+    /// Each entry is an Operator-shaped object with npub + mcpEndpointURL.
+    private let explicitSources: [Operator]?
+    @Query(sort: \Operator.addedAt) private var queriedOperators: [Operator]
 
-    init(patron: Patron, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
-        self.patronNpub = patron.npub
-        self.accountVM = accountVM
-        self.onOpenMessages = onOpenMessages
+    private var operators: [Operator] {
+        explicitSources ?? queriedOperators
     }
 
-    init(patronNpub: String, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
-        self.patronNpub = patronNpub
+    /// Patron viewing invoices across all operators.
+    init(patron: Patron, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
+        self.entityNpub = patron.npub
         self.accountVM = accountVM
         self.onOpenMessages = onOpenMessages
+        self.explicitSources = nil
+    }
+
+    /// Patron viewing invoices across all operators (npub variant).
+    init(patronNpub: String, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
+        self.entityNpub = patronNpub
+        self.accountVM = accountVM
+        self.onOpenMessages = onOpenMessages
+        self.explicitSources = nil
+    }
+
+    /// Operator viewing invoices at a specific Authority.
+    init(operatorNpub: String, authority: Authority, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
+        self.entityNpub = operatorNpub
+        self.accountVM = accountVM
+        self.onOpenMessages = onOpenMessages
+        // Wrap the Authority as an Operator-shaped source
+        let source = Operator(npub: authority.npub, displayName: authority.displayName)
+        source.mcpEndpointURL = authority.mcpEndpointURL
+        self.explicitSources = [source]
     }
 
     @State private var isReconciling = false
@@ -63,17 +85,17 @@ struct InvoiceListView: View {
                 .disabled(allInvoiceItems.isEmpty)
             }
         }
-        .task(id: patronNpub) {
+        .task(id: entityNpub) {
             hasLoadedHistory = false
-            await accountVM.loadAllInvoiceHistory(forNpub: patronNpub, operators: operators)
+            await accountVM.loadAllInvoiceHistory(forNpub: entityNpub, operators: operators)
             hasLoadedHistory = true
         }
         .refreshable {
-            await accountVM.forceRefresh(forNpub: patronNpub, operators: operators)
+            await accountVM.forceRefresh(forNpub: entityNpub, operators: operators)
         }
         .sheet(isPresented: $showingExportSheet) {
             InvoiceExportSheet(
-                patronNpub: patronNpub,
+                patronNpub: entityNpub,
                 allItems: allInvoiceItemsByOperator,
                 dateFormatter: Self.dateFormatter
             )
@@ -419,7 +441,7 @@ struct InvoiceListView: View {
 
             do {
                 let rr = try await accountVM.reconcilePendingInvoices(
-                    patronNpub: patronNpub,
+                    patronNpub: entityNpub,
                     operatorEndpoint: balance.endpoint,
                     pendingInvoiceIds: result.pendingInvoiceIds
                 )
@@ -434,7 +456,7 @@ struct InvoiceListView: View {
         }
 
         // Refresh balances and invoice history
-        await accountVM.forceRefresh(forNpub: patronNpub, operators: operators)
+        await accountVM.forceRefresh(forNpub: entityNpub, operators: operators)
         isReconciling = false
     }
 
@@ -442,7 +464,7 @@ struct InvoiceListView: View {
         checkingInvoices.insert(invoiceId)
         do {
             let rr = try await accountVM.reconcilePendingInvoices(
-                patronNpub: patronNpub,
+                patronNpub: entityNpub,
                 operatorEndpoint: endpoint,
                 pendingInvoiceIds: [invoiceId]
             )
