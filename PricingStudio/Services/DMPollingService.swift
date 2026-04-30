@@ -52,6 +52,13 @@ final class DMPollingService {
         unreadCounts = updated
         lastSeenTimestamps[npub] = Int(Date().timeIntervalSince1970)
         saveLastSeen()
+        updateAppBadge()
+    }
+
+    /// Update the app icon badge with the total unread DM count.
+    private func updateAppBadge() {
+        let total = unreadCounts.values.reduce(0, +)
+        UNUserNotificationCenter.current().setBadgeCount(total)
     }
 
     func startPolling(modelContext: ModelContext) {
@@ -161,6 +168,7 @@ final class DMPollingService {
                             var updated = self.unreadCounts
                             updated[npub] = (updated[npub] ?? 0) + 1
                             self.unreadCounts = updated
+                            self.updateAppBadge()
                             // Redact courier payloads — don't leak secrets in notifications or logs
                             let isCourier = dm.content.contains("@@@")
                             let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
@@ -228,6 +236,7 @@ final class DMPollingService {
             }
         }
         unreadCounts = updated
+        updateAppBadge()
     }
 
     /// First poll only: update timestamps without incrementing unread counts.
