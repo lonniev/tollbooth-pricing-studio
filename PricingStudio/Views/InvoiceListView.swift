@@ -25,7 +25,6 @@ struct InvoiceListView: View {
     @State private var checkingInvoices: Set<String> = []
     @State private var invoiceStatuses: [String: String] = [:]
     @State private var hasLoadedHistory = false
-    @State private var topOffOperator: TopOffTarget?
     @State private var showingExportSheet = false
     @State private var sortColumn: SortColumn = .date
     @State private var sortAscending = false
@@ -35,11 +34,6 @@ struct InvoiceListView: View {
         case date, amount, credits, status
     }
 
-    private struct TopOffTarget: Identifiable {
-        let id: String  // operator npub
-        let operatorName: String
-        let endpoint: String
-    }
 
     private static let dateFormatter: DateFormatter = {
         let df = DateFormatter()
@@ -76,22 +70,6 @@ struct InvoiceListView: View {
         }
         .refreshable {
             await accountVM.forceRefresh(forNpub: patronNpub, operators: operators)
-        }
-        .sheet(item: $topOffOperator) { target in
-            TopOffSheet(
-                patronNpub: patronNpub,
-                operatorName: target.operatorName,
-                endpoint: target.endpoint,
-                accountVM: accountVM,
-                onNotifyOperator: onOpenMessages.map { callback in
-                    { callback(target.id) }
-                },
-                onSettled: {
-                    Task {
-                        await accountVM.forceRefresh(forNpub: patronNpub, operators: operators)
-                    }
-                }
-            )
         }
         .sheet(isPresented: $showingExportSheet) {
             InvoiceExportSheet(
@@ -220,19 +198,6 @@ struct InvoiceListView: View {
                 if let rr = reconcileResults[op.npub] {
                     reconcileResultBadge(rr)
                 }
-
-                Button {
-                    topOffOperator = TopOffTarget(
-                        id: op.npub,
-                        operatorName: op.displayName,
-                        endpoint: op.mcpEndpointURL ?? ""
-                    )
-                } label: {
-                    Label("Top Off", systemImage: "plus.circle.fill")
-                        .font(.caption.bold())
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.mini)
             }
 
             Divider()
