@@ -234,6 +234,31 @@ struct TestCallView: View {
                         Text(vm.paramValues["npub", default: "select identity above"])
                             .font(.caption.monospaced())
                             .foregroundStyle(.green)
+                    } else if param.name == "proof" {
+                        // proof is auto-filled: poison token for paid tools, Schnorr for restricted
+                        let proofValue = vm.paramValues["proof", default: ""]
+                        if proofValue.isEmpty {
+                            Label("via Secure Courier proof exchange", systemImage: "lock.shield")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        } else {
+                            Text(proofValue)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.green)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        // Allow manual override by pasting a raw proof
+                        TextField(
+                            "or paste proof here",
+                            text: Binding(
+                                get: { vm.paramValues[param.name, default: ""] },
+                                set: { vm.paramValues[param.name] = $0 }
+                            )
+                        )
+                        .font(.caption2.monospaced())
+                        .textFieldStyle(.roundedBorder)
+                        .foregroundStyle(.secondary)
                     } else if param.type == "boolean" {
                         Toggle("", isOn: Binding(
                             get: { vm.paramValues[param.name, default: "false"] == "true" },
