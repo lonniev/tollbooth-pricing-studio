@@ -140,13 +140,17 @@ struct ChatView: View {
             RelayHeartbeat(polling: polling)
                 .padding(8)
         }
+        .onAppear {
+            // Clear badge when user navigates to Messages tab
+            if let npub = chatVM.currentIdentity?.npub {
+                polling.markRead(npub: npub)
+            }
+        }
         .onChange(of: polling.lastPollAt) {
             // Auto-refresh conversations when polling detects new messages
             if let npub = chatVM.currentIdentity?.npub,
                (polling.unreadCounts[npub] ?? 0) > 0 {
-                if chatVM.selectedConversationId != nil {
-                    polling.markRead(npub: npub)
-                }
+                polling.markRead(npub: npub)
                 Task { await chatVM.refreshConversations() }
             }
         }
