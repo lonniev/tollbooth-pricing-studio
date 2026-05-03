@@ -711,8 +711,21 @@ struct AuthorityTopOffSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Authority") {
-                    Text(authorityName).font(.headline)
+                Section {
+                    LabeledContent("Beneficiary") {
+                        Text(String((purchaserNpub.isEmpty ? authorityNpub : purchaserNpub).prefix(16)) + "...")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.green)
+                    }
+                    LabeledContent("Cashier") {
+                        Text(authorityName)
+                            .font(.subheadline.bold())
+                    }
+                } header: {
+                    Text("Purchase Cert-Sats")
+                } footer: {
+                    Text("Cert-sats fund the beneficiary's certification capacity at \(authorityName). Anyone can pay the Lightning invoice.")
+                        .font(.caption2)
                 }
 
                 Section("Amount (sats)") {
@@ -800,7 +813,7 @@ struct AuthorityTopOffSheet: View {
                     }
                 }
             }
-            .navigationTitle("Top Off Authority")
+            .navigationTitle("Purchase Cert-Sats")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

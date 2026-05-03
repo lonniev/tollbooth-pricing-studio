@@ -603,9 +603,21 @@ struct TopOffSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Operator") {
-                    Text(operatorName)
-                        .font(.headline)
+                Section {
+                    LabeledContent("Beneficiary") {
+                        Text(String(patronNpub.prefix(16)) + "...")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.green)
+                    }
+                    LabeledContent("Cashier") {
+                        Text(operatorName)
+                            .font(.subheadline.bold())
+                    }
+                } header: {
+                    Text("Purchase Credits")
+                } footer: {
+                    Text("Credits go to the beneficiary's balance at \(operatorName). Anyone can pay the Lightning invoice — the funds source doesn't matter.")
+                        .font(.caption2)
                 }
 
                 Section("Amount (sats)") {
@@ -750,7 +762,7 @@ struct TopOffSheet: View {
                     }
                 }
             }
-            .navigationTitle("Top Off Credits")
+            .navigationTitle("Purchase Credits")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(paymentCheckState.isSettled ? "Done" : "Cancel") { dismiss() }
