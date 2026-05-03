@@ -94,15 +94,18 @@ final class TopologyViewModel {
         let primeEntries = entries.filter { $0.role == "prime_authority" }
 
         // While we have the registry in hand, persist each local Authority's
-        // upstream certifier and backfill its MCP endpoint. The Honor Chain's
-        // parent-of-Authority relationship is discovered here, not stored
-        // separately. Backfilling the endpoint matters for views like the
-        // Authority's own Invoices tab, which calls into the parent's MCP —
-        // Prime is seeded by ensurePrimeExists() without an endpoint.
-        for auth in authorities {
+        // upstream certifier and backfill its tollbooth-authority MCP
+        // endpoint. The Honor Chain's parent-of-Authority relationship is
+        // discovered here, not stored separately.
+        //
+        // Skip Prime: Prime hosts the Oracle, not a tollbooth-authority
+        // service. mcpEndpointURL on an Authority means "the authority MCP
+        // service URL" — writing the Oracle URL there would cause callers
+        // (like InvoiceListView) to issue check_balance / account_statement
+        // against the Oracle, which has no such tools.
+        for auth in authorities where !auth.isPrime {
             let entry = entryByNpub[auth.npub]
-            if !auth.isPrime,
-               let upstream = entry?.upstream_authority_npub,
+            if let upstream = entry?.upstream_authority_npub,
                auth.parentAuthorityNpub != upstream {
                 auth.parentAuthorityNpub = upstream
             }

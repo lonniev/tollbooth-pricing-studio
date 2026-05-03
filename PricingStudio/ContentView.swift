@@ -447,7 +447,7 @@ struct ContentView: View {
     @ViewBuilder
     private func authorityDetail(_ auth: Authority) -> some View {
         let identity = ChatIdentity(from: auth)
-        let hasParent = auth.parentAuthorityNpub != nil && !auth.isPrime
+        let hasOwnEndpoint = auth.mcpEndpointURL != nil
 
         VStack(spacing: 0) {
             entityHeader(name: auth.displayName, npub: auth.npub, endpoint: auth.mcpEndpointURL, icon: "building.columns.fill")
@@ -455,7 +455,7 @@ struct ContentView: View {
             Picker("View", selection: $detailTab) {
                 Text("🏛️ Authority").tag(ChatContainerTab.authority)
                 Text("📊 Account").tag(ChatContainerTab.invoices)
-                if hasParent {
+                if hasOwnEndpoint {
                     Text("🧾 Invoices").tag(ChatContainerTab.invoiceHistory)
                 }
                 Text("💰 Pricing").tag(ChatContainerTab.pricing)
@@ -493,17 +493,21 @@ struct ContentView: View {
                     CommunityCanvasView()
                 }
             case .invoiceHistory:
-                if let parentNpub = auth.parentAuthorityNpub,
-                   let parent = authorities.first(where: { $0.npub == parentNpub }) {
+                // An Authority's invoices live on its OWN MCP — purchase_credits
+                // funded directly via BTCPay Lightning, plus any sponsored mints.
+                // Recursion terminates at the self-edge: a penultimate Authority
+                // has no upstream tax invoices because Prime mints rather than
+                // collects, but it absolutely has Lightning-funded ones.
+                if hasOwnEndpoint {
                     InvoiceListView(
                         operatorNpub: auth.npub,
-                        authority: parent,
+                        authority: auth,
                         accountVM: patronAccountVM,
                         onOpenMessages: openMessagesFor
                     )
                 } else {
-                    ContentUnavailableView("No Parent Authority", systemImage: "building.columns",
-                        description: Text("Set this Authority's parent to view upstream invoices."))
+                    ContentUnavailableView("No MCP Endpoint", systemImage: "building.columns",
+                        description: Text("This Authority has no MCP endpoint configured."))
                 }
             case .messages:
                 if identity.hasNsec {
