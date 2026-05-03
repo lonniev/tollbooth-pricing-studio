@@ -148,7 +148,7 @@ struct InvoiceListView: View {
                         .frame(maxWidth: .infinity)
                 }
                 if stats.invoicesExpired > 0 {
-                    StatBadge(label: "Unpaid", value: "\(stats.invoicesExpired)", color: .secondary)
+                    StatBadge(label: "Abandoned", value: "\(stats.invoicesExpired)", color: .secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
