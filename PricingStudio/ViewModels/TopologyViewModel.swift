@@ -93,6 +93,17 @@ final class TopologyViewModel {
         // Find Prime Authority from registry
         let primeEntries = entries.filter { $0.role == "prime_authority" }
 
+        // While we have the registry in hand, persist each Authority's
+        // upstream certifier into its SwiftData record. The Honor Chain's
+        // parent-of-Authority relationship is discovered here, not stored
+        // separately. Skip Prime — it has no upstream.
+        for auth in authorities where !auth.isPrime {
+            if let upstream = entryByNpub[auth.npub]?.upstream_authority_npub,
+               auth.parentAuthorityNpub != upstream {
+                auth.parentAuthorityNpub = upstream
+            }
+        }
+
         // Build known authority npubs set (from local + registry)
         let localAuthNpubs = Set(authorities.map(\.npub))
         let registryAuthNpubs = Set(entries.filter { $0.role == "authority" || $0.role == "prime_authority" }.map(\.npub))

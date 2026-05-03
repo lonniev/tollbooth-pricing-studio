@@ -955,7 +955,8 @@ private struct InfographicSheet: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 12) {
                                 Label(
-                                    message.contains("Insufficient") ? "Infographic requires credits — showing free statement"
+                                    message.contains("proof is required") || message.contains("invalid proof") ? "Infographic needs an npub proof — run request_npub_proof then receive_npub_proof in Execute Tool, then retry"
+                                    : message.contains("Insufficient") ? "Infographic requires credits — showing free statement"
                                     : message.contains("TBD") ? "Infographic not yet priced — showing free statement"
                                     : "Showing free statement",
                                     systemImage: "doc.text"

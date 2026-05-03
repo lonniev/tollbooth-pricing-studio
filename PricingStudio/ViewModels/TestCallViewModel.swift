@@ -363,6 +363,15 @@ final class TestCallViewModel {
                 arguments: args
             )
 
+            // When the user runs receive_npub_proof via Execute Tool,
+            // capture the returned proof_token to Keychain so subsequent
+            // paid calls (e.g. account_statement_infographic) can find it
+            // via argsWithProofToken without further user action.
+            if selectedTool!.toolName.hasSuffix("receive_npub_proof"),
+               let patronNpub = selectedPatronNpub {
+                persistProofToken(from: response, endpoint: endpoint, patronNpub: patronNpub)
+            }
+
             // Detect OAuth dance: begin_oauth returns authorize_url
             if let authorizeURL = extractAuthorizeURL(from: response) {
                 await beginOAuthPolling(
@@ -375,6 +384,22 @@ final class TestCallViewModel {
         } catch {
             state = .error("Tool call failed: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Proof Token Persistence
+
+    /// Extract `proof_token` from a successful receive_npub_proof response
+    /// and cache it in Keychain for the (patron, operatorHost) pair, so
+    /// subsequent paid tool calls can find it via argsWithProofToken.
+    private func persistProofToken(from response: String, endpoint: URL, patronNpub: String) {
+        guard let data = response.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["success"] as? Bool == true,
+              let token = json["proof_token"] as? String else {
+            return
+        }
+        let host = endpoint.host ?? endpoint.absoluteString
+        try? KeychainService.saveProofToken(token, forPatron: patronNpub, operator: host)
     }
 
     // MARK: - OAuth Dance
