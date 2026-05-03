@@ -210,12 +210,26 @@ struct InvoiceListView: View {
         let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
 
         if mcpOperators.isEmpty {
-            ContentUnavailableView(
-                "No Operators",
-                systemImage: "server.rack",
-                description: Text("Add an operator to view invoice history.")
-            )
-            .padding(.top, 32)
+            // explicitSources != nil means we're showing one specific
+            // upstream party (an Operator viewing its Authority, or an
+            // Authority viewing its parent). The generic "No Operators"
+            // message would mislead the reader into thinking the view
+            // is looking downstream.
+            if explicitSources != nil {
+                ContentUnavailableView(
+                    "Upstream endpoint not yet resolved",
+                    systemImage: "antenna.radiowaves.left.and.right.slash",
+                    description: Text("Refresh the network topology to discover the upstream MCP endpoint, then return here.")
+                )
+                .padding(.top, 32)
+            } else {
+                ContentUnavailableView(
+                    "No Operators",
+                    systemImage: "server.rack",
+                    description: Text("Add an operator to view invoice history.")
+                )
+                .padding(.top, 32)
+            }
         } else {
             ForEach(mcpOperators) { op in
                 operatorInvoiceHistorySection(op: op)
