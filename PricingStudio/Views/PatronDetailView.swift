@@ -202,7 +202,7 @@ private struct OperatorBalanceCard: View {
             HStack(spacing: 6) {
                 Text("\(result.balanceApiSats) sats")
                     .font(.subheadline.monospacedDigit())
-                    .foregroundColor(result.balanceApiSats > 0 ? .primary : .red)
+                    .foregroundColor(result.balanceApiSats > 0 ? .green : .red)
                 if result.pendingInvoiceCount > 0 {
                     Text("\(result.pendingInvoiceCount) pending")
                         .font(.caption2.bold())
@@ -1236,7 +1236,7 @@ struct AccountStatementView: View {
             HStack(spacing: 6) {
                 Text("\(result.balanceApiSats) sats")
                     .font(.subheadline.monospacedDigit())
-                    .foregroundColor(result.balanceApiSats > 0 ? .primary : .red)
+                    .foregroundColor(result.balanceApiSats > 0 ? .green : .red)
                 if result.pendingInvoiceCount > 0 {
                     Text("\(result.pendingInvoiceCount) pending")
                         .font(.caption2.bold())

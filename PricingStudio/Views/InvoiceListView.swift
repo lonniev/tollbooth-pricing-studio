@@ -131,26 +131,27 @@ struct InvoiceListView: View {
                 }
             }
 
-            // Metrics row: spread evenly across full width
+            // Metrics row: spread evenly across full width.
+            // Order reflects the time progression of an invoice's life:
+            // Pending → Settled → Credited (sats in) → Demurred (sats out)
+            // → Abandoned → Balance (what remains).
             HStack(spacing: 0) {
-                StatBadge(label: "Balance", value: "\(stats.balance)", color: stats.balance > 0 ? .green : .secondary)
-                    .frame(maxWidth: .infinity)
-                StatBadge(label: "Credited", value: "\(stats.totalCredits)", color: .blue)
-                    .frame(maxWidth: .infinity)
-                StatBadge(label: "Settled", value: "\(stats.totalSettled)", color: .green)
-                    .frame(maxWidth: .infinity)
                 if stats.totalPending > 0 {
                     StatBadge(label: "Pending", value: "\(stats.totalPending)", color: .orange)
                         .frame(maxWidth: .infinity)
                 }
-                if stats.demurred > 0 {
-                    StatBadge(label: "Demurred", value: "\(stats.demurred)", color: .red)
-                        .frame(maxWidth: .infinity)
-                }
+                StatBadge(label: "Settled", value: "\(stats.totalSettled)", color: .green)
+                    .frame(maxWidth: .infinity)
+                StatBadge(label: "Credited", value: "\(stats.totalCredits)", color: .blue)
+                    .frame(maxWidth: .infinity)
+                StatBadge(label: "Demurred", value: "\(stats.demurred)", color: .red)
+                    .frame(maxWidth: .infinity)
                 if stats.invoicesExpired > 0 {
                     StatBadge(label: "Abandoned", value: "\(stats.invoicesExpired)", color: .secondary)
                         .frame(maxWidth: .infinity)
                 }
+                StatBadge(label: "Balance", value: "\(stats.balance)", color: stats.balance > 0 ? .green : .secondary)
+                    .frame(maxWidth: .infinity)
             }
         }
         .padding()

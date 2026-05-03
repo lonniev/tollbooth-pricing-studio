@@ -447,6 +447,7 @@ struct ContentView: View {
     @ViewBuilder
     private func authorityDetail(_ auth: Authority) -> some View {
         let identity = ChatIdentity(from: auth)
+        let hasParent = auth.parentAuthorityNpub != nil && !auth.isPrime
 
         VStack(spacing: 0) {
             entityHeader(name: auth.displayName, npub: auth.npub, endpoint: auth.mcpEndpointURL, icon: "building.columns.fill")
@@ -454,6 +455,9 @@ struct ContentView: View {
             Picker("View", selection: $detailTab) {
                 Text("🏛️ Authority").tag(ChatContainerTab.authority)
                 Text("📊 Account").tag(ChatContainerTab.invoices)
+                if hasParent {
+                    Text("🧾 Invoices").tag(ChatContainerTab.invoiceHistory)
+                }
                 Text("💰 Pricing").tag(ChatContainerTab.pricing)
                 messagesTabLabel(npub: auth.npub)
             }
@@ -488,6 +492,19 @@ struct ContentView: View {
                 } else {
                     CommunityCanvasView()
                 }
+            case .invoiceHistory:
+                if let parentNpub = auth.parentAuthorityNpub,
+                   let parent = authorities.first(where: { $0.npub == parentNpub }) {
+                    InvoiceListView(
+                        operatorNpub: auth.npub,
+                        authority: parent,
+                        accountVM: patronAccountVM,
+                        onOpenMessages: openMessagesFor
+                    )
+                } else {
+                    ContentUnavailableView("No Parent Authority", systemImage: "building.columns",
+                        description: Text("Set this Authority's parent to view upstream invoices."))
+                }
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
@@ -497,8 +514,6 @@ struct ContentView: View {
                     NoNsecView(entityName: identity.displayName)
                 }
             case .consultant:
-                EmptyView()
-            case .invoiceHistory:
                 EmptyView()
             }
         }
