@@ -104,37 +104,53 @@ struct InvoiceListView: View {
 
     // MARK: - Summary Header
 
+    private static let shortDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
+
     @ViewBuilder
     private var summaryHeader: some View {
         let stats = aggregateStats
 
-        VStack(spacing: 8) {
-            Image(systemName: "doc.text.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.accentColor)
+        HStack(alignment: .center, spacing: 12) {
+            // Left: icon + title
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc.text.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.accentColor)
+                    Text("Invoices")
+                        .font(.headline)
+                }
+                if let first = stats.firstInvoiceDate {
+                    Text("\(Self.shortDateFormatter.string(from: first)) — \(Self.shortDateFormatter.string(from: stats.latestInvoiceDate ?? first))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
-            Text("Invoice Summary")
-                .font(.title3.bold())
+            Spacer()
 
-            HStack(spacing: 24) {
-                StatBadge(
-                    label: "Pending",
-                    value: "\(stats.totalPending)",
-                    color: stats.totalPending > 0 ? .orange : .secondary
-                )
-                StatBadge(
-                    label: "Settled",
-                    value: "\(stats.totalSettled)",
-                    color: .green
-                )
-                StatBadge(
-                    label: "Credits",
-                    value: "\(stats.totalCredits) sats",
-                    color: .blue
-                )
+            // Right: metrics grid
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 12) {
+                    StatBadge(label: "Balance", value: "\(stats.balance)", color: stats.balance > 0 ? .green : .secondary)
+                    StatBadge(label: "Settled", value: "\(stats.totalSettled)", color: .green)
+                    if stats.totalPending > 0 {
+                        StatBadge(label: "Pending", value: "\(stats.totalPending)", color: .orange)
+                    }
+                }
+                HStack(spacing: 12) {
+                    StatBadge(label: "Credited", value: "\(stats.totalCredits)", color: .blue)
+                    if stats.totalExpired > 0 {
+                        StatBadge(label: "Expired", value: "\(stats.totalExpired)", color: .red)
+                    }
+                }
             }
         }
-        .frame(maxWidth: .infinity)
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -487,6 +503,10 @@ struct InvoiceListView: View {
         var totalPending = 0
         var totalSettled = 0
         var totalCredits = 0
+        var totalExpired = 0
+        var balance = 0
+        var firstInvoiceDate: Date?
+        var latestInvoiceDate: Date?
     }
 
     private var aggregateStats: AggregateStats {
@@ -507,7 +527,25 @@ struct InvoiceListView: View {
                     default:
                         break
                     }
+                    // Track date range
+                    if let d = item.createdAt ?? item.settledAt {
+                        if stats.firstInvoiceDate == nil || d < stats.firstInvoiceDate! {
+                            stats.firstInvoiceDate = d
+                        }
+                        if stats.latestInvoiceDate == nil || d > stats.latestInvoiceDate! {
+                            stats.latestInvoiceDate = d
+                        }
+                    }
                 }
+            }
+        }
+
+        // Pull balance and expired from operator balance states
+        for balance in accountVM.operatorBalances {
+            guard relevantNpubs.contains(balance.id) else { continue }
+            if case .loaded(let result) = balance.balanceState {
+                stats.balance += result.balanceApiSats
+                stats.totalExpired += result.totalExpired
             }
         }
 
