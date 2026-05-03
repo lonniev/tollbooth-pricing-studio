@@ -492,8 +492,10 @@ struct InvoiceListView: View {
     private var aggregateStats: AggregateStats {
         var stats = AggregateStats()
 
-        // Derive from invoice history when available
-        for (_, historyState) in accountVM.invoiceHistoryStates {
+        // Derive from invoice history scoped to this view's operators only
+        let relevantNpubs = Set(operators.filter { $0.mcpEndpointURL != nil }.map(\.npub))
+        for (npub, historyState) in accountVM.invoiceHistoryStates {
+            guard relevantNpubs.contains(npub) else { continue }
             if case .loaded(let items) = historyState {
                 for item in items {
                     switch item.status {
@@ -526,10 +528,13 @@ struct InvoiceListView: View {
 
     /// All loaded invoice items, flat list for export.
     private var allInvoiceItems: [MCPService.InvoiceLineItem] {
-        accountVM.invoiceHistoryStates.values.compactMap { state in
-            if case .loaded(let items) = state { return items }
-            return nil
-        }.flatMap { $0 }
+        let relevantNpubs = Set(operators.filter { $0.mcpEndpointURL != nil }.map(\.npub))
+        return accountVM.invoiceHistoryStates
+            .filter { relevantNpubs.contains($0.key) }
+            .values.compactMap { state in
+                if case .loaded(let items) = state { return items }
+                return nil
+            }.flatMap { $0 }
     }
 
     /// All loaded invoice items grouped by operator name, for export.
