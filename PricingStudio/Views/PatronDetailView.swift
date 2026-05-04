@@ -24,7 +24,15 @@ struct PatronDetailView: View {
             await accountVM.loadBalances(for: patron, sources: operators.map(\.asInvoiceSource))
         }
         .refreshable {
-            await accountVM.forceRefresh(for: patron, sources: operators.map(\.asInvoiceSource))
+            // Detach so SwiftUI body re-renders during the in-flight
+            // refresh can't cancel the underlying mcpService calls.
+            // Extract value-typed parameters first to avoid capturing
+            // the Patron @Model into the detached closure.
+            let patronNpub = patron.npub
+            let sourceList = operators.map(\.asInvoiceSource)
+            await Task.detached(priority: .userInitiated) {
+                await accountVM.forceRefresh(forNpub: patronNpub, sources: sourceList)
+            }.value
         }
     }
 

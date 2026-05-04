@@ -74,7 +74,13 @@ struct InvoiceListView: View {
             hasLoadedHistory = true
         }
         .refreshable {
-            await accountVM.forceRefresh(forNpub: entityNpub, sources: sources)
+            // Detach so SwiftUI body re-renders during the in-flight
+            // refresh can't cancel the underlying mcpService calls.
+            // The detached task survives parent task cancellation; we
+            // await its value so the spinner reflects actual completion.
+            await Task.detached(priority: .userInitiated) {
+                await accountVM.forceRefresh(forNpub: entityNpub, sources: sources)
+            }.value
         }
         .sheet(isPresented: $showingExportSheet) {
             InvoiceExportSheet(
