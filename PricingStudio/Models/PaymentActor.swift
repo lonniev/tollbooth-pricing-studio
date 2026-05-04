@@ -1,5 +1,17 @@
 import Foundation
 
+/// A lightweight, value-typed representation of an upstream party that an
+/// actor pays into — the kind of party `account_statement` queries are
+/// directed at. Plain struct (no SwiftData dependency) so it can be safely
+/// constructed each render without identity instability or unmanaged
+/// `@Model` lifecycle quirks.
+struct InvoiceSource: Identifiable, Hashable, Sendable {
+    let npub: String
+    let displayName: String
+    let mcpEndpointURL: String?
+    var id: String { npub }
+}
+
 /// An entity that has upstream payment relationships in the Honor Chain.
 ///
 /// `invoiceSources` returns the upstream MCPs whose `account_statement`
@@ -22,7 +34,7 @@ protocol PaymentActor {
     func invoiceSources(
         authorities: [Authority],
         operators: [Operator]
-    ) -> [Operator]
+    ) -> [InvoiceSource]
 }
 
 // MARK: - Role types
@@ -35,8 +47,8 @@ struct PatronRole: PaymentActor {
     func invoiceSources(
         authorities: [Authority],
         operators: [Operator]
-    ) -> [Operator] {
-        operators
+    ) -> [InvoiceSource] {
+        operators.map(\.asInvoiceSource)
     }
 }
 
@@ -48,12 +60,12 @@ struct OperatorRole: PaymentActor {
     func invoiceSources(
         authorities: [Authority],
         operators: [Operator]
-    ) -> [Operator] {
+    ) -> [InvoiceSource] {
         guard let authNpub = entity.authorityNpub,
               let authority = authorities.first(where: { $0.npub == authNpub }) else {
             return []
         }
-        return [authorityAsSource(authority)]
+        return [authority.asInvoiceSource]
     }
 }
 
@@ -65,12 +77,12 @@ struct StandardAuthorityRole: PaymentActor {
     func invoiceSources(
         authorities: [Authority],
         operators: [Operator]
-    ) -> [Operator] {
+    ) -> [InvoiceSource] {
         guard let parentNpub = entity.parentAuthorityNpub,
               let parent = authorities.first(where: { $0.npub == parentNpub }) else {
             return []
         }
-        return [authorityAsSource(parent)]
+        return [parent.asInvoiceSource]
     }
 }
 
@@ -82,8 +94,8 @@ struct PenultimateAuthorityRole: PaymentActor {
     func invoiceSources(
         authorities: [Authority],
         operators: [Operator]
-    ) -> [Operator] {
-        [authorityAsSource(entity)]
+    ) -> [InvoiceSource] {
+        [entity.asInvoiceSource]
     }
 }
 
@@ -95,6 +107,10 @@ extension Patron {
 
 extension Operator {
     func asRole() -> PaymentActor { OperatorRole(entity: self) }
+
+    var asInvoiceSource: InvoiceSource {
+        InvoiceSource(npub: npub, displayName: displayName, mcpEndpointURL: mcpEndpointURL)
+    }
 }
 
 extension Authority {
@@ -111,17 +127,8 @@ extension Authority {
             ? PenultimateAuthorityRole(entity: self)
             : StandardAuthorityRole(entity: self)
     }
-}
 
-// MARK: - Wrapping helper
-
-/// `InvoiceListView` and `PatronAccountViewModel.forceRefresh` both take
-/// `[Operator]` as the canonical "thing with npub + endpoint + name". When
-/// the actual upstream party is an Authority (Operator's parent, or an
-/// Authority's parent, or a penultimate's self), wrap it into an
-/// Operator-shaped value here. Single helper, single place.
-private func authorityAsSource(_ authority: Authority) -> Operator {
-    let source = Operator(npub: authority.npub, displayName: authority.displayName)
-    source.mcpEndpointURL = authority.mcpEndpointURL
-    return source
+    var asInvoiceSource: InvoiceSource {
+        InvoiceSource(npub: npub, displayName: displayName, mcpEndpointURL: mcpEndpointURL)
+    }
 }

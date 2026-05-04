@@ -91,19 +91,18 @@ final class PatronAccountViewModel {
         }
     }
 
-    func loadAllInvoiceHistory(forNpub npub: String, operators: [Operator]) async {
-        await _loadAllInvoiceHistory(patronNpub: npub, operators: operators)
+    func loadAllInvoiceHistory(forNpub npub: String, sources: [InvoiceSource]) async {
+        await _loadAllInvoiceHistory(patronNpub: npub, sources: sources)
     }
 
-    func loadAllInvoiceHistory(for patron: Patron, operators: [Operator]) async {
-        await _loadAllInvoiceHistory(patronNpub: patron.npub, operators: operators)
+    func loadAllInvoiceHistory(for patron: Patron, sources: [InvoiceSource]) async {
+        await _loadAllInvoiceHistory(patronNpub: patron.npub, sources: sources)
     }
 
-    private func _loadAllInvoiceHistory(patronNpub: String, operators: [Operator]) async {
-        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
-        let opInfos: [(npub: String, endpoint: String)] = mcpOperators.compactMap { op in
-            guard let endpoint = op.mcpEndpointURL else { return nil }
-            return (op.npub, endpoint)
+    private func _loadAllInvoiceHistory(patronNpub: String, sources: [InvoiceSource]) async {
+        let opInfos: [(npub: String, endpoint: String)] = sources.compactMap { src in
+            guard let endpoint = src.mcpEndpointURL else { return nil }
+            return (src.npub, endpoint)
         }
         await withTaskGroup(of: (String, [MCPService.InvoiceLineItem]).self) { group in
             for info in opInfos {
@@ -204,10 +203,10 @@ final class PatronAccountViewModel {
 
     // MARK: - Load
 
-    func loadBalances(for patron: Patron, operators: [Operator]) async {
-        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
+    func loadBalances(for patron: Patron, sources: [InvoiceSource]) async {
+        let mcpSources = sources.filter { $0.mcpEndpointURL != nil }
 
-        guard !mcpOperators.isEmpty else {
+        guard !mcpSources.isEmpty else {
             operatorBalances = []
             state = .loaded
             return
@@ -221,33 +220,33 @@ final class PatronAccountViewModel {
             return
         }
 
-        await _loadBalances(patronNpub: patron.npub, operators: operators)
+        await _loadBalances(patronNpub: patron.npub, sources: sources)
     }
 
-    private func _loadBalances(patronNpub: String, operators: [Operator]) async {
-        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
+    private func _loadBalances(patronNpub: String, sources: [InvoiceSource]) async {
+        let mcpSources = sources.filter { $0.mcpEndpointURL != nil }
 
-        guard !mcpOperators.isEmpty else {
+        guard !mcpSources.isEmpty else {
             operatorBalances = []
             state = .loaded
             return
         }
 
         // Initialize with loading states
-        operatorBalances = mcpOperators.map { op in
+        operatorBalances = mcpSources.map { src in
             OperatorBalance(
-                id: op.npub,
-                operatorName: op.displayName,
-                endpoint: op.mcpEndpointURL ?? "",
+                id: src.npub,
+                operatorName: src.displayName,
+                endpoint: src.mcpEndpointURL ?? "",
                 balanceState: .loading
             )
         }
         state = .loading
 
         // Fetch all balances in parallel
-        let opEndpoints: [(npub: String, endpoint: String)] = mcpOperators.compactMap { op in
-            guard let ep = op.mcpEndpointURL else { return nil }
-            return (op.npub, ep)
+        let opEndpoints: [(npub: String, endpoint: String)] = mcpSources.compactMap { src in
+            guard let ep = src.mcpEndpointURL else { return nil }
+            return (src.npub, ep)
         }
         await withTaskGroup(of: (String, BalanceState).self) { group in
             for info in opEndpoints {
@@ -277,17 +276,17 @@ final class PatronAccountViewModel {
         state = .loaded
     }
 
-    func forceRefresh(forNpub npub: String, operators: [Operator]) async {
+    func forceRefresh(forNpub npub: String, sources: [InvoiceSource]) async {
         balanceCache.removeValue(forKey: npub)
 
-        // Both methods are internally parallelized across operators,
-        // so sequential dispatch here avoids Sendable issues with SwiftData models.
-        await _loadBalances(patronNpub: npub, operators: operators)
-        await _loadAllInvoiceHistory(patronNpub: npub, operators: operators)
+        // Both methods are internally parallelized across sources,
+        // so sequential dispatch here avoids Sendable issues.
+        await _loadBalances(patronNpub: npub, sources: sources)
+        await _loadAllInvoiceHistory(patronNpub: npub, sources: sources)
     }
 
-    func forceRefresh(for patron: Patron, operators: [Operator]) async {
-        await forceRefresh(forNpub: patron.npub, operators: operators)
+    func forceRefresh(for patron: Patron, sources: [InvoiceSource]) async {
+        await forceRefresh(forNpub: patron.npub, sources: sources)
     }
 
     func purchaseCredits(

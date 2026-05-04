@@ -21,10 +21,10 @@ struct PatronDetailView: View {
         }
         .navigationTitle(patron.displayName)
         .task(id: patron.npub) {
-            await accountVM.loadBalances(for: patron, operators: operators)
+            await accountVM.loadBalances(for: patron, sources: operators.map(\.asInvoiceSource))
         }
         .refreshable {
-            await accountVM.forceRefresh(for: patron, operators: operators)
+            await accountVM.forceRefresh(for: patron, sources: operators.map(\.asInvoiceSource))
         }
     }
 
@@ -92,7 +92,7 @@ struct PatronDetailView: View {
                             onRequestCourier: onRequestCourier,
                             onRefreshNeeded: {
                                 Task {
-                                    await accountVM.forceRefresh(for: patron, operators: operators)
+                                    await accountVM.forceRefresh(for: patron, sources: operators.map(\.asInvoiceSource))
                                 }
                             }
                         )

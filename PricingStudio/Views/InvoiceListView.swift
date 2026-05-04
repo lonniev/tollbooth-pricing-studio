@@ -6,15 +6,16 @@ struct InvoiceListView: View {
     /// The actor whose invoices we are showing (Patron, Operator, Authority).
     let entityNpub: String
     /// Upstream MCPs whose `account_statement` records this actor's
-    /// purchase invoices. Built by the actor's `PaymentActor` role; never
-    /// computed from a SwiftData @Query inside this view.
-    let sources: [Operator]
+    /// purchase invoices. Built by the actor's `PaymentActor` role.
+    /// Plain values — not SwiftData `@Model` instances — so identity stays
+    /// stable across body re-evaluations and pull-to-refresh.
+    let sources: [InvoiceSource]
     @Bindable var accountVM: PatronAccountViewModel
     var onOpenMessages: ((_ operatorNpub: String) -> Void)?
 
     init(
         entityNpub: String,
-        sources: [Operator],
+        sources: [InvoiceSource],
         accountVM: PatronAccountViewModel,
         onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil
     ) {
@@ -69,11 +70,11 @@ struct InvoiceListView: View {
         }
         .task(id: entityNpub) {
             hasLoadedHistory = false
-            await accountVM.forceRefresh(forNpub: entityNpub, operators: sources)
+            await accountVM.forceRefresh(forNpub: entityNpub, sources: sources)
             hasLoadedHistory = true
         }
         .refreshable {
-            await accountVM.forceRefresh(forNpub: entityNpub, operators: sources)
+            await accountVM.forceRefresh(forNpub: entityNpub, sources: sources)
         }
         .sheet(isPresented: $showingExportSheet) {
             InvoiceExportSheet(
@@ -221,7 +222,7 @@ struct InvoiceListView: View {
     }
 
     @ViewBuilder
-    private func operatorInvoiceHistorySection(op: Operator) -> some View {
+    private func operatorInvoiceHistorySection(op: InvoiceSource) -> some View {
         let historyState = accountVM.invoiceHistoryStates[op.npub] ?? .idle
 
         VStack(alignment: .leading, spacing: 8) {
@@ -472,7 +473,7 @@ struct InvoiceListView: View {
         }
 
         // Refresh balances and invoice history
-        await accountVM.forceRefresh(forNpub: entityNpub, operators: sources)
+        await accountVM.forceRefresh(forNpub: entityNpub, sources: sources)
         isReconciling = false
     }
 
