@@ -4,6 +4,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Authority.addedAt) private var authorities: [Authority]
+    @Query(sort: \Operator.addedAt) private var operators: [Operator]
     @State private var authorityVM = AuthorityCollectionViewModel()
     @State private var operatorVM = OperatorCollectionViewModel()
     @State private var patronVM = PatronCollectionViewModel()
@@ -447,6 +448,7 @@ struct ContentView: View {
     @ViewBuilder
     private func authorityDetail(_ auth: Authority) -> some View {
         let identity = ChatIdentity(from: auth)
+        let role = auth.asRole()
         let hasOwnEndpoint = auth.mcpEndpointURL != nil
 
         VStack(spacing: 0) {
@@ -493,22 +495,12 @@ struct ContentView: View {
                     CommunityCanvasView()
                 }
             case .invoiceHistory:
-                // An Authority's invoices live on its OWN MCP — purchase_credits
-                // funded directly via BTCPay Lightning, plus any sponsored mints.
-                // Recursion terminates at the self-edge: a penultimate Authority
-                // has no upstream tax invoices because Prime mints rather than
-                // collects, but it absolutely has Lightning-funded ones.
-                if hasOwnEndpoint {
-                    InvoiceListView(
-                        operatorNpub: auth.npub,
-                        authority: auth,
-                        accountVM: patronAccountVM,
-                        onOpenMessages: openMessagesFor
-                    )
-                } else {
-                    ContentUnavailableView("No MCP Endpoint", systemImage: "building.columns",
-                        description: Text("This Authority has no MCP endpoint configured."))
-                }
+                InvoiceListView(
+                    entityNpub: role.npub,
+                    sources: role.invoiceSources(authorities: authorities, operators: operators),
+                    accountVM: patronAccountVM,
+                    onOpenMessages: openMessagesFor
+                )
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
@@ -526,6 +518,7 @@ struct ContentView: View {
     @ViewBuilder
     private func operatorDetail(_ op: Operator) -> some View {
         let identity = ChatIdentity(from: op)
+        let role = op.asRole()
         let hasAuthority = op.authorityNpub != nil
 
         VStack(spacing: 0) {
@@ -579,18 +572,12 @@ struct ContentView: View {
                     NoNsecView(entityName: identity.displayName)
                 }
             case .invoiceHistory:
-                if let authNpub = op.authorityNpub,
-                   let authority = authorities.first(where: { $0.npub == authNpub }) {
-                    InvoiceListView(
-                        operatorNpub: op.npub,
-                        authority: authority,
-                        accountVM: patronAccountVM,
-                        onOpenMessages: openMessagesFor
-                    )
-                } else {
-                    ContentUnavailableView("No Authority", systemImage: "building.columns",
-                        description: Text("Connect to an Authority to view invoice history."))
-                }
+                InvoiceListView(
+                    entityNpub: role.npub,
+                    sources: role.invoiceSources(authorities: authorities, operators: operators),
+                    accountVM: patronAccountVM,
+                    onOpenMessages: openMessagesFor
+                )
             case .invoices:
                 if let authNpub = op.authorityNpub,
                    let authority = authorities.first(where: { $0.npub == authNpub }),
@@ -617,6 +604,7 @@ struct ContentView: View {
     @ViewBuilder
     private func patronDetail(_ patron: Patron) -> some View {
         let identity = ChatIdentity(from: patron)
+        let role = patron.asRole()
 
         VStack(spacing: 0) {
             entityHeader(name: patron.displayName, npub: patron.npub, endpoint: nil, icon: "person.badge.key.fill")
@@ -636,7 +624,12 @@ struct ContentView: View {
                     withAnimation { activeCourier = params }
                 })
             case .invoices:
-                InvoiceListView(patron: patron, accountVM: patronAccountVM, onOpenMessages: openMessagesFor)
+                InvoiceListView(
+                    entityNpub: role.npub,
+                    sources: role.invoiceSources(authorities: authorities, operators: operators),
+                    accountVM: patronAccountVM,
+                    onOpenMessages: openMessagesFor
+                )
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)

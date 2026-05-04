@@ -3,43 +3,25 @@ import SwiftData
 import UIKit
 
 struct InvoiceListView: View {
+    /// The actor whose invoices we are showing (Patron, Operator, Authority).
     let entityNpub: String
+    /// Upstream MCPs whose `account_statement` records this actor's
+    /// purchase invoices. Built by the actor's `PaymentActor` role; never
+    /// computed from a SwiftData @Query inside this view.
+    let sources: [Operator]
     @Bindable var accountVM: PatronAccountViewModel
     var onOpenMessages: ((_ operatorNpub: String) -> Void)?
-    /// Explicit service sources override the @Query operators.
-    /// Each entry is an Operator-shaped object with npub + mcpEndpointURL.
-    private let explicitSources: [Operator]?
-    @Query(sort: \Operator.addedAt) private var queriedOperators: [Operator]
 
-    private var operators: [Operator] {
-        explicitSources ?? queriedOperators
-    }
-
-    /// Patron viewing invoices across all operators.
-    init(patron: Patron, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
-        self.entityNpub = patron.npub
+    init(
+        entityNpub: String,
+        sources: [Operator],
+        accountVM: PatronAccountViewModel,
+        onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil
+    ) {
+        self.entityNpub = entityNpub
+        self.sources = sources
         self.accountVM = accountVM
         self.onOpenMessages = onOpenMessages
-        self.explicitSources = nil
-    }
-
-    /// Patron viewing invoices across all operators (npub variant).
-    init(patronNpub: String, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
-        self.entityNpub = patronNpub
-        self.accountVM = accountVM
-        self.onOpenMessages = onOpenMessages
-        self.explicitSources = nil
-    }
-
-    /// Operator viewing invoices at a specific Authority.
-    init(operatorNpub: String, authority: Authority, accountVM: PatronAccountViewModel, onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil) {
-        self.entityNpub = operatorNpub
-        self.accountVM = accountVM
-        self.onOpenMessages = onOpenMessages
-        // Wrap the Authority as an Operator-shaped source
-        let source = Operator(npub: authority.npub, displayName: authority.displayName)
-        source.mcpEndpointURL = authority.mcpEndpointURL
-        self.explicitSources = [source]
     }
 
     @State private var isReconciling = false
@@ -87,11 +69,11 @@ struct InvoiceListView: View {
         }
         .task(id: entityNpub) {
             hasLoadedHistory = false
-            await accountVM.forceRefresh(forNpub: entityNpub, operators: operators)
+            await accountVM.forceRefresh(forNpub: entityNpub, operators: sources)
             hasLoadedHistory = true
         }
         .refreshable {
-            await accountVM.forceRefresh(forNpub: entityNpub, operators: operators)
+            await accountVM.forceRefresh(forNpub: entityNpub, operators: sources)
         }
         .sheet(isPresented: $showingExportSheet) {
             InvoiceExportSheet(
@@ -207,26 +189,27 @@ struct InvoiceListView: View {
 
     @ViewBuilder
     private var invoiceHistoryByOperator: some View {
-        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
+        let mcpOperators = sources.filter { $0.mcpEndpointURL != nil }
 
         if mcpOperators.isEmpty {
-            // explicitSources != nil means we're showing one specific
-            // upstream party (an Operator viewing its Authority, or an
-            // Authority viewing its parent). The generic "No Operators"
-            // message would mislead the reader into thinking the view
-            // is looking downstream.
-            if explicitSources != nil {
-                ContentUnavailableView(
-                    "Upstream endpoint not yet resolved",
-                    systemImage: "antenna.radiowaves.left.and.right.slash",
-                    description: Text("Refresh the network topology to discover the upstream MCP endpoint, then return here.")
-                )
-                .padding(.top, 32)
-            } else {
+            // Two distinguishable empties: nothing upstream at all
+            // (Patron with no Operators, Operator with no Authority set,
+            // standard Authority with no parent yet known) versus one
+            // specific upstream party that hasn't had its endpoint
+            // resolved yet. The latter would otherwise read as the
+            // misleading "Add an operator" message.
+            if sources.isEmpty {
                 ContentUnavailableView(
                     "No Operators",
                     systemImage: "server.rack",
                     description: Text("Add an operator to view invoice history.")
+                )
+                .padding(.top, 32)
+            } else {
+                ContentUnavailableView(
+                    "Upstream endpoint not yet resolved",
+                    systemImage: "antenna.radiowaves.left.and.right.slash",
+                    description: Text("Refresh the network topology to discover the upstream MCP endpoint, then return here.")
                 )
                 .padding(.top, 32)
             }
@@ -489,7 +472,7 @@ struct InvoiceListView: View {
         }
 
         // Refresh balances and invoice history
-        await accountVM.forceRefresh(forNpub: entityNpub, operators: operators)
+        await accountVM.forceRefresh(forNpub: entityNpub, operators: sources)
         isReconciling = false
     }
 
@@ -530,8 +513,8 @@ struct InvoiceListView: View {
     private var aggregateStats: AggregateStats {
         var stats = AggregateStats()
 
-        // Derive from invoice history scoped to this view's operators only
-        let relevantNpubs = Set(operators.filter { $0.mcpEndpointURL != nil }.map(\.npub))
+        // Derive from invoice history scoped to this view's sources only
+        let relevantNpubs = Set(sources.filter { $0.mcpEndpointURL != nil }.map(\.npub))
         for (npub, historyState) in accountVM.invoiceHistoryStates {
             guard relevantNpubs.contains(npub) else { continue }
             if case .loaded(let items) = historyState {
@@ -586,7 +569,7 @@ struct InvoiceListView: View {
 
     /// All loaded invoice items, flat list for export.
     private var allInvoiceItems: [MCPService.InvoiceLineItem] {
-        let relevantNpubs = Set(operators.filter { $0.mcpEndpointURL != nil }.map(\.npub))
+        let relevantNpubs = Set(sources.filter { $0.mcpEndpointURL != nil }.map(\.npub))
         return accountVM.invoiceHistoryStates
             .filter { relevantNpubs.contains($0.key) }
             .values.compactMap { state in
@@ -597,7 +580,7 @@ struct InvoiceListView: View {
 
     /// All loaded invoice items grouped by operator name, for export.
     private var allInvoiceItemsByOperator: [(operatorName: String, items: [MCPService.InvoiceLineItem])] {
-        let mcpOperators = operators.filter { $0.mcpEndpointURL != nil }
+        let mcpOperators = sources.filter { $0.mcpEndpointURL != nil }
         return mcpOperators.compactMap { op in
             guard case .loaded(let items) = accountVM.invoiceHistoryStates[op.npub],
                   !items.isEmpty else { return nil }
