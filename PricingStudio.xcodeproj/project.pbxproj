@@ -51,6 +51,7 @@
 		AA00000100000000000000CD /* TrafficLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FD /* TrafficLogger.swift */; };
 		AA00000100000000000000CE /* TrafficLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FE /* TrafficLogView.swift */; };
 		AA00000100000000000001B1 /* Authority.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A1 /* Authority.swift */; };
+		AA00000100000000000001B9 /* PaymentActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A9 /* PaymentActor.swift */; };
 		AA00000100000000000001B2 /* AuthorityCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */; };
 		AA00000100000000000001B3 /* AddAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A3 /* AddAuthoritySheet.swift */; };
 		AA00000100000000000001B4 /* EditAuthoritySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A4 /* EditAuthoritySheet.swift */; };
@@ -206,6 +207,7 @@
 		AA00000100000000000000FD /* TrafficLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogger.swift; sourceTree = "<group>"; };
 		AA00000100000000000000FE /* TrafficLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogView.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A1 /* Authority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Authority.swift; sourceTree = "<group>"; };
+		AA00000100000000000001A9 /* PaymentActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentActor.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A2 /* AuthorityCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorityCollectionViewModel.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A3 /* AddAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAuthoritySheet.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A4 /* EditAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditAuthoritySheet.swift; sourceTree = "<group>"; };
@@ -421,6 +423,7 @@
 				AA00000100000000000000F4 /* OperatorStats.swift */,
 				AA00000100000000000000F7 /* Patron.swift */,
 				AA00000100000000000001A1 /* Authority.swift */,
+				AA00000100000000000001A9 /* PaymentActor.swift */,
 				AA0000010000000000000231 /* ChatIdentity.swift */,
 				AA0000010000000000000232 /* DMConversation.swift */,
 				AA0000010000000000000411 /* AssistantMessage.swift */,
@@ -925,6 +928,7 @@
 				AA00000100000000000000CD /* TrafficLogger.swift in Sources */,
 				AA00000100000000000000CE /* TrafficLogView.swift in Sources */,
 				AA00000100000000000001B1 /* Authority.swift in Sources */,
+				AA00000100000000000001B9 /* PaymentActor.swift in Sources */,
 				AA00000100000000000001B2 /* AuthorityCollectionViewModel.swift in Sources */,
 				AA00000100000000000001B3 /* AddAuthoritySheet.swift in Sources */,
 				AA00000100000000000001B4 /* EditAuthoritySheet.swift in Sources */,
