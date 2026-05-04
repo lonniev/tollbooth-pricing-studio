@@ -104,25 +104,52 @@ final class PatronAccountViewModel {
             guard let endpoint = src.mcpEndpointURL else { return nil }
             return (src.npub, endpoint)
         }
-        await withTaskGroup(of: (String, [MCPService.InvoiceLineItem]).self) { group in
+        await withTaskGroup(
+            of: (npub: String, outcome: Result<[MCPService.InvoiceLineItem], Error>).self
+        ) { group in
             for info in opInfos {
                 group.addTask {
                     guard let endpointURL = URL(string: info.endpoint) else {
-                        return (info.npub, [])
+                        return (info.npub, .failure(MCPError.connectionFailed("Invalid endpoint URL")))
                     }
                     do {
                         let result = try await self.mcpService.callAccountStatement(
                             endpointURL: endpointURL,
                             patronNpub: patronNpub
                         )
-                        return (info.npub, result.invoiceItems)
+                        return (info.npub, .success(result.invoiceItems))
                     } catch {
-                        return (info.npub, [])
+                        return (info.npub, .failure(error))
                     }
                 }
             }
-            for await (npub, items) in group {
-                invoiceHistoryStates[npub] = items.isEmpty ? .loaded([]) : .loaded(items)
+            for await (npub, outcome) in group {
+                switch outcome {
+                case .success(let items):
+                    invoiceHistoryStates[npub] = .loaded(items)
+                case .failure(let error):
+                    // A transient refresh failure (network, MCP hiccup,
+                    // session blip) must not destroy already-loaded data.
+                    // Surface .error only when we never had data to begin
+                    // with; otherwise keep the prior .loaded(...) intact
+                    // and log the failure for diagnostics.
+                    if case .loaded = invoiceHistoryStates[npub] {
+                        TrafficLogger.shared.log(
+                            .error,
+                            label: "Invoice History Refresh",
+                            detail: "Refresh failed for \(npub.prefix(16))… — keeping prior data: \(error.localizedDescription)",
+                            npub: npub
+                        )
+                    } else {
+                        TrafficLogger.shared.log(
+                            .error,
+                            label: "Invoice History Load",
+                            detail: "Initial load failed for \(npub.prefix(16))…: \(error.localizedDescription)",
+                            npub: npub
+                        )
+                        invoiceHistoryStates[npub] = .error(error.localizedDescription)
+                    }
+                }
             }
         }
     }
