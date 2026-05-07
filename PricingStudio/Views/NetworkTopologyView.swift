@@ -33,7 +33,7 @@ struct NetworkTopologyView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Network Topology")
                     .font(.title3.bold())
-                Text("DPYC Honor Chain")
+                Text("DPYC Infrastructure Providers")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
