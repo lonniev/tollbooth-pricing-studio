@@ -69,15 +69,16 @@ jobs:
       - name: Compute version
         id: ver
         run: |
-          # Read MAJOR.MINOR from pbxproj (e.g. 1.7 from 1.7.2)
-          # Match only assignment lines (TAB + KEY = VALUE;), skip shell script references
+          # Marketing version is read from project.pbxproj as-is. Every
+          # CI build of the same MARKETING_VERSION appears in TestFlight
+          # as a build of one version, with CFBundleVersion =
+          # github.run_number giving each build a unique number. The
+          # latest build is automatically the "current" installable —
+          # no Previous Builds confusion.
           BASE=$(grep -E '^\s+MARKETING_VERSION = [0-9]' PricingStudio.xcodeproj/project.pbxproj \
             | grep -v '1.0' | head -1 | sed 's/.*= //' | tr -d ';[:space:]')
-          MAJOR=$(echo "$BASE" | cut -d. -f1)
-          MINOR=$(echo "$BASE" | cut -d. -f2)
-          # MAJOR.MINOR.BUILD_NUMBER → e.g. 1.7.610
-          echo "marketing=${MAJOR}.${MINOR}.${{ github.run_number }}" >> $GITHUB_OUTPUT
-          echo "Marketing version: ${MAJOR}.${MINOR}.${{ github.run_number }}"
+          echo "marketing=${BASE}" >> $GITHUB_OUTPUT
+          echo "Marketing version: ${BASE} (build ${{ github.run_number }})"
 
       - name: Build and archive
         run: |
