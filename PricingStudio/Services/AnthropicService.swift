@@ -135,6 +135,10 @@ final class AnthropicService: @unchecked Sendable {
         }
     }
 
+    /// Maximum number of tool-use rounds in a single advisor turn.
+    /// At cap, force a no-tools final round so Claude must speak.
+    private static let maxToolIterations = 6
+
     private nonisolated func streamWithToolUse(
         messages: [[String: String]],
         systemPrompt: String,
@@ -142,33 +146,46 @@ final class AnthropicService: @unchecked Sendable {
         maxTokens: Int,
         continuation: AsyncStream<String>.Continuation
     ) async {
-        let rawMessages = messages  // capture for reuse
-
-        // Convert simple string messages to content-block format for tool use
-        func buildApiMessages() -> [[String: Any]] {
-            rawMessages.map { msg in
-                ["role": msg["role"] ?? "user", "content": msg["content"] ?? ""]
-            }
+        // Seed the running message history with the caller's turn(s).
+        // We append assistant tool_use + user tool_result blocks each
+        // iteration so Claude can chain multiple tool calls before
+        // emitting text.
+        var apiMessages: [[String: Any]] = messages.map { msg in
+            ["role": msg["role"] ?? "user", "content": msg["content"] ?? ""]
         }
 
-        // First request — may return text or tool_use
-        let result = await sendRequest(
-            messages: buildApiMessages(),
-            systemPrompt: systemPrompt,
-            apiKey: apiKey,
-            maxTokens: maxTokens,
-            includeTools: true,
-            continuation: continuation
-        )
+        var iteration = 0
+        var lastResult: RequestResult = RequestResult()
 
-        // If Claude requested tool use, execute and continue
-        if let toolUse = result.toolUse {
+        while iteration < Self.maxToolIterations {
+            iteration += 1
+
+            // Pass a snapshot so the `sending` parameter is region-isolated.
+            let snapshot: [[String: Any]] = apiMessages
+            lastResult = await sendRequest(
+                messages: snapshot,
+                systemPrompt: systemPrompt,
+                apiKey: apiKey,
+                maxTokens: maxTokens,
+                includeTools: true,
+                continuation: continuation
+            )
+
+            // No tool_use → Claude is done with tools this turn. Whatever
+            // text was streamed already appears in the chat. Done.
+            guard let toolUse = lastResult.toolUse else {
+                continuation.finish()
+                return
+            }
+
+            // Execute the tool, append assistant tool_use + user tool_result
+            // to apiMessages, and loop for Claude's next move.
             let isOracleTool = Self.oracleTools.contains { ($0["name"] as? String) == toolUse.name }
             let label = isOracleTool ? "Oracle" : "Operator"
 
             await MainActor.run {
                 TrafficLogger.shared.log(.outbound, label: "\(label) Tool",
-                                         detail: "Claude called: \(toolUse.name)")
+                                         detail: "Claude called: \(toolUse.name) (round \(iteration))")
             }
 
             continuation.yield("\n\n*Consulting \(label)…*\n\n")
@@ -178,7 +195,7 @@ final class AnthropicService: @unchecked Sendable {
             let inputPreview = String(toolUse.inputJSON.prefix(300))
             await MainActor.run {
                 TrafficLogger.shared.log(.outbound, label: "\(label) Executor START",
-                                         detail: "name=\(toolUse.name) mcpName=\(mcpToolName) input=\(inputPreview)")
+                                         detail: "round=\(iteration) name=\(toolUse.name) mcpName=\(mcpToolName) input=\(inputPreview)")
             }
             let executorStart = Date()
             var toolResult: String
@@ -192,10 +209,9 @@ final class AnthropicService: @unchecked Sendable {
             let elapsedMs = Int(Date().timeIntervalSince(executorStart) * 1000)
             await MainActor.run {
                 TrafficLogger.shared.log(.inbound, label: "\(label) Executor END",
-                                         detail: "elapsed=\(elapsedMs)ms result_len=\(toolResult.count) preview=\(String(toolResult.prefix(300)))")
+                                         detail: "round=\(iteration) elapsed=\(elapsedMs)ms result_len=\(toolResult.count) preview=\(String(toolResult.prefix(300)))")
             }
 
-            // Guard against empty or error results that would confuse Claude
             if toolResult.isEmpty {
                 toolResult = "Tool returned no data."
             }
@@ -209,7 +225,6 @@ final class AnthropicService: @unchecked Sendable {
                                          detail: "\(toolName) → \(String(toolResult.prefix(100)))")
             }
 
-            // Build follow-up messages with tool result
             let inputObj = toolInputJSON.data(using: .utf8).flatMap {
                 try? JSONSerialization.jsonObject(with: $0)
             } ?? [:]
@@ -219,21 +234,28 @@ final class AnthropicService: @unchecked Sendable {
             let toolResultContent: [[String: Any]] = [
                 ["type": "tool_result", "tool_use_id": toolId, "content": toolResult]
             ]
-            var followUp = buildApiMessages()
-            followUp.append(["role": "assistant", "content": assistantContent])
-            followUp.append(["role": "user", "content": toolResultContent])
-
-            // Second request — Claude incorporates tool result
-            _ = await sendRequest(
-                messages: followUp,
-                systemPrompt: systemPrompt,
-                apiKey: apiKey,
-                maxTokens: maxTokens,
-                includeTools: false,
-                continuation: continuation
-            )
+            apiMessages.append(["role": "assistant", "content": assistantContent])
+            apiMessages.append(["role": "user", "content": toolResultContent])
         }
 
+        // Cap fired and we still don't have a textual answer. Force a
+        // final no-tools round with a nudge so the user gets something
+        // back instead of a silent placeholder.
+        await MainActor.run {
+            TrafficLogger.shared.log(.outbound, label: "Tool Loop Cap",
+                                     detail: "Hit \(Self.maxToolIterations)-round cap; forcing textual summary.")
+        }
+        let nudge = "You've used \(Self.maxToolIterations) tool calls this turn. Stop calling tools and either summarize what you found so far or ask the operator the next focused question."
+        apiMessages.append(["role": "user", "content": nudge])
+        let snapshot: [[String: Any]] = apiMessages
+        _ = await sendRequest(
+            messages: snapshot,
+            systemPrompt: systemPrompt,
+            apiKey: apiKey,
+            maxTokens: maxTokens,
+            includeTools: false,
+            continuation: continuation
+        )
         continuation.finish()
     }
 
@@ -259,7 +281,7 @@ final class AnthropicService: @unchecked Sendable {
     // MARK: - Core Request
 
     private nonisolated func sendRequest(
-        messages: sending [[String: Any]],
+        messages: [[String: Any]],
         systemPrompt: String,
         apiKey: String,
         maxTokens: Int,
