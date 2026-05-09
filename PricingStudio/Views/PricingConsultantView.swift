@@ -467,21 +467,23 @@ struct PricingConsultantView: View {
                         }
                     }
 
-                    // Stage 6 buffering indicator
-                    if consultantVM.isStreaming && consultantVM.interviewProgress.stageNumber == 6 {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .controlSize(.regular)
-                            Text("Preparing your recommendation...")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text("The full pricing proposal will appear once ready.")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                    // While Anthropic is processing — including the silent
+                    // gaps between tool rounds — show rotating quotes from
+                    // the dpyc-community registry so the screen never goes
+                    // blank during dead air.
+                    if consultantVM.isStreaming {
+                        VStack(spacing: 8) {
+                            if consultantVM.interviewProgress.stageNumber == 6 {
+                                Text("Preparing your recommendation...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            LoadingQuoteView()
+                                .frame(minHeight: 100)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 32)
-                        .id("recommendation-loading")
+                        .padding(.vertical, 24)
+                        .id("streaming-indicator")
                     }
                 }
                 .padding()
