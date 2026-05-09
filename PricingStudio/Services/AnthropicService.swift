@@ -251,6 +251,9 @@ final class AnthropicService: @unchecked Sendable {
         var toolUse: ToolUseCall?
         var contentBlocks: Any?  // JSON-serializable content blocks
         var contentBlocksJSON: String = "[]"
+        var stopReason: String?  // end_turn, max_tokens, tool_use, stop_sequence, etc.
+        var contentBlockCount: Int = 0  // number of content blocks the response carried
+        var blockTypes: [String] = []  // type of each block in arrival order
     }
 
     // MARK: - Core Request
@@ -365,10 +368,17 @@ final class AnthropicService: @unchecked Sendable {
                 if type == "content_block_start",
                    let block = event["content_block"] as? [String: Any],
                    let blockType = block["type"] as? String {
+                    result.contentBlockCount += 1
+                    result.blockTypes.append(blockType)
                     if blockType == "tool_use" {
                         currentToolId = block["id"] as? String ?? ""
                         currentToolName = block["name"] as? String ?? ""
                         currentToolInputJSON = ""
+                    }
+                } else if type == "message_delta",
+                          let delta = event["delta"] as? [String: Any] {
+                    if let reason = delta["stop_reason"] as? String {
+                        result.stopReason = reason
                     }
                 } else if type == "content_block_delta",
                           let delta = event["delta"] as? [String: Any] {
@@ -418,7 +428,20 @@ final class AnthropicService: @unchecked Sendable {
             } else {
                 toolSummary = "tool_use: (none)"
             }
+            let blocksSummary: String
+            if result.blockTypes.isEmpty {
+                blocksSummary = "(zero content blocks)"
+            } else {
+                let counts = Dictionary(grouping: result.blockTypes, by: { $0 })
+                    .mapValues { $0.count }
+                    .map { "\($0.key)=\($0.value)" }
+                    .sorted()
+                    .joined(separator: ", ")
+                blocksSummary = "\(result.contentBlockCount) blocks: \(counts)"
+            }
             let inBody = """
+            stop_reason: \(result.stopReason ?? "<unknown>")
+            blocks: \(blocksSummary)
             \(toolSummary)
             text[head]:
             \(textHead)
