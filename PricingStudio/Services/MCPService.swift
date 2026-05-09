@@ -731,43 +731,35 @@ actor MCPService {
 
     /// Call get_pricing_model on an operator's MCP endpoint.
     /// Returns nil if the tool is not found (operator doesn't support stored pricing).
+    /// Single source of truth for retrieving + parsing the pricing model.
+    /// All consumers — the Pricing View and the AI consultant — must
+    /// flow through this function so what Claude sees equals what the
+    /// human can see. If a field isn't expressible in PricingModelResponse,
+    /// neither view receives it.
     func callGetPricingModel(
         endpointURL: URL
     ) async throws -> PricingModelResponse? {
-        await traffic(.outbound, label: "Get Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
+        await traffic(.outbound, label: "Get Pricing Model", detail: "→ \(endpointURL.absoluteString)")
 
-        let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
-        defer { Task { await client.disconnect() } }
-
-        try await client.connect(transport: transport)
-
-        let allTools = try await listAllTools(client: client)
-        guard let pricingTool = allTools.first(where: { $0.name.contains("get_pricing_model") }) else {
+        let text: String
+        do {
+            text = try await _connectAndCall(
+                endpointURL: endpointURL,
+                toolName: "get_pricing_model",
+                arguments: [:]
+            )
+        } catch MCPError.toolCallFailed(let msg) where msg.contains("not found") {
             await traffic(.inbound, label: "Get Pricing Model", detail: "Tool not found — operator doesn't support stored pricing")
             return nil
         }
 
-        let (content, isError) = try await client.callTool(name: pricingTool.name, arguments: [:])
-
-        if isError == true {
-            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "Get Pricing Model Error", detail: errorText)
-            throw MCPError.toolCallFailed(errorText)
-        }
-
-        guard let text = content.compactMap({ extractText($0) }).first,
-              let data = text.data(using: .utf8) else {
-            throw MCPError.invalidResponse
-        }
-
         await traffic(.inbound, label: "Get Pricing Model", detail: String(text.prefix(4000)))
 
+        guard let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
         let response = try JSONDecoder().decode(PricingModelResponse.self, from: data)
-
-        // If tools is nil, no active model stored
         guard response.tools != nil else { return nil }
-
         return response
     }
 
@@ -1608,14 +1600,30 @@ actor MCPService {
         arguments: [String: Value] = [:]
     ) async throws -> String {
         await traffic(.outbound, label: "Test Call", detail: "\(toolName) → \(endpointURL.absoluteString)")
+        let text = try await _connectAndCall(
+            endpointURL: endpointURL,
+            toolName: toolName,
+            arguments: arguments
+        )
+        await traffic(.inbound, label: "Test Call Result", detail: String(text.prefix(4000)))
+        return text
+    }
 
+    /// Shared lifecycle: connect → list → resolve short-name → call →
+    /// return joined text. Used by all single-tool MCP calls so the
+    /// retrieval path is unified — no caller has its own connect or
+    /// resolve logic.
+    private func _connectAndCall(
+        endpointURL: URL,
+        toolName: String,
+        arguments: [String: Value]
+    ) async throws -> String {
         let client = Client(name: "PricingStudio", version: "1.0.0")
         let transport = makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
 
-        // Resolve short tool name to full MCP name (e.g., "current" → "weather_current")
         let allTools = try await listAllTools(client: client)
         let resolvedName: String
         if let match = allTools.first(where: { $0.name == toolName }) {
@@ -1623,20 +1631,19 @@ actor MCPService {
         } else if let match = allTools.first(where: { $0.name.hasSuffix("_\(toolName)") }) {
             resolvedName = match.name
         } else {
-            resolvedName = toolName
+            // Surface as a typed error so callers can distinguish
+            // "tool absent on operator" from "tool returned an error".
+            throw MCPError.toolCallFailed("Tool '\(toolName)' not found on operator endpoint")
         }
 
         let (content, isError) = try await client.callTool(name: resolvedName, arguments: arguments)
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "Test Call Error", detail: errorText)
             throw MCPError.toolCallFailed(errorText)
         }
 
-        let text = content.compactMap { extractText($0) }.joined(separator: "\n")
-        await traffic(.inbound, label: "Test Call Result", detail: String(text.prefix(4000)))
-        return text
+        return content.compactMap { extractText($0) }.joined(separator: "\n")
     }
 
     /// Fetch the tool list from an operator endpoint (connect, list, disconnect).

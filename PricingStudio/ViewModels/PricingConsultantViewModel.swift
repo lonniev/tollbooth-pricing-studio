@@ -697,6 +697,23 @@ final class PricingConsultantViewModel {
         AnthropicService.executeOperatorTool = { toolName, input in
             let mcpService = MCPService()
             do {
+                // Route get_pricing_model through the same typed loader
+                // the Pricing View uses, then re-serialize the parsed
+                // model for Claude. This structurally enforces "the LLM
+                // sees what the human can see" — anything not expressible
+                // in PricingModelResponse is omitted from both views.
+                if toolName == "get_pricing_model" {
+                    guard let response = try await mcpService.callGetPricingModel(
+                        endpointURL: endpointURL
+                    ) else {
+                        return "{\"status\":\"no_active_pricing_model\"}"
+                    }
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    let data = try encoder.encode(response)
+                    return String(data: data, encoding: .utf8) ?? "{}"
+                }
+
                 var args: [String: MCP.Value] = [:]
                 for (key, value) in input {
                     if let s = value as? String { args[key] = .string(s) }
