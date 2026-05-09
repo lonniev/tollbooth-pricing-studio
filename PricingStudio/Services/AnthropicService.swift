@@ -175,6 +175,12 @@ final class AnthropicService: @unchecked Sendable {
 
             let mcpToolName = Self.toolNameMap[toolUse.name] ?? toolUse.name
             let toolInput = toolUse.input
+            let inputPreview = String(toolUse.inputJSON.prefix(300))
+            await MainActor.run {
+                TrafficLogger.shared.log(.outbound, label: "\(label) Executor START",
+                                         detail: "name=\(toolUse.name) mcpName=\(mcpToolName) input=\(inputPreview)")
+            }
+            let executorStart = Date()
             var toolResult: String
             if isOracleTool, let executor = Self.executeOracleTool {
                 toolResult = await executor(mcpToolName, toolInput)
@@ -182,6 +188,11 @@ final class AnthropicService: @unchecked Sendable {
                 toolResult = await executor(toolUse.name, toolInput)
             } else {
                 toolResult = "\(label) tool executor not configured."
+            }
+            let elapsedMs = Int(Date().timeIntervalSince(executorStart) * 1000)
+            await MainActor.run {
+                TrafficLogger.shared.log(.inbound, label: "\(label) Executor END",
+                                         detail: "elapsed=\(elapsedMs)ms result_len=\(toolResult.count) preview=\(String(toolResult.prefix(300)))")
             }
 
             // Guard against empty or error results that would confuse Claude
@@ -275,12 +286,39 @@ final class AnthropicService: @unchecked Sendable {
         }
         request.httpBody = bodyData
 
+        // Surface what we actually sent: system prompt head, last user
+        // message, declared tools. The wire payload itself isn't useful;
+        // what matters when debugging the advisor is "what did we ask
+        // Claude to do and what tools did we tell it about."
+        let systemHead = String(systemPrompt.prefix(800))
+        let lastUserSnippet: String = {
+            for msg in messages.reversed() where (msg["role"] as? String) == "user" {
+                if let s = msg["content"] as? String { return String(s.prefix(400)) }
+                if let blocks = msg["content"] as? [[String: Any]] {
+                    let texts = blocks.compactMap { ($0["content"] as? String) ?? ($0["text"] as? String) }
+                    return String(texts.joined(separator: " | ").prefix(400))
+                }
+            }
+            return "<no user message>"
+        }()
+        let toolNames: String = includeTools
+            ? Self.allTools.compactMap { $0["name"] as? String }.joined(separator: ", ")
+            : "(none)"
+        let outBody = """
+        model=\(Self.model)
+        messages=\(messages.count) turns
+        tools=\(toolNames)
+        system[head]:
+        \(systemHead)
+        last_user:
+        \(lastUserSnippet)
+        """
         await MainActor.run {
             TrafficLogger.shared.logHTTP(
                 label: "Anthropic Messages",
                 method: "POST",
                 url: Self.apiURL.absoluteString,
-                requestBody: "model=\(Self.model), messages=\(messages.count), tools=\(includeTools)"
+                requestBody: outBody
             )
         }
 
@@ -367,12 +405,31 @@ final class AnthropicService: @unchecked Sendable {
                 }
             }
 
+            // Make "Stream Complete" actually informative: text head and
+            // tool_use summary. Empty text + a tool_use is the common
+            // case for the advisor's first turn.
+            let textHead = result.textContent.isEmpty
+                ? "<no text content>"
+                : String(result.textContent.prefix(800))
+            let toolSummary: String
+            if let t = result.toolUse {
+                let inputPreview = String(t.inputJSON.prefix(300))
+                toolSummary = "tool_use: name=\(t.name) id=\(t.id) input=\(inputPreview)"
+            } else {
+                toolSummary = "tool_use: (none)"
+            }
+            let inBody = """
+            \(toolSummary)
+            text[head]:
+            \(textHead)
+            """
             await MainActor.run {
                 TrafficLogger.shared.logHTTP(
                     label: "Anthropic Stream Complete",
                     method: "POST",
                     url: Self.apiURL.absoluteString,
-                    statusCode: 200
+                    statusCode: 200,
+                    responseBody: inBody
                 )
             }
         } catch {

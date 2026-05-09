@@ -159,6 +159,29 @@ final class PricingConsultantViewModel {
         let userMessage = AssistantMessage(role: .user, content: opener, stageNumber: 1)
         stageMessages[1, default: []].append(userMessage)
 
+        // Set expectations before the first network call. The user
+        // otherwise just sees "Consulting Operator…" with no idea why,
+        // which makes a stalled MCP look like a stalled chat.
+        let operatorName = context.operatorName ?? "your operator"
+        let narrative = """
+        **Welcome — let's design a pricing campaign for \(operatorName).**
+
+        We'll work through six short conversations:
+
+        1. **Inventory** — what tools your MCP exposes and what they cost today
+        2. **Demand** — who uses these tools and how often
+        3. **Value** — what each call is worth to the user
+        4. **Cost** — what serving each call costs you
+        5. **Constraints & Demurrage** — rate limits, surge windows, tranche lifetime
+        6. **Recommendation** — a complete campaign with revenue projections
+
+        I have read access to your MCP, so I'll fetch facts directly — your pricing model, service status, per-tool prices — instead of asking you to recite numbers I can look up myself.
+
+        Starting with **Inventory**. Let me consult your operator first…
+        """
+        let narrativeMessage = AssistantMessage(role: .assistant, content: narrative, stageNumber: 1)
+        stageMessages[1, default: []].append(narrativeMessage)
+
         let placeholder = AssistantMessage(role: .assistant, content: "", isStreaming: true, stageNumber: 1)
         stageMessages[1, default: []].append(placeholder)
         isStreaming = true
