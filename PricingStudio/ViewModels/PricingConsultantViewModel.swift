@@ -200,10 +200,14 @@ final class PricingConsultantViewModel {
                 apiKey: apiKey
             )
 
+            var progressApplied = false
             for await token in stream {
                 if var msgs = self.stageMessages[1], let idx = msgs.indices.last {
                     msgs[idx].content += token
                     self.stageMessages[1] = msgs
+                    if !progressApplied {
+                        progressApplied = self.applyProgressIfReady(content: msgs[idx].content)
+                    }
                 }
             }
 
@@ -247,10 +251,14 @@ final class PricingConsultantViewModel {
                 apiKey: apiKey
             )
 
+            var progressApplied = false
             for await token in stream {
                 if var msgs = self.stageMessages[targetStage], let idx = msgs.indices.last {
                     msgs[idx].content += token
                     self.stageMessages[targetStage] = msgs
+                    if !progressApplied {
+                        progressApplied = self.applyProgressIfReady(content: msgs[idx].content)
+                    }
                 }
             }
 
@@ -262,6 +270,21 @@ final class PricingConsultantViewModel {
             self.isStreaming = false
             logger.info("Consultant turn complete (stage \(targetStage), \(self.allMessages.count) total messages)")
         }
+    }
+
+    /// Mid-stream PROGRESS detection. Runs after every token append until
+    /// it returns true. The system prompt asks Claude to emit the marker
+    /// FIRST, so this typically fires within the opening tokens of the
+    /// response — well before the user-visible text streams in. The phase
+    /// circle flips at that moment instead of at end-of-stream.
+    private func applyProgressIfReady(content: String) -> Bool {
+        let (_, progress) = ResponseParser.extractProgress(from: content)
+        guard let progress else { return false }
+        if progress.stageNumber > interviewProgress.stageNumber {
+            interviewProgress = progress
+        }
+        analysis.insights = progress.insights
+        return true
     }
 
     /// Post-stream processing: extract structured data via ResponseParser,
@@ -908,7 +931,7 @@ final class PricingConsultantViewModel {
         if !systemPrompt.contains("PROGRESS") {
             parts.append("""
 
-            CRITICAL: At the end of EVERY response, you MUST emit a single hidden progress block.
+            CRITICAL: Begin EVERY response with a single hidden progress block on the FIRST line.
             The JSON MUST be on a SINGLE LINE. Do NOT split it across lines.
             <!-- PROGRESS {"stage":"inventory","stage_number":1,"insights":{}} -->
             stage is one of: inventory, demand, value, cost, constraints, recommendation (numbered 1-6).
@@ -916,7 +939,10 @@ final class PricingConsultantViewModel {
             demand_summary (string), value_summary (string), cost_summary (string), \
             constraints_considered (array of strings), campaign_draft ("pending"|"presented"|"approved"), \
             philosophy ("capitalist"|"balanced"|"charitable").
-            This block is machine-parsed and stripped before display. It MUST appear at the END of every response.
+            The block is machine-parsed and stripped before display, and the UI uses it to flip the
+            current-phase indicator BEFORE your user-visible text begins. Place it FIRST so the
+            phase circle updates the moment you transition phases — not after the user has read your
+            opener.
             """)
         }
 
