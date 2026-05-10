@@ -622,12 +622,15 @@ struct PricingConsultantView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
-        } else if consultantVM.currentCampaign != nil,
+        } else if !consultantVM.allMessages.isEmpty,
                   let stage = consultantVM.viewingStageNumber,
                   let consultant = ConsultantRoster.forStage(stage) {
-            // In an active campaign, viewing a consultant's room with no
-            // transcript yet — invite the user to begin THIS consultant's
-            // conversation, not restart the whole interview.
+            // The user is mid-session (some stage has a transcript) but is
+            // currently viewing a consultant whose room is empty. Invite them
+            // to begin THAT consultant's conversation rather than restart the
+            // whole interview. Works whether or not the session was saved as
+            // a Campaign — startInterview() nils currentCampaign, so the
+            // earlier `currentCampaign != nil` gate missed unsaved sessions.
             consultantIntro(consultant)
         } else {
             VStack(spacing: 16) {
