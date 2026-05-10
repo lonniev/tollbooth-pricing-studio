@@ -38,6 +38,13 @@ final class Campaign {
     /// Lightweight migration: defaults to nil for existing campaigns.
     var stageMessagesJSON: Data?
 
+    /// Per-consultant working notes — keys are stage numbers (1–6).
+    /// Each consultant accumulates a `ConsultantNote` (summary, proposed deltas,
+    /// open questions, peer concerns) as the user meets with them. Hayek
+    /// (stage 6) merges every consultant's deltas into the canonical `proposal`
+    /// on synthesis. Lightweight migration: defaults to nil for existing campaigns.
+    var consultantNotesJSON: Data?
+
     /// Whether this campaign is the one currently deployed to its operator.
     var isDeployed: Bool = false
 
@@ -184,6 +191,41 @@ final class Campaign {
             stageMessagesJSON = try? JSONSerialization.data(withJSONObject: dict)
             updatedAt = Date()
         }
+    }
+
+    /// Computed accessor for per-consultant notes (stage → ConsultantNote).
+    var consultantNotes: [Int: ConsultantNote] {
+        get {
+            guard let data = consultantNotesJSON else { return [:] }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            guard let raw = try? decoder.decode([String: ConsultantNote].self, from: data) else {
+                return [:]
+            }
+            var result: [Int: ConsultantNote] = [:]
+            for (k, v) in raw {
+                if let n = Int(k) { result[n] = v }
+            }
+            return result
+        }
+        set {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let stringKeyed = Dictionary(uniqueKeysWithValues: newValue.map { (String($0.key), $0.value) })
+            consultantNotesJSON = try? encoder.encode(stringKeyed)
+            updatedAt = Date()
+        }
+    }
+
+    /// Convenience: read or write a single consultant's note, defaulting to `.empty` on read.
+    func note(forStage stage: Int) -> ConsultantNote {
+        consultantNotes[stage] ?? .empty
+    }
+
+    func setNote(_ note: ConsultantNote, forStage stage: Int) {
+        var all = consultantNotes
+        all[stage] = note
+        consultantNotes = all
     }
 
     /// Migrate flat messages to per-stage storage. Returns true if migration occurred.

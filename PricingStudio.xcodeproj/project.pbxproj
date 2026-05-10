@@ -133,6 +133,10 @@
 		DECD000100000000000004B1 /* ResponseParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000004A1 /* ResponseParser.swift */; };
 		DECD000100000000000005B1 /* StageClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000005A1 /* StageClassifier.swift */; };
 		DECD000100000000000006B1 /* CampaignSummaryBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000006A1 /* CampaignSummaryBuilder.swift */; };
+		DECD000100000000000007B1 /* ConsultantNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000007A1 /* ConsultantNote.swift */; };
+		DECD000100000000000008B1 /* Consultant.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000008A1 /* Consultant.swift */; };
+		DECD000100000000000009B1 /* ConsultantBusinessCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000009A1 /* ConsultantBusinessCard.swift */; };
+		DECD00010000000000000AB1 /* ConsultantBench.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000AA1 /* ConsultantBench.swift */; };
 /* UI Test build files */
 		BB0000010000000000000F01 /* TestTeardown.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E01 /* TestTeardown.swift */; };
 		BB0000010000000000000F02 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E02 /* AppLaunchTests.swift */; };
@@ -287,6 +291,10 @@
 		DECD000100000000000004A1 /* ResponseParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseParser.swift; sourceTree = "<group>"; };
 		DECD000100000000000005A1 /* StageClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageClassifier.swift; sourceTree = "<group>"; };
 		DECD000100000000000006A1 /* CampaignSummaryBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignSummaryBuilder.swift; sourceTree = "<group>"; };
+		DECD000100000000000007A1 /* ConsultantNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultantNote.swift; sourceTree = "<group>"; };
+		DECD000100000000000008A1 /* Consultant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Consultant.swift; sourceTree = "<group>"; };
+		DECD000100000000000009A1 /* ConsultantBusinessCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultantBusinessCard.swift; sourceTree = "<group>"; };
+		DECD00010000000000000AA1 /* ConsultantBench.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultantBench.swift; sourceTree = "<group>"; };
 		CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPickerView.swift; sourceTree = "<group>"; };
 		D9844C99A73C4999A2235C1B /* PricingDiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingDiffView.swift; sourceTree = "<group>"; };
 		075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenInterviewView.swift; sourceTree = "<group>"; };
@@ -436,6 +444,7 @@
 				DECD000100000000000001A1 /* InterviewAnalysis.swift */,
 				DECD000100000000000002A1 /* PricingProposal.swift */,
 				DECD000100000000000003A1 /* PeerReview.swift */,
+				DECD000100000000000007A1 /* ConsultantNote.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -458,6 +467,7 @@
 				DECD000100000000000004A1 /* ResponseParser.swift */,
 				DECD000100000000000005A1 /* StageClassifier.swift */,
 				DECD000100000000000006A1 /* CampaignSummaryBuilder.swift */,
+				DECD000100000000000008A1 /* Consultant.swift */,
 				AA0000010000000000000200 /* Nostr */,
 			);
 			path = Services;
@@ -544,6 +554,8 @@
 				AA0000010000000000000702 /* SettingsSheet.swift */,
 				AA0000010000000000000250 /* Chat */,
 				AA0000010000000000000902 /* PricingConsultantView.swift */,
+				DECD000100000000000009A1 /* ConsultantBusinessCard.swift */,
+				DECD00010000000000000AA1 /* ConsultantBench.swift */,
 				AA0000010000000000000A06 /* CampaignComparisonView.swift */,
 				AA0000010000000000000A0A /* CampaignOverviewSheet.swift */,
 				AA0000010000000000000A07 /* Shared */,
@@ -887,6 +899,10 @@
 				DECD000100000000000004B1 /* ResponseParser.swift in Sources */,
 				DECD000100000000000005B1 /* StageClassifier.swift in Sources */,
 				DECD000100000000000006B1 /* CampaignSummaryBuilder.swift in Sources */,
+				DECD000100000000000007B1 /* ConsultantNote.swift in Sources */,
+				DECD000100000000000008B1 /* Consultant.swift in Sources */,
+				DECD000100000000000009B1 /* ConsultantBusinessCard.swift in Sources */,
+				DECD00010000000000000AB1 /* ConsultantBench.swift in Sources */,
 				AA000001000000000000001B /* ContentView.swift in Sources */,
 				AA000001000000000000001A /* PricingStudioApp.swift in Sources */,
 				AA00000100000000000000B1 /* Operator.swift in Sources */,

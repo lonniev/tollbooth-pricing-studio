@@ -77,6 +77,101 @@ final class AnthropicService: @unchecked Sendable {
         "oracle_network_advisory": "network_advisory",
     ]
 
+    // MARK: - Consultant Local Tools
+
+    /// In-process tools available to every consultant persona.
+    /// Mutations land in `Campaign.consultantNotes` via the registered executor.
+    nonisolated(unsafe) static let consultantTools: [[String: Any]] = [
+        [
+            "name": "update_summary",
+            "description": "Replace your one-paragraph 'what I have concluded so far' summary, displayed on your business card and surfaced to peers in their briefings. Call after each substantive turn so peers see fresh context.",
+            "input_schema": [
+                "type": "object",
+                "properties": ["summary": ["type": "string", "description": "One paragraph in your own voice — max ~3 sentences."]],
+                "required": ["summary"]
+            ] as [String: Any]
+        ],
+        [
+            "name": "propose_delta",
+            "description": "Record one structured edit you want made to the working pricing model. The Managing Partner (Hayek) will weigh all proposed deltas during synthesis. Each call appends one delta — call multiple times for multiple edits.",
+            "input_schema": [
+                "type": "object",
+                "properties": [
+                    "kind": [
+                        "type": "string",
+                        "enum": ["tool_price", "add_constraint", "remove_constraint", "projection_assumption"],
+                        "description": "tool_price (set a per-tool sat price), add_constraint (push a pipeline step), remove_constraint (drop one by index), projection_assumption (set a revenue-projection input)."
+                    ],
+                    "payload": [
+                        "type": "object",
+                        "description": "Kind-specific fields. tool_price: {tool_name, sats}. add_constraint: {type, params_json}. remove_constraint: {index}. projection_assumption: {scenario, field, value}.",
+                        "additionalProperties": ["type": "string"] as [String: Any]
+                    ],
+                    "rationale": ["type": "string", "description": "One-sentence reason — why does this delta follow from your analysis?"]
+                ],
+                "required": ["kind", "payload", "rationale"]
+            ] as [String: Any]
+        ],
+        [
+            "name": "flag_open_question",
+            "description": "Record a question you cannot answer without operator input. Surfaces as a badge on your business card so the user knows they owe you a decision before you can finalize.",
+            "input_schema": [
+                "type": "object",
+                "properties": ["question": ["type": "string", "description": "One question, phrased so the operator can answer it succinctly."]],
+                "required": ["question"]
+            ] as [String: Any]
+        ],
+        [
+            "name": "flag_concern",
+            "description": "Record a critique of a peer consultant's analysis. Surfaces when the user next visits that peer. Use sparingly — only when a peer's premise materially affects your own analysis.",
+            "input_schema": [
+                "type": "object",
+                "properties": [
+                    "peer_stage": ["type": "integer", "description": "Stage number 1–6 of the peer you are critiquing (1=Menger, 2=Wieser, 3=Böhm-Bawerk, 4=Wicksteed, 5=Mises, 6=Hayek)."],
+                    "concern": ["type": "string", "description": "What you would tell that peer if they were in the room."]
+                ],
+                "required": ["peer_stage", "concern"]
+            ] as [String: Any]
+        ],
+        [
+            "name": "read_peer_notes",
+            "description": "Read a peer consultant's current note (summary + proposed deltas + open questions). Returns JSON. Call before forming an opinion that depends on what a peer concluded.",
+            "input_schema": [
+                "type": "object",
+                "properties": ["stage": ["type": "integer", "description": "Stage number 1–6 of the peer whose note you want to read."]],
+                "required": ["stage"]
+            ] as [String: Any]
+        ],
+        [
+            "name": "read_working_model",
+            "description": "Read the current published pricing proposal (tool prices, pipeline, projections) as JSON. Returns the most recent merged state — empty if Hayek has not yet synthesized.",
+            "input_schema": ["type": "object", "properties": [:] as [String: Any]]
+        ],
+    ]
+
+    /// Tools available only to Hayek (Managing Partner, stage 6).
+    nonisolated(unsafe) static let hayekTools: [[String: Any]] = [
+        [
+            "name": "merge_proposal",
+            "description": "Synthesize all consultants' notes and deltas into the deployable PricingProposal. Overwrites the current proposal. Only Hayek may call this — it is the act of synthesis.",
+            "input_schema": [
+                "type": "object",
+                "properties": [
+                    "proposal_json": [
+                        "type": "string",
+                        "description": "A JSON object matching PricingProposal: {tool_prices: [{tool_id, tool_name, price_sats, ...}], pipeline: [{type, params, ...}], projections: {projections: [{scenario, monthly_users, calls_per_user_per_month, revenue_sats, revenue_usd}, ...], tool_count, avg_price_sats}}."
+                    ]
+                ],
+                "required": ["proposal_json"]
+            ] as [String: Any]
+        ],
+    ]
+
+    /// Callback the view model registers per session to handle consultant + Hayek tool calls.
+    /// Closes over the active campaign and computes the active stage at call time.
+    /// Returns (chatBubbleMarkdown, machineResultForClaude).
+    nonisolated(unsafe) static var executeConsultantTool: ((String, [String: Any]) async -> (bubble: String, result: String))?
+
     // MARK: - Tool Executor
 
     /// Callback to execute MCP tool calls (Oracle + operator). Set by ContentView.
@@ -90,9 +185,22 @@ final class AnthropicService: @unchecked Sendable {
     /// Callback to execute operator MCP tool calls (different endpoint from Oracle).
     nonisolated(unsafe) static var executeOperatorTool: ((String, [String: Any]) async -> String)?
 
-    /// Combined tool list: Oracle + operator tools.
+    /// Combined tool list: Oracle + operator + consultant tools.
+    /// Consultant tools (and Hayek's merge_proposal) are only included when the
+    /// view model has registered an `executeConsultantTool` callback — i.e.,
+    /// when the user is inside the Pricing Consultant flow.
     static var allTools: [[String: Any]] {
-        oracleTools + operatorTools
+        var tools = oracleTools + operatorTools
+        if executeConsultantTool != nil {
+            tools += consultantTools + hayekTools
+        }
+        return tools
+    }
+
+    /// True if `name` is one of our consultant or Hayek-only local tools.
+    private static func isConsultantTool(_ name: String) -> Bool {
+        consultantTools.contains { ($0["name"] as? String) == name } ||
+        hayekTools.contains { ($0["name"] as? String) == name }
     }
 
     // MARK: - Send Message (with tool use)
@@ -181,14 +289,20 @@ final class AnthropicService: @unchecked Sendable {
             // Execute the tool, append assistant tool_use + user tool_result
             // to apiMessages, and loop for Claude's next move.
             let isOracleTool = Self.oracleTools.contains { ($0["name"] as? String) == toolUse.name }
-            let label = isOracleTool ? "Oracle" : "Operator"
+            let isConsultantTool = Self.isConsultantTool(toolUse.name)
+            let label = isOracleTool ? "Oracle" : (isConsultantTool ? "Consultant" : "Operator")
 
             await MainActor.run {
                 TrafficLogger.shared.log(.outbound, label: "\(label) Tool",
                                          detail: "Claude called: \(toolUse.name) (round \(iteration))")
             }
 
-            continuation.yield("\n\n*Consulting \(label)…*\n\n")
+            // Consultant tools render their own inline bubble after execution
+            // (showing what was actually proposed). Oracle/Operator tools get
+            // the existing "*Consulting X…*" placeholder while we wait.
+            if !isConsultantTool {
+                continuation.yield("\n\n*Consulting \(label)…*\n\n")
+            }
 
             let mcpToolName = Self.toolNameMap[toolUse.name] ?? toolUse.name
             let toolInput = toolUse.input
@@ -201,7 +315,13 @@ final class AnthropicService: @unchecked Sendable {
             var toolResult: String
             if isOracleTool, let executor = Self.executeOracleTool {
                 toolResult = await executor(mcpToolName, toolInput)
-            } else if !isOracleTool, let executor = Self.executeOperatorTool {
+            } else if isConsultantTool, let executor = Self.executeConsultantTool {
+                let outcome = await executor(toolUse.name, toolInput)
+                if !outcome.bubble.isEmpty {
+                    continuation.yield(outcome.bubble)
+                }
+                toolResult = outcome.result
+            } else if !isOracleTool, !isConsultantTool, let executor = Self.executeOperatorTool {
                 toolResult = await executor(toolUse.name, toolInput)
             } else {
                 toolResult = "\(label) tool executor not configured."

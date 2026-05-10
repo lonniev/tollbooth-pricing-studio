@@ -154,6 +154,7 @@ final class PricingConsultantViewModel {
 
         // Configure operator tool access for the AI advisor
         configureOperatorTools(context: context)
+        configureConsultantTools()
 
         let opener = "Let's design a pricing campaign."
         let userMessage = AssistantMessage(role: .user, content: opener, stageNumber: 1)
@@ -225,6 +226,9 @@ final class PricingConsultantViewModel {
         // Ensure operator tools are configured (may be first call after loadCampaign)
         if AnthropicService.operatorTools.isEmpty {
             configureOperatorTools(context: context)
+        }
+        if AnthropicService.executeConsultantTool == nil {
+            configureConsultantTools()
         }
         let targetStage = viewingStageNumber ?? interviewProgress.stageNumber
         let userMessage = AssistantMessage(role: .user, content: text, stageNumber: targetStage)
@@ -348,6 +352,26 @@ final class PricingConsultantViewModel {
     /// Navigate to a stage without auto-beginning (for viewing completed stages).
     func revisitStage(_ stageNumber: Int) {
         viewingStageNumber = stageNumber
+    }
+
+    /// Open Hayek's room (stage 6) and prime him to synthesize the team's notes
+    /// into the final PricingProposal. If Hayek already has a transcript we add
+    /// to it; otherwise this is the opening turn of his consultation.
+    ///
+    /// Hayek's persona prompt instructs him to call `merge_proposal` when the
+    /// user signals readiness — this method is that signal made explicit.
+    func requestFinalProposal(context: ConsultantContext) {
+        viewingStageNumber = 6
+        let opener = """
+        I'm ready for your synthesis. Please review every consultant's notes \
+        (Menger, Wieser, Böhm-Bawerk, Wicksteed, Mises) — including their \
+        proposed deltas and open questions — then merge a coherent draft \
+        PricingProposal via merge_proposal. Lead with a one-paragraph BLUF \
+        explaining which peers' analyses were loadbearing for which decisions, \
+        then show the merged proposal for my review.
+        """
+        send(opener, context: context)
+        logger.info("Requested final-proposal synthesis from Hayek")
     }
 
     /// Redo a specific interview stage: clear that stage's messages and
@@ -757,11 +781,226 @@ final class PricingConsultantViewModel {
         logger.info("Configured \(readOnlyTools.count) operator tools for AI advisor: \(toolNames) at \(endpointString)")
     }
 
+    // MARK: - Consultant Local Tool Executor
+
+    /// Wire up the in-process tools the consultants call to record summaries,
+    /// propose deltas, flag concerns, and (for Hayek) merge the final proposal.
+    /// Idempotent — safe to call from configureOperatorTools or directly.
+    private func configureConsultantTools() {
+        AnthropicService.executeConsultantTool = { [weak self] toolName, input in
+            guard let self = self else {
+                return ("", "{\"error\":\"Consultant view model unavailable.\"}")
+            }
+            return await self.executeLocalConsultantTool(name: toolName, input: input)
+        }
+    }
+
+    /// Coerce a JSON value to a `String` for our flat string-keyed payloads.
+    /// Claude often sends numbers where the schema asks for strings; accept both.
+    private static func stringValue(_ raw: Any?) -> String? {
+        if let s = raw as? String { return s }
+        if let i = raw as? Int { return String(i) }
+        if let d = raw as? Double { return String(d) }
+        if let b = raw as? Bool { return b ? "true" : "false" }
+        return nil
+    }
+
+    private static func intValue(_ raw: Any?) -> Int? {
+        if let i = raw as? Int { return i }
+        if let d = raw as? Double { return Int(d) }
+        if let s = raw as? String { return Int(s) }
+        return nil
+    }
+
+    private func activeStage() -> Int {
+        viewingStageNumber ?? interviewProgress.stageNumber
+    }
+
+    private func executeLocalConsultantTool(name: String, input: [String: Any]) -> (bubble: String, result: String) {
+        guard let campaign = currentCampaign else {
+            return ("", "{\"error\":\"No active campaign.\"}")
+        }
+
+        switch name {
+        case "update_summary":
+            let summary = (Self.stringValue(input["summary"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !summary.isEmpty else {
+                return ("", "{\"error\":\"summary is required\"}")
+            }
+            let stage = activeStage()
+            var note = campaign.note(forStage: stage)
+            note.summary = summary
+            note.lastMetAt = Date()
+            campaign.setNote(note, forStage: stage)
+            return ("\n\n_Summary updated._\n\n", "{\"ok\":true,\"stage\":\(stage)}")
+
+        case "propose_delta":
+            let kindRaw = Self.stringValue(input["kind"]) ?? ""
+            guard let kind = PricingDelta.Kind(rawValue: kindRaw) else {
+                return ("", "{\"error\":\"unknown kind '\(kindRaw)'\"}")
+            }
+            let rationale = (Self.stringValue(input["rationale"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let payloadIn = (input["payload"] as? [String: Any]) ?? [:]
+            var payload: [String: String] = [:]
+            for (k, v) in payloadIn {
+                if let s = Self.stringValue(v) { payload[k] = s }
+            }
+            let stage = activeStage()
+            let delta = PricingDelta(
+                kind: kind,
+                proposedByStage: stage,
+                rationale: rationale,
+                payload: payload
+            )
+            var note = campaign.note(forStage: stage)
+            note.proposedDeltas.append(delta)
+            note.lastMetAt = Date()
+            campaign.setNote(note, forStage: stage)
+
+            let bubble = Self.bubbleForDelta(delta, byConsultant: ConsultantRoster.forStage(stage))
+            return (bubble, "{\"ok\":true,\"delta_id\":\"\(delta.id.uuidString)\"}")
+
+        case "flag_open_question":
+            let question = (Self.stringValue(input["question"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !question.isEmpty else {
+                return ("", "{\"error\":\"question is required\"}")
+            }
+            let stage = activeStage()
+            var note = campaign.note(forStage: stage)
+            note.openQuestions.append(question)
+            campaign.setNote(note, forStage: stage)
+            return ("\n\n❓ **Open question for the operator:** \(question)\n\n", "{\"ok\":true}")
+
+        case "flag_concern":
+            guard let peerStage = Self.intValue(input["peer_stage"]),
+                  peerStage >= 1, peerStage <= 6 else {
+                return ("", "{\"error\":\"peer_stage must be an integer 1–6\"}")
+            }
+            let concern = (Self.stringValue(input["concern"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !concern.isEmpty else {
+                return ("", "{\"error\":\"concern is required\"}")
+            }
+            let stage = activeStage()
+            var note = campaign.note(forStage: stage)
+            note.concernsAboutPeers[peerStage] = concern
+            campaign.setNote(note, forStage: stage)
+            let peerName = ConsultantRoster.forStage(peerStage)?.displayName ?? "Stage \(peerStage)"
+            return ("\n\n⚠ **Concern about \(peerName):** \(concern)\n\n", "{\"ok\":true}")
+
+        case "read_peer_notes":
+            guard let peerStage = Self.intValue(input["stage"]),
+                  peerStage >= 1, peerStage <= 6 else {
+                return ("", "{\"error\":\"stage must be an integer 1–6\"}")
+            }
+            let note = campaign.note(forStage: peerStage)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            let data = (try? encoder.encode(note)) ?? Data()
+            return ("", String(data: data, encoding: .utf8) ?? "{}")
+
+        case "read_working_model":
+            guard let proposal = campaign.proposal else {
+                return ("", "{\"status\":\"no_proposal_yet\"}")
+            }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            let data = (try? encoder.encode(proposal)) ?? Data()
+            return ("", String(data: data, encoding: .utf8) ?? "{}")
+
+        case "merge_proposal":
+            // Hayek-only — guard by stage so other consultants can't synthesize.
+            guard activeStage() == 6 else {
+                return ("", "{\"error\":\"merge_proposal may only be called by Hayek (stage 6).\"}")
+            }
+            guard let json = Self.stringValue(input["proposal_json"]),
+                  let data = json.data(using: .utf8) else {
+                return ("", "{\"error\":\"proposal_json is required\"}")
+            }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            do {
+                var proposal = try decoder.decode(PricingProposal.self, from: data)
+                proposal.generatedAt = Date()
+                campaign.proposal = proposal
+                let toolCount = proposal.toolPrices?.count ?? 0
+                let pipelineCount = proposal.pipeline?.count ?? 0
+                let bubble = "\n\n✦ **Final proposal merged.** \(toolCount) tool prices, \(pipelineCount) pipeline steps.\n\n"
+                return (bubble, "{\"ok\":true,\"tool_count\":\(toolCount),\"pipeline_count\":\(pipelineCount)}")
+            } catch {
+                return ("", "{\"error\":\"could not parse proposal_json: \(error.localizedDescription)\"}")
+            }
+
+        default:
+            return ("", "{\"error\":\"unknown consultant tool '\(name)'\"}")
+        }
+    }
+
+    private static func bubbleForDelta(_ delta: PricingDelta, byConsultant consultant: Consultant?) -> String {
+        let by = consultant?.displayName ?? "Stage \(delta.proposedByStage)"
+        let rationaleSuffix = delta.rationale.isEmpty ? "" : " — _\(delta.rationale)_"
+        switch delta.kind {
+        case .toolPrice:
+            let tool = delta.payload["tool_name"] ?? "?"
+            let sats = delta.payload["sats"] ?? "?"
+            return "\n\n› **\(by) proposes:** \(tool) → \(sats) sats\(rationaleSuffix)\n\n"
+        case .addConstraint:
+            let type = delta.payload["type"] ?? "?"
+            return "\n\n› **\(by) proposes constraint:** \(type)\(rationaleSuffix)\n\n"
+        case .removeConstraint:
+            let idx = delta.payload["index"] ?? "?"
+            return "\n\n› **\(by) drops constraint #\(idx)**\(rationaleSuffix)\n\n"
+        case .projectionAssumption:
+            let scenario = delta.payload["scenario"] ?? "?"
+            let field = delta.payload["field"] ?? "?"
+            let value = delta.payload["value"] ?? "?"
+            return "\n\n› **\(by) sets \(scenario).\(field) = \(value)**\(rationaleSuffix)\n\n"
+        }
+    }
+
     // MARK: - System Prompt Assembly
 
+    /// Compact roster of all six consultants, marking the active one.
+    /// Ten lines, ~60 tokens — cheap enough to include on every turn so the
+    /// consultant can reference colleagues by name without us having to teach
+    /// them a separate "who's on the team" tool.
+    private func teamRosterSnippet(activeStage: Int) -> String {
+        var lines: [String] = ["", "## Your Team"]
+        for c in ConsultantRoster.all {
+            let marker = c.stage == activeStage ? "→" : " "
+            lines.append("\(marker) \(c.stage). \(c.displayName) — \(c.title)")
+        }
+        lines.append("")
+        lines.append("Reference colleagues by family name (Menger, Wieser, Böhm-Bawerk, Wicksteed, Mises, Hayek) when their analysis bears on yours. Hayek alone synthesizes the team's findings into the final proposal — defer to that role rather than producing a synthesis yourself.")
+        return lines.joined(separator: "\n")
+    }
+
     /// Build a stage-specific system prompt that includes prior-stage context.
+    ///
+    /// Assembly order — persona first, then engagement rules, then mandate, then peers:
+    ///   1. Consultant persona (who you are, voice cues, role on the team)
+    ///   2. Team roster (who your colleagues are; reference them by name)
+    ///   3. Base prompt (formatting, BLUF, PROGRESS markers, tool-use rules)
+    ///   4. Current mandate (this stage's focus)
+    ///   5. Constraint catalog (stage 5+)
+    ///   6. Prior peer findings (attributed by consultant name, not "Phase N")
     private func buildStageSystemPrompt(stage: Int, context: ConsultantContext) -> String {
-        var parts: [String] = [buildBaseSystemPrompt(context: context)]
+        var parts: [String] = []
+
+        if let consultant = ConsultantRoster.forStage(stage) {
+            parts.append(consultant.systemPromptCore)
+            parts.append(teamRosterSnippet(activeStage: stage))
+            parts.append("""
+
+            The remainder of this prompt is the engagement's standing rules — output \
+            formatting, machine-parsed markers, and tool-use protocol — that apply to \
+            every consultant on the team. Read them in character; they constrain *how* \
+            you communicate, not *who* you are.
+            """)
+        }
+
+        parts.append(buildBaseSystemPrompt(context: context))
 
         // Stage-specific focus instruction
         let stageFocus: [Int: String] = [
@@ -813,7 +1052,8 @@ final class PricingConsultantViewModel {
         ]
 
         if let focus = stageFocus[stage] {
-            parts.append("\n## Current Phase\n\(focus)")
+            let header = ConsultantRoster.forStage(stage) == nil ? "Current Phase" : "Your Mandate"
+            parts.append("\n## \(header)\n\(focus)")
         }
 
         // Inject full constraint catalog for stages that formulate pipelines
@@ -824,21 +1064,30 @@ final class PricingConsultantViewModel {
         // For stages 2+, inject summaries from completed prior stages.
         // Each stage is a separate conversation, so the LLM has no memory
         // of prior stages. We give it the final assistant response from each
-        // completed prior stage as a rich summary, plus parsed insight fields.
+        // completed prior stage, attributed to the peer consultant who produced
+        // it so the active consultant can reference colleagues by name.
         if stage >= 2 {
+            let activeIsConsultant = ConsultantRoster.forStage(stage) != nil
+            let header = activeIsConsultant ? "Peer Briefings" : "Context from Prior Phases"
+            let intro = activeIsConsultant
+                ? "Your colleagues have already spoken with the operator. Their conclusions follow — when relevant, reference them by family name in your own analysis."
+                : "Each phase was a separate conversation. Here are the conclusions:"
             var priorContext: [String] = [
-                "\n## Context from Prior Phases",
-                "Each phase was a separate conversation. Here are the conclusions:",
+                "\n## \(header)",
+                intro,
             ]
             let insights = interviewProgress.insights
 
             let stageLabels = InterviewProgress.stageLabels
             for priorStage in 1..<stage {
-                let label = priorStage <= stageLabels.count ? stageLabels[priorStage - 1] : "Stage \(priorStage)"
                 let msgs = stageMessages[priorStage] ?? []
-                if let lastAssistant = msgs.last(where: { $0.role == .assistant && !$0.content.isEmpty }) {
-                    // Truncate to ~800 chars to keep prompt manageable
-                    let summary = String(lastAssistant.content.prefix(800))
+                guard let lastAssistant = msgs.last(where: { $0.role == .assistant && !$0.content.isEmpty }) else { continue }
+                // Truncate to ~800 chars to keep prompt manageable
+                let summary = String(lastAssistant.content.prefix(800))
+                if let peer = ConsultantRoster.forStage(priorStage) {
+                    priorContext.append("\n### From \(peer.displayName) — \(peer.title)\n\(summary)")
+                } else {
+                    let label = priorStage <= stageLabels.count ? stageLabels[priorStage - 1] : "Stage \(priorStage)"
                     priorContext.append("\n### Phase \(priorStage): \(label)\n\(summary)")
                 }
             }

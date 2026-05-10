@@ -40,16 +40,19 @@ struct PricingConsultantView: View {
             Divider()
 
             if !consultantVM.messages.isEmpty {
-                InterviewStepperView(
-                    progress: consultantVM.interviewProgress,
-                    viewingStageNumber: consultantVM.viewingStageNumber,
-                    isStreaming: consultantVM.isStreaming,
-                    onStageTapped: { stage in
+                ConsultantBench(
+                    activeStage: consultantVM.viewingStageNumber ?? consultantVM.interviewProgress.stageNumber,
+                    notes: consultantVM.currentCampaign?.consultantNotes ?? [:],
+                    latestPeerUpdate: latestPeerUpdate(),
+                    compact: true,
+                    onSelectStage: { stage in
                         consultantVM.revisitStage(stage)
+                    },
+                    onPrepareFinalProposal: {
+                        consultantVM.requestFinalProposal(context: context)
                     }
                 )
-                .padding(.horizontal)
-                .padding(.vertical, 8)
+                .background(Color(uiColor: .secondarySystemBackground))
 
                 InsightSummaryCard(progress: consultantVM.interviewProgress, projections: consultantVM.revenueProjections)
                     .padding(.horizontal)
@@ -762,6 +765,18 @@ struct PricingConsultantView: View {
         .padding(.vertical, 8)
     }
 
+
+    // MARK: - Bench Helpers
+
+    /// Most recent `lastMetAt` across all consultants — used by the bench to
+    /// decide which cards should show the "new peer input" badge.
+    private func latestPeerUpdate() -> Date? {
+        consultantVM.currentCampaign?
+            .consultantNotes
+            .values
+            .compactMap { $0.lastMetAt }
+            .max()
+    }
 
     // MARK: - Actions
 
