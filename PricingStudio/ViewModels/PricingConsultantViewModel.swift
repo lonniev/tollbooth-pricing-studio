@@ -354,6 +354,27 @@ final class PricingConsultantViewModel {
         viewingStageNumber = stageNumber
     }
 
+    /// Open the named consultant's room and start their conversation with a
+    /// stage-tailored opener. Use this when a consultant card is clicked but
+    /// that consultant has no transcript yet — distinct from `startInterview`,
+    /// which wipes the campaign and restarts from Inventory (Menger).
+    ///
+    /// Other stages' transcripts and the loaded campaign are preserved; this
+    /// just begins one consultant's first turn.
+    func beginMeeting(withStage stage: Int, context: ConsultantContext) {
+        guard let consultant = ConsultantRoster.forStage(stage) else { return }
+        viewingStageNumber = stage
+        if AnthropicService.operatorTools.isEmpty {
+            configureOperatorTools(context: context)
+        }
+        if AnthropicService.executeConsultantTool == nil {
+            configureConsultantTools()
+        }
+        let opener = "Hello \(consultant.displayName). I'm ready to begin our \(consultant.title.lowercased()) conversation — please open with whichever question you'd find most useful."
+        send(opener, context: context)
+        logger.info("Began meeting with \(consultant.displayName) (stage \(stage))")
+    }
+
     /// Open Hayek's room (stage 6) and prime him to synthesize the team's notes
     /// into the final PricingProposal. If Hayek already has a transcript we add
     /// to it; otherwise this is the opening turn of his consultation.

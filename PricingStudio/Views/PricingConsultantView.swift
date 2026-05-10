@@ -622,6 +622,13 @@ struct PricingConsultantView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
+        } else if consultantVM.currentCampaign != nil,
+                  let stage = consultantVM.viewingStageNumber,
+                  let consultant = ConsultantRoster.forStage(stage) {
+            // In an active campaign, viewing a consultant's room with no
+            // transcript yet — invite the user to begin THIS consultant's
+            // conversation, not restart the whole interview.
+            consultantIntro(consultant)
         } else {
             VStack(spacing: 16) {
                 Image(systemName: "wand.and.stars")
@@ -665,6 +672,42 @@ struct PricingConsultantView: View {
             .frame(maxWidth: .infinity)
             .padding(.top, 20)
         }
+    }
+
+    /// Empty-state introduction for a single consultant's unvisited room.
+    /// Shows their portrait, persona bio, and a "Begin meeting" button that
+    /// initiates THAT consultant's conversation without touching peers.
+    @ViewBuilder
+    private func consultantIntro(_ consultant: Consultant) -> some View {
+        VStack(spacing: 16) {
+            ConsultantBusinessCard(
+                consultant: consultant,
+                state: .unvisited,
+                compact: false
+            )
+            .allowsHitTesting(false)
+
+            VStack(spacing: 6) {
+                Text("You haven't met with \(consultant.displayName) yet.")
+                    .font(.headline)
+                Text(consultant.bio)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 480)
+                    .padding(.horizontal)
+            }
+
+            Button {
+                consultantVM.beginMeeting(withStage: consultant.stage, context: context)
+            } label: {
+                Label("Begin meeting with \(consultant.displayName)", systemImage: "play.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(consultant.accentColor)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 24)
     }
 
     // MARK: - Bubble
