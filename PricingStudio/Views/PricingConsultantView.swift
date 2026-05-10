@@ -454,48 +454,46 @@ struct PricingConsultantView: View {
 
     @ViewBuilder
     private var messageList: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    if consultantVM.displayedMessages.isEmpty {
-                        emptyState
-                    } else {
-                        // Show only the current stage's conversation
-                        ForEach(consultantVM.displayedMessages) { message in
-                            bubble(message)
-                                .id(message.id)
-                        }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                if consultantVM.displayedMessages.isEmpty {
+                    emptyState
+                } else {
+                    // Show only the current stage's conversation
+                    ForEach(consultantVM.displayedMessages) { message in
+                        bubble(message)
+                            .id(message.id)
                     }
+                }
 
-                    // While Anthropic is processing — including the silent
-                    // gaps between tool rounds — show rotating quotes from
-                    // the dpyc-community registry so the screen never goes
-                    // blank during dead air.
-                    if consultantVM.isStreaming {
-                        VStack(spacing: 8) {
-                            if consultantVM.interviewProgress.stageNumber == 6 {
-                                Text("Preparing your recommendation...")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                            LoadingQuoteView()
-                                .frame(minHeight: 100)
+                // While Anthropic is processing — including the silent
+                // gaps between tool rounds — show rotating quotes from
+                // the dpyc-community registry so the screen never goes
+                // blank during dead air.
+                if consultantVM.isStreaming {
+                    VStack(spacing: 8) {
+                        if consultantVM.interviewProgress.stageNumber == 6 {
+                            Text("Preparing your recommendation...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
-                        .id("streaming-indicator")
+                        LoadingQuoteView()
+                            .frame(minHeight: 100)
                     }
-                }
-                .padding()
-            }
-            .onChange(of: consultantVM.displayedMessages.last?.content) { _, _ in
-                if let lastId = consultantVM.displayedMessages.last?.id {
-                    withAnimation {
-                        proxy.scrollTo(lastId, anchor: .bottom)
-                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .id("streaming-indicator")
                 }
             }
+            .padding()
         }
+        // Pin the BOTTOM of the content to the viewport bottom and re-anchor
+        // automatically as content grows (per-token streaming, new tool
+        // rounds, the LoadingQuoteView toggling). Replaces a manual
+        // proxy.scrollTo(lastId, anchor: .bottom) that fired per token but
+        // lagged the layout, leaving streaming text below the fold during
+        // fast bursts.
+        .defaultScrollAnchor(.bottom)
     }
 
 
