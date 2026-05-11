@@ -327,6 +327,11 @@ struct AccountStatementPaperView: View {
     /// Produce a fixed-width text rendering of the same statement so the
     /// patron can paste it into a note, email, or Nostr DM. Pure ASCII so
     /// it survives copy/paste through any client.
+    ///
+    /// Uses Swift-native string padding rather than `String(format:)`; the
+    /// `%s` format specifier expects a C string (`UnsafePointer<CChar>`),
+    /// not a Swift `String`, and passing the latter crashes with
+    /// `EXC_BAD_ACCESS` at runtime.
     func plainText() -> String {
         var lines: [String] = []
         lines.append("ACCOUNT STATEMENT")
@@ -344,12 +349,12 @@ struct AccountStatementPaperView: View {
 
         if let s = statement.summary {
             lines.append("SUMMARY")
-            lines.append(String(format: "  Balance:    %@ sats", s.balanceApiSats.formatted()))
-            lines.append(String(format: "  Deposited:  %@ sats", s.totalDepositedApiSats.formatted()))
-            lines.append(String(format: "  Consumed:   %@ sats", s.totalConsumedApiSats.formatted()))
-            lines.append(String(format: "  Expired:    %@ sats", s.totalExpiredApiSats.formatted()))
+            lines.append("  Balance:    \(s.balanceApiSats.formatted()) sats")
+            lines.append("  Deposited:  \(s.totalDepositedApiSats.formatted()) sats")
+            lines.append("  Consumed:   \(s.totalConsumedApiSats.formatted()) sats")
+            lines.append("  Expired:    \(s.totalExpiredApiSats.formatted()) sats")
             let net = s.totalDepositedApiSats - s.totalConsumedApiSats - s.totalExpiredApiSats
-            lines.append(String(format: "  Net:        %@ sats  (= deposited - consumed - expired)", net.formatted()))
+            lines.append("  Net:        \(net.formatted()) sats  (= deposited - consumed - expired)")
             lines.append("")
             lines.append(String(repeating: "-", count: 56))
         }
@@ -368,25 +373,30 @@ struct AccountStatementPaperView: View {
         if !statement.toolUsage.isEmpty {
             lines.append("TOOLS USED")
             // Column widths: Item 36, Qty 5, Sats/call 12, Total 8
-            let header = String(format: "  %-36s %5s %12s %8s", "Item", "Qty", "Sats / call", "Total")
-            lines.append(header)
+            lines.append("  "
+                         + leftPad("Item", to: 36) + " "
+                         + rightPad("Qty", to: 5) + " "
+                         + rightPad("Sats / call", to: 12) + " "
+                         + rightPad("Total", to: 8))
             lines.append("  " + String(repeating: "-", count: 64))
             for stat in statement.toolUsage {
-                let nameTrunc = stat.tool.count > 36
+                let name = stat.tool.count > 36
                     ? String(stat.tool.prefix(33)) + "..."
                     : stat.tool
-                lines.append(String(
-                    format: "  %-36s %5d %12s %8d",
-                    nameTrunc,
-                    stat.calls,
-                    unitPriceDisplay(calls: stat.calls, sats: stat.apiSats),
-                    stat.apiSats
-                ))
+                lines.append("  "
+                             + leftPad(name, to: 36) + " "
+                             + rightPad("\(stat.calls)", to: 5) + " "
+                             + rightPad(unitPriceDisplay(calls: stat.calls, sats: stat.apiSats), to: 12) + " "
+                             + rightPad("\(stat.apiSats)", to: 8))
             }
             let totalCalls = statement.toolUsage.reduce(0) { $0 + $1.calls }
             let totalSats = statement.toolUsage.reduce(0) { $0 + $1.apiSats }
             lines.append("  " + String(repeating: "-", count: 64))
-            lines.append(String(format: "  %-36s %5d %12s %8d", "Totals", totalCalls, "—", totalSats))
+            lines.append("  "
+                         + leftPad("Totals", to: 36) + " "
+                         + rightPad("\(totalCalls)", to: 5) + " "
+                         + rightPad("—", to: 12) + " "
+                         + rightPad("\(totalSats)", to: 8))
             lines.append("")
             lines.append("  Note — Sats/call is the period average (line total / calls).")
             lines.append("  If the operator changed a tool's price during this period, simple")
@@ -397,13 +407,19 @@ struct AccountStatementPaperView: View {
 
         if !statement.invoiceItems.isEmpty {
             lines.append("INVOICES")
-            let header = String(format: "  %-12s %-10s %10s %10s", "Date", "Status", "Sats paid", "Credited")
-            lines.append(header)
+            lines.append("  "
+                         + leftPad("Date", to: 12) + " "
+                         + leftPad("Status", to: 10) + " "
+                         + rightPad("Sats paid", to: 10) + " "
+                         + rightPad("Credited", to: 10))
             lines.append("  " + String(repeating: "-", count: 50))
             for item in statement.invoiceItems {
                 let date = item.createdAt?.formatted(date: .numeric, time: .omitted) ?? "—"
-                lines.append(String(format: "  %-12s %-10s %10d %10d",
-                                    date, item.status, item.amountSats, item.apiSatsCredited))
+                lines.append("  "
+                             + leftPad(date, to: 12) + " "
+                             + leftPad(item.status, to: 10) + " "
+                             + rightPad("\(item.amountSats)", to: 10) + " "
+                             + rightPad("\(item.apiSatsCredited)", to: 10))
             }
             lines.append("")
             lines.append(String(repeating: "-", count: 56))
@@ -413,6 +429,20 @@ struct AccountStatementPaperView: View {
         lines.append("--- end of statement ---")
         lines.append("dpyc.community")
         return lines.joined(separator: "\n")
+    }
+
+    /// Left-aligned padding: pad spaces to the right of the string to reach
+    /// `width`. Truncates if the string is already wider.
+    private func leftPad(_ s: String, to width: Int) -> String {
+        if s.count >= width { return String(s.prefix(width)) }
+        return s + String(repeating: " ", count: width - s.count)
+    }
+
+    /// Right-aligned padding: pad spaces to the left of the string.
+    /// Truncates if the string is already wider.
+    private func rightPad(_ s: String, to width: Int) -> String {
+        if s.count >= width { return String(s.prefix(width)) }
+        return String(repeating: " ", count: width - s.count) + s
     }
 }
 
