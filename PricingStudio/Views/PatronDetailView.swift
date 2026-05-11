@@ -177,7 +177,8 @@ private struct OperatorBalanceCard: View {
                 onNotifyOperator: onOpenMessages.map { callback in
                     { callback(balance.id) }
                 },
-                onSettled: { onRefreshNeeded?() }
+                onSettled: { onRefreshNeeded?() },
+                beneficiaryDisplayName: patron.displayName
             )
         }
         .sheet(isPresented: $showingInfographic) {
@@ -568,6 +569,10 @@ struct TopOffSheet: View {
     let accountVM: PatronAccountViewModel
     var onNotifyOperator: (() -> Void)?
     var onSettled: (() -> Void)?
+    /// Caller-supplied display name for the beneficiary npub, when the parent
+    /// view already knows it (e.g., presenting this sheet from a specific
+    /// Patron's page). Bypasses the SwiftData walk for the obvious case.
+    var beneficiaryDisplayName: String? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -894,12 +899,18 @@ struct TopOffSheet: View {
         QRCodeView(string)
     }
 
-    /// Beneficiary label — display name when the npub is known to one of the
-    /// app's actor registries (Patron / Operator / Authority / Contact);
-    /// truncated raw npub otherwise.
+    /// Beneficiary label — prefers a caller-supplied display name (the
+    /// "obvious choice" from the parent view's context), falls back to the
+    /// SwiftData walk across Patron / Operator / Authority / Contact, and
+    /// finally renders a truncated raw npub.
     @ViewBuilder
     private func beneficiaryLabel(_ npub: String) -> some View {
-        if let name = NpubNameResolver.displayName(for: npub, in: modelContext) {
+        let hint = beneficiaryDisplayName?.trimmingCharacters(in: .whitespaces)
+        if let h = hint, !h.isEmpty {
+            Text(h)
+                .font(.subheadline.bold())
+                .foregroundStyle(.green)
+        } else if let name = NpubNameResolver.displayName(for: npub, in: modelContext) {
             Text(name)
                 .font(.subheadline.bold())
                 .foregroundStyle(.green)

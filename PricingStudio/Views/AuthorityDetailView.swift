@@ -57,7 +57,8 @@ struct AuthorityDetailView: View {
                     authorityNpub: authority.npub,
                     endpoint: endpoint,
                     balanceVM: balanceVM,
-                    authority: authority
+                    authority: authority,
+                    beneficiaryDisplayName: authority.displayName
                 )
             }
         }
@@ -69,7 +70,8 @@ struct AuthorityDetailView: View {
                     endpoint: endpoint,
                     balanceVM: balanceVM,
                     authority: authority,
-                    purchaserNpub: op.npub
+                    purchaserNpub: op.npub,
+                    beneficiaryDisplayName: op.displayName
                 )
             }
         }
@@ -682,6 +684,11 @@ struct AuthorityTopOffSheet: View {
     let balanceVM: AuthorityBalanceViewModel
     let authority: Authority
     var purchaserNpub: String = ""  // if non-empty, used instead of authorityNpub for purchase identity
+    /// Caller-supplied display name for whichever beneficiary npub will be
+    /// shown (authorityNpub when purchaserNpub is blank, otherwise
+    /// purchaserNpub). Bypasses the SwiftData walk when the parent already
+    /// knows the obvious owner of that npub.
+    var beneficiaryDisplayName: String? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -864,12 +871,18 @@ struct AuthorityTopOffSheet: View {
         }
     }
 
-    /// Beneficiary label — display name when the npub is known to one of the
-    /// app's actor registries (Patron / Operator / Authority / Contact);
-    /// truncated raw npub otherwise.
+    /// Beneficiary label — prefers a caller-supplied display name (the
+    /// "obvious choice" from the parent view's context), falls back to the
+    /// SwiftData walk across Patron / Operator / Authority / Contact, and
+    /// finally renders a truncated raw npub.
     @ViewBuilder
     private func beneficiaryLabel(_ npub: String) -> some View {
-        if let name = NpubNameResolver.displayName(for: npub, in: modelContext) {
+        let hint = beneficiaryDisplayName?.trimmingCharacters(in: .whitespaces)
+        if let h = hint, !h.isEmpty {
+            Text(h)
+                .font(.subheadline.bold())
+                .foregroundStyle(.green)
+        } else if let name = NpubNameResolver.displayName(for: npub, in: modelContext) {
             Text(name)
                 .font(.subheadline.bold())
                 .foregroundStyle(.green)
