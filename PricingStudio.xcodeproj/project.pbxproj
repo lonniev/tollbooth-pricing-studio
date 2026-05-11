@@ -141,6 +141,7 @@
 		DECD00010000000000000CB1 /* TeamPortraitCollage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000CA1 /* TeamPortraitCollage.swift */; };
 		DECD00010000000000000DB1 /* FinalProposalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000DA1 /* FinalProposalSheet.swift */; };
 		DECD00010000000000000EB1 /* AccountStatementPaperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000EA1 /* AccountStatementPaperView.swift */; };
+		DECD00010000000000000FB1 /* NpubNameResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000FA1 /* NpubNameResolver.swift */; };
 /* UI Test build files */
 		BB0000010000000000000F01 /* TestTeardown.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E01 /* TestTeardown.swift */; };
 		BB0000010000000000000F02 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E02 /* AppLaunchTests.swift */; };
@@ -303,6 +304,7 @@
 		DECD00010000000000000CA1 /* TeamPortraitCollage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamPortraitCollage.swift; sourceTree = "<group>"; };
 		DECD00010000000000000DA1 /* FinalProposalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinalProposalSheet.swift; sourceTree = "<group>"; };
 		DECD00010000000000000EA1 /* AccountStatementPaperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStatementPaperView.swift; sourceTree = "<group>"; };
+		DECD00010000000000000FA1 /* NpubNameResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NpubNameResolver.swift; sourceTree = "<group>"; };
 		CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPickerView.swift; sourceTree = "<group>"; };
 		D9844C99A73C4999A2235C1B /* PricingDiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingDiffView.swift; sourceTree = "<group>"; };
 		075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenInterviewView.swift; sourceTree = "<group>"; };
@@ -453,6 +455,7 @@
 				DECD000100000000000002A1 /* PricingProposal.swift */,
 				DECD000100000000000003A1 /* PeerReview.swift */,
 				DECD000100000000000007A1 /* ConsultantNote.swift */,
+				DECD00010000000000000FA1 /* NpubNameResolver.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -919,6 +922,7 @@
 				DECD00010000000000000CB1 /* TeamPortraitCollage.swift in Sources */,
 				DECD00010000000000000DB1 /* FinalProposalSheet.swift in Sources */,
 				DECD00010000000000000EB1 /* AccountStatementPaperView.swift in Sources */,
+				DECD00010000000000000FB1 /* NpubNameResolver.swift in Sources */,
 				AA000001000000000000001B /* ContentView.swift in Sources */,
 				AA000001000000000000001A /* PricingStudioApp.swift in Sources */,
 				AA00000100000000000000B1 /* Operator.swift in Sources */,

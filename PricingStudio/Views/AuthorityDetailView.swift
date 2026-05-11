@@ -683,6 +683,7 @@ struct AuthorityTopOffSheet: View {
     let authority: Authority
     var purchaserNpub: String = ""  // if non-empty, used instead of authorityNpub for purchase identity
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var selectedAmount = 1000
     @State private var customAmount = ""
@@ -713,9 +714,7 @@ struct AuthorityTopOffSheet: View {
             Form {
                 Section {
                     LabeledContent("Beneficiary") {
-                        Text(String((purchaserNpub.isEmpty ? authorityNpub : purchaserNpub).prefix(16)) + "...")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.green)
+                        beneficiaryLabel(purchaserNpub.isEmpty ? authorityNpub : purchaserNpub)
                     }
                     LabeledContent("Cashier") {
                         Text(authorityName)
@@ -862,6 +861,22 @@ struct AuthorityTopOffSheet: View {
             } catch {
                 paymentCheckState = .checked("Error: \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// Beneficiary label — display name when the npub is known to one of the
+    /// app's actor registries (Patron / Operator / Authority / Contact);
+    /// truncated raw npub otherwise.
+    @ViewBuilder
+    private func beneficiaryLabel(_ npub: String) -> some View {
+        if let name = NpubNameResolver.displayName(for: npub, in: modelContext) {
+            Text(name)
+                .font(.subheadline.bold())
+                .foregroundStyle(.green)
+        } else {
+            Text(String(npub.prefix(16)) + "…")
+                .font(.caption.monospaced())
+                .foregroundStyle(.green)
         }
     }
 

@@ -569,6 +569,7 @@ struct TopOffSheet: View {
     var onNotifyOperator: (() -> Void)?
     var onSettled: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var selectedAmount = 500
     @State private var customAmount = ""
@@ -613,9 +614,7 @@ struct TopOffSheet: View {
             Form {
                 Section {
                     LabeledContent("Beneficiary") {
-                        Text(String(patronNpub.prefix(16)) + "...")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.green)
+                        beneficiaryLabel(patronNpub)
                     }
                     LabeledContent("Cashier") {
                         Text(operatorName)
@@ -893,6 +892,22 @@ struct TopOffSheet: View {
     @ViewBuilder
     private func qrCodeImage(for string: String) -> some View {
         QRCodeView(string)
+    }
+
+    /// Beneficiary label — display name when the npub is known to one of the
+    /// app's actor registries (Patron / Operator / Authority / Contact);
+    /// truncated raw npub otherwise.
+    @ViewBuilder
+    private func beneficiaryLabel(_ npub: String) -> some View {
+        if let name = NpubNameResolver.displayName(for: npub, in: modelContext) {
+            Text(name)
+                .font(.subheadline.bold())
+                .foregroundStyle(.green)
+        } else {
+            Text(String(npub.prefix(16)) + "…")
+                .font(.caption.monospaced())
+                .foregroundStyle(.green)
+        }
     }
 }
 
