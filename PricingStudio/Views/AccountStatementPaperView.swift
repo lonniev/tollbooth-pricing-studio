@@ -37,9 +37,19 @@ struct AccountStatementPaperView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("ACCOUNT STATEMENT")
-                .font(.system(size: 17, weight: .bold, design: .monospaced))
-                .tracking(2.0)
+            HStack(alignment: .top) {
+                Text("ACCOUNT STATEMENT")
+                    .font(.system(size: 17, weight: .bold, design: .monospaced))
+                    .tracking(2.0)
+                Spacer()
+                ShareLink(item: plainText(),
+                          preview: SharePreview("Account Statement — \(operatorName)")) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .padding(6)
+                }
+                .accessibilityLabel("Share or copy statement as text")
+            }
             kv("Patron", patronName)
             kv("Npub", String(patronNpub.prefix(20)) + "…")
             kv("Operator", operatorName)
@@ -87,15 +97,69 @@ struct AccountStatementPaperView: View {
             if statement.toolUsage.isEmpty {
                 Text("(no usage recorded)").foregroundStyle(.secondary)
             } else {
-                ForEach(statement.toolUsage) { stat in
-                    toolRow(stat)
-                }
                 let totalCalls = statement.toolUsage.reduce(0) { $0 + $1.calls }
                 let totalSats = statement.toolUsage.reduce(0) { $0 + $1.apiSats }
-                Divider().padding(.vertical, 2)
-                kvRight("Totals",
-                        "\(totalCalls.formatted()) calls / \(totalSats.formatted()) sats",
-                        emphasize: true)
+                let anyAveraged = statement.toolUsage.contains { $0.calls > 0 && $0.apiSats % $0.calls != 0 }
+
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 2) {
+                    // Column headers
+                    GridRow {
+                        Text("Item")
+                            .columnHeader()
+                        Text("Qty")
+                            .columnHeader()
+                            .gridColumnAlignment(.trailing)
+                        Text("Sats / call")
+                            .columnHeader()
+                            .gridColumnAlignment(.trailing)
+                        Text("Line total")
+                            .columnHeader()
+                            .gridColumnAlignment(.trailing)
+                    }
+                    Divider().gridCellColumns(4)
+
+                    // Rows
+                    ForEach(statement.toolUsage) { stat in
+                        GridRow {
+                            Text(stat.tool)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text("\(stat.calls)")
+                                .gridColumnAlignment(.trailing)
+                            Text(unitPriceDisplay(calls: stat.calls, sats: stat.apiSats))
+                                .gridColumnAlignment(.trailing)
+                                .foregroundStyle(.secondary)
+                            Text("\(stat.apiSats)")
+                                .gridColumnAlignment(.trailing)
+                        }
+                    }
+
+                    Divider().gridCellColumns(4)
+
+                    // Totals row
+                    GridRow {
+                        Text("Totals")
+                            .fontWeight(.bold)
+                        Text("\(totalCalls)")
+                            .fontWeight(.bold)
+                            .gridColumnAlignment(.trailing)
+                        Text("—")
+                            .foregroundStyle(.tertiary)
+                            .gridColumnAlignment(.trailing)
+                        Text("\(totalSats) sats")
+                            .fontWeight(.bold)
+                            .gridColumnAlignment(.trailing)
+                    }
+                }
+
+                // Small print: explain when the unit price is misleading
+                Text(anyAveraged
+                     ? "Note — Sats / call is the period average (line total ÷ calls). For tools with fractional averages shown, the per-call price varied during the period; if the operator changed the price mid-statement the simple math (calls × sats per call) won't reproduce the line total exactly."
+                     : "Note — Sats / call reflects the simple line total ÷ calls. If the operator changed a tool's price during this statement period, that simple math won't generally hold; this snapshot is accurate only when per-tool pricing was stable for the whole period.")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 6)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -106,8 +170,26 @@ struct AccountStatementPaperView: View {
             if statement.invoiceItems.isEmpty {
                 Text("(none)").foregroundStyle(.secondary)
             } else {
-                ForEach(statement.invoiceItems) { item in
-                    invoiceRow(item)
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 2) {
+                    GridRow {
+                        Text("Date").columnHeader()
+                        Text("Status").columnHeader()
+                        Text("Sats paid").columnHeader().gridColumnAlignment(.trailing)
+                        Text("Credited").columnHeader().gridColumnAlignment(.trailing)
+                    }
+                    Divider().gridCellColumns(4)
+                    ForEach(statement.invoiceItems) { item in
+                        GridRow {
+                            Text(item.createdAt?.formatted(date: .numeric, time: .omitted) ?? "—")
+                            Text(item.status.uppercased())
+                                .foregroundStyle(statusColor(item.status))
+                            Text("\(item.amountSats)")
+                                .gridColumnAlignment(.trailing)
+                            Text("\(item.apiSatsCredited)")
+                                .gridColumnAlignment(.trailing)
+                                .foregroundStyle(item.apiSatsCredited == 0 ? .tertiary : .primary)
+                        }
+                    }
                 }
             }
         }
@@ -152,16 +234,16 @@ struct AccountStatementPaperView: View {
         .padding(.vertical, 1)
     }
 
-    private func toolRow(_ stat: MCPService.ToolUsageStat) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(stat.tool)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer()
-            Text("\(stat.calls) × — \(stat.apiSats) sats")
-                .foregroundStyle(.primary)
+    /// Period-average sats per call, computed as line total ÷ calls.
+    /// Whole numbers render as-is; fractional values render to 2 decimals
+    /// with a leading "~" to signal the average is approximate.
+    private func unitPriceDisplay(calls: Int, sats: Int) -> String {
+        guard calls > 0 else { return "—" }
+        if sats % calls == 0 {
+            return "\(sats / calls)"
+        } else {
+            return String(format: "~%.2f", Double(sats) / Double(calls))
         }
-        .padding(.vertical, 1)
     }
 
     private func invoiceRow(_ item: MCPService.InvoiceLineItem) -> some View {
@@ -238,5 +320,107 @@ struct AccountStatementPaperView: View {
         case "pending": return .orange
         default: return .secondary
         }
+    }
+
+    // MARK: - Plain-text rendering (for ShareLink)
+
+    /// Produce a fixed-width text rendering of the same statement so the
+    /// patron can paste it into a note, email, or Nostr DM. Pure ASCII so
+    /// it survives copy/paste through any client.
+    func plainText() -> String {
+        var lines: [String] = []
+        lines.append("ACCOUNT STATEMENT")
+        lines.append("Patron:    \(patronName)")
+        lines.append("Npub:      \(patronNpub.prefix(20))…")
+        lines.append("Operator:  \(operatorName)")
+        if let when = statement.generatedAt {
+            lines.append("Generated: \(when.formatted(date: .abbreviated, time: .shortened))")
+        }
+        if let period = statement.statementPeriodDays {
+            lines.append("Period:    Last \(period) days")
+        }
+        lines.append("")
+        lines.append(String(repeating: "-", count: 56))
+
+        if let s = statement.summary {
+            lines.append("SUMMARY")
+            lines.append(String(format: "  Balance:    %@ sats", s.balanceApiSats.formatted()))
+            lines.append(String(format: "  Deposited:  %@ sats", s.totalDepositedApiSats.formatted()))
+            lines.append(String(format: "  Consumed:   %@ sats", s.totalConsumedApiSats.formatted()))
+            lines.append(String(format: "  Expired:    %@ sats", s.totalExpiredApiSats.formatted()))
+            let net = s.totalDepositedApiSats - s.totalConsumedApiSats - s.totalExpiredApiSats
+            lines.append(String(format: "  Net:        %@ sats  (= deposited - consumed - expired)", net.formatted()))
+            lines.append("")
+            lines.append(String(repeating: "-", count: 56))
+        }
+
+        if !statement.activeTranches.isEmpty {
+            lines.append("ACTIVE TRANCHES")
+            for t in statement.activeTranches {
+                let granted = t.grantedAt?.formatted(date: .abbreviated, time: .omitted) ?? "—"
+                let expires = t.expiresAt?.formatted(date: .abbreviated, time: .omitted) ?? "—"
+                lines.append("  \(t.remainingSats)/\(t.originalSats) sats   granted \(granted)   expires \(expires)")
+            }
+            lines.append("")
+            lines.append(String(repeating: "-", count: 56))
+        }
+
+        if !statement.toolUsage.isEmpty {
+            lines.append("TOOLS USED")
+            // Column widths: Item 36, Qty 5, Sats/call 12, Total 8
+            let header = String(format: "  %-36s %5s %12s %8s", "Item", "Qty", "Sats / call", "Total")
+            lines.append(header)
+            lines.append("  " + String(repeating: "-", count: 64))
+            for stat in statement.toolUsage {
+                let nameTrunc = stat.tool.count > 36
+                    ? String(stat.tool.prefix(33)) + "..."
+                    : stat.tool
+                lines.append(String(
+                    format: "  %-36s %5d %12s %8d",
+                    nameTrunc,
+                    stat.calls,
+                    unitPriceDisplay(calls: stat.calls, sats: stat.apiSats),
+                    stat.apiSats
+                ))
+            }
+            let totalCalls = statement.toolUsage.reduce(0) { $0 + $1.calls }
+            let totalSats = statement.toolUsage.reduce(0) { $0 + $1.apiSats }
+            lines.append("  " + String(repeating: "-", count: 64))
+            lines.append(String(format: "  %-36s %5d %12s %8d", "Totals", totalCalls, "—", totalSats))
+            lines.append("")
+            lines.append("  Note — Sats/call is the period average (line total / calls).")
+            lines.append("  If the operator changed a tool's price during this period, simple")
+            lines.append("  math (calls × sats/call) won't reproduce the line total exactly.")
+            lines.append("")
+            lines.append(String(repeating: "-", count: 56))
+        }
+
+        if !statement.invoiceItems.isEmpty {
+            lines.append("INVOICES")
+            let header = String(format: "  %-12s %-10s %10s %10s", "Date", "Status", "Sats paid", "Credited")
+            lines.append(header)
+            lines.append("  " + String(repeating: "-", count: 50))
+            for item in statement.invoiceItems {
+                let date = item.createdAt?.formatted(date: .numeric, time: .omitted) ?? "—"
+                lines.append(String(format: "  %-12s %-10s %10d %10d",
+                                    date, item.status, item.amountSats, item.apiSatsCredited))
+            }
+            lines.append("")
+            lines.append(String(repeating: "-", count: 56))
+        }
+
+        lines.append("")
+        lines.append("--- end of statement ---")
+        lines.append("dpyc.community")
+        return lines.joined(separator: "\n")
+    }
+}
+
+private extension View {
+    /// Style used for column-header labels in the Grid-backed sections.
+    func columnHeader() -> some View {
+        self.font(.system(size: 10, weight: .bold, design: .monospaced))
+            .tracking(1.5)
+            .foregroundStyle(.secondary)
     }
 }
