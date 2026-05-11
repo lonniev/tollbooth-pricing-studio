@@ -907,7 +907,8 @@ private struct InfographicSheet: View {
     var patronNpub: String = ""
     @Environment(\.dismiss) private var dismiss
     @State private var showingShareSheet = false
-    @State private var statementJSON: String?
+    @State private var statement: MCPService.AccountStatementResult?
+    @State private var statementError: String?
     @State private var loadingStatement = false
 
     /// The current SVG string (if loaded).
@@ -958,29 +959,17 @@ private struct InfographicSheet: View {
                     }
 
                 case .error(let message):
-                    // Infographic unavailable — fall back to free JSON statement
-                    if let json = statementJSON {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label(
-                                    message.contains("proof is required") || message.contains("invalid proof") ? "Infographic needs an npub proof — run request_npub_proof then receive_npub_proof in Execute Tool, then retry"
-                                    : message.contains("Insufficient") ? "Infographic requires credits — showing free statement"
-                                    : message.contains("TBD") ? "Infographic not yet priced — showing free statement"
-                                    : "Showing free statement",
-                                    systemImage: "doc.text"
-                                )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.bottom, 4)
-
-                                Text(json)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .textSelection(.enabled)
-                                    .padding(12)
-                                    .background(Color(.secondarySystemGroupedBackground))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .padding()
+                    // Infographic unavailable — fall back to the free JSON
+                    // statement rendered as a paper-printout receipt.
+                    if let statement = statement {
+                        VStack(spacing: 0) {
+                            fallbackBanner(message)
+                            AccountStatementPaperView(
+                                patronName: patronName,
+                                patronNpub: patronNpub,
+                                operatorName: operatorName,
+                                statement: statement
+                            )
                         }
                     } else if loadingStatement {
                         VStack(spacing: 16) {
@@ -988,6 +977,12 @@ private struct InfographicSheet: View {
                             Text("Loading free statement\u{2026}").foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if let err = statementError {
+                        ContentUnavailableView(
+                            "Statement Unavailable",
+                            systemImage: "chart.bar.xaxis.ascending.badge.clock",
+                            description: Text("\(message)\n\nFree statement also failed:\n\(err)")
+                        )
                     } else {
                         ContentUnavailableView(
                             "Statement Unavailable",
@@ -1046,37 +1041,40 @@ private struct InfographicSheet: View {
         guard !serviceEndpoint.isEmpty, !patronNpub.isEmpty else { return }
         guard let url = URL(string: serviceEndpoint) else { return }
         loadingStatement = true
+        statementError = nil
         do {
-            let result = try await MCPService().callAccountStatement(
+            statement = try await MCPService().callAccountStatement(
                 endpointURL: url,
                 patronNpub: patronNpub
             )
-            let items = result.invoiceItems
-            let dicts: [[String: Any]] = items.map { item in
-                var d: [String: Any] = [
-                    "id": item.id,
-                    "status": item.status,
-                    "amount_sats": item.amountSats,
-                    "api_sats_credited": item.apiSatsCredited,
-                ]
-                if let created = item.createdAt {
-                    d["created_at"] = created.formatted(date: .abbreviated, time: .shortened)
-                }
-                if let settled = item.settledAt {
-                    d["settled_at"] = settled.formatted(date: .abbreviated, time: .shortened)
-                }
-                return d
-            }
-            if let jsonData = try? JSONSerialization.data(withJSONObject: dicts, options: [.prettyPrinted, .sortedKeys]),
-               let jsonStr = String(data: jsonData, encoding: .utf8) {
-                statementJSON = jsonStr
-            } else {
-                statementJSON = "[\(items.count) invoice(s)]"
-            }
         } catch {
-            statementJSON = "{ \"error\": \"\(error.localizedDescription)\" }"
+            statementError = error.localizedDescription
         }
         loadingStatement = false
+    }
+
+    /// Yellow banner above the paper-printout explaining why we fell back.
+    @ViewBuilder
+    private func fallbackBanner(_ infographicError: String) -> some View {
+        let reason: String = {
+            if infographicError.contains("proof is required") || infographicError.contains("invalid proof") {
+                return "Infographic needs an npub proof — request_npub_proof + receive_npub_proof, then retry. Free statement below."
+            }
+            if infographicError.contains("Insufficient") {
+                return "Infographic requires credits — showing the free statement below."
+            }
+            if infographicError.contains("TBD") {
+                return "Infographic not yet priced — showing the free statement below."
+            }
+            return "Infographic unavailable — showing the free statement below."
+        }()
+        Label(reason, systemImage: "doc.text")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.yellow.opacity(0.12))
     }
 }
 

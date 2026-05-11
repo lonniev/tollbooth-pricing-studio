@@ -381,8 +381,44 @@ actor MCPService {
         let settledAt: Date?
     }
 
+    struct AccountSummary: Sendable, Equatable {
+        let balanceApiSats: Int
+        let totalDepositedApiSats: Int
+        let totalConsumedApiSats: Int
+        let totalExpiredApiSats: Int
+    }
+
+    struct ActiveTranche: Sendable, Identifiable {
+        let id: String           // composite — invoice_id + granted_at, stable enough for ForEach
+        let invoiceId: String
+        let originalSats: Int
+        let remainingSats: Int
+        let grantedAt: Date?
+        let expiresAt: Date?
+    }
+
+    struct ToolUsageStat: Sendable, Identifiable {
+        let id: String           // tool name
+        var tool: String { id }
+        let calls: Int
+        let apiSats: Int
+    }
+
+    struct DailyUsageStat: Sendable, Identifiable {
+        let id: String           // ISO date
+        var date: String { id }
+        let totalCalls: Int
+        let totalApiSats: Int
+    }
+
     struct AccountStatementResult: Sendable {
         let invoiceItems: [InvoiceLineItem]
+        let summary: AccountSummary?
+        let activeTranches: [ActiveTranche]
+        let toolUsage: [ToolUsageStat]
+        let dailyUsage: [DailyUsageStat]
+        let generatedAt: Date?
+        let statementPeriodDays: Int?
     }
 
     func callAccountStatement(
@@ -461,7 +497,78 @@ actor MCPService {
             )
         }
 
-        return AccountStatementResult(invoiceItems: items)
+        // -- Account summary ------------------------------------------------
+        var summary: AccountSummary?
+        if let s = root["account_summary"] as? [String: Any] {
+            summary = AccountSummary(
+                balanceApiSats: Self.intField(s, "balance_api_sats"),
+                totalDepositedApiSats: Self.intField(s, "total_deposited_api_sats"),
+                totalConsumedApiSats: Self.intField(s, "total_consumed_api_sats"),
+                totalExpiredApiSats: Self.intField(s, "total_expired_api_sats")
+            )
+        }
+
+        // -- Active tranches ------------------------------------------------
+        let rawTranches = (root["active_tranches"] as? [[String: Any]]) ?? []
+        let tranches: [ActiveTranche] = rawTranches.enumerated().map { idx, dict in
+            let invoiceId = dict["invoice_id"] as? String ?? "tranche_\(idx)"
+            let original = Self.intField(dict, "original_sats")
+            let remaining = Self.intField(dict, "remaining_sats")
+            let granted = (dict["granted_at"] as? String).flatMap { parseISO8601($0) }
+            let expires = (dict["expires_at"] as? String).flatMap { parseISO8601($0) }
+            let id = "\(invoiceId)#\(dict["granted_at"] as? String ?? String(idx))"
+            return ActiveTranche(
+                id: id,
+                invoiceId: invoiceId,
+                originalSats: original,
+                remainingSats: remaining,
+                grantedAt: granted,
+                expiresAt: expires
+            )
+        }
+
+        // -- All-time tool usage --------------------------------------------
+        let rawTools = (root["tool_usage_all_time"] as? [[String: Any]]) ?? []
+        let toolUsage: [ToolUsageStat] = rawTools.compactMap { dict in
+            guard let name = dict["tool"] as? String, !name.isEmpty else { return nil }
+            return ToolUsageStat(
+                id: name,
+                calls: Self.intField(dict, "calls"),
+                apiSats: Self.intField(dict, "api_sats")
+            )
+        }
+
+        // -- Daily usage ----------------------------------------------------
+        let rawDays = (root["daily_usage"] as? [[String: Any]]) ?? []
+        let dailyUsage: [DailyUsageStat] = rawDays.compactMap { dict in
+            guard let date = dict["date"] as? String, !date.isEmpty else { return nil }
+            return DailyUsageStat(
+                id: date,
+                totalCalls: Self.intField(dict, "total_calls"),
+                totalApiSats: Self.intField(dict, "total_api_sats")
+            )
+        }
+
+        let generatedAt = (root["generated_at"] as? String).flatMap { parseISO8601($0) }
+        let period = root["statement_period_days"] as? Int
+
+        return AccountStatementResult(
+            invoiceItems: items,
+            summary: summary,
+            activeTranches: tranches,
+            toolUsage: toolUsage,
+            dailyUsage: dailyUsage,
+            generatedAt: generatedAt,
+            statementPeriodDays: period
+        )
+    }
+
+    /// Coerce a JSON value to Int. Accepts Int, Double, or numeric String.
+    private static func intField(_ dict: [String: Any], _ key: String) -> Int {
+        if let v = dict[key] as? Int { return v }
+        if let v = dict[key] as? Double { return Int(v) }
+        if let s = dict[key] as? String, let v = Int(s) { return v }
+        return 0
     }
 
     private func parseISO8601(_ str: String) -> Date? {
