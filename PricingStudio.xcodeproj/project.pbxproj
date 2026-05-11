@@ -137,6 +137,9 @@
 		DECD000100000000000008B1 /* Consultant.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000008A1 /* Consultant.swift */; };
 		DECD000100000000000009B1 /* ConsultantBusinessCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD000100000000000009A1 /* ConsultantBusinessCard.swift */; };
 		DECD00010000000000000AB1 /* ConsultantBench.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000AA1 /* ConsultantBench.swift */; };
+		DECD00010000000000000BB1 /* ConsultantFactsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000BA1 /* ConsultantFactsCard.swift */; };
+		DECD00010000000000000CB1 /* TeamPortraitCollage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000CA1 /* TeamPortraitCollage.swift */; };
+		DECD00010000000000000DB1 /* FinalProposalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DECD00010000000000000DA1 /* FinalProposalSheet.swift */; };
 /* UI Test build files */
 		BB0000010000000000000F01 /* TestTeardown.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E01 /* TestTeardown.swift */; };
 		BB0000010000000000000F02 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E02 /* AppLaunchTests.swift */; };
@@ -295,6 +298,9 @@
 		DECD000100000000000008A1 /* Consultant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Consultant.swift; sourceTree = "<group>"; };
 		DECD000100000000000009A1 /* ConsultantBusinessCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultantBusinessCard.swift; sourceTree = "<group>"; };
 		DECD00010000000000000AA1 /* ConsultantBench.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultantBench.swift; sourceTree = "<group>"; };
+		DECD00010000000000000BA1 /* ConsultantFactsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultantFactsCard.swift; sourceTree = "<group>"; };
+		DECD00010000000000000CA1 /* TeamPortraitCollage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamPortraitCollage.swift; sourceTree = "<group>"; };
+		DECD00010000000000000DA1 /* FinalProposalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinalProposalSheet.swift; sourceTree = "<group>"; };
 		CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPickerView.swift; sourceTree = "<group>"; };
 		D9844C99A73C4999A2235C1B /* PricingDiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingDiffView.swift; sourceTree = "<group>"; };
 		075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenInterviewView.swift; sourceTree = "<group>"; };
@@ -556,6 +562,9 @@
 				AA0000010000000000000902 /* PricingConsultantView.swift */,
 				DECD000100000000000009A1 /* ConsultantBusinessCard.swift */,
 				DECD00010000000000000AA1 /* ConsultantBench.swift */,
+				DECD00010000000000000BA1 /* ConsultantFactsCard.swift */,
+				DECD00010000000000000CA1 /* TeamPortraitCollage.swift */,
+				DECD00010000000000000DA1 /* FinalProposalSheet.swift */,
 				AA0000010000000000000A06 /* CampaignComparisonView.swift */,
 				AA0000010000000000000A0A /* CampaignOverviewSheet.swift */,
 				AA0000010000000000000A07 /* Shared */,
@@ -903,6 +912,9 @@
 				DECD000100000000000008B1 /* Consultant.swift in Sources */,
 				DECD000100000000000009B1 /* ConsultantBusinessCard.swift in Sources */,
 				DECD00010000000000000AB1 /* ConsultantBench.swift in Sources */,
+				DECD00010000000000000BB1 /* ConsultantFactsCard.swift in Sources */,
+				DECD00010000000000000CB1 /* TeamPortraitCollage.swift in Sources */,
+				DECD00010000000000000DB1 /* FinalProposalSheet.swift in Sources */,
 				AA000001000000000000001B /* ContentView.swift in Sources */,
 				AA000001000000000000001A /* PricingStudioApp.swift in Sources */,
 				AA00000100000000000000B1 /* Operator.swift in Sources */,

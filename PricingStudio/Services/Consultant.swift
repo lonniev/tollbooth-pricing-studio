@@ -34,6 +34,17 @@ struct Consultant: Identifiable, Hashable, Sendable {
     /// 2–3 sentence prose bio for the expanded business-card view.
     let bio: String
 
+    /// Place of birth — appears on the long-press facts card.
+    /// Format: "City, Region (now Country)" when historical/modern names differ.
+    let birthplace: String
+
+    /// Place + circumstances of death — appears on the long-press facts card.
+    let deathPlace: String
+
+    /// 2–4 sentence career arc — academic posts, public service,
+    /// signature publications, intellectual circle. Longer than `bio`.
+    let careerSummary: String
+
     /// Asset Catalog name for the consultant's portrait (public-domain image,
     /// circle-cropped on the business card in Topps style). When `nil` or the
     /// asset is missing, the card falls back to `avatarSystemName` as a placeholder.
@@ -78,6 +89,17 @@ enum ConsultantRoster {
         directly, higher-order goods serve production. His method begins with the catalog: \
         what is this good, who values it, and for what end?
         """,
+        birthplace: "Neu-Sandez, Galicia (now Nowy Sącz, Poland)",
+        deathPlace: "Vienna, Austria",
+        careerSummary: """
+        Trained in law at Vienna and Prague; worked in the Austrian press department before \
+        joining the University of Vienna in 1873, where he held the chair in political \
+        economy for three decades. Tutored Crown Prince Rudolf in economics. His Principles \
+        of Economics (1871) launched the marginalist revolution from the German-speaking \
+        world and seeded the Austrian School that Wieser, Böhm-Bawerk, Mises, and Hayek \
+        would carry forward. Spent his final years revising the Principles for a never- \
+        completed second edition.
+        """,
         portraitAssetName: "consultant_menger",
         avatarSystemName: "books.vertical.fill",
         accentColor: .blue,
@@ -119,6 +141,16 @@ enum ConsultantRoster {
         alternatives the user gives up by choosing this tool over its substitutes — \
         the cost of a thing is the next-best thing forgone.
         """,
+        birthplace: "Vienna, Austrian Empire",
+        deathPlace: "Brunnwinkl, Salzburg, Austria",
+        careerSummary: """
+        Born into the Austrian aristocracy; brother-in-law of Eugen Böhm-Bawerk. Studied \
+        with Menger at Vienna and joined the second wave of Austrian-school marginalists. \
+        Held the chair of political economy at Prague (from 1884) and at Vienna (from \
+        1903), where he succeeded Menger. Served as Austrian Minister of Commerce in the \
+        final cabinet of the Habsburg Empire (1917–1918). His Natural Value (1889) and \
+        Social Economics (1914) gave the school its distinctive sociological flavor.
+        """,
         portraitAssetName: "consultant_wieser",
         avatarSystemName: "chart.line.uptrend.xyaxis",
         accentColor: .purple,
@@ -159,6 +191,17 @@ enum ConsultantRoster {
         goods are valued more highly than future goods of identical kind, and that \
         production is roundabout — value flows from how the tool fits into the user's \
         own productive structure, not from the tool's intrinsic features.
+        """,
+        birthplace: "Brünn, Moravia (now Brno, Czech Republic)",
+        deathPlace: "Kramsach, Tirol, Austria-Hungary",
+        careerSummary: """
+        Trained in law at Vienna; held the chair of political economy at Innsbruck before \
+        being recalled to Vienna. Three-time Austrian Finance Minister (1895, 1897–98, \
+        1900–04), where he championed the gold standard and balanced budgets. His Capital \
+        and Interest (1884–1889) — three volumes — remains the canonical Austrian treatment \
+        of the time-structure of production. Convened the famous Vienna economics seminar \
+        that shaped Mises and Schumpeter. His Karl Marx and the Close of His System (1896) \
+        is the school's most surgical critique of Marxian value theory.
         """,
         portraitAssetName: "consultant_bohm_bawerk",
         avatarSystemName: "scalemass.fill",
@@ -202,6 +245,17 @@ enum ConsultantRoster {
         an objective quantity attached to a thing — it is always what is given up to \
         produce or call this tool one more time.
         """,
+        birthplace: "Leeds, Yorkshire, England",
+        deathPlace: "Childrey, Berkshire, England",
+        careerSummary: """
+        Educated at University College London and Manchester New College; ordained a \
+        Unitarian minister and served congregations for nearly two decades. Pivoted to \
+        political economy in his fifties, lecturing for the London School of Economics \
+        and the University Extension movement. His Common Sense of Political Economy \
+        (1910) is the clearest exposition of marginalist cost reasoning in English; \
+        Mises cited it favorably. Also a celebrated Dante scholar — his translations \
+        and commentaries on the Divine Comedy were widely read.
+        """,
         portraitAssetName: "consultant_wicksteed",
         avatarSystemName: "function",
         accentColor: .orange,
@@ -242,6 +296,17 @@ enum ConsultantRoster {
         purposeful behavior under conditions, and that prices are the only instrument by \
         which dispersed actors can coordinate. His seminar in Vienna trained a generation, \
         Hayek among them.
+        """,
+        birthplace: "Lemberg, Galicia (now Lviv, Ukraine)",
+        deathPlace: "New York City, United States",
+        careerSummary: """
+        PhD Vienna 1906; senior economist at the Austrian Chamber of Commerce, where he \
+        also served as the de-facto economic advisor to the post-Habsburg republic. His \
+        1920 paper Economic Calculation in the Socialist Commonwealth ignited the calculation \
+        debate and predicted the impossibility of rational allocation without market prices. \
+        Held the legendary Mises Privatseminar in Vienna (1920–34); fled to Geneva in 1934 \
+        and to New York in 1940 ahead of the Anschluss. Visiting professor at NYU until \
+        retirement; published Human Action (English 1949), the magnum opus of praxeology.
         """,
         portraitAssetName: "consultant_mises",
         avatarSystemName: "gearshape.2.fill",
@@ -284,6 +349,18 @@ enum ConsultantRoster {
         gets coordinated into productive action. As Managing Partner here, Hayek \
         synthesizes the team's five analyses into one coherent price schedule, in the \
         same spirit: the proposal is the product of the team, not of any one analyst.
+        """,
+        birthplace: "Vienna, Austria-Hungary",
+        deathPlace: "Freiburg im Breisgau, Germany",
+        careerSummary: """
+        Studied at Vienna under Wieser; joined the Mises Privatseminar in the 1920s. \
+        Recruited by Lionel Robbins to the London School of Economics in 1931, where \
+        his lectures on capital theory were the principal English-language counterweight \
+        to Keynes. Moved to Chicago (Committee on Social Thought, 1950) and later to \
+        Freiburg. Awarded the 1974 Nobel Prize in Economics. Major works include \
+        Prices and Production (1931), The Road to Serfdom (1944), The Use of Knowledge \
+        in Society (1945), The Constitution of Liberty (1960), and the three-volume \
+        Law, Legislation and Liberty (1973–79).
         """,
         portraitAssetName: "consultant_hayek",
         avatarSystemName: "point.3.connected.trianglepath.dotted",

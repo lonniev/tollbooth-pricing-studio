@@ -33,6 +33,7 @@ struct PricingConsultantView: View {
     @State private var showingForkSheet = false
     @State private var showingReshapePreview = false
     @State private var showingCloseConfirmation = false
+    @State private var showingFinalProposal = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,7 +50,7 @@ struct PricingConsultantView: View {
                         consultantVM.revisitStage(stage)
                     },
                     onPrepareFinalProposal: {
-                        consultantVM.requestFinalProposal(context: context)
+                        showingFinalProposal = true
                     }
                 )
                 .background(Color(uiColor: .secondarySystemBackground))
@@ -81,6 +82,16 @@ struct PricingConsultantView: View {
         }
         .sheet(isPresented: $showingAPIKeySheet) {
             AssistantAPIKeySheet()
+        }
+        .sheet(isPresented: $showingFinalProposal) {
+            FinalProposalSheet(
+                campaign: consultantVM.currentCampaign,
+                onRefreshSynthesis: {
+                    showingFinalProposal = false
+                    consultantVM.requestFinalProposal(context: context)
+                },
+                onDismiss: { showingFinalProposal = false }
+            )
         }
         .fullScreenCover(isPresented: $showingFullScreen) {
             FullScreenInterviewView(

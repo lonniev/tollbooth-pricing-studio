@@ -17,6 +17,8 @@ struct ConsultantBusinessCard: View {
     var compact: Bool = false
     var onTap: (() -> Void)? = nil
 
+    @State private var showingFacts = false
+
     enum CardState: Equatable {
         case unvisited
         case active
@@ -24,47 +26,58 @@ struct ConsultantBusinessCard: View {
     }
 
     var body: some View {
-        Button(action: { onTap?() }) {
-            VStack(spacing: compact ? 4 : 6) {
-                bubbleHead
-                    .frame(width: compact ? 44 : 64, height: compact ? 44 : 64)
-
-                VStack(spacing: 1) {
-                    Text(consultant.displayName)
-                        .font(compact ? .caption.bold() : .subheadline.bold())
-                        .lineLimit(1)
-                    Text(consultant.lifespan)
-                        .font(.system(size: compact ? 8 : 10, weight: .medium, design: .serif))
-                        .foregroundStyle(.secondary)
-                        .tracking(0.5)
-                }
-
-                Text(consultant.title)
-                    .font(.system(size: compact ? 9 : 11, weight: .semibold))
-                    .foregroundStyle(consultant.accentColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .padding(.horizontal, 4)
-
-                statusFooter
+        cardContent
+            .contentShape(.rect)
+            .onTapGesture { onTap?() }
+            .onLongPressGesture(minimumDuration: 0.45) { showingFacts = true }
+            .popover(isPresented: $showingFacts, arrowEdge: .top) {
+                ConsultantFactsCard(consultant: consultant)
+                    .presentationCompactAdaptation(.popover)
             }
-            .padding(compact ? 6 : 10)
-            .frame(width: compact ? 96 : 130)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.background)
-                    .shadow(color: .black.opacity(state == .active ? 0.18 : 0.06), radius: state == .active ? 6 : 2, y: 1)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(borderColor, lineWidth: state == .active ? 2.5 : 1)
-            )
-            .saturation(state == .unvisited ? 0.3 : 1.0)
-            .opacity(state == .unvisited ? 0.78 : 1.0)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(consultant.displayName), \(consultant.title)")
+            .accessibilityHint(accessibilityHint)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: Text("Show facts")) { showingFacts = true }
+    }
+
+    private var cardContent: some View {
+        VStack(spacing: compact ? 4 : 6) {
+            bubbleHead
+                .frame(width: compact ? 44 : 64, height: compact ? 44 : 64)
+
+            VStack(spacing: 1) {
+                Text(consultant.displayName)
+                    .font(compact ? .caption.bold() : .subheadline.bold())
+                    .lineLimit(1)
+                Text(consultant.lifespan)
+                    .font(.system(size: compact ? 8 : 10, weight: .medium, design: .serif))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.5)
+            }
+
+            Text(consultant.title)
+                .font(.system(size: compact ? 9 : 11, weight: .semibold))
+                .foregroundStyle(consultant.accentColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 4)
+
+            statusFooter
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(consultant.displayName), \(consultant.title)")
-        .accessibilityHint(accessibilityHint)
+        .padding(compact ? 6 : 10)
+        .frame(width: compact ? 96 : 130)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.background)
+                .shadow(color: .black.opacity(state == .active ? 0.18 : 0.06), radius: state == .active ? 6 : 2, y: 1)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(borderColor, lineWidth: state == .active ? 2.5 : 1)
+        )
+        .saturation(state == .unvisited ? 0.3 : 1.0)
+        .opacity(state == .unvisited ? 0.78 : 1.0)
     }
 
     // MARK: - Subviews

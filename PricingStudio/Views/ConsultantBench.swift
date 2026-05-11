@@ -60,14 +60,18 @@ struct ConsultantBench: View {
         Button {
             onPrepareFinalProposal?()
         } label: {
-            VStack(spacing: 4) {
-                Image(systemName: "doc.badge.gearshape.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                Text("Prepare Final\nProposal")
+            VStack(spacing: 6) {
+                TeamPortraitCollage(
+                    diameter: compact ? 22 : 30,
+                    overlap: compact ? 8 : 11,
+                    ringColor: .white
+                )
+                Text("Final Proposal")
                     .font(.caption.bold())
                     .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
+                Text("by the Team")
+                    .font(.system(size: compact ? 9 : 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
             }
             .frame(width: compact ? 96 : 130, height: compact ? 100 : 130)
             .background(
@@ -81,8 +85,8 @@ struct ConsultantBench: View {
             .shadow(color: .indigo.opacity(0.3), radius: 4, y: 2)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Prepare final proposal")
-        .accessibilityHint("Jumps to Hayek with the merge primed.")
+        .accessibilityLabel("Final proposal by the team")
+        .accessibilityHint("Open the team's consolidated pricing proposal.")
     }
 
     private func cardState(for consultant: Consultant) -> ConsultantBusinessCard.CardState {
