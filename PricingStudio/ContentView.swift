@@ -245,6 +245,7 @@ struct ContentView: View {
                 patronVM.selectedPatron = nil
                 pricingVM.reset()
                 chatVM.switchIdentity(to: ChatIdentity(from: auth))
+                if auth.isPrime { detailTab = .pricing }
             }
             if pricingVM.hasEdits {
                 pendingActorSwitch = doSwitch
