@@ -29,30 +29,74 @@ struct CommunityCanvasView: View {
     }
 
     private var statsBanner: some View {
-        HStack(spacing: 28) {
-            stat(label: "Authorities", value: nonPrimeAuthorities)
-            stat(label: "Operators", value: operators.count)
-            stat(label: "Live endpoints", value: operatorsWithEndpoint)
-            Spacer()
-            Text("locally observed — full network counts via dpyc-oracle")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(2)
-                .multilineTextAlignment(.trailing)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                statCard(
+                    label: "Authorities",
+                    value: nonPrimeAuthorities,
+                    icon: "building.columns.fill",
+                    tint: .indigo
+                )
+                statCard(
+                    label: "Operators",
+                    value: operators.count,
+                    icon: "server.rack",
+                    tint: .teal
+                )
+                statCard(
+                    label: "Live endpoints",
+                    value: operatorsWithEndpoint,
+                    icon: "antenna.radiowaves.left.and.right",
+                    tint: .green
+                )
+            }
+            HStack(spacing: 4) {
+                Image(systemName: "info.circle")
+                    .font(.caption2)
+                Text("Locally observed — full network counts via dpyc-oracle")
+                    .font(.caption2)
+            }
+            .foregroundStyle(.tertiary)
         }
         .padding(.horizontal)
-        .padding(.vertical, 10)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
     }
 
-    private func stat(label: String, value: Int) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("\(value)")
-                .font(.title2.weight(.semibold))
-                .monospacedDigit()
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private func statCard(label: String, value: Int, icon: String, tint: Color) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint.opacity(0.15))
+                    .frame(width: 36, height: 36)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(value)")
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                Text(label)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.3)
+            }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.background.secondary)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(tint.opacity(0.25), lineWidth: 0.5)
+        )
     }
 }
 
