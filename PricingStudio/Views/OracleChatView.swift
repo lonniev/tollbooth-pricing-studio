@@ -18,6 +18,7 @@ struct OraclePromptPanel: View {
         "If I have an Operator's npub, can I look up its MCP URL?",
         "How do I start a Pricing Campaign?",
         "How do I join?",
+        "How do I add a new Authority?",
     ]
 
     var body: some View {
