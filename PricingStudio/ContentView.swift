@@ -470,13 +470,17 @@ struct ContentView: View {
 
             switch detailTab {
             case .authority:
-                AuthorityDetailView(
-                    authority: auth,
-                    pricingVM: pricingVM,
-                    authorityVM: authorityVM,
-                    onOperatorSelected: { op in operatorVM.selectedOperator = op },
-                    onRequestCourier: { params in withAnimation { activeCourier = params } }
-                )
+                if auth.mcpEndpointURL != nil {
+                    AuthorityDetailView(
+                        authority: auth,
+                        pricingVM: pricingVM,
+                        authorityVM: authorityVM,
+                        onOperatorSelected: { op in operatorVM.selectedOperator = op },
+                        onRequestCourier: { params in withAnimation { activeCourier = params } }
+                    )
+                } else {
+                    CommunityCanvasView()
+                }
             case .pricing:
                 if auth.mcpEndpointURL != nil {
                     PricingDetailView(target: auth, viewModel: pricingVM)
@@ -496,12 +500,16 @@ struct ContentView: View {
                     CommunityCanvasView()
                 }
             case .invoiceHistory:
-                InvoiceListView(
-                    entityNpub: role.npub,
-                    sources: role.invoiceSources(authorities: authorities, operators: operators),
-                    accountVM: patronAccountVM,
-                    onOpenMessages: openMessagesFor
-                )
+                if auth.mcpEndpointURL != nil {
+                    InvoiceListView(
+                        entityNpub: role.npub,
+                        sources: role.invoiceSources(authorities: authorities, operators: operators),
+                        accountVM: patronAccountVM,
+                        onOpenMessages: openMessagesFor
+                    )
+                } else {
+                    CommunityCanvasView()
+                }
             case .messages:
                 if identity.hasNsec {
                     ChatView(chatVM: chatVM)
