@@ -26,6 +26,8 @@ struct ContentView: View {
     @State private var detailTab: ChatContainerTab = .pricing
     @State private var showingUnsavedEditsAlert = false
     @State private var pendingActorSwitch: (() -> Void)?
+    @State private var registryAdoption: AdoptionPrefill?
+    @State private var registryLookupInFlight: Bool = false
 
     var body: some View {
         NavigationSplitView {
@@ -201,6 +203,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $authorityVM.showingAddSheet) {
             AddAuthoritySheet(viewModel: authorityVM)
+        }
+        .sheet(item: $registryAdoption) { prefill in
+            AddAuthoritySheet(viewModel: authorityVM, prefill: prefill)
         }
         .sheet(isPresented: $authorityVM.showingEditSheet) {
             if let auth = authorityVM.authorityToEdit {
@@ -681,6 +686,10 @@ struct ContentView: View {
             let descriptor = FetchDescriptor<Authority>(predicate: #Predicate { $0.npub == npub })
             if let auth = try? modelContext.fetch(descriptor).first {
                 authorityVM.selectedAuthority = auth
+            } else {
+                // Registry-known but not locally adopted — open the adoption
+                // sheet pre-filled from the dpyc-community registry entry.
+                offerRegistryAdoption(npub: npub)
             }
         case .operator:
             let descriptor = FetchDescriptor<Operator>(predicate: #Predicate { $0.npub == npub })
@@ -689,6 +698,30 @@ struct ContentView: View {
             }
         case .oracle:
             break  // Oracle tap handled by OracleChatView sheet in NetworkTopologyView
+        }
+    }
+
+    private func offerRegistryAdoption(npub: String) {
+        guard !registryLookupInFlight else { return }
+        registryLookupInFlight = true
+        Task {
+            defer { Task { @MainActor in registryLookupInFlight = false } }
+            do {
+                let entries = try await RegistryService.fetchRegistry()
+                guard let entry = entries.first(where: { $0.npub == npub }) else { return }
+                let endpoint = entry.services?.first?.url
+                let prefill = AdoptionPrefill(
+                    npub: entry.npub,
+                    displayName: entry.display_name ?? "Authority \(entry.npub.prefix(12))…",
+                    mcpEndpointURL: endpoint,
+                    upstreamAuthorityNpub: entry.upstream_authority_npub,
+                    role: entry.role
+                )
+                await MainActor.run { self.registryAdoption = prefill }
+            } catch {
+                // Silently ignore — tap on unknown node just does nothing,
+                // same as the prior no-op behavior.
+            }
         }
     }
 }
