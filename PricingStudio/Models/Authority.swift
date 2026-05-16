@@ -33,10 +33,17 @@ final class Authority: PricingTarget {
     static func ensurePrimeExists(in context: ModelContext) {
         let descriptor = FetchDescriptor<Authority>(predicate: #Predicate { $0.npub == primeNpub })
         let existing = (try? context.fetch(descriptor)) ?? []
-        if existing.isEmpty {
-            let prime = Authority(npub: primeNpub, displayName: primeDisplayName)
-            prime.addedAt = Date.distantPast // sorts first
-            context.insert(prime)
+        if let prime = existing.first {
+            // Scrub any mcpEndpointURL written by older discovery paths —
+            // Prime hosts the Oracle, never a tollbooth-authority MCP.
+            if prime.mcpEndpointURL != nil {
+                prime.mcpEndpointURL = nil
+                try? context.save()
+            }
+            return
         }
+        let prime = Authority(npub: primeNpub, displayName: primeDisplayName)
+        prime.addedAt = Date.distantPast // sorts first
+        context.insert(prime)
     }
 }

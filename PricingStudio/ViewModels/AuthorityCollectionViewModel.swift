@@ -40,11 +40,15 @@ final class AuthorityCollectionViewModel {
     }
 
     /// Idempotent upsert — creates the Authority if it doesn't already exist.
+    /// Prime is special: it hosts the Oracle, not a tollbooth-authority MCP.
+    /// Never write an endpoint into Prime, and never overwrite Prime's display
+    /// name from discovery (it has a canonical name).
     func ensureAuthority(npub: String, displayName: String?, endpointURL: String?, context: ModelContext) {
+        let isPrime = (npub == Authority.primeNpub)
         let descriptor = FetchDescriptor<Authority>(predicate: #Predicate { $0.npub == npub })
         if let existing = try? context.fetch(descriptor).first {
-            // Update endpoint if newly discovered
-            if let url = endpointURL, existing.mcpEndpointURL == nil {
+            // Update endpoint if newly discovered — but never for Prime.
+            if !isPrime, let url = endpointURL, existing.mcpEndpointURL == nil {
                 existing.mcpEndpointURL = url
                 try? context.save()
             }
@@ -53,7 +57,7 @@ final class AuthorityCollectionViewModel {
         let auth = Authority(
             npub: npub,
             displayName: displayName ?? "Authority \(npub.prefix(12))…",
-            mcpEndpointURL: endpointURL,
+            mcpEndpointURL: isPrime ? nil : endpointURL,
             isAutoDiscovered: true
         )
         context.insert(auth)

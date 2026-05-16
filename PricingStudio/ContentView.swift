@@ -468,9 +468,14 @@ struct ContentView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
 
+            // Prime hosts the Oracle, not a tollbooth-authority MCP. It has no
+            // economic surface — no balance, no pricing, no invoices — so every
+            // economic tab falls back to the community canvas, even if some
+            // discovery path mistakenly persisted an endpoint URL.
+            let hasEconomicSurface = !auth.isPrime && auth.mcpEndpointURL != nil
             switch detailTab {
             case .authority:
-                if auth.mcpEndpointURL != nil {
+                if hasEconomicSurface {
                     AuthorityDetailView(
                         authority: auth,
                         pricingVM: pricingVM,
@@ -482,13 +487,13 @@ struct ContentView: View {
                     CommunityCanvasView()
                 }
             case .pricing:
-                if auth.mcpEndpointURL != nil {
+                if hasEconomicSurface {
                     PricingDetailView(target: auth, viewModel: pricingVM)
                 } else {
                     CommunityCanvasView()
                 }
             case .invoices:
-                if let endpoint = auth.mcpEndpointURL {
+                if hasEconomicSurface, let endpoint = auth.mcpEndpointURL {
                     AccountStatementView(
                         patronNpub: auth.npub,
                         serviceName: auth.displayName,
@@ -500,7 +505,7 @@ struct ContentView: View {
                     CommunityCanvasView()
                 }
             case .invoiceHistory:
-                if auth.mcpEndpointURL != nil {
+                if hasEconomicSurface {
                     InvoiceListView(
                         entityNpub: role.npub,
                         sources: role.invoiceSources(authorities: authorities, operators: operators),
