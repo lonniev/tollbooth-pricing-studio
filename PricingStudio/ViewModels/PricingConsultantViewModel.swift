@@ -812,7 +812,7 @@ final class PricingConsultantViewModel {
             guard let self = self else {
                 return ("", "{\"error\":\"Consultant view model unavailable.\"}")
             }
-            return await self.executeLocalConsultantTool(name: toolName, input: input)
+            return self.executeLocalConsultantTool(name: toolName, input: input)
         }
     }
 
