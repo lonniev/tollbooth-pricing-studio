@@ -935,19 +935,20 @@ private struct SidebarView: View {
     @ViewBuilder
     private var authoritiesSectionContent: some View {
         Group {
-            ForEach(authorities) { auth in
+            ForEach(authorityTreeEntries, id: \.authority.npub) { entry in
                 AuthorityRowInline(
-                    authority: auth,
-                    isSelected: authorityVM.selectedAuthority?.npub == auth.npub,
-                    onIconTapped: { authorityVM.requestEdit(auth) }
+                    authority: entry.authority,
+                    isSelected: authorityVM.selectedAuthority?.npub == entry.authority.npub,
+                    onIconTapped: { authorityVM.requestEdit(entry.authority) }
                 )
-                    .accessibilityIdentifier("modelListItem_\(auth.npub)")
+                    .padding(.leading, CGFloat(entry.depth) * 14)
+                    .accessibilityIdentifier("modelListItem_\(entry.authority.npub)")
                     .contentShape(Rectangle())
-                    .onTapGesture { authorityVM.selectedAuthority = auth }
+                    .onTapGesture { authorityVM.selectedAuthority = entry.authority }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        if !auth.isPrime {
+                        if !entry.authority.isPrime {
                             Button(role: .destructive) {
-                                authorityVM.requestDelete(auth)
+                                authorityVM.requestDelete(entry.authority)
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -955,14 +956,14 @@ private struct SidebarView: View {
                     }
                     .contextMenu {
                         Button {
-                            authorityVM.requestEdit(auth)
+                            authorityVM.requestEdit(entry.authority)
                         } label: {
                             Label("Edit", systemImage: "pencil")
                         }
-                        if !auth.isPrime {
+                        if !entry.authority.isPrime {
                             Divider()
                             Button(role: .destructive) {
-                                authorityVM.requestDelete(auth)
+                                authorityVM.requestDelete(entry.authority)
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -978,6 +979,50 @@ private struct SidebarView: View {
                 }
             }
         }
+    }
+
+    /// Authorities flattened in depth-first chain order:
+    /// Prime first with its descendants nested under it, then unchained
+    /// authorities (no parent and not Prime) sorted alphabetically by
+    /// displayName. Cycle-guarded so a malformed parent chain can't loop.
+    private var authorityTreeEntries: [AuthorityTreeEntry] {
+        let byNpub = Dictionary(uniqueKeysWithValues: authorities.map { ($0.npub, $0) })
+        let childrenByParent = Dictionary(grouping: authorities.compactMap { auth -> (String, Authority)? in
+            guard let parent = auth.parentAuthorityNpub, !parent.isEmpty else { return nil }
+            return (parent, auth)
+        }, by: { $0.0 }).mapValues { $0.map(\.1).sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending } }
+
+        var result: [AuthorityTreeEntry] = []
+
+        func visit(_ auth: Authority, depth: Int, visited: Set<String>) {
+            guard !visited.contains(auth.npub) else { return }
+            result.append(AuthorityTreeEntry(authority: auth, depth: depth))
+            let next = visited.union([auth.npub])
+            for child in childrenByParent[auth.npub] ?? [] {
+                visit(child, depth: depth + 1, visited: next)
+            }
+        }
+
+        if let prime = authorities.first(where: { $0.isPrime }) {
+            visit(prime, depth: 0, visited: [])
+        }
+
+        let rooted = Set(result.map { $0.authority.npub })
+        let unchained = authorities
+            .filter { !rooted.contains($0.npub) }
+            .filter { auth in
+                // Treat as unchained if parent is missing OR points outside
+                // the locally known authority set.
+                guard let parent = auth.parentAuthorityNpub, !parent.isEmpty else { return true }
+                return byNpub[parent] == nil
+            }
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+
+        for auth in unchained {
+            visit(auth, depth: 0, visited: Set(result.map(\.authority.npub)))
+        }
+
+        return result
     }
 
     @ViewBuilder
@@ -1096,6 +1141,13 @@ private struct SidebarView: View {
             }
         }
     }
+}
+
+// MARK: - Authority Tree Entry
+
+private struct AuthorityTreeEntry {
+    let authority: Authority
+    let depth: Int
 }
 
 // MARK: - Authority Inline Row
