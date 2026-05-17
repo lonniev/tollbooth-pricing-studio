@@ -366,7 +366,7 @@ final class TestCallViewModel {
             // When the user runs receive_npub_proof via Execute Tool,
             // capture the returned proof_token to Keychain so subsequent
             // paid calls (e.g. account_statement_infographic) can find it
-            // via argsWithProofToken without further user action.
+            // via argsWithProof without further user action.
             if selectedTool!.toolName.hasSuffix("receive_npub_proof"),
                let patronNpub = selectedPatronNpub {
                 persistProofToken(from: response, endpoint: endpoint, patronNpub: patronNpub)
@@ -390,7 +390,7 @@ final class TestCallViewModel {
 
     /// Extract `proof_token` from a successful receive_npub_proof response
     /// and cache it in Keychain for the (patron, operatorHost) pair, so
-    /// subsequent paid tool calls can find it via argsWithProofToken.
+    /// subsequent paid tool calls can find it via argsWithProof.
     private func persistProofToken(from response: String, endpoint: URL, patronNpub: String) {
         guard let data = response.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

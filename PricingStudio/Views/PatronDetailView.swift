@@ -1031,7 +1031,7 @@ struct TopOffSheet: View {
             do {
                 // callReceiveNpubProof persists the proof_token to Keychain
                 // for the (patron, endpoint host) pair, so the subsequent
-                // purchase() call picks it up via argsWithProofToken.
+                // purchase() call picks it up via argsWithProof.
                 _ = try await mcpService.callReceiveNpubProof(
                     endpointURL: endpointURL,
                     patronNpub: patronNpub
@@ -1045,63 +1045,18 @@ struct TopOffSheet: View {
     }
 
     /// Single-click proof completion when the App holds the purchaser's
-    /// nsec. Performs the full request → sign poison reply → publish DM →
-    /// verify → retry purchase sequence. The initial button click is the
-    /// human's explicit consent.
+    /// nsec. With wheel v0.23 the proof gate accepts an inline Schnorr
+    /// proof on the very first call — no relay round-trip needed.
+    /// argsWithProof inside MCPService picks the Schnorr tactic
+    /// automatically when the nsec is in Keychain, so the only thing
+    /// this needs to do is retry purchase().
     private func autoCompleteProof() {
-        guard let endpointURL = URL(string: endpoint) else {
-            proofState = .failed("Invalid endpoint URL")
-            return
-        }
-        guard let nsec = KeychainService.loadNsec(forNpub: patronNpub) else {
+        guard KeychainService.loadNsec(forNpub: patronNpub) != nil else {
             proofState = .failed("Purchaser nsec is no longer in Keychain — falling back to manual exchange.")
             return
         }
-        guard !cashierNpub.isEmpty else {
-            proofState = .failed("Cashier npub unknown — cannot deliver the proof reply.")
-            return
-        }
-
-        proofState = .requesting
-        Task {
-            do {
-                let poison = try await mcpService.callRequestNpubProof(
-                    endpointURL: endpointURL,
-                    patronNpub: patronNpub
-                )
-
-                proofState = .signingReply
-                let privKey = try NostrKeyService.privateKeyHexFromNsec(nsec)
-                let myPubKey = try NostrKeyService.publicKeyHexFromNpub(patronNpub)
-                let cashierPubKey = try NostrKeyService.publicKeyHexFromNpub(cashierNpub)
-                // Minimal Secure Courier payload — wheel only requires the
-                // poison field; the signed DM itself proves ownership.
-                let replyBody = "  poison = @@@\(poison)@@@"
-                let dmService = NostrDMService()
-                try await dmService.sendDM(
-                    privateKeyHex: privKey,
-                    publicKeyHex: myPubKey,
-                    recipientPubkeyHex: cashierPubKey,
-                    message: replyBody
-                )
-
-                // Brief relay-propagation delay before draining DMs; the
-                // wheel's receive_npub_proof retries 4× with 2s gaps, so
-                // we don't need a long wait here.
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-
-                proofState = .verifying
-                _ = try await mcpService.callReceiveNpubProof(
-                    endpointURL: endpointURL,
-                    patronNpub: patronNpub
-                )
-
-                proofState = .idle
-                purchase()
-            } catch {
-                proofState = .failed(error.localizedDescription)
-            }
-        }
+        proofState = .idle
+        purchase()
     }
 
     private func checkPayment(invoiceId: String) {

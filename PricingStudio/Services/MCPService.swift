@@ -15,23 +15,26 @@ actor MCPService {
         )
     }
 
-    // MARK: - Proof Strategies
+    // MARK: - Proof Tactics
 
-    /// For restricted tools — Schnorr signature against operator npub.
-    private func argsWithOperatorProof(npub: String, toolName: String, extra: [String: Value] = [:]) -> [String: Value] {
-        var args = extra
-        guard !npub.isEmpty else { return args }
-        args["npub"] = .string(npub)
-        let proof = (try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub)) ?? ""
-        args["proof"] = .string(proof)
-        return args
-    }
-
-    /// For paid tools — poison-keyed proof token from Keychain.
+    /// Build args for any tool that takes an npub + proof. Picks the best
+    /// available tactic (matches wheel v0.23 require_proof, which accepts
+    /// either form):
+    ///
+    /// 1. **Inline Schnorr proof** — when the App holds the nsec for
+    ///    `npub`, sign a fresh kind-27235 event with `toolName` in the
+    ///    `u` tag. No relay round-trip, no cache dependency.
+    /// 2. **Cached poison phrase** — when the App holds a `proof_token`
+    ///    in Keychain for the (npub, operatorHost) pair from a prior
+    ///    request_npub_proof / receive_npub_proof exchange.
+    /// 3. **Empty** — let the wheel return its actionable
+    ///    "proof is required" guidance.
+    ///
     /// Pass `npubKey: "patron_npub"` for tools whose schema names the
-    /// npub parameter differently (e.g., get_patron_onboarding_status).
-    private func argsWithProofToken(
+    /// npub argument differently (e.g., get_patron_onboarding_status).
+    private func argsWithProof(
         npub: String,
+        toolName: String,
         operatorHost: String,
         npubKey: String = "npub",
         extra: [String: Value] = [:]
@@ -39,8 +42,13 @@ actor MCPService {
         var args = extra
         guard !npub.isEmpty else { return args }
         args[npubKey] = .string(npub)
-        let token = KeychainService.loadProofToken(forPatron: npub, operator: operatorHost) ?? ""
-        args["proof"] = .string(token)
+        if let signed = try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub) {
+            args["proof"] = .string(signed)
+        } else if let cached = KeychainService.loadProofToken(forPatron: npub, operator: operatorHost), !cached.isEmpty {
+            args["proof"] = .string(cached)
+        } else {
+            args["proof"] = .string("")
+        }
         return args
     }
 
@@ -249,7 +257,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No check_balance tool found")
         }
 
-        let args = argsWithProofToken(npub: patronNpub, operatorHost: endpointURL.host ?? endpointURL.absoluteString)
+        let args = argsWithProof(npub: patronNpub, toolName: "check_balance", operatorHost: endpointURL.host ?? endpointURL.absoluteString)
         let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: args)
 
         if isError == true {
@@ -449,7 +457,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement tool found")
         }
 
-        let args = argsWithProofToken(npub: patronNpub, operatorHost: endpointURL.host ?? endpointURL.absoluteString)
+        let args = argsWithProof(npub: patronNpub, toolName: "account_statement", operatorHost: endpointURL.host ?? endpointURL.absoluteString)
         let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
 
         if isError == true {
@@ -643,7 +651,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement_infographic tool found")
         }
 
-        let args = argsWithProofToken(npub: patronNpub, operatorHost: endpointURL.host ?? endpointURL.absoluteString)
+        let args = argsWithProof(npub: patronNpub, toolName: "account_statement_infographic", operatorHost: endpointURL.host ?? endpointURL.absoluteString)
         let (content, isError) = try await client.callTool(name: infoTool.name, arguments: args)
 
         if isError == true {
@@ -723,7 +731,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: purchaseTool.name,
-            arguments: argsWithProofToken(npub: patronNpub, operatorHost: endpointURL.host ?? endpointURL.absoluteString, extra: ["amount_sats": .int(amountSats)])
+            arguments: argsWithProof(npub: patronNpub, toolName: "purchase_credits", operatorHost: endpointURL.host ?? endpointURL.absoluteString, extra: ["amount_sats": .int(amountSats)])
         )
 
         if isError == true {
@@ -805,7 +813,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: paymentTool.name,
-            arguments: argsWithProofToken(npub: npub, operatorHost: endpointURL.host ?? endpointURL.absoluteString, extra: ["invoice_id": .string(invoiceId)])
+            arguments: argsWithProof(npub: npub, toolName: "check_payment", operatorHost: endpointURL.host ?? endpointURL.absoluteString, extra: ["invoice_id": .string(invoiceId)])
         )
 
         if isError == true {
@@ -1194,7 +1202,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: registerTool.name,
-            arguments: argsWithOperatorProof(npub: operatorNpub, toolName: "register_operator", extra: ["service_url": .string(operatorServiceURL)])
+            arguments: argsWithProof(npub: operatorNpub, toolName: "register_operator", operatorHost: endpointURL.host ?? endpointURL.absoluteString, extra: ["service_url": .string(operatorServiceURL)])
         )
 
         if isError == true {
@@ -1232,7 +1240,7 @@ actor MCPService {
         }
 
         // Build arguments — always include npub + proof, optionally include changed fields
-        var args = argsWithOperatorProof(npub: operatorNpub, toolName: "update_operator")
+        var args = argsWithProof(npub: operatorNpub, toolName: "update_operator", operatorHost: endpointURL.host ?? endpointURL.absoluteString)
         if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
         if !displayName.isEmpty { args["display_name"] = .string(displayName) }
 
@@ -1275,7 +1283,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: argsWithOperatorProof(npub: operatorNpub, toolName: "deregister_operator")
+            arguments: argsWithProof(npub: operatorNpub, toolName: "deregister_operator", operatorHost: endpointURL.host ?? endpointURL.absoluteString)
         )
 
         if isError == true {
@@ -1410,8 +1418,9 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: argsWithProofToken(
+            arguments: argsWithProof(
                 npub: patronNpub,
+                toolName: "get_patron_onboarding_status",
                 operatorHost: endpointURL.host ?? endpointURL.absoluteString,
                 npubKey: "patron_npub"
             )
@@ -1542,7 +1551,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: argsWithOperatorProof(npub: npub, toolName: "forget_credentials", extra: ["service": .string(service)])
+            arguments: argsWithProof(npub: npub, toolName: "forget_credentials", operatorHost: endpointURL.host ?? endpointURL.absoluteString, extra: ["service": .string(service)])
         )
 
         if isError == true {

@@ -1025,54 +1025,18 @@ struct AuthorityTopOffSheet: View {
         }
     }
 
-    /// Single-click proof completion — App holds the purchaser's nsec and
-    /// drives the full request → sign poison reply → publish DM → verify
-    /// → retry-purchase sequence. The initial button click is consent.
+    /// Single-click proof completion — App holds the purchaser's nsec.
+    /// With wheel v0.23 the proof gate accepts an inline Schnorr proof on
+    /// the first call, so argsWithProof inside MCPService signs the
+    /// kind-27235 event automatically. No relay round-trip needed; just
+    /// retry the purchase.
     private func autoCompleteProof() {
-        guard let endpointURL = URL(string: endpoint) else {
-            proofState = .failed("Invalid endpoint URL")
-            return
-        }
-        guard let nsec = KeychainService.loadNsec(forNpub: purchaserIdentityNpub) else {
+        guard KeychainService.loadNsec(forNpub: purchaserIdentityNpub) != nil else {
             proofState = .failed("Purchaser nsec is no longer in Keychain — falling back to manual exchange.")
             return
         }
-
-        proofState = .requesting
-        Task {
-            do {
-                let poison = try await mcpService.callRequestNpubProof(
-                    endpointURL: endpointURL,
-                    patronNpub: purchaserIdentityNpub
-                )
-
-                proofState = .signingReply
-                let privKey = try NostrKeyService.privateKeyHexFromNsec(nsec)
-                let myPubKey = try NostrKeyService.publicKeyHexFromNpub(purchaserIdentityNpub)
-                let cashierPubKey = try NostrKeyService.publicKeyHexFromNpub(authorityNpub)
-                let replyBody = "  poison = @@@\(poison)@@@"
-                let dmService = NostrDMService()
-                try await dmService.sendDM(
-                    privateKeyHex: privKey,
-                    publicKeyHex: myPubKey,
-                    recipientPubkeyHex: cashierPubKey,
-                    message: replyBody
-                )
-
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-
-                proofState = .verifying
-                _ = try await mcpService.callReceiveNpubProof(
-                    endpointURL: endpointURL,
-                    patronNpub: purchaserIdentityNpub
-                )
-
-                proofState = .idle
-                purchase()
-            } catch {
-                proofState = .failed(error.localizedDescription)
-            }
-        }
+        proofState = .idle
+        purchase()
     }
 
     private func checkPayment(invoiceId: String) {
