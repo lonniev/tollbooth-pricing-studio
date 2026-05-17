@@ -133,56 +133,91 @@ final class TopologyViewModel {
             }
         )
 
-        // Build authority nodes, attaching operator children
-        var authorityNodes: [String: TopologyNode] = [:]
-        for authNpub in allAuthNpubs {
-            if registryAuthNpubs.contains(authNpub) && primeEntries.contains(where: { $0.npub == authNpub }) {
-                continue  // Prime Authority handled separately
+        // Helper: resolve an authority's parent npub from registry, falling back
+        // to local SwiftData. Prime entries have no parent (returns nil).
+        func parentOf(_ authNpub: String) -> String? {
+            if let entry = entryByNpub[authNpub], entry.role != "prime_authority" {
+                return entry.upstream_authority_npub
             }
-            let displayName: String
-            if let local = authorities.first(where: { $0.npub == authNpub }) {
-                displayName = local.displayName
-            } else if let entry = entryByNpub[authNpub] {
-                displayName = entry.display_name ?? "Authority"
-            } else {
-                displayName = "Authority \(authNpub.prefix(12))…"
-            }
+            return authorities.first(where: { $0.npub == authNpub })?.parentAuthorityNpub
+        }
 
-            let children = operators
+        // Resolve display name for an authority — local store wins, then
+        // registry, then truncated npub fallback.
+        func displayNameFor(_ authNpub: String) -> String {
+            if let local = authorities.first(where: { $0.npub == authNpub }) {
+                return local.displayName
+            }
+            if let entry = entryByNpub[authNpub] {
+                return entry.display_name ?? "Authority"
+            }
+            return "Authority \(authNpub.prefix(12))…"
+        }
+
+        // Build authority nodes recursively so a registered upstream chain
+        // (Prime → NA → NE) actually renders as a chain instead of being
+        // flattened under Prime. Includes operator children for each
+        // authority. Cycle-guard via a visited set so a malformed registry
+        // can't infinite-loop.
+        let nonPrimeAuthNpubs = allAuthNpubs.subtracting(primeEntries.map(\.npub))
+
+        func buildAuthorityNode(_ authNpub: String, visited: Set<String>) -> TopologyNode {
+            let nextVisited = visited.union([authNpub])
+            let operatorChildren = operators
                 .filter { $0.authorityNpub == authNpub }
                 .compactMap { operatorNodes[$0.npub] }
-
-            authorityNodes[authNpub] = TopologyNode(
+            let subAuthorityChildren = nonPrimeAuthNpubs
+                .filter { !nextVisited.contains($0) && parentOf($0) == authNpub }
+                .map { buildAuthorityNode($0, visited: nextVisited) }
+            return TopologyNode(
                 id: authNpub,
-                displayName: displayName,
+                displayName: displayNameFor(authNpub),
                 tier: .authority,
-                children: children
+                children: subAuthorityChildren + operatorChildren
             )
+        }
+
+        // Authorities whose upstream is unknown (no registry entry, no local
+        // parent) hang directly off Prime so they remain visible while their
+        // chain pointer is being resolved.
+        let primeNpubs = Set(primeEntries.map(\.npub))
+        let orphanedAuthNpubs = nonPrimeAuthNpubs.filter { authNpub in
+            guard let parent = parentOf(authNpub) else { return true }
+            return parent.isEmpty || !primeNpubs.contains(parent) && !nonPrimeAuthNpubs.contains(parent)
         }
 
         // Unattached operators (no authorityNpub or authority not known)
         let attachedNpubs = Set(operators.filter { op in
             guard let authNpub = op.authorityNpub else { return false }
-            return authorityNodes[authNpub] != nil
+            return allAuthNpubs.contains(authNpub)
         }.map(\.npub))
         let unattachedOps = operators
             .filter { !attachedNpubs.contains($0.npub) }
             .compactMap { operatorNodes[$0.npub] }
 
-        // Build Prime node(s)
+        // Build Prime node(s) — children are authorities whose upstream IS
+        // Prime, recursively expanded, plus any orphans + unattached ops.
         var primeNodes: [TopologyNode] = primeEntries.map { entry in
-            let children = Array(authorityNodes.values) + unattachedOps
+            let directChildren = nonPrimeAuthNpubs
+                .filter { parentOf($0) == entry.npub }
+                .map { buildAuthorityNode($0, visited: [entry.npub]) }
+            let orphanChildren = orphanedAuthNpubs
+                .map { buildAuthorityNode($0, visited: [entry.npub]) }
             return TopologyNode(
                 id: entry.npub,
                 displayName: entry.display_name ?? "Prime Authority",
                 tier: .primeAuthority,
-                children: children
+                children: directChildren + orphanChildren + unattachedOps
             )
         }
 
         if primeNodes.isEmpty {
-            // No Prime in registry — create a virtual root
-            let allChildren = Array(authorityNodes.values) + unattachedOps
+            // No Prime in registry — create a virtual root containing every
+            // top-level authority (any authority without a known parent in
+            // this set), recursively built.
+            let topLevelAuths = nonPrimeAuthNpubs.filter { parentOf($0).flatMap { nonPrimeAuthNpubs.contains($0) } != true }
+            let topAuthorityNodes = topLevelAuths.map { buildAuthorityNode($0, visited: []) }
+            let allChildren = topAuthorityNodes + unattachedOps
             if !allChildren.isEmpty {
                 primeNodes = [TopologyNode(
                     id: "prime",
