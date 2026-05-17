@@ -705,6 +705,7 @@ struct AuthorityTopOffSheet: View {
     @State private var customAmount = ""
     @State private var purchaseState: PurchaseState = .idle
     @State private var paymentCheckState: PaymentCheckState = .idle
+    @State private var proofState: ProofExchangeState = .idle
 
     private let presets = [500, 1000, 5000, 10000]
     private let mcpService = MCPService()
@@ -713,6 +714,20 @@ struct AuthorityTopOffSheet: View {
         case idle, purchasing
         case success(MCPService.PurchaseResult)
         case error(String)
+    }
+
+    /// Inline proof-exchange state for when the cashier returns
+    /// "proof is required". Each transition requires explicit user action.
+    private enum ProofExchangeState: Equatable {
+        case idle, requesting, awaitingReply, verifying
+        case failed(String)
+    }
+
+    /// The npub doing the purchasing — this is whose ownership the cashier
+    /// is asking us to prove. Mirrors the value the dialog uses for
+    /// purchase / payment-check calls.
+    private var purchaserIdentityNpub: String {
+        purchaserNpub.isEmpty ? authorityNpub : purchaserNpub
     }
 
     private enum PaymentCheckState {
@@ -821,10 +836,14 @@ struct AuthorityTopOffSheet: View {
                     }
 
                 case .error(let message):
-                    Section {
-                        Label(message, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red).font(.caption)
-                        Button("Retry") { purchase() }
+                    if TopOffSheet.isProofRequired(message) {
+                        proofExchangeSection(rawError: message)
+                    } else {
+                        Section {
+                            Label(message, systemImage: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.red).font(.caption)
+                            Button("Retry") { purchase() }
+                        }
                     }
                 }
             }
@@ -847,11 +866,114 @@ struct AuthorityTopOffSheet: View {
                 let result = try await mcpService.callPurchaseCredits(
                     endpointURL: endpointURL,
                     amountSats: effectiveAmount,
-                    patronNpub: purchaserNpub.isEmpty ? authorityNpub : purchaserNpub
+                    patronNpub: purchaserIdentityNpub
                 )
                 purchaseState = .success(result)
             } catch {
                 purchaseState = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: - Proof Exchange (human-in-the-loop)
+
+    @ViewBuilder
+    private func proofExchangeSection(rawError: String) -> some View {
+        Section {
+            Label("Identity Proof Required", systemImage: "key.fill")
+                .foregroundStyle(.orange)
+                .font(.subheadline.bold())
+
+            Text("\(authorityName) requires a fresh Nostr proof that the purchaser owns this npub. The exchange is two steps and you control each one.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            switch proofState {
+            case .idle:
+                Button {
+                    sendProofChallenge()
+                } label: {
+                    Label("Send DM challenge", systemImage: "paperplane.fill")
+                }
+                .buttonStyle(.borderedProminent)
+
+            case .requesting:
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Sending challenge DM…").foregroundStyle(.secondary).font(.caption)
+                }
+
+            case .awaitingReply:
+                Label("Challenge sent. Open your Nostr client (or the Messages tab), reply to the DM from \(authorityName), then tap Verify.", systemImage: "envelope.badge")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    verifyProofAndRetry()
+                } label: {
+                    Label("I've replied — verify & retry", systemImage: "checkmark.shield.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                Button("Cancel proof exchange", role: .cancel) {
+                    proofState = .idle
+                }
+                .font(.caption)
+
+            case .verifying:
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Verifying proof and retrying purchase…").foregroundStyle(.secondary).font(.caption)
+                }
+
+            case .failed(let msg):
+                Label(msg, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                Button("Try again") {
+                    sendProofChallenge()
+                }
+            }
+        } footer: {
+            Text(rawError)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func sendProofChallenge() {
+        guard let endpointURL = URL(string: endpoint) else {
+            proofState = .failed("Invalid endpoint URL")
+            return
+        }
+        proofState = .requesting
+        Task {
+            do {
+                _ = try await mcpService.callRequestNpubProof(
+                    endpointURL: endpointURL,
+                    patronNpub: purchaserIdentityNpub
+                )
+                proofState = .awaitingReply
+            } catch {
+                proofState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    private func verifyProofAndRetry() {
+        guard let endpointURL = URL(string: endpoint) else {
+            proofState = .failed("Invalid endpoint URL")
+            return
+        }
+        proofState = .verifying
+        Task {
+            do {
+                _ = try await mcpService.callReceiveNpubProof(
+                    endpointURL: endpointURL,
+                    patronNpub: purchaserIdentityNpub
+                )
+                proofState = .idle
+                purchase()
+            } catch {
+                proofState = .failed(error.localizedDescription)
             }
         }
     }

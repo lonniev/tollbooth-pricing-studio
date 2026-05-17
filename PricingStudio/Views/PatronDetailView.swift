@@ -580,14 +580,27 @@ struct TopOffSheet: View {
     @State private var customAmount = ""
     @State private var purchaseState: PurchaseState = .idle
     @State private var paymentCheckState: PaymentCheckState = .idle
+    @State private var proofState: ProofExchangeState = .idle
 
     private let presets = [100, 500, 1000, 5000]
+    private let mcpService = MCPService()
 
     private enum PurchaseState {
         case idle
         case purchasing
         case success(MCPService.PurchaseResult)
         case error(String)
+    }
+
+    /// Inline proof-exchange state for when the cashier returns "proof is
+    /// required". Each transition requires explicit user action — the App
+    /// never auto-signs or auto-receives on behalf of the patron.
+    private enum ProofExchangeState: Equatable {
+        case idle           // never started yet for this error
+        case requesting     // sending DM challenge
+        case awaitingReply  // DM sent, waiting for human to reply in their Nostr client
+        case verifying      // calling receive_npub_proof
+        case failed(String)
     }
 
     private enum PaymentCheckState {
@@ -736,41 +749,45 @@ struct TopOffSheet: View {
                     }
 
                 case .error(let message):
-                    Section {
-                        let guidance = Self.purchaseErrorGuidance(message, operatorName: operatorName)
-                        Label(guidance.headline, systemImage: guidance.icon)
-                            .foregroundStyle(guidance.color)
-                            .font(.subheadline.bold())
+                    if Self.isProofRequired(message) {
+                        proofExchangeSection(rawError: message)
+                    } else {
+                        Section {
+                            let guidance = Self.purchaseErrorGuidance(message, operatorName: operatorName)
+                            Label(guidance.headline, systemImage: guidance.icon)
+                                .foregroundStyle(guidance.color)
+                                .font(.subheadline.bold())
 
-                        Text(guidance.explanation)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if guidance.isRetryable {
-                            Button("Retry") {
-                                purchase()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-
-                        if guidance.canNotify, let onNotifyOperator {
-                            Button {
-                                dismiss()
-                                onNotifyOperator()
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "message.fill")
-                                    Text("Message \(operatorName)")
-                                }
+                            Text(guidance.explanation)
                                 .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if guidance.isRetryable {
+                                Button("Retry") {
+                                    purchase()
+                                }
+                                .buttonStyle(.borderedProminent)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.blue)
+
+                            if guidance.canNotify, let onNotifyOperator {
+                                Button {
+                                    dismiss()
+                                    onNotifyOperator()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "message.fill")
+                                        Text("Message \(operatorName)")
+                                    }
+                                    .font(.caption)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.blue)
+                            }
+                        } footer: {
+                            Text(message)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
                         }
-                    } footer: {
-                        Text(message)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -792,19 +809,15 @@ struct TopOffSheet: View {
         let canNotify: Bool
     }
 
+    /// Detect the wheel's proof-required failure. Returned by paid tools
+    /// whose npub argument has no fresh cached proof token.
+    static func isProofRequired(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        return lower.contains("proof is required") || lower.contains("invalid proof")
+    }
+
     private static func purchaseErrorGuidance(_ message: String, operatorName: String) -> ErrorGuidance {
         let lower = message.lowercased()
-
-        if lower.contains("proof is required") || lower.contains("invalid proof") {
-            return ErrorGuidance(
-                headline: "Operator Identity Verification",
-                icon: "key.fill",
-                color: .orange,
-                explanation: "\(operatorName) needs to update their Tollbooth SDK — the Authority now requires a Nostr proof on each certification request.",
-                isRetryable: false,
-                canNotify: true
-            )
-        }
 
         if lower.contains("authority") && lower.contains("insufficient") || lower.contains("certification failed") {
             return ErrorGuidance(
@@ -867,6 +880,112 @@ struct TopOffSheet: View {
                 purchaseState = .success(result)
             } catch {
                 purchaseState = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: - Proof Exchange (human-in-the-loop)
+
+    @ViewBuilder
+    private func proofExchangeSection(rawError: String) -> some View {
+        Section {
+            Label("Identity Proof Required", systemImage: "key.fill")
+                .foregroundStyle(.orange)
+                .font(.subheadline.bold())
+
+            Text("\(operatorName) requires a fresh Nostr proof that you own this npub. The exchange is two steps and you control each one.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            switch proofState {
+            case .idle:
+                Button {
+                    sendProofChallenge()
+                } label: {
+                    Label("Send DM challenge", systemImage: "paperplane.fill")
+                }
+                .buttonStyle(.borderedProminent)
+
+            case .requesting:
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Sending challenge DM…").foregroundStyle(.secondary).font(.caption)
+                }
+
+            case .awaitingReply:
+                Label("Challenge sent. Open your Nostr client (or the Messages tab), reply to the DM from \(operatorName), then tap Verify.", systemImage: "envelope.badge")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    verifyProofAndRetry()
+                } label: {
+                    Label("I've replied — verify & retry", systemImage: "checkmark.shield.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                Button("Cancel proof exchange", role: .cancel) {
+                    proofState = .idle
+                }
+                .font(.caption)
+
+            case .verifying:
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Verifying proof and retrying purchase…").foregroundStyle(.secondary).font(.caption)
+                }
+
+            case .failed(let msg):
+                Label(msg, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                Button("Try again") {
+                    sendProofChallenge()
+                }
+            }
+        } footer: {
+            Text(rawError)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func sendProofChallenge() {
+        guard let endpointURL = URL(string: endpoint) else {
+            proofState = .failed("Invalid endpoint URL")
+            return
+        }
+        proofState = .requesting
+        Task {
+            do {
+                _ = try await mcpService.callRequestNpubProof(
+                    endpointURL: endpointURL,
+                    patronNpub: patronNpub
+                )
+                proofState = .awaitingReply
+            } catch {
+                proofState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    private func verifyProofAndRetry() {
+        guard let endpointURL = URL(string: endpoint) else {
+            proofState = .failed("Invalid endpoint URL")
+            return
+        }
+        proofState = .verifying
+        Task {
+            do {
+                // callReceiveNpubProof persists the proof_token to Keychain
+                // for the (patron, endpoint host) pair, so the subsequent
+                // purchase() call picks it up via argsWithProofToken.
+                _ = try await mcpService.callReceiveNpubProof(
+                    endpointURL: endpointURL,
+                    patronNpub: patronNpub
+                )
+                proofState = .idle
+                purchase()
+            } catch {
+                proofState = .failed(error.localizedDescription)
             }
         }
     }
