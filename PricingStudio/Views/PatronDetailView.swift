@@ -902,7 +902,10 @@ struct TopOffSheet: View {
                 Button {
                     sendProofChallenge()
                 } label: {
-                    Label("Send DM challenge", systemImage: "paperplane.fill")
+                    HStack(spacing: 6) {
+                        Image(systemName: "paperplane.fill")
+                        Text("Send DM challenge")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
 
@@ -919,7 +922,10 @@ struct TopOffSheet: View {
                 Button {
                     verifyProofAndRetry()
                 } label: {
-                    Label("I've replied — verify & retry", systemImage: "checkmark.shield.fill")
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.shield.fill")
+                        Text("I've replied — verify & retry")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 Button("Cancel proof exchange", role: .cancel) {
