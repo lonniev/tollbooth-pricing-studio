@@ -28,10 +28,17 @@ actor MCPService {
     }
 
     /// For paid tools — poison-keyed proof token from Keychain.
-    private func argsWithProofToken(npub: String, operatorHost: String, extra: [String: Value] = [:]) -> [String: Value] {
+    /// Pass `npubKey: "patron_npub"` for tools whose schema names the
+    /// npub parameter differently (e.g., get_patron_onboarding_status).
+    private func argsWithProofToken(
+        npub: String,
+        operatorHost: String,
+        npubKey: String = "npub",
+        extra: [String: Value] = [:]
+    ) -> [String: Value] {
         var args = extra
         guard !npub.isEmpty else { return args }
-        args["npub"] = .string(npub)
+        args[npubKey] = .string(npub)
         let token = KeychainService.loadProofToken(forPatron: npub, operator: operatorHost) ?? ""
         args["proof"] = .string(token)
         return args
@@ -1403,7 +1410,11 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: ["patron_npub": .string(patronNpub)]
+            arguments: argsWithProofToken(
+                npub: patronNpub,
+                operatorHost: endpointURL.host ?? endpointURL.absoluteString,
+                npubKey: "patron_npub"
+            )
         )
 
         if isError == true {
