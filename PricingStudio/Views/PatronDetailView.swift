@@ -178,7 +178,8 @@ private struct OperatorBalanceCard: View {
                     { callback(balance.id) }
                 },
                 onSettled: { onRefreshNeeded?() },
-                beneficiaryDisplayName: patron.displayName
+                beneficiaryDisplayName: patron.displayName,
+                cashierNpub: balance.id
             )
         }
         .sheet(isPresented: $showingInfographic) {
@@ -573,6 +574,10 @@ struct TopOffSheet: View {
     /// view already knows it (e.g., presenting this sheet from a specific
     /// Patron's page). Bypasses the SwiftData walk for the obvious case.
     var beneficiaryDisplayName: String? = nil
+    /// The npub of the cashier (operator or authority) — the receiver of the
+    /// proof-reply DM in the auto-sign path. When empty, the auto-sign branch
+    /// is disabled and the sheet falls back to the human-in-the-loop flow.
+    var cashierNpub: String = ""
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -592,15 +597,26 @@ struct TopOffSheet: View {
         case error(String)
     }
 
-    /// Inline proof-exchange state for when the cashier returns "proof is
-    /// required". Each transition requires explicit user action — the App
-    /// never auto-signs or auto-receives on behalf of the patron.
+    /// Inline proof-exchange state. Two paths share the state machine:
+    /// (a) auto-sign — when the App holds the purchaser's nsec, it sends
+    /// the poison reply DM itself and proceeds straight to verifying; the
+    /// initial click is the human's consent.
+    /// (b) human-in-the-loop — when no nsec is in Keychain, the App stops
+    /// at `awaitingReply` and the user replies via their own Nostr client.
     private enum ProofExchangeState: Equatable {
         case idle           // never started yet for this error
-        case requesting     // sending DM challenge
-        case awaitingReply  // DM sent, waiting for human to reply in their Nostr client
+        case requesting     // calling request_npub_proof
+        case signingReply   // auto-sign: composing+sending poison reply DM
+        case awaitingReply  // HITL: DM sent, waiting for human to reply
         case verifying      // calling receive_npub_proof
         case failed(String)
+    }
+
+    /// Whether the App can complete the proof without further human action —
+    /// requires the purchaser's nsec in Keychain AND a known cashier npub.
+    private var canAutoSign: Bool {
+        !cashierNpub.isEmpty
+            && KeychainService.loadNsec(forNpub: patronNpub) != nil
     }
 
     private enum PaymentCheckState {
@@ -798,6 +814,13 @@ struct TopOffSheet: View {
                 }
             }
         }
+        // Detents + background-interaction let the user drag the sheet
+        // down to a compact pill and reach the Messages tab to reply to
+        // the proof-challenge DM without losing the in-flight proof
+        // exchange or the staged amount selection.
+        .presentationDetents([.medium, .large])
+        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        .presentationContentInteraction(.scrolls)
     }
 
     private struct ErrorGuidance {
@@ -893,21 +916,39 @@ struct TopOffSheet: View {
                 .foregroundStyle(.orange)
                 .font(.subheadline.bold())
 
-            Text("\(operatorName) requires a fresh Nostr proof that you own this npub. The exchange is two steps and you control each one.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if canAutoSign {
+                Text("\(operatorName) needs a fresh Nostr proof that you own this npub. Your nsec is in this device's Keychain, so the App can complete the exchange for you.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("\(operatorName) needs a fresh Nostr proof that you own this npub. You'll send a challenge DM, reply in your Nostr client, then verify. You can drag this sheet down to use the Messages tab without losing progress.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             switch proofState {
             case .idle:
-                Button {
-                    sendProofChallenge()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "paperplane.fill")
-                        Text("Send DM challenge")
+                if canAutoSign {
+                    Button {
+                        autoCompleteProof()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "key.fill")
+                            Text("Prove identity with stored nsec")
+                        }
                     }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    Button {
+                        sendProofChallenge()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "paperplane.fill")
+                            Text("Send DM challenge")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
 
             case .requesting:
                 HStack {
@@ -915,8 +956,15 @@ struct TopOffSheet: View {
                     Text("Sending challenge DM…").foregroundStyle(.secondary).font(.caption)
                 }
 
+            case .signingReply:
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Signing reply with your nsec and publishing to relays…")
+                        .foregroundStyle(.secondary).font(.caption)
+                }
+
             case .awaitingReply:
-                Label("Challenge sent. Open your Nostr client (or the Messages tab), reply to the DM from \(operatorName), then tap Verify.", systemImage: "envelope.badge")
+                Label("Challenge sent. Open your Nostr client (or drag this sheet down and use the Messages tab) to reply to \(operatorName), then tap Verify.", systemImage: "envelope.badge")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {
@@ -944,7 +992,7 @@ struct TopOffSheet: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                 Button("Try again") {
-                    sendProofChallenge()
+                    if canAutoSign { autoCompleteProof() } else { sendProofChallenge() }
                 }
             }
         } footer: {
@@ -988,6 +1036,66 @@ struct TopOffSheet: View {
                     endpointURL: endpointURL,
                     patronNpub: patronNpub
                 )
+                proofState = .idle
+                purchase()
+            } catch {
+                proofState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Single-click proof completion when the App holds the purchaser's
+    /// nsec. Performs the full request → sign poison reply → publish DM →
+    /// verify → retry purchase sequence. The initial button click is the
+    /// human's explicit consent.
+    private func autoCompleteProof() {
+        guard let endpointURL = URL(string: endpoint) else {
+            proofState = .failed("Invalid endpoint URL")
+            return
+        }
+        guard let nsec = KeychainService.loadNsec(forNpub: patronNpub) else {
+            proofState = .failed("Purchaser nsec is no longer in Keychain — falling back to manual exchange.")
+            return
+        }
+        guard !cashierNpub.isEmpty else {
+            proofState = .failed("Cashier npub unknown — cannot deliver the proof reply.")
+            return
+        }
+
+        proofState = .requesting
+        Task {
+            do {
+                let poison = try await mcpService.callRequestNpubProof(
+                    endpointURL: endpointURL,
+                    patronNpub: patronNpub
+                )
+
+                proofState = .signingReply
+                let privKey = try NostrKeyService.privateKeyHexFromNsec(nsec)
+                let myPubKey = try NostrKeyService.publicKeyHexFromNpub(patronNpub)
+                let cashierPubKey = try NostrKeyService.publicKeyHexFromNpub(cashierNpub)
+                // Minimal Secure Courier payload — wheel only requires the
+                // poison field; the signed DM itself proves ownership.
+                let replyBody = "  poison = @@@\(poison)@@@"
+                let dmService = NostrDMService()
+                try await dmService.sendDM(
+                    privateKeyHex: privKey,
+                    publicKeyHex: myPubKey,
+                    recipientPubkeyHex: cashierPubKey,
+                    message: replyBody
+                )
+
+                // Brief relay-propagation delay before draining DMs; the
+                // wheel's receive_npub_proof retries 4× with 2s gaps, so
+                // we don't need a long wait here.
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+
+                proofState = .verifying
+                _ = try await mcpService.callReceiveNpubProof(
+                    endpointURL: endpointURL,
+                    patronNpub: patronNpub
+                )
+
                 proofState = .idle
                 purchase()
             } catch {
@@ -1331,7 +1439,8 @@ struct AccountStatementView: View {
                 endpoint: serviceEndpoint,
                 accountVM: accountVM,
                 onNotifyOperator: nil,
-                onSettled: { Task { await loadBalance() } }
+                onSettled: { Task { await loadBalance() } },
+                cashierNpub: serviceNpub
             )
         }
         .sheet(isPresented: $showingInfographic) {

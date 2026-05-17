@@ -716,10 +716,13 @@ struct AuthorityTopOffSheet: View {
         case error(String)
     }
 
-    /// Inline proof-exchange state for when the cashier returns
-    /// "proof is required". Each transition requires explicit user action.
+    /// Inline proof-exchange state. Two paths:
+    /// (a) auto-sign — App holds the purchaser's nsec, sends the poison
+    /// reply DM itself and proceeds to verifying. Initial click = consent.
+    /// (b) human-in-the-loop — no nsec in Keychain, stops at `awaitingReply`
+    /// and the user replies via their own Nostr client.
     private enum ProofExchangeState: Equatable {
-        case idle, requesting, awaitingReply, verifying
+        case idle, requesting, signingReply, awaitingReply, verifying
         case failed(String)
     }
 
@@ -728,6 +731,13 @@ struct AuthorityTopOffSheet: View {
     /// purchase / payment-check calls.
     private var purchaserIdentityNpub: String {
         purchaserNpub.isEmpty ? authorityNpub : purchaserNpub
+    }
+
+    /// Whether the App can complete the proof without further human action —
+    /// requires the purchaser's nsec in Keychain. The cashier npub
+    /// (`authorityNpub`) is always known in this sheet.
+    private var canAutoSign: Bool {
+        KeychainService.loadNsec(forNpub: purchaserIdentityNpub) != nil
     }
 
     private enum PaymentCheckState {
@@ -854,6 +864,12 @@ struct AuthorityTopOffSheet: View {
                 }
             }
         }
+        // Drag-down detents so the user can reach the Messages tab to
+        // reply to the proof-challenge DM without losing the in-flight
+        // proof exchange or staged amount selection.
+        .presentationDetents([.medium, .large])
+        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        .presentationContentInteraction(.scrolls)
     }
 
     private func purchase() {
@@ -884,21 +900,39 @@ struct AuthorityTopOffSheet: View {
                 .foregroundStyle(.orange)
                 .font(.subheadline.bold())
 
-            Text("\(authorityName) requires a fresh Nostr proof that the purchaser owns this npub. The exchange is two steps and you control each one.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if canAutoSign {
+                Text("\(authorityName) needs a fresh Nostr proof that the purchaser owns this npub. The purchaser's nsec is in this device's Keychain, so the App can complete the exchange.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("\(authorityName) needs a fresh Nostr proof that the purchaser owns this npub. Send the challenge, reply in your Nostr client, then verify. Drag this sheet down to use the Messages tab without losing progress.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             switch proofState {
             case .idle:
-                Button {
-                    sendProofChallenge()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "paperplane.fill")
-                        Text("Send DM challenge")
+                if canAutoSign {
+                    Button {
+                        autoCompleteProof()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "key.fill")
+                            Text("Prove identity with stored nsec")
+                        }
                     }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    Button {
+                        sendProofChallenge()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "paperplane.fill")
+                            Text("Send DM challenge")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
 
             case .requesting:
                 HStack {
@@ -906,8 +940,15 @@ struct AuthorityTopOffSheet: View {
                     Text("Sending challenge DM…").foregroundStyle(.secondary).font(.caption)
                 }
 
+            case .signingReply:
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Signing reply with the purchaser's nsec and publishing to relays…")
+                        .foregroundStyle(.secondary).font(.caption)
+                }
+
             case .awaitingReply:
-                Label("Challenge sent. Open your Nostr client (or the Messages tab), reply to the DM from \(authorityName), then tap Verify.", systemImage: "envelope.badge")
+                Label("Challenge sent. Open your Nostr client (or drag this sheet down and use the Messages tab) to reply to \(authorityName), then tap Verify.", systemImage: "envelope.badge")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {
@@ -935,7 +976,7 @@ struct AuthorityTopOffSheet: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                 Button("Try again") {
-                    sendProofChallenge()
+                    if canAutoSign { autoCompleteProof() } else { sendProofChallenge() }
                 }
             }
         } footer: {
@@ -976,6 +1017,56 @@ struct AuthorityTopOffSheet: View {
                     endpointURL: endpointURL,
                     patronNpub: purchaserIdentityNpub
                 )
+                proofState = .idle
+                purchase()
+            } catch {
+                proofState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Single-click proof completion — App holds the purchaser's nsec and
+    /// drives the full request → sign poison reply → publish DM → verify
+    /// → retry-purchase sequence. The initial button click is consent.
+    private func autoCompleteProof() {
+        guard let endpointURL = URL(string: endpoint) else {
+            proofState = .failed("Invalid endpoint URL")
+            return
+        }
+        guard let nsec = KeychainService.loadNsec(forNpub: purchaserIdentityNpub) else {
+            proofState = .failed("Purchaser nsec is no longer in Keychain — falling back to manual exchange.")
+            return
+        }
+
+        proofState = .requesting
+        Task {
+            do {
+                let poison = try await mcpService.callRequestNpubProof(
+                    endpointURL: endpointURL,
+                    patronNpub: purchaserIdentityNpub
+                )
+
+                proofState = .signingReply
+                let privKey = try NostrKeyService.privateKeyHexFromNsec(nsec)
+                let myPubKey = try NostrKeyService.publicKeyHexFromNpub(purchaserIdentityNpub)
+                let cashierPubKey = try NostrKeyService.publicKeyHexFromNpub(authorityNpub)
+                let replyBody = "  poison = @@@\(poison)@@@"
+                let dmService = NostrDMService()
+                try await dmService.sendDM(
+                    privateKeyHex: privKey,
+                    publicKeyHex: myPubKey,
+                    recipientPubkeyHex: cashierPubKey,
+                    message: replyBody
+                )
+
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+
+                proofState = .verifying
+                _ = try await mcpService.callReceiveNpubProof(
+                    endpointURL: endpointURL,
+                    patronNpub: purchaserIdentityNpub
+                )
+
                 proofState = .idle
                 purchase()
             } catch {
