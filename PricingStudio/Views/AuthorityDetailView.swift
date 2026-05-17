@@ -28,7 +28,13 @@ struct AuthorityDetailView: View {
             VStack(spacing: 0) {
                 authorityHeader
                 Divider()
-                if !isLinked { claimAuthorityButton }
+                // Show the claim button whenever there's an MCP endpoint —
+                // both for first-time nsec linking (!isLinked) and for the
+                // upstream challenge-response dance against a parent
+                // Authority (isLinked but never claimed against parent).
+                // The two operations share the same sheet but are
+                // semantically distinct.
+                claimAuthorityButton
                 if authority.mcpEndpointURL != nil {
                     Divider()
                     authorityBalanceSection
@@ -85,8 +91,11 @@ struct AuthorityDetailView: View {
             Button {
                 vm.requestClaim(authority)
             } label: {
-                Label("Link Identity", systemImage: "person.badge.key.fill")
-                    .font(.caption)
+                Label(
+                    isLinked ? "Claim with Parent" : "Link & Claim",
+                    systemImage: isLinked ? "link.badge.plus" : "person.badge.key.fill"
+                )
+                .font(.caption)
             }
             .buttonStyle(.bordered)
             .tint(.secondary)
