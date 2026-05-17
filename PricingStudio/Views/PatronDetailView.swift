@@ -1386,7 +1386,32 @@ struct AccountStatementView: View {
             forgetState = .idle
             await loadBalance()
         }
-        .refreshable { await loadBalance() }
+        .refreshable {
+            // Pull-to-refresh: SwiftUI cancels the .refreshable closure on
+            // every body re-render. Detach the network call so an
+            // in-flight balance fetch isn't killed when the spinner
+            // re-renders, and don't drop the displayed balance to
+            // .loading — keep the prior value visible while the new one
+            // is in flight. (Same fix as commit e447d82 for the outer
+            // PatronDetailView refreshable.)
+            let endpoint = serviceEndpoint
+            let npub = patronNpub
+            let outcome = await Task.detached(priority: .userInitiated) { () -> Result<PatronAccountViewModel.BalanceResult, Error> in
+                guard let url = URL(string: endpoint) else {
+                    return .failure(MCPError.connectionFailed("Invalid endpoint URL"))
+                }
+                do {
+                    let r = try await MCPService().callCheckBalance(endpointURL: url, patronNpub: npub)
+                    return .success(r)
+                } catch {
+                    return .failure(error)
+                }
+            }.value
+            switch outcome {
+            case .success(let r): balanceState = .loaded(r)
+            case .failure(let e): balanceState = .error(e.localizedDescription)
+            }
+        }
         .sheet(isPresented: $showingTopOff) {
             TopOffSheet(
                 patronNpub: patronNpub,
