@@ -7,6 +7,9 @@ struct NetworkTopologyView: View {
     @State private var topologyVM = TopologyViewModel()
     @State private var selectedNpub: String?
     @State private var showingOracleChat = false
+    /// Npubs of nodes whose subtree is currently collapsed in the canvas.
+    /// Empty = fully expanded.
+    @State private var collapsedNpubs: Set<String> = []
 
     var onNodeSelected: ((String, NetworkTier) -> Void)?
     var onOraclePrompt: ((String) -> Void)?
@@ -142,7 +145,9 @@ struct NetworkTopologyView: View {
 
     @ViewBuilder
     private func topologyCanvas(size: CGSize) -> some View {
-        let layout = TreeLayout.layout(roots: topologyVM.roots, canvasSize: size)
+        let originalChildCounts = collectChildCounts(roots: topologyVM.roots)
+        let visibleRoots = topologyVM.roots.map { applyCollapse(to: $0) }
+        let layout = TreeLayout.layout(roots: visibleRoots, canvasSize: size)
 
         ZStack {
             // Edges
@@ -163,7 +168,17 @@ struct NetworkTopologyView: View {
 
             // Nodes
             ForEach(layout.nodes, id: \.node.id) { positioned in
-                nodeView(positioned.node, isSelected: selectedNpub == positioned.node.id)
+                let descendantCount = originalChildCounts[positioned.node.id] ?? 0
+                nodeView(
+                    positioned.node,
+                    isSelected: selectedNpub == positioned.node.id,
+                    hasDescendants: descendantCount > 0,
+                    isCollapsed: collapsedNpubs.contains(positioned.node.id),
+                    hiddenCount: collapsedNpubs.contains(positioned.node.id) ? descendantCount : 0,
+                    onToggleCollapse: {
+                        toggleCollapse(positioned.node.id)
+                    }
+                )
                     .position(positioned.position)
                     .onTapGesture {
                         selectedNpub = positioned.node.id
@@ -176,6 +191,43 @@ struct NetworkTopologyView: View {
             width: max(size.width, layout.canvasSize.width),
             height: max(size.height, layout.canvasSize.height)
         )
+    }
+
+    // MARK: - Collapse helpers
+
+    private func toggleCollapse(_ npub: String) {
+        if collapsedNpubs.contains(npub) {
+            collapsedNpubs.remove(npub)
+        } else {
+            collapsedNpubs.insert(npub)
+        }
+    }
+
+    /// Recursively trim children out of any node whose npub is in
+    /// `collapsedNpubs` so the layout engine doesn't lay them out.
+    private func applyCollapse(to node: TopologyNode) -> TopologyNode {
+        if collapsedNpubs.contains(node.id) {
+            return TopologyNode(id: node.id, displayName: node.displayName, tier: node.tier, children: [])
+        }
+        let trimmed = node.children.map { applyCollapse(to: $0) }
+        return TopologyNode(id: node.id, displayName: node.displayName, tier: node.tier, children: trimmed)
+    }
+
+    /// Count of total descendants per node id, computed from the un-trimmed
+    /// roots so collapsed nodes can show how many they're hiding.
+    private func collectChildCounts(roots: [TopologyNode]) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        @discardableResult
+        func walk(_ n: TopologyNode) -> Int {
+            var total = 0
+            for c in n.children {
+                total += 1 + walk(c)
+            }
+            counts[n.id] = total
+            return total
+        }
+        for r in roots { walk(r) }
+        return counts
     }
 
     private var oracleNode: some View {
@@ -198,22 +250,44 @@ struct NetworkTopologyView: View {
         }
     }
 
-    private func nodeView(_ node: TopologyNode, isSelected: Bool) -> some View {
+    private func nodeView(
+        _ node: TopologyNode,
+        isSelected: Bool,
+        hasDescendants: Bool = false,
+        isCollapsed: Bool = false,
+        hiddenCount: Int = 0,
+        onToggleCollapse: (() -> Void)? = nil
+    ) -> some View {
         VStack(spacing: 4) {
-            ZStack {
-                Circle()
-                    .fill(node.tier.color.opacity(isSelected ? 1.0 : 0.2))
-                    .frame(width: node.tier.nodeRadius * 2, height: node.tier.nodeRadius * 2)
-
-                if isSelected {
+            ZStack(alignment: .bottomTrailing) {
+                ZStack {
                     Circle()
-                        .strokeBorder(node.tier.color, lineWidth: 3)
-                        .frame(width: node.tier.nodeRadius * 2 + 6, height: node.tier.nodeRadius * 2 + 6)
+                        .fill(node.tier.color.opacity(isSelected ? 1.0 : 0.2))
+                        .frame(width: node.tier.nodeRadius * 2, height: node.tier.nodeRadius * 2)
+
+                    if isSelected {
+                        Circle()
+                            .strokeBorder(node.tier.color, lineWidth: 3)
+                            .frame(width: node.tier.nodeRadius * 2 + 6, height: node.tier.nodeRadius * 2 + 6)
+                    }
+
+                    Image(systemName: node.tier.iconName)
+                        .font(.system(size: node.tier.nodeRadius * 0.7))
+                        .foregroundStyle(isSelected ? .white : node.tier.color)
                 }
 
-                Image(systemName: node.tier.iconName)
-                    .font(.system(size: node.tier.nodeRadius * 0.7))
-                    .foregroundStyle(isSelected ? .white : node.tier.color)
+                // Disclosure badge — only on nodes that have descendants.
+                // Tappable independently of the node body so it never
+                // interferes with selection.
+                if hasDescendants, let onToggleCollapse {
+                    disclosureBadge(
+                        isCollapsed: isCollapsed,
+                        hiddenCount: hiddenCount,
+                        tier: node.tier,
+                        onTap: onToggleCollapse
+                    )
+                    .offset(x: 6, y: 6)
+                }
             }
 
             Text(node.displayName)
@@ -223,6 +297,35 @@ struct NetworkTopologyView: View {
                 .multilineTextAlignment(.center)
                 .frame(width: 80)
         }
+    }
+
+    private func disclosureBadge(
+        isCollapsed: Bool,
+        hiddenCount: Int,
+        tier: NetworkTier,
+        onTap: @escaping () -> Void
+    ) -> some View {
+        let label: String = isCollapsed && hiddenCount > 0 ? "+\(hiddenCount)" : ""
+        return HStack(spacing: 2) {
+            Image(systemName: isCollapsed ? "plus.circle.fill" : "minus.circle.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.white, tier.color)
+                .background(Circle().fill(Color(.systemBackground)))
+            if !label.isEmpty {
+                Text(label)
+                    .font(.caption2.bold().monospacedDigit())
+                    .foregroundStyle(tier.color)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(
+                        Capsule().fill(Color(.systemBackground))
+                            .overlay(Capsule().stroke(tier.color.opacity(0.6), lineWidth: 0.5))
+                    )
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+        .accessibilityLabel(isCollapsed ? "Expand subtree (\(hiddenCount) hidden)" : "Collapse subtree")
     }
 }
 

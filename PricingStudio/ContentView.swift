@@ -746,6 +746,9 @@ private struct SidebarView: View {
     @State private var categoryOrder: [SidebarCategory] = [.authorities, .operators, .patrons]
     @State private var expandedCategories: Set<SidebarCategory> = Set(SidebarCategory.allCases)
     @State private var isReorderingCategories = false
+    /// Npubs of Authorities whose subtree is currently collapsed in the
+    /// sidebar. Empty = all branches expanded. Session-local; not persisted.
+    @State private var collapsedAuthorities: Set<String> = []
 
     enum SidebarCategory: String, CaseIterable, Identifiable, Codable {
         case authorities, operators, patrons
@@ -939,6 +942,15 @@ private struct SidebarView: View {
                 AuthorityRowInline(
                     authority: entry.authority,
                     isSelected: authorityVM.selectedAuthority?.npub == entry.authority.npub,
+                    hasChildren: entry.hasChildren,
+                    isCollapsed: collapsedAuthorities.contains(entry.authority.npub),
+                    onDisclosureTapped: {
+                        if collapsedAuthorities.contains(entry.authority.npub) {
+                            collapsedAuthorities.remove(entry.authority.npub)
+                        } else {
+                            collapsedAuthorities.insert(entry.authority.npub)
+                        }
+                    },
                     onIconTapped: { authorityVM.requestEdit(entry.authority) }
                 )
                     .padding(.leading, CGFloat(entry.depth) * 14)
@@ -984,7 +996,9 @@ private struct SidebarView: View {
     /// Authorities flattened in depth-first chain order:
     /// Prime first with its descendants nested under it, then unchained
     /// authorities (no parent and not Prime) sorted alphabetically by
-    /// displayName. Cycle-guarded so a malformed parent chain can't loop.
+    /// displayName. Descendants of a collapsed Authority are omitted from
+    /// the result so the sidebar hides them entirely. Cycle-guarded so a
+    /// malformed parent chain can't loop.
     private var authorityTreeEntries: [AuthorityTreeEntry] {
         let byNpub = Dictionary(uniqueKeysWithValues: authorities.map { ($0.npub, $0) })
         let childrenByParent = Dictionary(grouping: authorities.compactMap { auth -> (String, Authority)? in
@@ -996,9 +1010,11 @@ private struct SidebarView: View {
 
         func visit(_ auth: Authority, depth: Int, visited: Set<String>) {
             guard !visited.contains(auth.npub) else { return }
-            result.append(AuthorityTreeEntry(authority: auth, depth: depth))
+            let kids = childrenByParent[auth.npub] ?? []
+            result.append(AuthorityTreeEntry(authority: auth, depth: depth, hasChildren: !kids.isEmpty))
+            guard !collapsedAuthorities.contains(auth.npub) else { return }
             let next = visited.union([auth.npub])
-            for child in childrenByParent[auth.npub] ?? [] {
+            for child in kids {
                 visit(child, depth: depth + 1, visited: next)
             }
         }
@@ -1148,6 +1164,7 @@ private struct SidebarView: View {
 private struct AuthorityTreeEntry {
     let authority: Authority
     let depth: Int
+    let hasChildren: Bool
 }
 
 // MARK: - Authority Inline Row
@@ -1155,10 +1172,33 @@ private struct AuthorityTreeEntry {
 private struct AuthorityRowInline: View {
     let authority: Authority
     let isSelected: Bool
+    var hasChildren: Bool = false
+    var isCollapsed: Bool = false
+    var onDisclosureTapped: (() -> Void)?
     var onIconTapped: (() -> Void)?
 
     var body: some View {
-        HStack {
+        HStack(spacing: 4) {
+            // Disclosure chevron — only meaningful when this Authority has
+            // children. Reserve the same footprint when there are none so
+            // sibling rows line up cleanly.
+            if hasChildren {
+                Button {
+                    onDisclosureTapped?()
+                } label: {
+                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 14, height: 14)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isCollapsed ? "Expand subtree" : "Collapse subtree")
+                .accessibilityIdentifier("authorityDisclosure_\(authority.npub)")
+            } else {
+                Color.clear.frame(width: 14, height: 14)
+            }
+
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Button {
