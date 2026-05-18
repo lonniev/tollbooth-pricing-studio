@@ -54,6 +54,13 @@ final class TestCallViewModel {
     /// Cached MCP tool schemas keyed by full tool name.
     private var toolSchemas: [String: Value] = [:]
 
+    /// The operator slug prefix (e.g. "schwab_") shared by every tool in the
+    /// pricing model. The wheel's identity-proof gate checks the SHORT
+    /// capability name ("get_brokerage_balances"), not the MCP-exposed name
+    /// ("schwab_get_brokerage_balances"), so the App must sign the short name
+    /// to satisfy verify_proof's u-tag check.
+    private var slugPrefix: String = ""
+
     var selectedOperator: Operator? {
         didSet {
             if selectedOperator?.npub != oldValue?.npub {
@@ -104,7 +111,12 @@ final class TestCallViewModel {
             // Wheel v0.23.0's require_proof accepts EITHER Schnorr OR cached poison
             // at every gate, so always prefer the inline Schnorr path when the App
             // holds the nsec — no DM round-trip needed.
-            if let proof = try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub) {
+            //
+            // The pricing model exposes MCP-prefixed names ("schwab_get_brokerage_balances"),
+            // but the wheel's verify_proof checks the SHORT capability name
+            // ("get_brokerage_balances"). Strip the slug before signing.
+            let capability = stripSlug(toolName)
+            if let proof = try? OperatorProofService.createProof(toolName: capability, operatorNpub: npub) {
                 paramValues["proof"] = proof
                 proofTactic = .schnorrFromKeychain
                 return
@@ -152,6 +164,9 @@ final class TestCallViewModel {
             )
             availableTools = result.tools ?? []
             pipelineSteps = result.pipeline ?? []
+            slugPrefix = Self.longestCommonPrefixEndingInUnderscore(
+                availableTools.map(\.toolName)
+            )
 
             // Fetch MCP tool schemas for parameter info
             let mcpTools = try await mcpService.fetchToolList(
@@ -352,10 +367,11 @@ final class TestCallViewModel {
         do {
             var args = buildArguments()
 
-            // If the tool requires patron_proof (from pipeline), sign it
+            // If the tool requires patron_proof (from pipeline), sign it.
+            // Use the short capability name to match what verify_proof checks.
             if toolRequiresPatronProof, let patronNpub = selectedPatronNpub {
                 let proof = try OperatorProofService.createProof(
-                    toolName: selectedTool!.toolName,
+                    toolName: stripSlug(selectedTool!.toolName),
                     operatorNpub: patronNpub  // works for any npub with nsec in Keychain
                 )
                 args["patron_proof"] = .string(proof)
@@ -474,6 +490,32 @@ final class TestCallViewModel {
     }
 
     // MARK: - Helpers
+
+    /// Strip the operator slug prefix from an MCP-exposed tool name to get
+    /// the short capability name that the wheel's verify_proof checks.
+    /// `slugPrefix` is empty until tools are loaded; falls back to the input.
+    private func stripSlug(_ toolName: String) -> String {
+        guard !slugPrefix.isEmpty, toolName.hasPrefix(slugPrefix) else { return toolName }
+        return String(toolName.dropFirst(slugPrefix.count))
+    }
+
+    /// Longest common prefix across all names that ends in `_`. Returns ""
+    /// if no common prefix exists or no name contains an underscore.
+    private static func longestCommonPrefixEndingInUnderscore(_ names: [String]) -> String {
+        guard let first = names.first else { return "" }
+        var prefix = first
+        for name in names.dropFirst() {
+            while !name.hasPrefix(prefix) {
+                prefix = String(prefix.dropLast())
+                if prefix.isEmpty { return "" }
+            }
+        }
+        // Trim back to the last underscore so we don't accidentally chop a partial word
+        if let lastUnderscore = prefix.lastIndex(of: "_") {
+            return String(prefix[...lastUnderscore])
+        }
+        return ""
+    }
 
     /// Get available identity npubs filtered by the selected tool's role requirement.
     func availableIdentities(operators: [Operator], patrons: [Patron], authorities: [Authority] = []) -> [(npub: String, displayName: String, role: ToolRole)] {
