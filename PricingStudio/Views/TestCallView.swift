@@ -235,18 +235,31 @@ struct TestCallView: View {
                             .font(.caption.monospaced())
                             .foregroundStyle(.green)
                     } else if param.name == "proof" {
-                        // proof is auto-filled: poison token for paid tools, Schnorr for restricted
-                        let proofValue = vm.paramValues["proof", default: ""]
-                        if proofValue.isEmpty {
-                            Label("via Secure Courier proof exchange", systemImage: "lock.shield")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        } else {
-                            Text(proofValue)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.green)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                        // One canonical tactic-selection — wheel v0.23.0 accepts
+                        // EITHER inline Schnorr OR cached poison at every gate.
+                        // Prefer Schnorr from Keychain so the user skips the DM dance.
+                        switch vm.proofTactic {
+                        case .schnorrFromKeychain:
+                            HStack(spacing: 4) {
+                                Image(systemName: "key.fill")
+                                Text("Signed locally with stored nsec")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                        case .cachedPoisonToken:
+                            HStack(spacing: 4) {
+                                Image(systemName: "ticket.fill")
+                                Text("Cached proof token from prior DM exchange")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                        case .noneAvailable:
+                            HStack(spacing: 4) {
+                                Image(systemName: "lock.shield")
+                                Text("Add nsec to Keychain, or run request/receive npub_proof first")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                         }
                         // Allow manual override by pasting a raw proof
                         TextField(

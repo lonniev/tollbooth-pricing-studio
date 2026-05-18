@@ -78,42 +78,46 @@ final class TestCallViewModel {
         }
     }
 
-    /// Known restricted tools that require operator Schnorr proof.
-    private static let restrictedTools: Set<String> = [
-        "set_pricing_model", "reset_pricing_model", "notarize_ledger",
-        "register_operator", "update_operator", "deregister_operator",
-        "forget_credentials",
-    ]
+    /// Which tactic produced the auto-filled proof for the current selection.
+    /// Surfaced to the View so the user knows whether they need to do a
+    /// Secure Courier round-trip or whether the App signed locally.
+    enum ProofTactic: Sendable {
+        case schnorrFromKeychain   // Signed inline from nsec — no DM needed
+        case cachedPoisonToken     // Cached proof_token from prior receive_npub_proof
+        case noneAvailable         // User must run request/receive npub_proof
+    }
+
+    private(set) var proofTactic: ProofTactic = .noneAvailable
 
     var selectedPatronNpub: String? {
         didSet {
-            // Auto-fill npub and proof params when identity is selected
-            if let npub = selectedPatronNpub {
-                if toolParams.contains(where: { $0.name == "npub" }) {
-                    paramValues["npub"] = npub
-                }
-                if toolParams.contains(where: { $0.name == "proof" }) {
-                    let toolName = selectedTool?.toolName ?? ""
-                    if Self.restrictedTools.contains(toolName) {
-                        // Restricted tools: Schnorr signature from nsec
-                        if KeychainService.loadNsec(forNpub: npub) != nil,
-                           let proof = try? OperatorProofService.createProof(
-                               toolName: toolName, operatorNpub: npub
-                           ) {
-                            paramValues["proof"] = proof
-                        }
-                    } else {
-                        // Paid tools: poison-keyed proof token from Keychain
-                        let host = selectedOperator?.mcpEndpointURL
-                            .flatMap { URL(string: $0)?.host } ?? ""
-                        if let token = KeychainService.loadProofToken(
-                            forPatron: npub, operator: host
-                        ) {
-                            paramValues["proof"] = token
-                        }
-                    }
-                }
+            guard let npub = selectedPatronNpub else { return }
+            if toolParams.contains(where: { $0.name == "npub" }) {
+                paramValues["npub"] = npub
             }
+            guard toolParams.contains(where: { $0.name == "proof" }),
+                  let toolName = selectedTool?.toolName, !toolName.isEmpty else {
+                proofTactic = .noneAvailable
+                return
+            }
+            // Single canonical tactic-selection — mirrors MCPService.argsWithProof.
+            // Wheel v0.23.0's require_proof accepts EITHER Schnorr OR cached poison
+            // at every gate, so always prefer the inline Schnorr path when the App
+            // holds the nsec — no DM round-trip needed.
+            if let proof = try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub) {
+                paramValues["proof"] = proof
+                proofTactic = .schnorrFromKeychain
+                return
+            }
+            let host = selectedOperator?.mcpEndpointURL
+                .flatMap { URL(string: $0)?.host } ?? ""
+            if let token = KeychainService.loadProofToken(forPatron: npub, operator: host), !token.isEmpty {
+                paramValues["proof"] = token
+                proofTactic = .cachedPoisonToken
+                return
+            }
+            paramValues["proof"] = ""
+            proofTactic = .noneAvailable
         }
     }
 
