@@ -971,12 +971,14 @@ struct PricingDetailView: View {
                   let endpointURL = URL(string: endpoint) else { return }
             do {
                 _ = try await viewModel.resolveEndpoint(for: target)
-                let proof = try OperatorProofService.createProof(
-                    toolName: "reset_pricing_model",
+                let service = MCPService()
+                let proof = try await service.signRuntimeProof(
+                    capability: "reset_pricing_model",
+                    endpointURL: endpointURL,
                     operatorNpub: target.npub
                 )
                 // Single call: erase + restore default
-                _ = try await MCPService().callToolGeneric(
+                _ = try await service.callToolGeneric(
                     endpointURL: endpointURL,
                     toolName: "reset_pricing_model",
                     arguments: ["proof": .string(proof)]
