@@ -35,28 +35,23 @@ actor MCPService {
 
     /// Resolve the operator's slug for a given endpoint. Fetches the tool
     /// list on first call per host, caches forever after.
+    ///
+    /// Strategy: every Tollbooth operator exposes `<slug>_service_status`
+    /// (a wheel-provided standard tool — universal and free). Find that
+    /// tool in the listing and take everything before `_service_status`
+    /// as the slug. This is robust against operators that mount multiple
+    /// namespaces in one server (e.g. brain-mcp exposes both `brain_*`
+    /// and `oracle_*` tools, so a longest-common-prefix approach yields
+    /// empty).
     private func resolveSlug(endpointURL: URL) async -> String {
         let host = endpointURL.host ?? endpointURL.absoluteString
         if let cached = slugCache[host] { return cached }
         guard let tools = try? await fetchToolList(endpointURL: endpointURL) else { return "" }
-        let names = tools.map(\.name)
-        let prefix = Self.longestCommonPrefixEndingInUnderscore(names)
-        let slug = prefix.hasSuffix("_") ? String(prefix.dropLast()) : prefix
-        slugCache[host] = slug
-        return slug
-    }
-
-    private static func longestCommonPrefixEndingInUnderscore(_ names: [String]) -> String {
-        guard let first = names.first else { return "" }
-        var prefix = first
-        for name in names.dropFirst() {
-            while !name.hasPrefix(prefix) {
-                prefix = String(prefix.dropLast())
-                if prefix.isEmpty { return "" }
-            }
-        }
-        if let lastUnderscore = prefix.lastIndex(of: "_") {
-            return String(prefix[...lastUnderscore])
+        let marker = "_service_status"
+        if let tool = tools.first(where: { $0.name.hasSuffix(marker) && $0.name.count > marker.count }) {
+            let slug = String(tool.name.dropLast(marker.count))
+            slugCache[host] = slug
+            return slug
         }
         return ""
     }
