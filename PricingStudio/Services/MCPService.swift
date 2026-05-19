@@ -18,31 +18,35 @@ actor MCPService {
     // MARK: - Proof Tactics
 
     /// Per-host slug cache. The slug is the operator's FastMCP namespace
-    /// prefix ("schwab", "brain", …) — discovered once per host by listing
-    /// tools and computing the longest common prefix ending in `_`.
+    /// prefix ("schwab", "brain", …) — discovered once per host from the
+    /// universal `<slug>_service_status` standard tool. Cached forever
+    /// after first resolution.
     private var slugCache: [String: String] = [:]
 
-    /// Public helper for callers that build their own proof outside argsWithProof
-    /// (e.g. PricingDetailView's reset_pricing_model flow). Resolves the
-    /// operator's runtime tool name for a given capability, then signs a
-    /// kind-27235 event whose `u` tag matches what the wheel's require_proof
-    /// will check.
+    /// Public helper for callers that build their own proof outside
+    /// `argsWithProof` (e.g. PricingDetailView's reset_pricing_model flow).
+    /// Signs a kind-27235 event whose `u` tag matches the runtime tool name
+    /// the wheel's `require_proof` will check.
     func signRuntimeProof(capability: String, endpointURL: URL, operatorNpub: String) async throws -> String {
-        let slug = await resolveSlug(endpointURL: endpointURL)
-        let runtimeName = slug.isEmpty ? capability : "\(slug)_\(capability)"
-        return try OperatorProofService.createProof(toolName: runtimeName, operatorNpub: operatorNpub)
+        let name = await runtimeName(for: capability, endpointURL: endpointURL)
+        return try OperatorProofService.createProof(toolName: name, operatorNpub: operatorNpub)
     }
 
-    /// Resolve the operator's slug for a given endpoint. Fetches the tool
-    /// list on first call per host, caches forever after.
-    ///
-    /// Strategy: every Tollbooth operator exposes `<slug>_service_status`
-    /// (a wheel-provided standard tool — universal and free). Find that
-    /// tool in the listing and take everything before `_service_status`
-    /// as the slug. This is robust against operators that mount multiple
-    /// namespaces in one server (e.g. brain-mcp exposes both `brain_*`
-    /// and `oracle_*` tools, so a longest-common-prefix approach yields
-    /// empty).
+    /// Join the operator's slug with a capability to produce the runtime
+    /// tool name — the one identifier that crosses every server boundary
+    /// (MCP wire, pricing model `tool_name`, proof u-tag, audit logs).
+    /// Falls back to the bare capability if the slug can't be resolved.
+    private func runtimeName(for capability: String, endpointURL: URL) async -> String {
+        let slug = await resolveSlug(endpointURL: endpointURL)
+        return slug.isEmpty ? capability : "\(slug)_\(capability)"
+    }
+
+    /// Resolve the operator's slug. Strategy: every Tollbooth operator
+    /// exposes `<slug>_service_status` (a wheel-provided standard tool —
+    /// universal and free). Find that tool in `tools/list` and take
+    /// everything before `_service_status` as the slug. Robust against
+    /// operators that mount multiple namespaces in one server (e.g.
+    /// `<slug>_oracle_*` for delegated oracle tools).
     private func resolveSlug(endpointURL: URL) async -> String {
         let host = endpointURL.host ?? endpointURL.absoluteString
         if let cached = slugCache[host] { return cached }
@@ -81,10 +85,9 @@ actor MCPService {
         var args = extra
         guard !npub.isEmpty else { return args }
         args[npubKey] = .string(npub)
-        let slug = await resolveSlug(endpointURL: endpointURL)
-        let runtimeName = slug.isEmpty ? capability : "\(slug)_\(capability)"
+        let name = await runtimeName(for: capability, endpointURL: endpointURL)
         let host = endpointURL.host ?? endpointURL.absoluteString
-        if let signed = try? OperatorProofService.createProof(toolName: runtimeName, operatorNpub: npub) {
+        if let signed = try? OperatorProofService.createProof(toolName: name, operatorNpub: npub) {
             args["proof"] = .string(signed)
         } else if let cached = KeychainService.loadProofToken(forPatron: npub, operator: host), !cached.isEmpty {
             args["proof"] = .string(cached)
@@ -987,9 +990,11 @@ actor MCPService {
         // Pass operator Schnorr proof as a separate parameter (restricted tool)
         var arguments: [String: Value] = ["model_json": .string(jsonString)]
         if let npub = operatorNpub {
-            let slug = await resolveSlug(endpointURL: endpointURL)
-            let runtimeName = slug.isEmpty ? "set_pricing_model" : "\(slug)_set_pricing_model"
-            let proof = (try? OperatorProofService.createProof(toolName: runtimeName, operatorNpub: npub)) ?? ""
+            let proof = (try? await signRuntimeProof(
+                capability: "set_pricing_model",
+                endpointURL: endpointURL,
+                operatorNpub: npub
+            )) ?? ""
             if !proof.isEmpty {
                 arguments["proof"] = .string(proof)
             }
