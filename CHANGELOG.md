@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.9.0] — 2026-05-19
+
+### Changed — sync with tollbooth-dpyc 0.25.0
+
+Picks up the wheel's runtime-name + DRY pass:
+
+- **Identity proofs sign the runtime tool name** (`<slug>_<capability>` —
+  what the operator exposes on the MCP wire and lists in its pricing
+  model). The capability seed never crosses the server boundary. Every
+  proof signer in `MCPService` now signs the runtime name; `TestCallView`
+  signs `selectedTool.toolName` directly.
+- **Slug resolution via `<slug>_service_status` marker** — every Tollbooth
+  operator exposes that standard tool, so the App finds it in `tools/list`
+  and strips the suffix to get the slug. Robust against operators that
+  delegate oracle tools under `<slug>_oracle_*`.
+- **One canonical helper for the slug+capability join** —
+  `MCPService.runtimeName(for:endpointURL:)`. The previous three
+  inline `<slug>_<cap>` constructions in `argsWithProof`,
+  `signRuntimeProof`, and the `set_pricing_model` signer all delegate to it.
+- **Single proof-tactic dispatch** — `argsWithProof` (and Test Call's
+  proof auto-fill) prefer inline Schnorr signing from the Keychain nsec
+  when available, falling back to a cached poison token from a prior
+  `receive_npub_proof`, falling back to empty. No more split between
+  "restricted" and "paid" tool kinds — the wheel accepts either tactic
+  at every gate.
+
+### Fixed
+
+- Top-Off and Test Call no longer drop the SF Symbol on `.borderedProminent`
+  buttons. Replaced `Label(_, systemImage:)` with `HStack { Image; Text }`.
+- `AccountStatementView` pull-to-refresh no longer reports "cancelled"
+  on a successful balance fetch. The network call runs inside
+  `Task.detached` so SwiftUI body re-renders don't cancel it.
+
+
 ## [1.5.4] — 2026-03-20
 
 Authority claim UX overhaul, traffic log filtering, and rolling buffer.
