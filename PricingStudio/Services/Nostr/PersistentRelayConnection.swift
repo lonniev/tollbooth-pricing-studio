@@ -32,6 +32,13 @@ final class PersistentRelayConnection: @unchecked Sendable {
     private var reconnectTask: Task<Void, Never>?
     private var pingTask: Task<Void, Never>?
 
+    /// Number of pings sent since the last pong was received. Reset to 0 on each
+    /// pong. If this reaches MAX_MISSED_PINGS we treat the socket as dead and
+    /// force a reconnect — catches the half-open case where TCP says "fine" but
+    /// the relay has stopped responding.
+    private var missedPings = 0
+    private static let MAX_MISSED_PINGS = 2  // 60s of silence (with 30s interval)
+
     private let lock = NSLock()
 
     init(url: URL) {
@@ -155,6 +162,9 @@ final class PersistentRelayConnection: @unchecked Sendable {
             }
             self.scheduleReconnect()
         }
+        delegate.onPong = { [weak self] in
+            self?.missedPings = 0
+        }
     }
 
     private func handleMessage(_ text: String) {
@@ -205,13 +215,42 @@ final class PersistentRelayConnection: @unchecked Sendable {
 
     private func startPinging() {
         pingTask?.cancel()
+        missedPings = 0
         pingTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 guard let self, self.state == .connected else { break }
+                // If we sent a ping last cycle and haven't seen a pong, count it.
+                // After MAX_MISSED_PINGS rounds with no pong, treat as half-open
+                // and force the reconnect path — the relay is unreachable even
+                // though TCP/WebSocket hasn't surfaced an error.
+                self.missedPings += 1
+                if self.missedPings >= Self.MAX_MISSED_PINGS {
+                    Task { @MainActor in
+                        TrafficLogger.shared.log(.error, label: "Sub Stale",
+                                                 detail: "\(self.url.host ?? "?") — \(self.missedPings) pings unanswered, forcing reconnect")
+                    }
+                    self.socket?.disconnect()  // triggers .cancelled → onDisconnect → scheduleReconnect
+                    break
+                }
                 self.socket?.write(ping: Data())
             }
         }
+    }
+
+    // MARK: - Forced revalidation
+
+    /// Force-reconnect this connection if it's not currently healthy.
+    /// Called by RelaySubscriptionManager on UIApplication.didBecomeActive —
+    /// iOS suspends WebSockets within ~30s of backgrounding, so what we think
+    /// is `.connected` may actually be a corpse.
+    func revalidate() {
+        guard state == .connected else { return }
+        Task { @MainActor in
+            TrafficLogger.shared.log(.outbound, label: "Sub Revalidate",
+                                     detail: "\(self.url.host ?? "?") — foreground probe; tearing down to reconnect")
+        }
+        socket?.disconnect()  // forces .cancelled → onDisconnect → scheduleReconnect
     }
 
     // MARK: - Helpers
@@ -240,6 +279,7 @@ private final class PersistentRelayDelegate: @unchecked Sendable, WebSocketDeleg
     var onText: ((String) -> Void)?
     var onDisconnect: ((Error?) -> Void)?
     var onError: ((Error?) -> Void)?
+    var onPong: (() -> Void)?
 
     func didReceive(event: WebSocketEvent, client: any WebSocketClient) {
         switch event {
@@ -254,9 +294,20 @@ private final class PersistentRelayDelegate: @unchecked Sendable, WebSocketDeleg
             onDisconnect?(error)
         case .cancelled:
             onDisconnect?(nil)
-        case .viabilityChanged, .reconnectSuggested, .peerClosed:
-            break
-        case .binary, .ping, .pong:
+        case .peerClosed:
+            // Relay closed the connection cleanly (idle timeout, restart, etc.).
+            // Must trigger reconnect — the socket is dead even though no error fired.
+            onDisconnect?(nil)
+        case .reconnectSuggested(let suggested):
+            // Starscream is telling us the connection is unhealthy. Honor it.
+            if suggested { onDisconnect?(nil) }
+        case .viabilityChanged(let viable):
+            // iOS network reachability change. Non-viable means the path is dead;
+            // tear down so we reconnect when the user comes back to the App.
+            if !viable { onDisconnect?(nil) }
+        case .pong:
+            onPong?()
+        case .binary, .ping:
             break
         }
     }

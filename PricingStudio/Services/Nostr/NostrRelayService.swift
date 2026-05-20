@@ -358,8 +358,13 @@ private final class RelayDelegate: @unchecked Sendable, WebSocketDelegate {
             onError?(error)
         case .cancelled:
             onDisconnect?(nil)
-        case .viabilityChanged, .reconnectSuggested, .peerClosed:
-            break
+        case .peerClosed:
+            // Relay closed cleanly — same treatment as disconnect.
+            onDisconnect?(nil)
+        case .reconnectSuggested(let suggested):
+            if suggested { onDisconnect?(nil) }
+        case .viabilityChanged(let viable):
+            if !viable { onDisconnect?(nil) }
         case .binary, .ping, .pong:
             break
         }

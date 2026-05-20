@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Manages persistent Nostr relay subscriptions for all registered npubs.
 ///
@@ -20,8 +21,31 @@ final class RelaySubscriptionManager {
     private var npubKeys: [String: (pubkeyHex: String, privkeyHex: String)] = [:]
     private var npubRelayMap: [String: URL] = [:]  // npub → its current primary relay
     private var eventTasks: [URL: Task<Void, Never>] = [:]
+    private var foregroundObserver: NSObjectProtocol?
 
-    private init() {}
+    private init() {
+        // iOS suspends the process within ~30s of going to background, killing
+        // every WebSocket. On foreground return, force a probe-and-reconnect
+        // pass over every connection — what we think is `.connected` may be a
+        // corpse that hasn't surfaced its death yet. The observer is retained
+        // for the lifetime of this singleton (which is the process lifetime),
+        // so no removeObserver is needed.
+        foregroundObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                guard !self.connections.isEmpty else { return }
+                TrafficLogger.shared.log(.outbound, label: "Sub Foreground",
+                                         detail: "Revalidating \(self.connections.count) relay connection(s)")
+                for conn in self.connections.values {
+                    conn.revalidate()
+                }
+            }
+        }
+    }
 
     // MARK: - Subscribe / Unsubscribe
 

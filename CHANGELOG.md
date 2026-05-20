@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.9.1] — 2026-05-20
+
+### Fixed — relay subscriptions silently dying after idle hours
+
+The Pricing Studio's persistent Nostr relay connections stopped detecting
+new DMs after a few hours of unattended operation. Root cause: five
+overlapping foot-guns in the WebSocket lifecycle.
+
+1. **`.peerClosed` silently swallowed.** Both WebSocket delegates
+   (`PersistentRelayConnection`, `NostrRelayService`) had
+   `case .viabilityChanged, .reconnectSuggested, .peerClosed: break`.
+   When a relay closes the connection cleanly on idle timeout (the
+   common case after 30–120 min of silence), Starscream emits
+   `.peerClosed` — the App ignored it, never fired `onDisconnect`, never
+   triggered `scheduleReconnect()`. State drifted to "connected but
+   actually dead." Now wired through `onDisconnect` to engage the
+   existing exponential-backoff reconnect machinery.
+
+2. **`.reconnectSuggested` ignored.** Starscream's "you should reconnect"
+   signal was ignored. Now honored when `suggested == true`.
+
+3. **`.viabilityChanged` ignored.** iOS network reachability changes
+   (WiFi ↔ cellular, going offline) were silently dropped. Now tears
+   down when the path becomes non-viable so the reconnect path fires
+   on the next foreground.
+
+4. **One-way ping with no pong tracking.** Pings went out every 30s
+   but no one watched for the pong. A half-open connection (TCP layer
+   says "fine" but the relay has stopped responding) looked identical
+   to a healthy one. Now tracks `missedPings`; after 2 unanswered
+   pings (~60s of silence), the App force-tears-down the socket and
+   reconnects.
+
+5. **No iOS lifecycle observer.** iOS suspends apps within ~30s of
+   backgrounding, killing every WebSocket. On foreground return,
+   nothing reconnected — what we thought was `.connected` was a
+   corpse. Added a `UIApplication.didBecomeActiveNotification`
+   observer in `RelaySubscriptionManager` that calls
+   `PersistentRelayConnection.revalidate()` on every active
+   connection, forcing a fresh handshake.
+
+Net effect: relay subscriptions now self-heal across all four failure
+modes (silent relay close, half-open TCP, network change, iOS
+suspension). Traffic Log will show new "Sub Stale", "Sub Revalidate",
+and "Sub Reconnected" entries when these paths fire.
+
+
 ## [1.9.0] — 2026-05-19
 
 ### Changed — sync with tollbooth-dpyc 0.25.0
