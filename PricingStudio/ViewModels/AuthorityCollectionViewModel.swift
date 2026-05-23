@@ -219,7 +219,8 @@ final class AuthorityCollectionViewModel {
             let result = try await mcpService.callRegisterOperator(
                 endpointURL: endpointURL,
                 operatorNpub: operatorToAdopt.npub,
-                operatorServiceURL: operatorToAdopt.mcpEndpointURL ?? ""
+                operatorServiceURL: operatorToAdopt.mcpEndpointURL ?? "",
+                authorityNpub: authority.npub
             )
             operatorToAdopt.authorityNpub = authority.npub
             try? context.save()

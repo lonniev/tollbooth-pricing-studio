@@ -538,11 +538,14 @@ struct ClaimAuthoritySheet: View {
 
         Task {
             do {
-                // Establish DPYC session before claim — server requires npub in _dpyc_sessions
+                // Establish DPYC session before claim — server requires npub in _dpyc_sessions.
+                // The candidate is registering its own npub against itself, so the candidate's
+                // nsec serves as both operator-side and Authority-side consent witness.
                 let mcpService = MCPService()
                 _ = try await mcpService.callRegisterOperator(
                     endpointURL: endpointURL,
-                    operatorNpub: candidateNpub
+                    operatorNpub: candidateNpub,
+                    authorityNpub: candidateNpub
                 )
                 await viewModel.initiateAuthorityClaim(
                     authorityEndpoint: endpointURL,

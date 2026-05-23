@@ -583,7 +583,8 @@ private struct ConnectedOperatorsList: View {
         do {
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
-                operatorNpub: op.npub
+                operatorNpub: op.npub,
+                authorityNpub: authority.npub
             )
         } catch {
             // Log but don't block — still clear the local link

@@ -175,7 +175,8 @@ struct EditOperatorRegistrationSheet: View {
                 endpointURL: endpointURL,
                 operatorNpub: operatorTarget.npub,
                 serviceURL: serviceURL,
-                displayName: displayName
+                displayName: displayName,
+                authorityNpub: authority.npub
             )
 
             // Update local model
