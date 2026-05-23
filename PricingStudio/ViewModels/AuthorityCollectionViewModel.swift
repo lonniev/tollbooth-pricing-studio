@@ -241,7 +241,7 @@ final class AuthorityCollectionViewModel {
             operatorToAdopt.authorityNpub = authority.npub
             try? context.save()
             adoptionStatus = .success(result)
-        } catch let MCPError.structuredError(code, _, extras) {
+        } catch let MCPError.structuredError(code, message, extras) {
             // Branch on the wheel's error_code so the UI can surface a remedy
             // flow instead of a dead-end error string. The view layer handles
             // the proof-acquisition handshake; this VM only does state.
@@ -255,7 +255,7 @@ final class AuthorityCollectionViewModel {
             case "proof_required", "proof_invalid", "proof_refresh_needed":
                 adoptionStatus = .needsOperatorProof(npub: operatorToAdopt.npub)
             default:
-                adoptionStatus = .failed(error.localizedDescription)
+                adoptionStatus = .failed(message)
             }
         } catch {
             adoptionStatus = .failed(error.localizedDescription)
