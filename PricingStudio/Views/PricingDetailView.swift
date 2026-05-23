@@ -16,6 +16,7 @@ struct PricingDetailView: View {
     @State private var showingEditRegistration = false
     @State private var showingDeregisterConfirm = false
     @State private var deregisterError: String?
+    @State private var deregisterProofRemedy: DeregisterProofRemedy?
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var onboardingLoading = false
     @State private var isInitializing = false
@@ -686,6 +687,27 @@ struct PricingDetailView: View {
                 if let deregisterError { Text(deregisterError) }
             }
             .confirmationDialog(
+                "Proof Required",
+                isPresented: Binding(
+                    get: { deregisterProofRemedy != nil },
+                    set: { if !$0 { deregisterProofRemedy = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: deregisterProofRemedy
+            ) { remedy in
+                if KeychainService.loadNsec(forNpub: remedy.signerNpub) != nil {
+                    Button("Sign with Keychain & Retry") {
+                        Task { await retryDeregisterWithProof(remedy) }
+                    }
+                }
+                Button("Detach Locally Anyway", role: .destructive) {
+                    Task { await detachOperatorLocallyOnly() }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: { remedy in
+                Text("The Authority requires \(remedy.kind == .operatorProof ? "the operator's" : "the Authority's") cryptographic consent (npub \(String(remedy.signerNpub.prefix(20)))…) before removing this registry entry. The nsec must be in this device's Keychain to auto-sign.")
+            }
+            .confirmationDialog(
                 "Reset Pricing Model",
                 isPresented: $showingResetConfirm,
                 titleVisibility: .visible
@@ -1118,6 +1140,33 @@ struct PricingDetailView: View {
                 operatorNpub: op.npub,
                 authorityNpub: authority.npub
             )
+        } catch let MCPError.structuredError(code, _, extras) {
+            // Proof-related rejections get a remedy dialog rather than a
+            // dead-end "OK" alert. Local link is preserved so the user can
+            // retry — otherwise an auto-clear would leave Authority and
+            // local state inconsistent.
+            switch code {
+            case "authority_consent_required":
+                deregisterProofRemedy = DeregisterProofRemedy(
+                    kind: .authorityProof,
+                    signerNpub: extras["authority_npub"] ?? authority.npub,
+                    endpointURL: endpointURL,
+                    operatorNpub: op.npub,
+                    authorityNpub: authority.npub
+                )
+                return
+            case "proof_required", "proof_invalid", "proof_refresh_needed":
+                deregisterProofRemedy = DeregisterProofRemedy(
+                    kind: .operatorProof,
+                    signerNpub: op.npub,
+                    endpointURL: endpointURL,
+                    operatorNpub: op.npub,
+                    authorityNpub: authority.npub
+                )
+                return
+            default:
+                deregisterError = "Registry removal failed: \(code). Local link cleared."
+            }
         } catch {
             deregisterError = "Registry removal failed: \(error.localizedDescription). Local link cleared."
         }
@@ -1126,6 +1175,52 @@ struct PricingDetailView: View {
         try? modelContext.save()
         viewModel.markNotRegistered()
     }
+
+    /// Retry deregister after the user opts to sign with Keychain.
+    /// argsWithProof picks up the nsec automatically; the cached proof_token
+    /// fallback also kicks in if a DM dance was completed elsewhere.
+    private func retryDeregisterWithProof(_ remedy: DeregisterProofRemedy) async {
+        guard let op = target as? Operator else { return }
+        deregisterProofRemedy = nil
+        let mcpService = MCPService()
+        do {
+            _ = try await mcpService.callDeregisterOperator(
+                endpointURL: remedy.endpointURL,
+                operatorNpub: remedy.operatorNpub,
+                authorityNpub: remedy.authorityNpub
+            )
+            op.authorityNpub = nil
+            try? modelContext.save()
+            viewModel.markNotRegistered()
+        } catch let MCPError.structuredError(code, _, _) {
+            deregisterError = "Retry failed: \(code). The Authority still holds the registration; try again or detach locally."
+        } catch {
+            deregisterError = "Retry failed: \(error.localizedDescription)."
+        }
+    }
+
+    /// "Detach Locally Anyway" — clear the local link without touching the
+    /// Authority's registry. State will be inconsistent until the user
+    /// re-runs deregister with proof or contacts the Authority operator.
+    private func detachOperatorLocallyOnly() async {
+        guard let op = target as? Operator else { return }
+        deregisterProofRemedy = nil
+        op.authorityNpub = nil
+        try? modelContext.save()
+        viewModel.markNotRegistered()
+    }
+}
+
+/// Snapshot of an in-progress deregister awaiting a proof-signing decision.
+struct DeregisterProofRemedy: Identifiable {
+    enum Kind { case operatorProof, authorityProof }
+    let id = UUID()
+    let kind: Kind
+    /// npub whose signature is needed (operator's or Authority's).
+    let signerNpub: String
+    let endpointURL: URL
+    let operatorNpub: String
+    let authorityNpub: String
 }
 
 // MARK: - Member Info Popover
