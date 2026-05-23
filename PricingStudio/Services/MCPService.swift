@@ -160,11 +160,18 @@ actor MCPService {
         guard let success = json["success"] as? Bool, success == false else {
             return  // success is true, missing, or non-bool — let the caller proceed.
         }
+        let code = (json["error_code"] as? String) ?? ""
         let errMsg = (json["error"] as? String)
-            ?? (json["error_code"] as? String)
-            ?? "Tool returned success=false with no error message."
-        await traffic(.error, label: "\(label) Error", detail: errMsg)
-        throw MCPError.toolCallFailed(errMsg)
+            ?? (code.isEmpty ? "Tool returned success=false with no error message." : code)
+        // Capture string-valued sibling fields so the UI can read them off the
+        // structured error. e.g. wheel's authority_consent_required returns
+        // authority_npub alongside the error message.
+        var extras: [String: String] = [:]
+        for (key, value) in json where key != "success" && key != "error" && key != "error_code" {
+            if let s = value as? String { extras[key] = s }
+        }
+        await traffic(.error, label: "\(label) Error", detail: "[\(code)] \(errMsg)")
+        throw MCPError.structuredError(code: code, message: errMsg, extras: extras)
     }
 
     // MARK: - Npub Proof Exchange
@@ -2004,6 +2011,11 @@ enum MCPError: LocalizedError {
     case noPricingTool
     case connectionFailed(String)
     case toolCallFailed(String)
+    /// Wheel returned a structured soft error: `{"success": false, "error_code": "...", "error": "..."}`.
+    /// `extras` carries any additional context fields the wheel volunteered
+    /// (e.g. `authority_npub` on `authority_consent_required`). Views can
+    /// branch on `code` to render a remedy flow.
+    case structuredError(code: String, message: String, extras: [String: String])
 
     var errorDescription: String? {
         switch self {
@@ -2011,7 +2023,20 @@ enum MCPError: LocalizedError {
         case .noPricingTool: return "No pricing model tool found on this operator"
         case .connectionFailed(let msg): return "MCP connection failed: \(msg)"
         case .toolCallFailed(let msg): return "MCP tool call failed: \(msg)"
+        case .structuredError(_, let msg, _): return msg
         }
+    }
+
+    /// Convenience accessor for branching on the wheel's error_code without unwrapping.
+    var errorCode: String? {
+        if case .structuredError(let code, _, _) = self { return code }
+        return nil
+    }
+
+    /// Convenience accessor for extras carried alongside a structured error.
+    var errorExtras: [String: String] {
+        if case .structuredError(_, _, let extras) = self { return extras }
+        return [:]
     }
 }
 

@@ -189,6 +189,22 @@ final class AuthorityCollectionViewModel {
         case registering
         case success(String)
         case failed(String)
+        /// Wheel returned `authority_consent_required` — the call needs a
+        /// fresh Schnorr identity proof signed by the Authority's npub.
+        /// The associated value is the npub that must sign.
+        case needsAuthorityProof(npub: String)
+        /// Wheel returned `proof_required` / `proof_invalid` / `proof_refresh_needed`
+        /// on the operator-side gate. Associated value is the operator npub.
+        case needsOperatorProof(npub: String)
+        /// Studio is acquiring a proof via the request/receive_npub_proof
+        /// Secure Courier handshake against the Authority's MCP.
+        case acquiringProof(npub: String, phase: ProofPhase)
+    }
+
+    enum ProofPhase: Equatable {
+        case sending          // calling request_npub_proof
+        case awaitingReply    // waiting on the human to reply in their Nostr client
+        case verifying        // calling receive_npub_proof to drain + cache
     }
 
     var showingAdoptSheet = false
@@ -225,8 +241,101 @@ final class AuthorityCollectionViewModel {
             operatorToAdopt.authorityNpub = authority.npub
             try? context.save()
             adoptionStatus = .success(result)
+        } catch let MCPError.structuredError(code, _, extras) {
+            // Branch on the wheel's error_code so the UI can surface a remedy
+            // flow instead of a dead-end error string. The view layer handles
+            // the proof-acquisition handshake; this VM only does state.
+            switch code {
+            case "authority_consent_required":
+                // The wheel includes authority_npub in the payload; prefer
+                // that over our local notion in case the Authority MCP runs
+                // under an npub we hadn't recorded yet.
+                let npub = extras["authority_npub"] ?? authority.npub
+                adoptionStatus = .needsAuthorityProof(npub: npub)
+            case "proof_required", "proof_invalid", "proof_refresh_needed":
+                adoptionStatus = .needsOperatorProof(npub: operatorToAdopt.npub)
+            default:
+                adoptionStatus = .failed(error.localizedDescription)
+            }
         } catch {
             adoptionStatus = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Drive the Secure Courier proof-of-npub handshake for an arbitrary
+    /// `npub` against this Authority's MCP, then automatically retry
+    /// `adoptOperator`. The receive_npub_proof side-effect persists the
+    /// poison-keyed proof_token to Keychain under (`npub`, host), so the
+    /// retry's `argsWithProof` picks it up via the cached-token fallback.
+    ///
+    /// Auto-sign shortcut: if the Studio's Keychain already holds the
+    /// `nsec` for this `npub`, skip the DM dance entirely. `argsWithProof`
+    /// will produce an inline kind-27235 Schnorr proof from the nsec on
+    /// the retry — no relay round-trip needed.
+    func acquireProofAndRetryAdopt(
+        for npub: String,
+        authority: Authority,
+        operatorToAdopt: Operator,
+        context: ModelContext
+    ) async {
+        guard let endpointString = authority.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            adoptionStatus = .failed("Authority has no MCP endpoint")
+            return
+        }
+
+        if KeychainService.loadNsec(forNpub: npub) != nil {
+            // Inline Schnorr tactic — fastest path. argsWithProof handles it.
+            await adoptOperator(
+                authority: authority,
+                operatorToAdopt: operatorToAdopt,
+                context: context
+            )
+            return
+        }
+
+        adoptionStatus = .acquiringProof(npub: npub, phase: .sending)
+        let mcpService = MCPService()
+        do {
+            _ = try await mcpService.callRequestNpubProof(
+                endpointURL: endpointURL,
+                patronNpub: npub
+            )
+            adoptionStatus = .acquiringProof(npub: npub, phase: .awaitingReply)
+        } catch {
+            adoptionStatus = .failed("Failed to send proof challenge: \(error.localizedDescription)")
+        }
+    }
+
+    /// Drain the relay for a reply to the proof challenge sent by
+    /// `acquireProofAndRetryAdopt`. On success, retry `adoptOperator`.
+    func verifyProofAndRetryAdopt(
+        for npub: String,
+        authority: Authority,
+        operatorToAdopt: Operator,
+        context: ModelContext
+    ) async {
+        guard let endpointString = authority.mcpEndpointURL,
+              let endpointURL = URL(string: endpointString) else {
+            adoptionStatus = .failed("Authority has no MCP endpoint")
+            return
+        }
+        adoptionStatus = .acquiringProof(npub: npub, phase: .verifying)
+        let mcpService = MCPService()
+        do {
+            // callReceiveNpubProof persists the proof_token to Keychain
+            // for (npub, host) — argsWithProof will use it on the retry.
+            _ = try await mcpService.callReceiveNpubProof(
+                endpointURL: endpointURL,
+                patronNpub: npub
+            )
+            await adoptOperator(
+                authority: authority,
+                operatorToAdopt: operatorToAdopt,
+                context: context
+            )
+        } catch {
+            adoptionStatus = .failed("Verification failed: \(error.localizedDescription)")
         }
     }
 
