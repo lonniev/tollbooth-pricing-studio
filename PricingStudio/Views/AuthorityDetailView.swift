@@ -661,6 +661,35 @@ private struct AdoptOperatorSheet: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                // --- Proof acquisition flow ----------------------------------
+                // When the Authority's wheel reports a missing/invalid proof
+                // for either side, surface a remedy path instead of dead-ending.
+                if case .needsAuthorityProof(let npub) = authorityVM.adoptionStatus {
+                    proofRemedySection(
+                        kind: "Authority",
+                        npub: npub,
+                        explanation: "The Authority’s wheel needs cryptographic proof that you hold the Authority’s nsec before it will adopt this operator.",
+                        operatorToAdopt: selectedOperator
+                    )
+                }
+
+                if case .needsOperatorProof(let npub) = authorityVM.adoptionStatus {
+                    proofRemedySection(
+                        kind: "Operator",
+                        npub: npub,
+                        explanation: "The Authority’s wheel needs cryptographic proof that you hold the operator’s nsec.",
+                        operatorToAdopt: selectedOperator
+                    )
+                }
+
+                if case .acquiringProof(let npub, let phase) = authorityVM.adoptionStatus {
+                    proofAcquisitionInProgressSection(
+                        npub: npub,
+                        phase: phase,
+                        operatorToAdopt: selectedOperator
+                    )
+                }
             }
             .navigationTitle("Adopt Operator")
             .toolbar {
@@ -678,9 +707,125 @@ private struct AdoptOperatorSheet: View {
                             )
                         }
                     }
-                    .disabled(selectedOperator == nil || authorityVM.adoptionStatus == .registering)
+                    .disabled(selectedOperator == nil || isAdoptionInFlight)
                 }
             }
+        }
+    }
+
+    /// True when the adoption flow is mid-call (registering, sending the
+    /// proof challenge, or verifying the reply). The Adopt button is
+    /// disabled in any of these states.
+    private var isAdoptionInFlight: Bool {
+        switch authorityVM.adoptionStatus {
+        case .registering, .acquiringProof:
+            return true
+        default:
+            return false
+        }
+    }
+
+    @ViewBuilder
+    private func proofRemedySection(
+        kind: String,
+        npub: String,
+        explanation: String,
+        operatorToAdopt: Operator?
+    ) -> some View {
+        let hasNsec = KeychainService.loadNsec(forNpub: npub) != nil
+        Section {
+            Label("\(kind) proof required", systemImage: "key.fill")
+                .foregroundStyle(.orange)
+            Text(explanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("npub: \(npub)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            if hasNsec {
+                Button {
+                    guard let op = operatorToAdopt else { return }
+                    Task {
+                        // Inline Schnorr tactic — argsWithProof signs from
+                        // Keychain on the retry; no DM needed.
+                        await authorityVM.acquireProofAndRetryAdopt(
+                            for: npub,
+                            authority: authority,
+                            operatorToAdopt: op,
+                            context: modelContext
+                        )
+                    }
+                } label: {
+                    Label("Sign with Keychain nsec & retry", systemImage: "signature")
+                }
+            } else {
+                Text("The nsec for this npub is not in this device’s Keychain. Use the DM challenge below if you hold the nsec on another Nostr client (e.g. Oxchat).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    guard let op = operatorToAdopt else { return }
+                    Task {
+                        await authorityVM.acquireProofAndRetryAdopt(
+                            for: npub,
+                            authority: authority,
+                            operatorToAdopt: op,
+                            context: modelContext
+                        )
+                    }
+                } label: {
+                    Label("Send DM proof challenge", systemImage: "paperplane.fill")
+                }
+            }
+        } header: {
+            Text("Proof needed to continue")
+        }
+    }
+
+    @ViewBuilder
+    private func proofAcquisitionInProgressSection(
+        npub: String,
+        phase: AuthorityCollectionViewModel.ProofPhase,
+        operatorToAdopt: Operator?
+    ) -> some View {
+        Section {
+            switch phase {
+            case .sending:
+                HStack {
+                    ProgressView()
+                    Text("Sending proof challenge DM…")
+                        .foregroundStyle(.secondary)
+                }
+            case .awaitingReply:
+                Label("DM sent", systemImage: "envelope.badge.fill")
+                    .foregroundStyle(.blue)
+                Text("Open your Nostr client (e.g. Oxchat) and find the DM from this Authority. Reply with any text — your signature on the reply is the proof. Then click Verify below.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    guard let op = operatorToAdopt else { return }
+                    Task {
+                        await authorityVM.verifyProofAndRetryAdopt(
+                            for: npub,
+                            authority: authority,
+                            operatorToAdopt: op,
+                            context: modelContext
+                        )
+                    }
+                } label: {
+                    Label("I’ve replied — verify now", systemImage: "checkmark.shield")
+                }
+            case .verifying:
+                HStack {
+                    ProgressView()
+                    Text("Verifying reply…")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Acquiring proof")
         }
     }
 }
