@@ -222,7 +222,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $operatorVM.showingEditSheet) {
             if let op = operatorVM.operatorToEdit {
-                EditOperatorSheet(viewModel: operatorVM, operator_: op)
+                EditOperatorSheet(viewModel: operatorVM, operator_: op, pricingVM: pricingVM)
             }
         }
         .sheet(item: $operatorVM.operatorForStats) { op in

@@ -4,7 +4,9 @@ struct EditOperatorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     var viewModel: OperatorCollectionViewModel
+    var pricingVM: PricingViewModel?
     let operator_: Operator
+    @State private var showingSwitchSheet = false
 
     // Same field order as AddOperatorSheet, with one exception:
     // npub is read-only here. Changing the npub of an existing
@@ -18,8 +20,9 @@ struct EditOperatorSheet: View {
     @State private var mcpEndpointURL: String
     @State private var nip05: String
 
-    init(viewModel: OperatorCollectionViewModel, operator_: Operator) {
+    init(viewModel: OperatorCollectionViewModel, operator_: Operator, pricingVM: PricingViewModel? = nil) {
         self.viewModel = viewModel
+        self.pricingVM = pricingVM
         self.operator_ = operator_
         self._displayName = State(initialValue: operator_.displayName)
         self._nip05 = State(initialValue: operator_.nip05 ?? "")
@@ -159,6 +162,27 @@ struct EditOperatorSheet: View {
                 } footer: {
                     Text("Nostr-verifiable name (NIP-05). Lets clients confirm the npub belongs to a recognizable identity at a domain you control.")
                 }
+
+                // 6. Registration switch — shown only when a PricingViewModel
+                //    is available (the sheet has to feed RequestAdoptionSheet).
+                if pricingVM != nil {
+                    Section {
+                        Button {
+                            showingSwitchSheet = true
+                        } label: {
+                            Label(
+                                operator_.authorityNpub == nil
+                                    ? "Request Registration…"
+                                    : "Switch Authority…",
+                                systemImage: "arrow.triangle.swap"
+                            )
+                        }
+                    } footer: {
+                        Text(operator_.authorityNpub == nil
+                             ? "This operator has no Authority. Pick one to request registration."
+                             : "Move this operator's registration to a different Authority. Deregister-then-register runs as a single step.")
+                    }
+                }
             }
             .navigationTitle("Edit Operator")
             .navigationBarTitleDisplayMode(.inline)
@@ -173,6 +197,11 @@ struct EditOperatorSheet: View {
             }
             .task {
                 hasStoredNsec = KeychainService.loadNsec(forNpub: operator_.npub) != nil
+            }
+            .sheet(isPresented: $showingSwitchSheet) {
+                if let pricingVM {
+                    RequestAdoptionSheet(operatorTarget: operator_, pricingVM: pricingVM)
+                }
             }
         }
     }
