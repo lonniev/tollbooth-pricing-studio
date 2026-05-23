@@ -75,41 +75,66 @@ actor MCPService {
     ///
     /// Pass `npubKey: "patron_npub"` for tools whose schema names the
     /// npub argument differently (e.g., get_patron_onboarding_status).
+    /// Produce a Schnorr identity proof for an arbitrary npub against the
+    /// runtime tool name resolved from `capability` at `endpointURL`.
+    ///
+    /// Domain-agnostic. The function knows nothing about whether the npub
+    /// belongs to a patron, operator, authority, or anything else — it just
+    /// signs (or looks up a cached token) for whatever npub the caller gave
+    /// it. Tools that need `n` distinct proofs in a single call invoke this
+    /// `n` times, once per signing identity, and assemble the args dict
+    /// themselves.
+    ///
+    /// Resolution ladder:
+    ///   1. nsec in Keychain → fresh kind-27235 Schnorr event bound to the
+    ///      runtime tool name (60-second wheel-side validity window).
+    ///   2. Cached proof_token in Keychain (poison phrase from a prior
+    ///      `request_npub_proof` / `receive_npub_proof` round trip against
+    ///      the same MCP host) → returned verbatim; wheel verifies the
+    ///      cached poison-hash against the proven-npub cache.
+    ///   3. Neither available → empty string. Caller decides whether to
+    ///      include it; the server returns a clear error_code that
+    ///      `throwIfSoftError` surfaces in the UI.
+    ///
+    /// Returns "" when `npub` is empty — callers can pipe it through
+    /// without a guard.
+    private func makeIdentityProof(
+        forNpub npub: String,
+        capability: String,
+        endpointURL: URL
+    ) async -> String {
+        guard !npub.isEmpty else { return "" }
+        let toolName = await runtimeName(for: capability, endpointURL: endpointURL)
+        let host = endpointURL.host ?? endpointURL.absoluteString
+        if let signed = try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub) {
+            return signed
+        }
+        if let cached = KeychainService.loadProofToken(forPatron: npub, operator: host), !cached.isEmpty {
+            return cached
+        }
+        return ""
+    }
+
+    /// Convenience: build args for the common case of a tool that takes the
+    /// caller's `npub` and exactly one identity proof under arg name "proof".
+    ///
+    /// Tools that take more than one proof (e.g. wheel 0.26.0+ Authority
+    /// lifecycle tools, which require both an operator proof and an
+    /// Authority-side consent proof) compose `makeIdentityProof` directly
+    /// at their call site and assemble the args dict explicitly. This
+    /// keeps `argsWithProof` single-purpose and avoids smuggling
+    /// tool-specific roles into a utility signature.
     private func argsWithProof(
         npub: String,
         capability: String,
         endpointURL: URL,
         npubKey: String = "npub",
-        extra: [String: Value] = [:],
-        authorityNpub: String = ""
+        extra: [String: Value] = [:]
     ) async -> [String: Value] {
         var args = extra
         guard !npub.isEmpty else { return args }
         args[npubKey] = .string(npub)
-        let name = await runtimeName(for: capability, endpointURL: endpointURL)
-        let host = endpointURL.host ?? endpointURL.absoluteString
-        if let signed = try? OperatorProofService.createProof(toolName: name, operatorNpub: npub) {
-            args["proof"] = .string(signed)
-        } else if let cached = KeychainService.loadProofToken(forPatron: npub, operator: host), !cached.isEmpty {
-            args["proof"] = .string(cached)
-        } else {
-            args["proof"] = .string("")
-        }
-        // Authority-side consent proof — required by wheel 0.26.0 on
-        // authority_register_operator / authority_update_operator /
-        // authority_deregister_operator. The Authority's nsec must be in
-        // Keychain for this to succeed; if it isn't, the server returns
-        // error_code: "authority_consent_required" and the UI surfaces it
-        // via throwIfSoftError.
-        if !authorityNpub.isEmpty {
-            if let signed = try? OperatorProofService.createProof(toolName: name, operatorNpub: authorityNpub) {
-                args["authority_proof"] = .string(signed)
-            } else if let cached = KeychainService.loadProofToken(forPatron: authorityNpub, operator: host), !cached.isEmpty {
-                args["authority_proof"] = .string(cached)
-            } else {
-                args["authority_proof"] = .string("")
-            }
-        }
+        args["proof"] = .string(await makeIdentityProof(forNpub: npub, capability: capability, endpointURL: endpointURL))
         return args
     }
 
@@ -1304,15 +1329,26 @@ actor MCPService {
             throw MCPError.toolCallFailed("No register_operator tool found on this Authority")
         }
 
+        // Tool needs TWO proofs: operator-side + Authority-side consent.
+        // Build args explicitly so the shape of the call is visible at the
+        // call site, not hidden in a utility's parameter list.
+        var args = await argsWithProof(
+            npub: operatorNpub,
+            capability: "register_operator",
+            endpointURL: endpointURL,
+            extra: ["service_url": .string(operatorServiceURL)]
+        )
+        if !authorityNpub.isEmpty {
+            args["authority_proof"] = .string(await makeIdentityProof(
+                forNpub: authorityNpub,
+                capability: "register_operator",
+                endpointURL: endpointURL
+            ))
+        }
+
         let (content, isError) = try await client.callTool(
             name: registerTool.name,
-            arguments: await argsWithProof(
-                npub: operatorNpub,
-                capability: "register_operator",
-                endpointURL: endpointURL,
-                extra: ["service_url": .string(operatorServiceURL)],
-                authorityNpub: authorityNpub
-            )
+            arguments: args
         )
 
         if isError == true {
@@ -1354,13 +1390,19 @@ actor MCPService {
             throw MCPError.toolCallFailed("No update_operator tool found on this Authority")
         }
 
-        // Build arguments — always include npub + proof + authority_proof, optionally include changed fields
+        // Tool needs TWO proofs: operator-side + Authority-side consent.
         var args = await argsWithProof(
             npub: operatorNpub,
             capability: "update_operator",
-            endpointURL: endpointURL,
-            authorityNpub: authorityNpub
+            endpointURL: endpointURL
         )
+        if !authorityNpub.isEmpty {
+            args["authority_proof"] = .string(await makeIdentityProof(
+                forNpub: authorityNpub,
+                capability: "update_operator",
+                endpointURL: endpointURL
+            ))
+        }
         if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
         if !displayName.isEmpty { args["display_name"] = .string(displayName) }
 
@@ -1406,14 +1448,23 @@ actor MCPService {
             throw MCPError.toolCallFailed("No deregister_operator tool found on this Authority")
         }
 
+        // Tool needs TWO proofs: operator-side + Authority-side consent.
+        var args = await argsWithProof(
+            npub: operatorNpub,
+            capability: "deregister_operator",
+            endpointURL: endpointURL
+        )
+        if !authorityNpub.isEmpty {
+            args["authority_proof"] = .string(await makeIdentityProof(
+                forNpub: authorityNpub,
+                capability: "deregister_operator",
+                endpointURL: endpointURL
+            ))
+        }
+
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: await argsWithProof(
-                npub: operatorNpub,
-                capability: "deregister_operator",
-                endpointURL: endpointURL,
-                authorityNpub: authorityNpub
-            )
+            arguments: args
         )
 
         if isError == true {
