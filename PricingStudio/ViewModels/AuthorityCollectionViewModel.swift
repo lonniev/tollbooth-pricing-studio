@@ -228,6 +228,20 @@ final class AuthorityCollectionViewModel {
             return
         }
 
+        // The Authority's wheel-side register_operator routes through the
+        // Oracle, which rejects with "service_url is required" when the
+        // operator has no MCP endpoint URL. Catch that locally rather than
+        // round-tripping a guaranteed failure to the server. The user is
+        // pointed at Edit Operator, which is where the URL gets set.
+        let operatorURL = operatorToAdopt.mcpEndpointURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if operatorURL.isEmpty {
+            adoptionStatus = .failed(
+                "Operator has no MCP endpoint URL. Open Edit Operator and set its public MCP URL " +
+                "(e.g. https://my-service.fastmcp.app/mcp) before adopting."
+            )
+            return
+        }
+
         adoptionStatus = .registering
         let mcpService = MCPService()
 
