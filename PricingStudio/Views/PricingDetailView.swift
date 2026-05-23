@@ -1115,7 +1115,8 @@ struct PricingDetailView: View {
         do {
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
-                operatorNpub: op.npub
+                operatorNpub: op.npub,
+                authorityNpub: authority.npub
             )
         } catch {
             deregisterError = "Registry removal failed: \(error.localizedDescription). Local link cleared."

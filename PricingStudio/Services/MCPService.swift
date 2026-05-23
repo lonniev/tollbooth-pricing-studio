@@ -80,7 +80,8 @@ actor MCPService {
         capability: String,
         endpointURL: URL,
         npubKey: String = "npub",
-        extra: [String: Value] = [:]
+        extra: [String: Value] = [:],
+        authorityNpub: String = ""
     ) async -> [String: Value] {
         var args = extra
         guard !npub.isEmpty else { return args }
@@ -93,6 +94,21 @@ actor MCPService {
             args["proof"] = .string(cached)
         } else {
             args["proof"] = .string("")
+        }
+        // Authority-side consent proof — required by wheel 0.26.0 on
+        // authority_register_operator / authority_update_operator /
+        // authority_deregister_operator. The Authority's nsec must be in
+        // Keychain for this to succeed; if it isn't, the server returns
+        // error_code: "authority_consent_required" and the UI surfaces it
+        // via throwIfSoftError.
+        if !authorityNpub.isEmpty {
+            if let signed = try? OperatorProofService.createProof(toolName: name, operatorNpub: authorityNpub) {
+                args["authority_proof"] = .string(signed)
+            } else if let cached = KeychainService.loadProofToken(forPatron: authorityNpub, operator: host), !cached.isEmpty {
+                args["authority_proof"] = .string(cached)
+            } else {
+                args["authority_proof"] = .string("")
+            }
         }
         return args
     }
@@ -1259,10 +1275,20 @@ actor MCPService {
 
     /// Call `register_operator` on an Authority's MCP endpoint to adopt an operator.
     /// Returns the text response from the tool.
+    ///
+    /// `authorityNpub` is the Authority's own npub — the wheel (0.26.0+)
+    /// requires a second Schnorr proof signed by this npub as cryptographic
+    /// witness of the Authority's human consent. The proof is produced
+    /// automatically by `argsWithProof` if the Authority's nsec is in
+    /// Keychain. Pass an empty string only for the legacy session-priming
+    /// use where the Authority is registering its own npub against itself
+    /// (operator and Authority are the same identity, so `proof` doubles
+    /// as `authority_proof`).
     func callRegisterOperator(
         endpointURL: URL,
         operatorNpub: String,
-        operatorServiceURL: String = ""
+        operatorServiceURL: String = "",
+        authorityNpub: String = ""
     ) async throws -> String {
         await traffic(.outbound, label: "Register Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
@@ -1280,7 +1306,13 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: registerTool.name,
-            arguments: await argsWithProof(npub: operatorNpub, capability: "register_operator", endpointURL: endpointURL, extra: ["service_url": .string(operatorServiceURL)])
+            arguments: await argsWithProof(
+                npub: operatorNpub,
+                capability: "register_operator",
+                endpointURL: endpointURL,
+                extra: ["service_url": .string(operatorServiceURL)],
+                authorityNpub: authorityNpub
+            )
         )
 
         if isError == true {
@@ -1298,11 +1330,15 @@ actor MCPService {
         return text
     }
 
+    /// Call `update_operator` on an Authority's MCP endpoint.
+    /// See `callRegisterOperator` for `authorityNpub` semantics — required
+    /// by wheel 0.26.0+ to witness the Authority's consent to the mutation.
     func callUpdateOperator(
         endpointURL: URL,
         operatorNpub: String,
         serviceURL: String = "",
-        displayName: String = ""
+        displayName: String = "",
+        authorityNpub: String = ""
     ) async throws -> String {
         await traffic(.outbound, label: "Update Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
@@ -1318,8 +1354,13 @@ actor MCPService {
             throw MCPError.toolCallFailed("No update_operator tool found on this Authority")
         }
 
-        // Build arguments — always include npub + proof, optionally include changed fields
-        var args = await argsWithProof(npub: operatorNpub, capability: "update_operator", endpointURL: endpointURL)
+        // Build arguments — always include npub + proof + authority_proof, optionally include changed fields
+        var args = await argsWithProof(
+            npub: operatorNpub,
+            capability: "update_operator",
+            endpointURL: endpointURL,
+            authorityNpub: authorityNpub
+        )
         if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
         if !displayName.isEmpty { args["display_name"] = .string(displayName) }
 
@@ -1343,9 +1384,13 @@ actor MCPService {
         return text
     }
 
+    /// Call `deregister_operator` on an Authority's MCP endpoint.
+    /// See `callRegisterOperator` for `authorityNpub` semantics — required
+    /// by wheel 0.26.0+ to witness the Authority's consent to the removal.
     func callDeregisterOperator(
         endpointURL: URL,
-        operatorNpub: String
+        operatorNpub: String,
+        authorityNpub: String = ""
     ) async throws -> String {
         await traffic(.outbound, label: "Deregister Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
@@ -1363,7 +1408,12 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: await argsWithProof(npub: operatorNpub, capability: "deregister_operator", endpointURL: endpointURL)
+            arguments: await argsWithProof(
+                npub: operatorNpub,
+                capability: "deregister_operator",
+                endpointURL: endpointURL,
+                authorityNpub: authorityNpub
+            )
         )
 
         if isError == true {

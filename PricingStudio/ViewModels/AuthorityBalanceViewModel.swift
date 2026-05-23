@@ -27,10 +27,13 @@ final class AuthorityBalanceViewModel {
         balanceState = .loading
 
         do {
-            // Ensure DPYC session is active — _dpyc_sessions is in-memory and resets on deploy
+            // Ensure DPYC session is active — _dpyc_sessions is in-memory and resets on deploy.
+            // The Authority is registering its own npub against itself, so the same nsec
+            // serves as both operator-side and Authority-side consent witness.
             _ = try? await mcpService.callRegisterOperator(
                 endpointURL: endpointURL,
-                operatorNpub: authority.npub
+                operatorNpub: authority.npub,
+                authorityNpub: authority.npub
             )
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL
