@@ -645,6 +645,16 @@ struct PricingDetailView: View {
                     } label: {
                         Label("Edit Registration", systemImage: "pencil")
                     }
+                    Button {
+                        showingAdoptionRequest = true
+                    } label: {
+                        Label(
+                            (target as? Operator)?.authorityNpub == nil
+                                ? "Request Registration"
+                                : "Switch Authority…",
+                            systemImage: "arrow.triangle.swap"
+                        )
+                    }
                     Divider()
                     Button(role: .destructive) {
                         showingDeregisterConfirm = true
@@ -665,6 +675,17 @@ struct PricingDetailView: View {
             }
             .sheet(isPresented: $showingEditRegistration) {
                 EditOperatorRegistrationSheet(operatorTarget: target)
+            }
+            .sheet(isPresented: $showingAdoptionRequest, onDismiss: {
+                // After a successful (re-)registration / switch, the
+                // sheet sets op.authorityNpub. Transition directly to
+                // registeredNotConfigured so the user doesn't see a stale
+                // GitHub registry cache.
+                if let op = target as? Operator, op.authorityNpub != nil {
+                    viewModel.markRegisteredNotConfigured()
+                }
+            }) {
+                RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
             }
             .confirmationDialog(
                 "Deregister Operator",
@@ -1101,15 +1122,6 @@ struct PricingDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $showingAdoptionRequest, onDismiss: {
-            // If registration succeeded, go directly to registeredNotConfigured
-            // (don't retry fetchPricing — the GitHub registry cache is stale)
-            if let op = target as? Operator, op.authorityNpub != nil {
-                viewModel.markRegisteredNotConfigured()
-            }
-        }) {
-            RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
-        }
     }
 
     private func deregisterOperator() async {

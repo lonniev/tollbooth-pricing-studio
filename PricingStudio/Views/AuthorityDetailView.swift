@@ -10,6 +10,7 @@ struct AuthorityDetailView: View {
     @State private var balanceVM = AuthorityBalanceViewModel()
     @State private var showingTopOff = false
     @State private var fundingOperator: Operator?
+    @State private var movingOperator: Operator?
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var loadingOnboarding = false
     @State private var showingForgetConfirm = false
@@ -80,6 +81,9 @@ struct AuthorityDetailView: View {
                     beneficiaryDisplayName: op.displayName
                 )
             }
+        }
+        .sheet(item: $movingOperator) { op in
+            RequestAdoptionSheet(operatorTarget: op, pricingVM: pricingVM)
         }
     }
 
@@ -431,6 +435,7 @@ struct AuthorityDetailView: View {
             authorityEndpointURL: authority.mcpEndpointURL,
             onOperatorSelected: onOperatorSelected,
             onFundOperator: { op in fundingOperator = op },
+            onMoveOperator: { op in movingOperator = op },
             onAdopt: authority.mcpEndpointURL != nil && authorityVM != nil
                 ? { authorityVM?.requestAdopt(authority) }
                 : nil
@@ -448,6 +453,7 @@ private struct ConnectedOperatorsList: View {
     let authorityEndpointURL: String?
     var onOperatorSelected: ((Operator) -> Void)?
     var onFundOperator: ((Operator) -> Void)?
+    var onMoveOperator: ((Operator) -> Void)?
     var onAdopt: (() -> Void)?
     @Query private var allOperators: [Operator]
     @Environment(\.modelContext) private var modelContext
@@ -455,11 +461,12 @@ private struct ConnectedOperatorsList: View {
     @State private var deregisterProofRemedy: DeregisterProofRemedy?
     @State private var operatorBalances: [String: Int] = [:]  // npub → balance
 
-    init(authorityNpub: String, authorityEndpointURL: String? = nil, onOperatorSelected: ((Operator) -> Void)? = nil, onFundOperator: ((Operator) -> Void)? = nil, onAdopt: (() -> Void)? = nil) {
+    init(authorityNpub: String, authorityEndpointURL: String? = nil, onOperatorSelected: ((Operator) -> Void)? = nil, onFundOperator: ((Operator) -> Void)? = nil, onMoveOperator: ((Operator) -> Void)? = nil, onAdopt: (() -> Void)? = nil) {
         self.authorityNpub = authorityNpub
         self.authorityEndpointURL = authorityEndpointURL
         self.onOperatorSelected = onOperatorSelected
         self.onFundOperator = onFundOperator
+        self.onMoveOperator = onMoveOperator
         self.onAdopt = onAdopt
         self._allOperators = Query(sort: \Operator.addedAt)
     }
@@ -527,6 +534,13 @@ private struct ConnectedOperatorsList: View {
                                         onFundOperator(op)
                                     } label: {
                                         Label("Fund Operator", systemImage: "bolt.fill")
+                                    }
+                                }
+                                if let onMoveOperator {
+                                    Button {
+                                        onMoveOperator(op)
+                                    } label: {
+                                        Label("Move to Different Authority…", systemImage: "arrow.triangle.swap")
                                     }
                                 }
                                 Button(role: .destructive) {

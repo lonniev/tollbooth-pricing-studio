@@ -196,7 +196,9 @@ final class TopologyViewModel {
             .compactMap { operatorNodes[$0.npub] }
 
         // Build Prime node(s) — children are authorities whose upstream IS
-        // Prime, recursively expanded, plus any orphans + unattached ops.
+        // Prime, recursively expanded, plus any orphans. Unattached operators
+        // do NOT hang under Prime (would misleadingly suggest Prime adopted
+        // them); they go in a sibling virtual "Unregistered Operators" node.
         var primeNodes: [TopologyNode] = primeEntries.map { entry in
             let directChildren = nonPrimeAuthNpubs
                 .filter { parentOf($0) == entry.npub }
@@ -207,7 +209,7 @@ final class TopologyViewModel {
                 id: entry.npub,
                 displayName: entry.display_name ?? "Prime Authority",
                 tier: .primeAuthority,
-                children: directChildren + orphanChildren + unattachedOps
+                children: directChildren + orphanChildren
             )
         }
 
@@ -217,15 +219,23 @@ final class TopologyViewModel {
             // this set), recursively built.
             let topLevelAuths = nonPrimeAuthNpubs.filter { parentOf($0).flatMap { nonPrimeAuthNpubs.contains($0) } != true }
             let topAuthorityNodes = topLevelAuths.map { buildAuthorityNode($0, visited: []) }
-            let allChildren = topAuthorityNodes + unattachedOps
-            if !allChildren.isEmpty {
+            if !topAuthorityNodes.isEmpty {
                 primeNodes = [TopologyNode(
                     id: "prime",
                     displayName: "DPYC Network",
                     tier: .primeAuthority,
-                    children: allChildren
+                    children: topAuthorityNodes
                 )]
             }
+        }
+
+        if !unattachedOps.isEmpty {
+            primeNodes.append(TopologyNode(
+                id: "unregistered-operators",
+                displayName: "Unregistered Operators",
+                tier: .primeAuthority,
+                children: unattachedOps
+            ))
         }
 
         return primeNodes
@@ -242,18 +252,31 @@ final class TopologyViewModel {
             return TopologyNode(id: auth.npub, displayName: auth.displayName, tier: .authority, children: children)
         }
 
+        let authNpubs = Set(authorities.map(\.npub))
         let unattachedOps = operators
-            .filter { $0.authorityNpub == nil || !authorities.contains(where: { $0.npub == $0.npub }) }
+            .filter { op in
+                guard let authNpub = op.authorityNpub else { return true }
+                return !authNpubs.contains(authNpub)
+            }
             .map { TopologyNode(id: $0.npub, displayName: $0.displayName, tier: .operator, children: []) }
 
-        let allChildren = authNodes + unattachedOps
-        guard !allChildren.isEmpty else { return [] }
-
-        return [TopologyNode(
-            id: "prime",
-            displayName: "DPYC Network",
-            tier: .primeAuthority,
-            children: allChildren
-        )]
+        var roots: [TopologyNode] = []
+        if !authNodes.isEmpty {
+            roots.append(TopologyNode(
+                id: "prime",
+                displayName: "DPYC Network",
+                tier: .primeAuthority,
+                children: authNodes
+            ))
+        }
+        if !unattachedOps.isEmpty {
+            roots.append(TopologyNode(
+                id: "unregistered-operators",
+                displayName: "Unregistered Operators",
+                tier: .primeAuthority,
+                children: unattachedOps
+            ))
+        }
+        return roots
     }
 }
