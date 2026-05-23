@@ -452,6 +452,7 @@ private struct ConnectedOperatorsList: View {
     @Query private var allOperators: [Operator]
     @Environment(\.modelContext) private var modelContext
     @State private var deregisterError: String?
+    @State private var deregisterProofRemedy: DeregisterProofRemedy?
     @State private var operatorBalances: [String: Int] = [:]  // npub → balance
 
     init(authorityNpub: String, authorityEndpointURL: String? = nil, onOperatorSelected: ((Operator) -> Void)? = nil, onFundOperator: ((Operator) -> Void)? = nil, onAdopt: (() -> Void)? = nil) {
@@ -550,6 +551,27 @@ private struct ConnectedOperatorsList: View {
         } message: {
             if let deregisterError { Text(deregisterError) }
         }
+        .confirmationDialog(
+            "Proof Required",
+            isPresented: Binding(
+                get: { deregisterProofRemedy != nil },
+                set: { if !$0 { deregisterProofRemedy = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: deregisterProofRemedy
+        ) { remedy in
+            if KeychainService.loadNsec(forNpub: remedy.signerNpub) != nil {
+                Button("Sign with Keychain & Retry") {
+                    Task { await retryDeregisterWithProof(remedy) }
+                }
+            }
+            Button("Detach Locally Anyway", role: .destructive) {
+                Task { await detachOperatorLocallyOnly(remedy) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: { remedy in
+            Text("The Authority requires \(remedy.kind == .operatorProof ? "the operator's" : "the Authority's") cryptographic consent (npub \(String(remedy.signerNpub.prefix(20)))…) before removing this registry entry. The nsec must be in this device's Keychain to auto-sign.")
+        }
     }
 
     private func loadOperatorBalances() async {
@@ -586,12 +608,64 @@ private struct ConnectedOperatorsList: View {
                 operatorNpub: op.npub,
                 authorityNpub: authorityNpub
             )
+        } catch let MCPError.structuredError(code, _, extras) {
+            // Same proof-remedy fork as PricingDetailView: preserve local
+            // link so the user can retry instead of auto-clearing into an
+            // inconsistent state.
+            switch code {
+            case "authority_consent_required":
+                deregisterProofRemedy = DeregisterProofRemedy(
+                    kind: .authorityProof,
+                    signerNpub: extras["authority_npub"] ?? authorityNpub,
+                    endpointURL: endpointURL,
+                    operatorNpub: op.npub,
+                    authorityNpub: authorityNpub
+                )
+                return
+            case "proof_required", "proof_invalid", "proof_refresh_needed":
+                deregisterProofRemedy = DeregisterProofRemedy(
+                    kind: .operatorProof,
+                    signerNpub: op.npub,
+                    endpointURL: endpointURL,
+                    operatorNpub: op.npub,
+                    authorityNpub: authorityNpub
+                )
+                return
+            default:
+                deregisterError = "Registry removal failed: \(code). Local link cleared."
+            }
         } catch {
             // Log but don't block — still clear the local link
             deregisterError = "Registry removal failed: \(error.localizedDescription). Local link cleared."
         }
 
         // Always clear local authority link
+        op.authorityNpub = nil
+        try? modelContext.save()
+    }
+
+    private func retryDeregisterWithProof(_ remedy: DeregisterProofRemedy) async {
+        deregisterProofRemedy = nil
+        guard let op = allOperators.first(where: { $0.npub == remedy.operatorNpub }) else { return }
+        let mcpService = MCPService()
+        do {
+            _ = try await mcpService.callDeregisterOperator(
+                endpointURL: remedy.endpointURL,
+                operatorNpub: remedy.operatorNpub,
+                authorityNpub: remedy.authorityNpub
+            )
+            op.authorityNpub = nil
+            try? modelContext.save()
+        } catch let MCPError.structuredError(code, _, _) {
+            deregisterError = "Retry failed: \(code). The Authority still holds the registration; try again or detach locally."
+        } catch {
+            deregisterError = "Retry failed: \(error.localizedDescription)."
+        }
+    }
+
+    private func detachOperatorLocallyOnly(_ remedy: DeregisterProofRemedy) async {
+        deregisterProofRemedy = nil
+        guard let op = allOperators.first(where: { $0.npub == remedy.operatorNpub }) else { return }
         op.authorityNpub = nil
         try? modelContext.save()
     }
