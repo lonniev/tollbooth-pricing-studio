@@ -97,6 +97,35 @@ actor MCPService {
         return args
     }
 
+    // MARK: - Soft-error detection
+
+    /// MCP tools return *transport-level* errors via the SDK's `isError`
+    /// flag, but the wheel also returns *application-level* soft errors
+    /// as a normal payload: `{"success": false, "error_code": "...", "error": "..."}`.
+    /// The SDK's `isError` is `false` for these — the call "succeeded" at
+    /// the transport layer — so a caller that checks only `isError`
+    /// silently treats the failure as success.
+    ///
+    /// Call this after the `isError` check, before returning the result
+    /// text to the caller. If the payload is a JSON object with
+    /// `success: false`, throws `MCPError.toolCallFailed(<error message>)`
+    /// and logs the failure to the traffic stream so the user sees it.
+    /// Non-JSON payloads pass through unchanged.
+    private func throwIfSoftError(text: String, label: String) async throws {
+        guard let data = text.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return  // Not JSON — nothing to inspect.
+        }
+        guard let success = json["success"] as? Bool, success == false else {
+            return  // success is true, missing, or non-bool — let the caller proceed.
+        }
+        let errMsg = (json["error"] as? String)
+            ?? (json["error_code"] as? String)
+            ?? "Tool returned success=false with no error message."
+        await traffic(.error, label: "\(label) Error", detail: errMsg)
+        throw MCPError.toolCallFailed(errMsg)
+    }
+
     // MARK: - Npub Proof Exchange
 
     /// Request a poison-keyed npub ownership proof from the MCP.
@@ -1265,6 +1294,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Register Operator", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Register Operator")
         return text
     }
 
@@ -1309,6 +1339,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Update Operator", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Update Operator")
         return text
     }
 
@@ -1346,6 +1377,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Deregister Operator", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Deregister Operator")
         return text
     }
 
