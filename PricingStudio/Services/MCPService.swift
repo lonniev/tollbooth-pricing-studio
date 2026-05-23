@@ -394,6 +394,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Balance Check", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Balance Check")
 
         return try parseBalanceResponse(data)
     }
@@ -594,6 +595,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Account Statement", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Account Statement")
 
         return try parseAccountStatementResponse(data)
     }
@@ -796,6 +798,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Statement Infographic", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Statement Infographic")
 
         // Try JSON with svg/png fields first (most common response format)
         // Must check JSON before raw SVG since JSON may contain embedded <svg
@@ -868,6 +871,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Purchase Credits", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Purchase Credits")
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MCPError.invalidResponse
@@ -878,13 +882,6 @@ actor MCPService {
             responseDict = result
         } else {
             responseDict = json
-        }
-
-        // Check for application-level errors
-        if responseDict["success"] as? Bool == false {
-            let errorMsg = (responseDict["error"] as? String) ?? "Purchase failed."
-            await traffic(.error, label: "Purchase Credits", detail: errorMsg)
-            throw MCPError.toolCallFailed(errorMsg)
         }
 
         let invoiceId = (responseDict["invoice_id"] as? String)
@@ -1097,6 +1094,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Set Pricing Model", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Set Pricing Model")
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw MCPError.invalidResponse
@@ -1216,6 +1214,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Register Authority Npub", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Register Authority Npub")
         return text
     }
 
@@ -1668,6 +1667,7 @@ actor MCPService {
         }
 
         await traffic(.inbound, label: "Credential Channel", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Credential Channel")
         return text
     }
 
@@ -1750,6 +1750,9 @@ actor MCPService {
 
         let text = content.compactMap { extractText($0) }.first ?? ""
         await traffic(.inbound, label: "Forget Credentials", detail: String(text.prefix(4000)))
+        if !text.isEmpty {
+            try await throwIfSoftError(text: text, label: "Forget Credentials")
+        }
     }
 
     // MARK: - Pricing Synthesis
@@ -2086,6 +2089,7 @@ extension MCPService {
         }
 
         await traffic(.inbound, label: "Publish Campaign", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Publish Campaign")
         return text
     }
 }
