@@ -63,7 +63,7 @@ final class PricingViewModel {
         localEdits[toolId]
     }
 
-    func applyEdit(toolName: String, priceSats: Int, priceType: PriceType, priceFormula: String?, minCost: Int = 0, maxCost: Int? = nil, category: String? = nil) {
+    func applyEdit(toolName: String, priceSats: Int, priceType: PriceType, priceFormula: String?, minCost: Int = 0, maxCost: Int? = nil, category: String? = nil, multipliers: [String: [String: Double]]? = nil) {
         guard let model = pricingModel, let tools = model.tools,
               var tool = tools.first(where: { $0.toolName == toolName }) else { return }
         tool.priceSats = priceSats
@@ -73,6 +73,10 @@ final class PricingViewModel {
         tool.minCost = minCost
         tool.maxCost = maxCost
         if let category { tool.category = category }
+        // nil means "no change"; empty dict means "remove all multipliers"
+        if let multipliers {
+            tool.multipliers = multipliers.isEmpty ? nil : multipliers
+        }
         localEdits[tool.toolId] = tool
     }
 

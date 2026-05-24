@@ -39,8 +39,13 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     let intent: String
     var minCost: Int = 0
     var maxCost: Int? = nil
+    // Categorical multipliers: price = priceSats × ∏ f(v) for each parameter v.
+    // Outer key is the parameter name (e.g. "difficulty"); inner key is the
+    // enum value (e.g. "sovereign"); value is the multiplier (e.g. 4.0).
+    // Missing values resolve to 1.0 at the wheel.
+    var multipliers: [String: [String: Double]]? = nil
 
-    init(toolId: String, toolName: String, priceSats: Int, priced: Bool = true, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil) {
+    init(toolId: String, toolName: String, priceSats: Int, priced: Bool = true, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil, multipliers: [String: [String: Double]]? = nil) {
         precondition(!toolId.isEmpty, "toolId is required for tool '\(toolName)'. Reset the pricing model.")
         self.toolId = toolId
         self.toolName = toolName
@@ -52,6 +57,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         self.intent = intent
         self.minCost = minCost
         self.maxCost = maxCost
+        self.multipliers = multipliers
     }
 
     enum CodingKeys: String, CodingKey {
@@ -64,6 +70,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         case category, intent
         case minCost = "min_cost"
         case maxCost = "max_cost"
+        case multipliers
     }
 
     init(from decoder: Decoder) throws {
@@ -78,6 +85,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         intent = try container.decodeIfPresent(String.self, forKey: .intent) ?? ""
         minCost = try container.decodeIfPresent(Int.self, forKey: .minCost) ?? 0
         maxCost = try container.decodeIfPresent(Int.self, forKey: .maxCost)
+        multipliers = try container.decodeIfPresent([String: [String: Double]].self, forKey: .multipliers)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -95,6 +103,9 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         }
         if let maxCost {
             try container.encode(maxCost, forKey: .maxCost)
+        }
+        if let multipliers, !multipliers.isEmpty {
+            try container.encode(multipliers, forKey: .multipliers)
         }
     }
 }
