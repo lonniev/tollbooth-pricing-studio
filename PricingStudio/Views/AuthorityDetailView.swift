@@ -456,6 +456,7 @@ private struct ConnectedOperatorsList: View {
     var onMoveOperator: ((Operator) -> Void)?
     var onAdopt: (() -> Void)?
     @Query private var allOperators: [Operator]
+    @Query private var allAuthorities: [Authority]
     @Environment(\.modelContext) private var modelContext
     @State private var deregisterError: String?
     @State private var deregisterProofRemedy: DeregisterProofRemedy?
@@ -469,10 +470,53 @@ private struct ConnectedOperatorsList: View {
         self.onMoveOperator = onMoveOperator
         self.onAdopt = onAdopt
         self._allOperators = Query(sort: \Operator.addedAt)
+        self._allAuthorities = Query()
     }
 
-    private var connectedOperators: [Operator] {
+    /// Operators registered DIRECTLY with this Authority. Their fee ledger
+    /// lives at this Authority's MCP, so balances are fetchable from
+    /// authorityEndpointURL.
+    private var directOperators: [Operator] {
         allOperators.filter { $0.authorityNpub == authorityNpub }
+    }
+
+    /// npubs of every Authority anywhere below this one in the chain.
+    /// BFS with a visited set so a corrupt parent pointer can't infinite-loop.
+    private var descendantAuthorityNpubs: Set<String> {
+        var result: Set<String> = []
+        var frontier: Set<String> = [authorityNpub]
+        var visited: Set<String> = []
+        while !frontier.isEmpty {
+            visited.formUnion(frontier)
+            let children = Set(allAuthorities
+                .filter { auth in
+                    guard let parent = auth.parentAuthorityNpub else { return false }
+                    return frontier.contains(parent) && !visited.contains(auth.npub)
+                }
+                .map(\.npub))
+            result.formUnion(children)
+            frontier = children
+        }
+        return result
+    }
+
+    /// Operators registered with a child / grandchild Authority. Rendered in
+    /// a dimmer secondary row with a "via <child>" caption so the user knows
+    /// they aren't on this Authority's direct ledger.
+    private var inheritedOperators: [Operator] {
+        let descendants = descendantAuthorityNpubs
+        guard !descendants.isEmpty else { return [] }
+        return allOperators.filter { op in
+            guard let authNpub = op.authorityNpub else { return false }
+            return descendants.contains(authNpub)
+        }
+    }
+
+    /// Direct-Authority lookup for an inherited operator, used to render
+    /// "via <name>" and to address the balance fetch at the right endpoint.
+    private func directAuthority(for op: Operator) -> Authority? {
+        guard let authNpub = op.authorityNpub else { return nil }
+        return allAuthorities.first(where: { $0.npub == authNpub })
     }
 
     var body: some View {
@@ -496,7 +540,7 @@ private struct ConnectedOperatorsList: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
-            if connectedOperators.isEmpty {
+            if directOperators.isEmpty && inheritedOperators.isEmpty {
                 Text("No connected operators")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -505,7 +549,7 @@ private struct ConnectedOperatorsList: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(connectedOperators) { op in
+                        ForEach(directOperators) { op in
                             Button {
                                 onOperatorSelected?(op)
                             } label: {
@@ -550,6 +594,46 @@ private struct ConnectedOperatorsList: View {
                                 }
                             }
                         }
+                        // Inherited operators — operators of child Authorities,
+                        // shown for at-a-glance visibility. Dimmer styling +
+                        // "via <child>" caption signals they aren't on this
+                        // Authority's direct ledger. No context-menu actions:
+                        // any registration mutation belongs to their direct
+                        // Authority, not this ancestor.
+                        ForEach(inheritedOperators) { op in
+                            Button {
+                                onOperatorSelected?(op)
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "server.rack")
+                                        .font(.title3)
+                                        .foregroundStyle(.secondary)
+                                    Text(op.displayName)
+                                        .font(.caption2)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    if let bal = operatorBalances[op.npub] {
+                                        Text("\(bal) sats")
+                                            .font(.caption2.monospacedDigit())
+                                            .foregroundStyle(bal < 50 ? .red : .green)
+                                    }
+                                    if let via = directAuthority(for: op)?.displayName {
+                                        Text("via \(via)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(1)
+                                    }
+                                }
+                                .frame(width: 80)
+                                .padding(.vertical, 6)
+                                .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(.quaternary, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(.horizontal)
                 }
@@ -589,10 +673,30 @@ private struct ConnectedOperatorsList: View {
     }
 
     private func loadOperatorBalances() async {
-        guard let endpointString = authorityEndpointURL,
-              let endpointURL = URL(string: endpointString) else { return }
         let mcpService = MCPService()
-        for op in connectedOperators {
+
+        // Direct operators: ledger lives at THIS Authority's MCP.
+        if let endpointString = authorityEndpointURL,
+           let endpointURL = URL(string: endpointString) {
+            for op in directOperators {
+                do {
+                    let result = try await mcpService.callCheckBalance(
+                        endpointURL: endpointURL,
+                        patronNpub: op.npub
+                    )
+                    operatorBalances[op.npub] = result.balanceApiSats
+                } catch {
+                    // Silently skip — balance display is optional
+                }
+            }
+        }
+
+        // Inherited operators: ledger lives at their DIRECT Authority's MCP,
+        // not at this ancestor. Look up per-op so balances are accurate.
+        for op in inheritedOperators {
+            guard let auth = directAuthority(for: op),
+                  let endpointString = auth.mcpEndpointURL,
+                  let endpointURL = URL(string: endpointString) else { continue }
             do {
                 let result = try await mcpService.callCheckBalance(
                     endpointURL: endpointURL,
@@ -600,7 +704,7 @@ private struct ConnectedOperatorsList: View {
                 )
                 operatorBalances[op.npub] = result.balanceApiSats
             } catch {
-                // Silently skip — balance display is optional
+                // Silently skip
             }
         }
     }
