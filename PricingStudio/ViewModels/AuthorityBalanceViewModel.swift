@@ -36,7 +36,8 @@ final class AuthorityBalanceViewModel {
                 authorityNpub: authority.npub
             )
             let result = try await mcpService.callCheckBalance(
-                endpointURL: endpointURL
+                endpointURL: endpointURL,
+                patronNpub: authority.npub
             )
             balanceState = .loaded(result)
         } catch {
