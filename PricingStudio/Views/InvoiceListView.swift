@@ -34,7 +34,6 @@ struct InvoiceListView: View {
     @State private var sortColumn: SortColumn = .date
     @State private var sortAscending = false
     @State private var hideExpired = false
-    @State private var recoveryTarget: InvoiceSource?
 
     private enum SortColumn: String {
         case date, amount, credits, status
@@ -90,23 +89,11 @@ struct InvoiceListView: View {
                 dateFormatter: Self.dateFormatter
             )
         }
-        .sheet(item: $recoveryTarget) { source in
-            if let endpointString = source.mcpEndpointURL,
-               let endpoint = URL(string: endpointString) {
-                RecoverPaymentSheet(
-                    operatorEndpoint: endpoint,
-                    operatorName: source.displayName,
-                    initialInvoiceId: "",
-                    patronNpub: entityNpub,
-                    patronNpubEditable: false,
-                    onSuccess: {
-                        Task {
-                            await accountVM.forceRefresh(forNpub: entityNpub, sources: sources)
-                        }
-                    }
-                )
-            }
-        }
+        // Recover sheet binding removed when restore_credits became
+        // operator-restricted in wheel 0.36.0. A patron viewing their own
+        // invoices can't sign as the operator; they must escalate.
+        // Operator-on-this-device users access the same sheet via the
+        // Operator detail view's overflow menu instead.
     }
 
     // MARK: - Summary Header
@@ -262,21 +249,11 @@ struct InvoiceListView: View {
                     reconcileResultBadge(rr)
                 }
 
-                // Recover-by-invoice-id entry point. Visible for any
-                // operator with an MCP endpoint — even when the wheel's
-                // pending list is empty, the patron may have an invoice
-                // ID from a Lightning wallet receipt that never landed
-                // here. Disabled for operators without an endpoint.
-                if op.mcpEndpointURL != nil {
-                    Button {
-                        recoveryTarget = op
-                    } label: {
-                        Label("Recover", systemImage: "arrow.uturn.backward.circle")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+                // No patron-side Recover entry: since wheel 0.36.0,
+                // restore_credits is operator-restricted. A patron with an
+                // unmatched paid invoice must escalate to the operator's
+                // support, who can paste it from the Operator detail view's
+                // "Recover a Patron's Payment…" overflow menu item.
             }
 
             Divider()

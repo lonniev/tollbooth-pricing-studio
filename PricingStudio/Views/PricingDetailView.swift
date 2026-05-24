@@ -702,14 +702,18 @@ struct PricingDetailView: View {
             .sheet(isPresented: $showingRecoverPayment) {
                 if let endpointString = target.mcpEndpointURL,
                    let endpoint = URL(string: endpointString) {
-                    // Operator-support recovery: patron npub is editable
-                    // (operator pastes it from a patron escalation).
+                    // Operator-support recovery: operator signs proof
+                    // (target IS the Operator, target.npub is the operator
+                    // npub whose nsec must be in this device's Keychain).
+                    // Patron npub is editable so the operator can paste it
+                    // from a support escalation.
                     RecoverPaymentSheet(
                         operatorEndpoint: endpoint,
                         operatorName: target.displayName,
                         initialInvoiceId: "",
                         patronNpub: "",
                         patronNpubEditable: true,
+                        operatorNpub: target.npub,
                         onSuccess: nil
                     )
                 }
