@@ -27,20 +27,13 @@ final class AuthorityBalanceViewModel {
         balanceState = .loading
 
         do {
-            // Session-priming register (Authority registering its own npub
-            // against itself) is only attempted when this device actually
-            // holds the Authority's nsec. Without the nsec, the wheel
-            // (0.26.0+) rejects with authority_consent_required and the
-            // traffic log fills with noisy errors for Authorities we don't
-            // sign for. check_balance handles its own proof handshake
-            // independently, so the register call is purely a warmup.
-            if KeychainService.loadNsec(forNpub: authority.npub) != nil {
-                _ = try? await mcpService.callRegisterOperator(
-                    endpointURL: endpointURL,
-                    operatorNpub: authority.npub,
-                    authorityNpub: authority.npub
-                )
-            }
+            // Wake the MCP if it's serverless-cold. service_status is a
+            // free, read-only tool that exists on every Tollbooth MCP and
+            // requires no proof — the right shape for a session warmup.
+            // (Previously this used register_operator, which is a write
+            // tool whose 0.26.0+ authority_proof requirement filled the
+            // traffic log with noise for Authorities we don't sign for.)
+            _ = try? await mcpService.callServiceStatus(endpointURL: endpointURL)
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,
                 patronNpub: authority.npub
