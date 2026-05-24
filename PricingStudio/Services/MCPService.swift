@@ -911,6 +911,97 @@ actor MCPService {
         let message: String
     }
 
+    /// Result of a successful restore_credits call.
+    ///
+    /// `source` is `"vault_record"` when the wheel found an existing settled
+    /// invoice in the operator's ledger (idempotent re-credit), or `"btcpay"`
+    /// when the wheel had to ask BTCPay for the truth — the cold-start
+    /// recovery case the 0.30.0+ guards exist for. `persisted: true` is
+    /// guaranteed by 0.30.0's `_vault_unavailable` refusal; older operators
+    /// could return `persisted: false` (we propagate honestly).
+    struct RestoreCreditsResult: Sendable {
+        let invoiceId: String
+        let source: String          // "vault_record" | "btcpay"
+        let amountSats: Int
+        let creditsGranted: Int
+        let balanceApiSats: Int
+        let persisted: Bool
+        let message: String
+    }
+
+    /// Re-issue a credit grant for a known invoice ID that didn't land
+    /// during the original `check_payment` flow.
+    ///
+    /// Common recovery cases:
+    /// - Patron paid the Lightning invoice but closed the Top-Off sheet
+    ///   before clicking Check Payment.
+    /// - Operator's vault was cold-start-unavailable when check_payment ran
+    ///   (pre-0.30.0 silently dropped the credit; 0.30.0+ refused honestly).
+    /// - Operator support escalation — patron emailed "I paid invoice XYZ,
+    ///   never got credit." The operator can paste the invoice ID and
+    ///   trigger the same recovery path.
+    ///
+    /// Soft errors (`vault_unavailable`, `proof_required`, "not Settled at
+    /// BTCPay", etc.) propagate as `MCPError.structuredError` via
+    /// `throwIfSoftError` so the UI can branch on `error_code` — this is
+    /// not a lifecycle-tolerant call like `check_payment` is for unpaid.
+    func callRestoreCredits(
+        endpointURL: URL,
+        invoiceId: String,
+        patronNpub: String
+    ) async throws -> RestoreCreditsResult {
+        await traffic(.outbound, label: "Restore Credits", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId) npub=\(patronNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let restoreTool = allTools.first(where: { $0.name.contains("restore_credits") }) else {
+            await traffic(.error, label: "Restore Credits", detail: "No restore_credits tool found")
+            throw MCPError.toolCallFailed("This operator's wheel doesn't expose restore_credits (upgrade to 0.31.0+).")
+        }
+
+        let args = await argsWithProof(
+            npub: patronNpub,
+            capability: "restore_credits",
+            endpointURL: endpointURL,
+            extra: ["invoice_id": .string(invoiceId)]
+        )
+        let (content, isError) = try await client.callTool(name: restoreTool.name, arguments: args)
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Restore Credits Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Restore Credits", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Restore Credits")
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw MCPError.invalidResponse
+        }
+        let dict = (json["result"] as? [String: Any]) ?? json
+
+        return RestoreCreditsResult(
+            invoiceId: (dict["invoice_id"] as? String) ?? invoiceId,
+            source: (dict["source"] as? String) ?? "",
+            amountSats: (dict["amount_sats"] as? Int) ?? 0,
+            creditsGranted: (dict["credits_granted"] as? Int) ?? 0,
+            balanceApiSats: (dict["balance_api_sats"] as? Int) ?? 0,
+            persisted: (dict["persisted"] as? Bool) ?? false,
+            message: (dict["message"] as? String) ?? ""
+        )
+    }
+
     func callCheckPayment(
         endpointURL: URL,
         invoiceId: String,

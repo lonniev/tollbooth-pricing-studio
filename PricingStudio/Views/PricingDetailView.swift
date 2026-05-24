@@ -17,6 +17,7 @@ struct PricingDetailView: View {
     @State private var showingDeregisterConfirm = false
     @State private var deregisterError: String?
     @State private var deregisterProofRemedy: DeregisterProofRemedy?
+    @State private var showingRecoverPayment = false
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var onboardingLoading = false
     @State private var isInitializing = false
@@ -655,6 +656,17 @@ struct PricingDetailView: View {
                             systemImage: "arrow.triangle.swap"
                         )
                     }
+                    // Operator-support flow: paste a patron's invoice ID
+                    // and re-trigger credit grant against BTCPay's
+                    // authoritative settled state. Use when a patron
+                    // escalates "I paid invoice XYZ, never got credits."
+                    if target.mcpEndpointURL != nil {
+                        Button {
+                            showingRecoverPayment = true
+                        } label: {
+                            Label("Recover a Patron's Payment…", systemImage: "arrow.uturn.backward.circle")
+                        }
+                    }
                     Divider()
                     Button(role: .destructive) {
                         showingDeregisterConfirm = true
@@ -686,6 +698,21 @@ struct PricingDetailView: View {
                 }
             }) {
                 RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
+            }
+            .sheet(isPresented: $showingRecoverPayment) {
+                if let endpointString = target.mcpEndpointURL,
+                   let endpoint = URL(string: endpointString) {
+                    // Operator-support recovery: patron npub is editable
+                    // (operator pastes it from a patron escalation).
+                    RecoverPaymentSheet(
+                        operatorEndpoint: endpoint,
+                        operatorName: target.displayName,
+                        initialInvoiceId: "",
+                        patronNpub: "",
+                        patronNpubEditable: true,
+                        onSuccess: nil
+                    )
+                }
             }
             .confirmationDialog(
                 "Deregister Operator",
