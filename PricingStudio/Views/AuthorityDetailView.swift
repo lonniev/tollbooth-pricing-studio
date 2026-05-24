@@ -480,43 +480,12 @@ private struct ConnectedOperatorsList: View {
         allOperators.filter { $0.authorityNpub == authorityNpub }
     }
 
-    /// npubs of every Authority anywhere below this one in the chain.
-    /// BFS with a visited set so a corrupt parent pointer can't infinite-loop.
-    private var descendantAuthorityNpubs: Set<String> {
-        var result: Set<String> = []
-        var frontier: Set<String> = [authorityNpub]
-        var visited: Set<String> = []
-        while !frontier.isEmpty {
-            visited.formUnion(frontier)
-            let children = Set(allAuthorities
-                .filter { auth in
-                    guard let parent = auth.parentAuthorityNpub else { return false }
-                    return frontier.contains(parent) && !visited.contains(auth.npub)
-                }
-                .map(\.npub))
-            result.formUnion(children)
-            frontier = children
-        }
-        return result
-    }
-
-    /// Operators registered with a child / grandchild Authority. Rendered in
-    /// a dimmer secondary row with a "via <child>" caption so the user knows
-    /// they aren't on this Authority's direct ledger.
-    private var inheritedOperators: [Operator] {
-        let descendants = descendantAuthorityNpubs
-        guard !descendants.isEmpty else { return [] }
-        return allOperators.filter { op in
-            guard let authNpub = op.authorityNpub else { return false }
-            return descendants.contains(authNpub)
-        }
-    }
-
-    /// Direct-Authority lookup for an inherited operator, used to render
-    /// "via <name>" and to address the balance fetch at the right endpoint.
-    private func directAuthority(for op: Operator) -> Authority? {
-        guard let authNpub = op.authorityNpub else { return nil }
-        return allAuthorities.first(where: { $0.npub == authNpub })
+    /// Immediate child Authorities — those whose parentAuthorityNpub points
+    /// at this one. Each child Authority is also an Operator at THIS
+    /// Authority (where its fee ledger lives), so they get rendered as
+    /// Operator-tiles in the same row.
+    private var childAuthoritiesAsOperators: [Authority] {
+        allAuthorities.filter { $0.parentAuthorityNpub == authorityNpub }
     }
 
     var body: some View {
@@ -540,7 +509,7 @@ private struct ConnectedOperatorsList: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
-            if directOperators.isEmpty && inheritedOperators.isEmpty {
+            if directOperators.isEmpty && childAuthoritiesAsOperators.isEmpty {
                 Text("No connected operators")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -594,45 +563,39 @@ private struct ConnectedOperatorsList: View {
                                 }
                             }
                         }
-                        // Inherited operators — operators of child Authorities,
-                        // shown for at-a-glance visibility. Dimmer styling +
-                        // "via <child>" caption signals they aren't on this
-                        // Authority's direct ledger. No context-menu actions:
-                        // any registration mutation belongs to their direct
-                        // Authority, not this ancestor.
-                        ForEach(inheritedOperators) { op in
-                            Button {
-                                onOperatorSelected?(op)
-                            } label: {
-                                VStack(spacing: 4) {
-                                    Image(systemName: "server.rack")
-                                        .font(.title3)
-                                        .foregroundStyle(.secondary)
-                                    Text(op.displayName)
-                                        .font(.caption2)
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-                                    if let bal = operatorBalances[op.npub] {
-                                        Text("\(bal) sats")
-                                            .font(.caption2.monospacedDigit())
-                                            .foregroundStyle(bal < 50 ? .red : .green)
-                                    }
-                                    if let via = directAuthority(for: op)?.displayName {
-                                        Text("via \(via)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.tertiary)
-                                            .lineLimit(1)
-                                    }
+                        // Each child Authority IS an Operator vis-a-vis THIS
+                        // Authority — its fee ledger lives here, so it shows
+                        // up in the Connected Operators row alongside ordinary
+                        // operators. Distinguishing icon (Authority columns)
+                        // and a dashed border signal "this is a child
+                        // Authority, not a plain Operator." No context menu:
+                        // any mutation belongs to the Authority management
+                        // surface, not the Operator-side disconnect/move.
+                        ForEach(childAuthoritiesAsOperators) { childAuth in
+                            VStack(spacing: 4) {
+                                Image(systemName: "building.columns")
+                                    .font(.title3)
+                                    .foregroundStyle(.purple)
+                                Text(childAuth.displayName)
+                                    .font(.caption2)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                if let bal = operatorBalances[childAuth.npub] {
+                                    Text("\(bal) sats")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(bal < 50 ? .red : .green)
                                 }
-                                .frame(width: 80)
-                                .padding(.vertical, 6)
-                                .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .strokeBorder(.quaternary, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-                                )
+                                Text("Authority")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
                             }
-                            .buttonStyle(.plain)
+                            .frame(width: 80)
+                            .padding(.vertical, 6)
+                            .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(.purple.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                            )
                         }
                     }
                     .padding(.horizontal)
@@ -673,38 +636,25 @@ private struct ConnectedOperatorsList: View {
     }
 
     private func loadOperatorBalances() async {
+        guard let endpointString = authorityEndpointURL,
+              let endpointURL = URL(string: endpointString) else { return }
         let mcpService = MCPService()
 
-        // Direct operators: ledger lives at THIS Authority's MCP.
-        if let endpointString = authorityEndpointURL,
-           let endpointURL = URL(string: endpointString) {
-            for op in directOperators {
-                do {
-                    let result = try await mcpService.callCheckBalance(
-                        endpointURL: endpointURL,
-                        patronNpub: op.npub
-                    )
-                    operatorBalances[op.npub] = result.balanceApiSats
-                } catch {
-                    // Silently skip — balance display is optional
-                }
-            }
-        }
+        // Direct operators and child Authorities-as-Operators both pay
+        // their fees to THIS Authority, so both ledgers live at the same
+        // endpoint. One loop covers both sets.
+        let patronNpubs = directOperators.map(\.npub)
+            + childAuthoritiesAsOperators.map(\.npub)
 
-        // Inherited operators: ledger lives at their DIRECT Authority's MCP,
-        // not at this ancestor. Look up per-op so balances are accurate.
-        for op in inheritedOperators {
-            guard let auth = directAuthority(for: op),
-                  let endpointString = auth.mcpEndpointURL,
-                  let endpointURL = URL(string: endpointString) else { continue }
+        for npub in patronNpubs {
             do {
                 let result = try await mcpService.callCheckBalance(
                     endpointURL: endpointURL,
-                    patronNpub: op.npub
+                    patronNpub: npub
                 )
-                operatorBalances[op.npub] = result.balanceApiSats
+                operatorBalances[npub] = result.balanceApiSats
             } catch {
-                // Silently skip
+                // Silently skip — balance display is optional
             }
         }
     }
