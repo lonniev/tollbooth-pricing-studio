@@ -3,18 +3,12 @@ import SwiftUI
 /// Sheet for re-issuing a credit grant against a known BTCPay invoice ID
 /// that didn't land during the original `check_payment` flow.
 ///
-/// Two callers, one UI:
+/// **Operator-only since wheel 0.36.0.** The caller MUST hold the
+/// operator's nsec in the device Keychain — patrons can't self-serve.
+/// Use this sheet from the Operator detail view when supporting a
+/// patron's "I paid, never got credits" escalation.
 ///
-/// * Patron's Invoices tab: invokes with their own npub locked. Use when
-///   they paid the Lightning invoice but closed the Top-Off sheet before
-///   clicking Check Payment, or hit one of the pre-0.30.0 silent-failure
-///   bugs.
-/// * Operator's Account tab: invokes with `patronNpubEditable: true` so
-///   they can paste a patron's npub when supporting a "I paid, never got
-///   credits" escalation.
-///
-/// Internally just wraps `MCPService.callRestoreCredits` — the wheel-side
-/// `restore_credits` tool exists on every Tollbooth MCP since 0.31.0.
+/// Internally wraps `MCPService.callRestoreCredits(operatorNpub:)`.
 struct RecoverPaymentSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -27,8 +21,14 @@ struct RecoverPaymentSheet: View {
     /// Patron whose credits should be restored.
     let patronNpub: String
     /// Whether the patron npub field can be edited (true on the operator
-    /// support flow; false on the patron's own Invoices tab).
+    /// support flow; false on the patron's own Invoices tab — currently
+    /// only the operator-side flow is wired, but the toggle stays for the
+    /// degraded "no-nsec" branch where the operator-on-this-device assumption
+    /// breaks).
     let patronNpubEditable: Bool
+    /// The OPERATOR's npub whose nsec signs the restore proof. Wheel
+    /// 0.36.0 requires this. The device's Keychain must hold the nsec.
+    let operatorNpub: String
     /// Called on success so the caller can refresh balances / invoice list.
     let onSuccess: (() -> Void)?
 
@@ -60,6 +60,7 @@ struct RecoverPaymentSheet: View {
         initialInvoiceId: String = "",
         patronNpub: String,
         patronNpubEditable: Bool = false,
+        operatorNpub: String,
         onSuccess: (() -> Void)? = nil
     ) {
         self.operatorEndpoint = operatorEndpoint
@@ -67,6 +68,7 @@ struct RecoverPaymentSheet: View {
         self.initialInvoiceId = initialInvoiceId
         self.patronNpub = patronNpub
         self.patronNpubEditable = patronNpubEditable
+        self.operatorNpub = operatorNpub
         self.onSuccess = onSuccess
         self._invoiceId = State(initialValue: initialInvoiceId)
         self._editablePatronNpub = State(initialValue: patronNpub)
@@ -240,8 +242,15 @@ struct RecoverPaymentSheet: View {
         switch code {
         case "vault_unavailable":
             return "The operator's vault was warming up. Wait ~15 seconds and try again."
+        case "operator_nsec_missing":
+            return "This device doesn't have the operator's nsec in its Keychain. The patron must escalate to the operator's support — only the operator can restore credits since wheel 0.36.0."
+        case "operator_proof_required", "operator_proof_invalid":
+            return "The operator's signed proof was rejected. Confirm this device holds the operator's nsec (not the patron's). The Operator's Account tab should show 'nsec' as configured."
         case "proof_required", "proof_invalid", "proof_refresh_needed":
-            return "Your npub proof has expired. Visit the operator's Account tab to re-request a proof, then try again."
+            // Shouldn't normally hit these for restore_credits in 0.36.0+
+            // (it's now operator-restricted, not patron-gated), but a
+            // pre-0.36.0 operator can still surface them.
+            return "Proof rejected. If the operator is on wheel <0.36.0, restore_credits is patron-gated and your patron proof has expired. If 0.36.0+, this device needs the operator's nsec."
         default:
             // Wheel surfaces "Invoice status is 'New', not 'Settled'" verbatim
             // when the patron hasn't paid yet — keep that visible.
@@ -257,7 +266,8 @@ struct RecoverPaymentSheet: View {
             let result = try await MCPService().callRestoreCredits(
                 endpointURL: operatorEndpoint,
                 invoiceId: invoice,
-                patronNpub: npub
+                patronNpub: npub,
+                operatorNpub: operatorNpub
             )
             status = .success(result)
             onSuccess?()

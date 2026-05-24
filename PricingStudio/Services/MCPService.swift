@@ -932,25 +932,33 @@ actor MCPService {
     /// Re-issue a credit grant for a known invoice ID that didn't land
     /// during the original `check_payment` flow.
     ///
+    /// **Operator-restricted since wheel 0.36.0**: the proof MUST be
+    /// signed by the operator's nsec, not the patron's. The patron is
+    /// identified by `patronNpub` (a plain argument); the operator
+    /// authorizes the grant by signing the proof. The caller must have
+    /// the operator's nsec in this device's Keychain.
+    ///
     /// Common recovery cases:
-    /// - Patron paid the Lightning invoice but closed the Top-Off sheet
-    ///   before clicking Check Payment.
+    /// - Operator support escalation — patron emailed "I paid invoice XYZ,
+    ///   never got credit." The operator pastes the patron's npub + invoice
+    ///   ID; this method signs the operator's proof and credits the patron.
     /// - Operator's vault was cold-start-unavailable when check_payment ran
     ///   (pre-0.30.0 silently dropped the credit; 0.30.0+ refused honestly).
-    /// - Operator support escalation — patron emailed "I paid invoice XYZ,
-    ///   never got credit." The operator can paste the invoice ID and
-    ///   trigger the same recovery path.
+    /// - Patron paid the Lightning invoice but closed the Top-Off sheet
+    ///   before clicking Check Payment, never resumed via the operator.
     ///
-    /// Soft errors (`vault_unavailable`, `proof_required`, "not Settled at
-    /// BTCPay", etc.) propagate as `MCPError.structuredError` via
-    /// `throwIfSoftError` so the UI can branch on `error_code` — this is
-    /// not a lifecycle-tolerant call like `check_payment` is for unpaid.
+    /// Soft errors propagate as `MCPError.structuredError`:
+    /// - `operator_nsec_missing` (this method) — nsec not in Keychain.
+    /// - `operator_proof_required` / `operator_proof_invalid` (wheel) —
+    ///   proof not signed by the operator's npub or doesn't verify.
+    /// - `vault_unavailable` — wheel's Neon write/read failed; retry.
     func callRestoreCredits(
         endpointURL: URL,
         invoiceId: String,
-        patronNpub: String
+        patronNpub: String,
+        operatorNpub: String
     ) async throws -> RestoreCreditsResult {
-        await traffic(.outbound, label: "Restore Credits", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId) npub=\(patronNpub.prefix(16))…")
+        await traffic(.outbound, label: "Restore Credits", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId) patron=\(patronNpub.prefix(16))… operator=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
         let transport = makeTransport(endpoint: endpointURL)
@@ -964,12 +972,26 @@ actor MCPService {
             throw MCPError.toolCallFailed("This operator's wheel doesn't expose restore_credits (upgrade to 0.31.0+).")
         }
 
-        let args = await argsWithProof(
-            npub: patronNpub,
+        // Sign with the OPERATOR's nsec. patron_npub is a plain tool
+        // argument that identifies whose ledger receives the credit;
+        // the operator's proof is the gate (wheel 0.36.0+).
+        let proof = (try? await signRuntimeProof(
             capability: "restore_credits",
             endpointURL: endpointURL,
-            extra: ["invoice_id": .string(invoiceId)]
-        )
+            operatorNpub: operatorNpub
+        )) ?? ""
+        if proof.isEmpty {
+            throw MCPError.structuredError(
+                code: "operator_nsec_missing",
+                message: "Operator nsec for \(operatorNpub.prefix(16))… is not in this device's Keychain. Only the operator can restore credits; the patron must escalate to the operator's support.",
+                extras: ["operator_npub": operatorNpub]
+            )
+        }
+        let args: [String: Value] = [
+            "invoice_id": .string(invoiceId),
+            "patron_npub": .string(patronNpub),
+            "proof": .string(proof),
+        ]
         let (content, isError) = try await client.callTool(name: restoreTool.name, arguments: args)
 
         if isError == true {
