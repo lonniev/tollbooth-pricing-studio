@@ -34,6 +34,7 @@ struct InvoiceListView: View {
     @State private var sortColumn: SortColumn = .date
     @State private var sortAscending = false
     @State private var hideExpired = false
+    @State private var recoveryTarget: InvoiceSource?
 
     private enum SortColumn: String {
         case date, amount, credits, status
@@ -88,6 +89,23 @@ struct InvoiceListView: View {
                 allItems: allInvoiceItemsByOperator,
                 dateFormatter: Self.dateFormatter
             )
+        }
+        .sheet(item: $recoveryTarget) { source in
+            if let endpointString = source.mcpEndpointURL,
+               let endpoint = URL(string: endpointString) {
+                RecoverPaymentSheet(
+                    operatorEndpoint: endpoint,
+                    operatorName: source.displayName,
+                    initialInvoiceId: "",
+                    patronNpub: entityNpub,
+                    patronNpubEditable: false,
+                    onSuccess: {
+                        Task {
+                            await accountVM.forceRefresh(forNpub: entityNpub, sources: sources)
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -242,6 +260,22 @@ struct InvoiceListView: View {
 
                 if let rr = reconcileResults[op.npub] {
                     reconcileResultBadge(rr)
+                }
+
+                // Recover-by-invoice-id entry point. Visible for any
+                // operator with an MCP endpoint — even when the wheel's
+                // pending list is empty, the patron may have an invoice
+                // ID from a Lightning wallet receipt that never landed
+                // here. Disabled for operators without an endpoint.
+                if op.mcpEndpointURL != nil {
+                    Button {
+                        recoveryTarget = op
+                    } label: {
+                        Label("Recover", systemImage: "arrow.uturn.backward.circle")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             }
 

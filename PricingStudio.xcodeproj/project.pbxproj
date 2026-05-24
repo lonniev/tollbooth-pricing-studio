@@ -28,6 +28,7 @@
 		AA00000100000000000000BE /* ToolPriceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EE /* ToolPriceRow.swift */; };
 				NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTA000100000000000000A1 /* NotarizationStatusView.swift */; };
 		ADPT000100000000000000B1 /* RequestAdoptionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */; };
+		RCVR000100000000000000B1 /* RecoverPaymentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCVR000100000000000000A1 /* RecoverPaymentSheet.swift */; };
 		EDOP000100000000000000B1 /* EditOperatorRegistrationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDOP000100000000000000A1 /* EditOperatorRegistrationSheet.swift */; };
 		ONBD000100000000000000B1 /* OnboardingStatusSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */; };
 		SCUR000100000000000000B1 /* SecureCourierSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCUR000100000000000000A1 /* SecureCourierSheet.swift */; };
@@ -193,6 +194,7 @@
 		AA00000100000000000000EE /* ToolPriceRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPriceRow.swift; sourceTree = "<group>"; };
 		NOTA000100000000000000A1 /* NotarizationStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotarizationStatusView.swift; sourceTree = "<group>"; };
 		ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestAdoptionSheet.swift; sourceTree = "<group>"; };
+		RCVR000100000000000000A1 /* RecoverPaymentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoverPaymentSheet.swift; sourceTree = "<group>"; };
 		EDOP000100000000000000A1 /* EditOperatorRegistrationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditOperatorRegistrationSheet.swift; sourceTree = "<group>"; };
 		ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStatusSheet.swift; sourceTree = "<group>"; };
 		SCUR000100000000000000A1 /* SecureCourierSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureCourierSheet.swift; sourceTree = "<group>"; };
@@ -536,6 +538,7 @@
 				AA00000100000000000000EE /* ToolPriceRow.swift */,
 				NOTA000100000000000000A1 /* NotarizationStatusView.swift */,
 				ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */,
+				RCVR000100000000000000A1 /* RecoverPaymentSheet.swift */,
 				EDOP000100000000000000A1 /* EditOperatorRegistrationSheet.swift */,
 				ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */,
 				SCUR000100000000000000A1 /* SecureCourierSheet.swift */,
@@ -941,6 +944,7 @@
 				AA00000100000000000000BE /* ToolPriceRow.swift in Sources */,
 				NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */,
 				ADPT000100000000000000B1 /* RequestAdoptionSheet.swift in Sources */,
+				RCVR000100000000000000B1 /* RecoverPaymentSheet.swift in Sources */,
 				EDOP000100000000000000B1 /* EditOperatorRegistrationSheet.swift in Sources */,
 				ONBD000100000000000000B1 /* OnboardingStatusSheet.swift in Sources */,
 				SCUR000100000000000000B1 /* SecureCourierSheet.swift in Sources */,
