@@ -27,14 +27,20 @@ final class AuthorityBalanceViewModel {
         balanceState = .loading
 
         do {
-            // Ensure DPYC session is active — _dpyc_sessions is in-memory and resets on deploy.
-            // The Authority is registering its own npub against itself, so the same nsec
-            // serves as both operator-side and Authority-side consent witness.
-            _ = try? await mcpService.callRegisterOperator(
-                endpointURL: endpointURL,
-                operatorNpub: authority.npub,
-                authorityNpub: authority.npub
-            )
+            // Session-priming register (Authority registering its own npub
+            // against itself) is only attempted when this device actually
+            // holds the Authority's nsec. Without the nsec, the wheel
+            // (0.26.0+) rejects with authority_consent_required and the
+            // traffic log fills with noisy errors for Authorities we don't
+            // sign for. check_balance handles its own proof handshake
+            // independently, so the register call is purely a warmup.
+            if KeychainService.loadNsec(forNpub: authority.npub) != nil {
+                _ = try? await mcpService.callRegisterOperator(
+                    endpointURL: endpointURL,
+                    operatorNpub: authority.npub,
+                    authorityNpub: authority.npub
+                )
+            }
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,
                 patronNpub: authority.npub
