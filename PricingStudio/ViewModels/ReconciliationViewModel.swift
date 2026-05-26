@@ -14,7 +14,17 @@ final class ReconciliationViewModel {
     var error: String?
     var noMismatchMessage: String?
 
+    /// How many stored rows the last reconcile() rewrote because their
+    /// toolId UUID didn't match capabilityUUID(bareCapability(toolName)).
+    /// Surfaced in the review UI so the operator knows the migration ran.
+    private(set) var repairedOrphanCount: Int = 0
+
     private let mcpService = MCPService()
+
+    /// Operator slug captured during detectMismatch() so reconcile()
+    /// can strip it from MCP tool names before deriving capability UUIDs.
+    /// Empty means "no slug" (treat names as bare capabilities).
+    private var operatorSlug: String = ""
 
     // MARK: - Mismatch Detection
 
@@ -27,6 +37,10 @@ final class ReconciliationViewModel {
         error = nil
         mismatch = nil
         suggestedTools = nil
+        // Capture for reconcile(): we strip this prefix from MCP tool
+        // names to recover the bare capability the wheel's
+        // capability_uuid() expects.
+        self.operatorSlug = operatorSlug ?? ""
 
         Task {
             do {
@@ -46,6 +60,32 @@ final class ReconciliationViewModel {
         }
     }
 
+    /// Strip the operator slug prefix from an MCP tool name to recover
+    /// the bare capability. The wheel computes `capability_uuid(...)`
+    /// from the bare capability — never from the slug-prefixed protocol
+    /// name. Reconcile rows whose toolId UUID was derived from the
+    /// prefixed name will never match what the wheel looks up.
+    func bareCapability(_ mcpName: String) -> String {
+        guard !operatorSlug.isEmpty else { return mcpName }
+        let prefix = "\(operatorSlug)_"
+        guard mcpName.hasPrefix(prefix) else { return mcpName }
+        return String(mcpName.dropFirst(prefix.count))
+    }
+
+    /// Canonical toolId for a given MCP-protocol tool name — what the
+    /// wheel will look up at request time. Exposed for tests and the
+    /// orphan-repair pass.
+    func canonicalToolId(forMCPName mcpName: String) -> String {
+        ToolPrice.capabilityUUID(bareCapability(mcpName))
+    }
+
+    /// Test seam — production sets `operatorSlug` via `detectMismatch`.
+    /// Tests can't go through the live MCP path, so they call this.
+    /// Marked clearly so it's never confused with app code.
+    func _setOperatorSlug(_ slug: String) {
+        self.operatorSlug = slug
+    }
+
     // MARK: - Deterministic Reconciliation
 
     /// Build the reconciled tool list deterministically — no LLM needed.
@@ -59,18 +99,49 @@ final class ReconciliationViewModel {
         isReconciling = true
         suggestedTools = nil
         error = nil
+        repairedOrphanCount = 0
 
         let stored = storedModel.tools ?? []
         let staleIds = Set(mismatch.staleTools.map(\.toolId))
 
-        // Keep non-stale stored tools as-is
-        var reconciled = stored.filter { !staleIds.contains($0.toolId) }
+        // Keep non-stale stored tools, but ALSO repair any whose toolId
+        // is an orphan from the prior Reconcile bug (UUID derived from
+        // slug-prefixed name instead of bare capability). The repair
+        // preserves the operator's price, priced flag, category,
+        // multipliers — only the toolId UUID is rewritten.
+        var reconciled: [ToolPrice] = []
+        for tool in stored where !staleIds.contains(tool.toolId) {
+            let canonical = canonicalToolId(forMCPName: tool.toolName)
+            if tool.toolId != canonical {
+                repairedOrphanCount += 1
+                logger.info(
+                    "Repairing orphan UUID for '\(tool.toolName)': \(tool.toolId) → \(canonical)"
+                )
+                reconciled.append(ToolPrice(
+                    toolId: canonical,
+                    toolName: tool.toolName,
+                    priceSats: tool.priceSats,
+                    priced: tool.priced,
+                    priceType: tool.priceType,
+                    priceFormula: tool.priceFormula,
+                    category: tool.category,
+                    intent: tool.intent,
+                    minCost: tool.minCost,
+                    maxCost: tool.maxCost,
+                    multipliers: tool.multipliers
+                ))
+            } else {
+                reconciled.append(tool)
+            }
+        }
 
-        // Add new tools at 0 sats (TBD)
+        // Add new tools at 0 sats (TBD). Derive the toolId from the
+        // BARE capability so the wheel's capability_uuid() lookup
+        // succeeds; keep tool.name as the display label.
         for tool in mismatch.newTools {
             let category = inferCategory(for: tool.name)
             reconciled.append(ToolPrice(
-                toolId: ToolPrice.capabilityUUID(tool.name),
+                toolId: canonicalToolId(forMCPName: tool.name),
                 toolName: tool.name,
                 priceSats: 0,
                 priced: category == "free",
@@ -81,7 +152,10 @@ final class ReconciliationViewModel {
 
         let added = mismatch.newTools.count
         let removed = mismatch.staleTools.count
-        logger.info("Reconciled: \(added) added, \(removed) removed, \(reconciled.count) total")
+        let repaired = repairedOrphanCount
+        logger.info(
+            "Reconciled: \(added) added, \(removed) removed, \(repaired) orphan UUIDs repaired, \(reconciled.count) total"
+        )
 
         suggestedTools = reconciled
         isReconciling = false

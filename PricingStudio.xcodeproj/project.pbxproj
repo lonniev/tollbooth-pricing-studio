@@ -122,6 +122,7 @@
 		DD0000010000000000000F01 /* NostrCryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E01 /* NostrCryptoTests.swift */; };
 		DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E02 /* NostrRelayTests.swift */; };
 		DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E03 /* NostrDMServiceTests.swift */; };
+		EE0000010000000000000F04 /* ReconciliationUUIDTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */; };
 		73CAFAD62513454B9CD36981 /* OperatorProofService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */; };
 		9E3FAA7C1B6E45B59CBDB128 /* ToolRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7115326FE3DE4906B756A9D5 /* ToolRole.swift */; };
 		1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */; };
@@ -289,6 +290,7 @@
 		DD0000010000000000000E01 /* NostrCryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrCryptoTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E02 /* NostrRelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E03 /* NostrDMServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrDMServiceTests.swift; sourceTree = "<group>"; };
+		EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconciliationUUIDTests.swift; sourceTree = "<group>"; };
 		AA0000010000000000000DFF /* PricingStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PricingStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorProofService.swift; sourceTree = "<group>"; };
 		7115326FE3DE4906B756A9D5 /* ToolRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolRole.swift; sourceTree = "<group>"; };
@@ -391,6 +393,7 @@
 				DD0000010000000000000E01 /* NostrCryptoTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
 				DD0000010000000000000E03 /* NostrDMServiceTests.swift */,
+				EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */,
 			);
 			path = PricingStudioTests;
 			sourceTree = "<group>";
@@ -1045,6 +1048,7 @@
 				DD0000010000000000000F01 /* NostrCryptoTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
 				DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */,
+				EE0000010000000000000F04 /* ReconciliationUUIDTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1224,7 +1228,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.9.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1256,7 +1260,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.9.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

@@ -124,6 +124,22 @@ struct ReconciliationSheet: View {
     private func reviewPhase(suggested: [ToolPrice], mismatch: MCPService.ToolMismatch) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if viewModel.repairedOrphanCount > 0 {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "wrench.and.screwdriver.fill")
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Repaired \(viewModel.repairedOrphanCount) orphan tool UUID\(viewModel.repairedOrphanCount == 1 ? "" : "s")")
+                                .font(.caption.bold())
+                            Text("Earlier Reconcile runs derived UUIDs from the slug-prefixed protocol name. The wheel looks up by the bare capability, so those rows were unreachable. Saving this reconciliation re-keys them to the canonical UUID; prices and multipliers are preserved.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding()
+                    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                }
+
                 let newToolNames = Set(mismatch.newTools.map(\.name))
                 let grouped = Dictionary(grouping: suggested) { $0.category }
                 let order = ["free", "auth", "read", "write", "heavy", "restricted"]

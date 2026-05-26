@@ -43,7 +43,7 @@ final class NostrRelayTests: XCTestCase {
         try await Task.sleep(for: .seconds(2))
 
         // Bob fetches from relays
-        let events = await relay.fetchDMs(
+        let (events, _) = await relay.fetchDMs(
             pubkeyHex: bob.pubHex,
             since: Int(Date().timeIntervalSince1970) - 60
         )
