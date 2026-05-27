@@ -1,5 +1,84 @@
 # Changelog
 
+## [1.10.0] — 2026-05-27
+
+### Changed — Reconcile is now UUID-joined against the wheel's canonical inventory
+
+Through-fix of the chronic UUID-derivation pathology that the 1.9.x
+series tried to patch. Studio's Reconcile no longer derives UUIDs
+locally from tool names. It calls the wheel's new
+`list_canonical_identities` tool (added in tollbooth-dpyc 0.38.0),
+which returns the canonical `(tool_id, mcp_name, category, intent)`
+tuples directly from `rt._tool_registry`. Studio UUID-joins that
+inventory against the stored pricing model:
+
+- **Matched by UUID** → preserve the stored row's price and
+  multipliers; refresh `toolName`, `category`, `intent` from the
+  canonical entry if they've drifted (operator renamed a function,
+  changed a category, or edited intent prose).
+- **Canonical UUID not in stored** → add as a TBD row using the
+  canonical mcp_name and category.
+- **Stored UUID not in canonical** → drop (tool was removed in code).
+
+#### What this fixes for good
+
+The Brain MCP's v1.9.20 capability-rename broke Studio's local UUID
+derivation because Studio computed `capabilityUUID("get_thought_by_name")`
+but the wheel had switched to `capability_uuid("get_knowledge_node_by_name")`.
+1.9.4's repair pass made it worse on Reconcile by overwriting the
+correct UUIDs with Studio's locally-computed (wrong) ones. Both
+problems disappear under the new flow because Studio doesn't compute
+any UUID itself — the wheel is the source of truth.
+
+#### Removed (breaking on the ViewModel API)
+
+- `ReconciliationViewModel.orphanTools`
+- `ReconciliationViewModel.hasOrphans`
+- `ReconciliationViewModel.repairedOrphanCount`
+- `ReconciliationViewModel.bareCapability(_:)`
+- `ReconciliationViewModel.canonicalToolId(forMCPName:)`
+- `ReconciliationViewModel._setOperatorSlug(_:)`
+- The orange "Orphan UUIDs" diagnostic block and the orange "Repaired"
+  review banner in `ReconciliationSheet.swift` — there is no longer
+  any class of orphan that Studio can repair or needs to flag.
+- `ReconciliationViewModel`'s private `inferCategory(_:)` heuristics —
+  the canonical inventory carries the wheel-side category directly.
+
+#### Changed (signature)
+
+- `MCPService.ToolMismatch`:
+  - `newTools: [Tool]` → `newIdentities: [CanonicalIdentity]`
+  - `matchedTools: [ToolPrice]` → `matchedPairs: [(stored, canonical)]`
+    (kept `matchedTools` as a computed projection for API compat)
+- `MCPService.detectToolMismatch` now calls
+  `MCPService.fetchCanonicalIdentities(endpointURL:)` and UUID-joins.
+  `operatorSlug` parameter is accepted but ignored.
+- `PricingViewModel.applyReconciliation` no longer takes
+  `orphanIdsToRemove`; staging is purely UUID-keyed.
+
+### Added
+
+- `MCPService.CanonicalIdentity` — `(toolId, mcpName, category, intent)`
+  tuple as returned by the wheel.
+- `MCPService.fetchCanonicalIdentities(endpointURL:)` — calls the
+  wheel's `list_canonical_identities` tool. Throws a clear error if
+  the operator is on tollbooth-dpyc 0.37.x or earlier (which doesn't
+  expose the tool yet).
+
+### Operator requirement
+
+Operators must update to tollbooth-dpyc **0.38.0** or newer for
+Studio 1.10.0's Reconcile to work. Operators on 0.37.x will see an
+error from the Reconcile sheet telling them to upgrade.
+
+### Tests
+
+- `ReconciliationUUIDTests.swift` rewritten end-to-end. Old tests for
+  `bareCapability`, `canonicalToolId`, and orphan repair are deleted
+  (those code paths no longer exist). New tests cover the four
+  cases the new flow handles: add-new, drop-stale, refresh-on-drift,
+  and noop-when-unchanged.
+
 ## [1.9.4] — 2026-05-26
 
 ### Fixed — orphan repair never removed the pre-repair row, so Reconcile looped

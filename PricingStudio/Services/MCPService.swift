@@ -1955,71 +1955,132 @@ actor MCPService {
         return ("read", 1)
     }
 
-    // MARK: - Tool Mismatch Detection
+    // MARK: - Canonical Identity Introspection
 
-    struct ToolMismatch: Sendable {
-        let newTools: [Tool]          // in live endpoint, not in stored model
-        let staleTools: [ToolPrice]   // in stored model, not in live endpoint
-        let matchedTools: [ToolPrice] // in both
-        var hasMismatch: Bool { !newTools.isEmpty || !staleTools.isEmpty }
+    /// Canonical (tool_id, mcp_name, …) tuple as the wheel itself
+    /// reports them. Source of truth for any client that needs to
+    /// UUID-join against the stored pricing model.
+    ///
+    /// Requires tollbooth-dpyc 0.38.0 or newer on the operator side —
+    /// the `list_canonical_identities` tool was added in that release.
+    struct CanonicalIdentity: Sendable {
+        let toolId: String
+        let mcpName: String
+        let category: String
+        let intent: String
     }
 
-    /// Connect to the live MCP endpoint, list tools, and compare against the stored pricing model.
+    /// Call the wheel's `list_canonical_identities` tool and decode
+    /// the returned canonical inventory. Throws if the operator is on
+    /// an older wheel that doesn't expose the tool.
+    func fetchCanonicalIdentities(endpointURL: URL) async throws -> [CanonicalIdentity] {
+        await traffic(.outbound, label: "Canonical Identities",
+                       detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+        try await client.connect(transport: transport)
+
+        // tools/list to find the wheel's `list_canonical_identities` —
+        // its mcp_name is `<slug>_list_canonical_identities`.
+        let allTools = try await listAllTools(client: client)
+        guard let canon = allTools.first(where: { $0.name.hasSuffix("_list_canonical_identities") })
+        else {
+            throw MCPError.toolCallFailed(
+                "This operator does not expose list_canonical_identities. " +
+                "Upgrade the operator to tollbooth-dpyc 0.38.0+ and redeploy."
+            )
+        }
+
+        let (content, isError) = try await client.callTool(name: canon.name, arguments: [:])
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            throw MCPError.toolCallFailed(errorText)
+        }
+        let text = content.compactMap { extractText($0) }.first ?? ""
+        guard let data = text.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tools = payload["tools"] as? [[String: Any]]
+        else {
+            throw MCPError.toolCallFailed(
+                "list_canonical_identities returned unexpected payload: \(text.prefix(200))"
+            )
+        }
+
+        var out: [CanonicalIdentity] = []
+        for entry in tools {
+            guard let id = entry["tool_id"] as? String,
+                  let name = entry["mcp_name"] as? String
+            else { continue }
+            let category = entry["category"] as? String ?? "read"
+            let intent = entry["intent"] as? String ?? ""
+            out.append(CanonicalIdentity(
+                toolId: id, mcpName: name, category: category, intent: intent,
+            ))
+        }
+        await traffic(.inbound, label: "Canonical Identities",
+                       detail: "Returned \(out.count) tool identities")
+        return out
+    }
+
+    // MARK: - Tool Mismatch Detection
+
+    /// Mismatch between the wheel's canonical inventory and the stored
+    /// pricing model. UUID-joined — no name-based heuristics, no local
+    /// UUID derivation. The wheel is the source of truth.
+    struct ToolMismatch: Sendable {
+        /// Canonical tools the wheel reports that aren't in the stored model yet.
+        let newIdentities: [CanonicalIdentity]
+        /// Stored rows whose toolId isn't in the wheel's canonical set — tool was removed in code.
+        let staleTools: [ToolPrice]
+        /// Stored rows that matched a canonical entry by UUID. Each pair carries the live
+        /// canonical so the FE can surface drift in name/category/intent.
+        let matchedPairs: [(stored: ToolPrice, canonical: CanonicalIdentity)]
+        var matchedTools: [ToolPrice] { matchedPairs.map(\.stored) }
+        var hasMismatch: Bool { !newIdentities.isEmpty || !staleTools.isEmpty }
+    }
+
+    /// Connect to the live MCP, fetch its canonical identities, and
+    /// UUID-join against the stored pricing model.
     func detectToolMismatch(
         endpointURL: URL,
         storedModel: PricingModelResponse,
         operatorSlug: String? = nil
     ) async throws -> ToolMismatch {
-        await traffic(.outbound, label: "Mismatch Detection", detail: "SSE → \(endpointURL.absoluteString)")
+        // operatorSlug is no longer used for matching — the canonical
+        // identities already carry the slug-prefixed mcp_name as the
+        // wheel computes it. Kept in the signature for API compat with
+        // any caller that still passes it.
+        _ = operatorSlug
 
-        let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
-        defer { Task { await client.disconnect() } }
-
-        try await client.connect(transport: transport)
-
-        // Only consider tools in the operator's namespace as pricing candidates.
-        // Tools in other namespaces (e.g. oracle_) are free delegation tools
-        // that never appear in the pricing model.
-        let allLiveTools = try await listAllTools(client: client)
-        let liveTools: [Tool]
-        if let slug = operatorSlug, !slug.isEmpty {
-            let prefix = "\(slug)_"
-            liveTools = allLiveTools.filter { $0.name.hasPrefix(prefix) }
-        } else {
-            liveTools = allLiveTools
-        }
+        let canonical = try await fetchCanonicalIdentities(endpointURL: endpointURL)
         let storedTools = storedModel.tools ?? []
 
-        // Build lookup sets by both UUID and name for robust matching
-        // across bare capability names ("import_csv") vs slug-prefixed
-        // MCP names ("taxsort_import_csv").
-        let storedIds = Set(storedTools.map(\.toolId))
-        let storedNames = Set(storedTools.map(\.toolName))
-        let liveNames = Set(liveTools.map(\.name))
+        let canonicalById = Dictionary(uniqueKeysWithValues: canonical.map { ($0.toolId, $0) })
+        let storedById = Dictionary(uniqueKeysWithValues: storedTools.map { ($0.toolId, $0) })
 
-        func liveToolMatchesStored(_ liveName: String) -> Bool {
-            if storedNames.contains(liveName) { return true }
-            let liveId = ToolPrice.capabilityUUID(liveName)
-            if storedIds.contains(liveId) { return true }
-            // Suffix match: bare "import_csv" ↔ "taxsort_import_csv"
-            return storedNames.contains { liveName.hasSuffix("_\($0)") || $0.hasSuffix("_\(liveName)") }
+        var newIdentities: [CanonicalIdentity] = []
+        var matchedPairs: [(stored: ToolPrice, canonical: CanonicalIdentity)] = []
+        for c in canonical {
+            if let stored = storedById[c.toolId] {
+                matchedPairs.append((stored: stored, canonical: c))
+            } else {
+                newIdentities.append(c)
+            }
         }
-
-        func storedToolMatchesLive(_ stored: ToolPrice) -> Bool {
-            if liveNames.contains(stored.toolName) { return true }
-            // Suffix match: bare "import_csv" ↔ "taxsort_import_csv"
-            return liveNames.contains { $0.hasSuffix("_\(stored.toolName)") || stored.toolName.hasSuffix("_\($0)") }
-        }
-
-        let newTools = liveTools.filter { !liveToolMatchesStored($0.name) }
-        let staleTools = storedTools.filter { !storedToolMatchesLive($0) }
-        let matchedTools = storedTools.filter { storedToolMatchesLive($0) }
+        let staleTools = storedTools.filter { canonicalById[$0.toolId] == nil }
 
         await traffic(.inbound, label: "Mismatch Detection",
-                       detail: "Live: \(liveTools.count), Stored: \(storedTools.count), New: \(newTools.count), Stale: \(staleTools.count)")
+                       detail: "Canonical: \(canonical.count), Stored: \(storedTools.count), " +
+                               "New: \(newIdentities.count), Stale: \(staleTools.count), " +
+                               "Matched: \(matchedPairs.count)")
 
-        return ToolMismatch(newTools: newTools, staleTools: staleTools, matchedTools: matchedTools)
+        return ToolMismatch(
+            newIdentities: newIdentities,
+            staleTools: staleTools,
+            matchedPairs: matchedPairs
+        )
     }
 
     // MARK: - Generic Tool Call

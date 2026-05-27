@@ -1,193 +1,188 @@
 import XCTest
 @testable import PricingStudio
 
-/// Regression coverage for the UUID-derivation bug that bit Optionality's
-/// `share_entry` (and `send_patron_dm` before it).
+/// Tests for the UUID-join Reconcile flow introduced with the
+/// tollbooth-dpyc 0.38.0 / pricing-studio 1.10.0 refactor.
 ///
-/// Studio's old Reconcile derived `toolId` from the slug-prefixed MCP
-/// name (e.g. "optionality_share_entry"). The wheel's `paid_tool`
-/// decorator uses `capability_uuid(<bare capability>)` for the lookup.
-/// The two UUIDs differ, the row is unreachable, and the wheel returns
-/// "Tool '…' is not yet in the pricing model."
-///
-/// Reference UUIDs computed by Python's
-/// `uuid.uuid5(DPYC_NAMESPACE, capability)` with the wheel's namespace
-/// `d9a3f1c7-4e2b-4a8f-b6d5-1c3e7f9a2b4d`:
-///   share_entry              -> 6accf6b4-617e-5727-9337-1df52729c116
-///   optionality_share_entry  -> aca27ddc-8076-5bb7-8e71-8a5c5c61246b
-///   judge_trade              -> 2d4f4988-8199-5753-9ed2-17f458b0d17a
-///   import_csv               -> e4abda05-bce0-5d22-bd62-2db18bb7afe0
+/// The wheel returns canonical (tool_id, mcp_name, category, intent)
+/// via `list_canonical_identities`. Studio UUID-joins that against
+/// the stored pricing model — no name-derived UUIDs, no local
+/// computation, no repair-in-place. Renames in the operator's code
+/// (function or capability label) leave UUIDs intact.
 @MainActor
 final class ReconciliationUUIDTests: XCTestCase {
 
-    // MARK: - Cross-language UUID parity
-
-    /// Capability UUID derivation must match the wheel's Python
-    /// `capability_uuid()` byte-for-byte. Hardcoded reference values
-    /// catch any future drift in the SHA-1 / variant-byte logic.
-    func testCapabilityUUIDMatchesPythonReference() {
-        XCTAssertEqual(
-            ToolPrice.capabilityUUID("share_entry"),
-            "6accf6b4-617e-5727-9337-1df52729c116"
-        )
-        XCTAssertEqual(
-            ToolPrice.capabilityUUID("optionality_share_entry"),
-            "aca27ddc-8076-5bb7-8e71-8a5c5c61246b"
-        )
-        XCTAssertEqual(
-            ToolPrice.capabilityUUID("judge_trade"),
-            "2d4f4988-8199-5753-9ed2-17f458b0d17a"
-        )
-    }
-
-    // MARK: - bareCapability helper
-
-    func testBareCapabilityStripsKnownSlug() {
-        let vm = ReconciliationViewModel()
-        vm.setSlugForTesting("optionality")
-        XCTAssertEqual(vm.bareCapability("optionality_share_entry"), "share_entry")
-        XCTAssertEqual(vm.bareCapability("optionality_deal_scenario"), "deal_scenario")
-    }
-
-    func testBareCapabilityLeavesNonPrefixedNamesAlone() {
-        let vm = ReconciliationViewModel()
-        vm.setSlugForTesting("optionality")
-        // Wheel built-ins are namespaced the same way; defensive: if a
-        // tool ever ships without the operator prefix, leave it alone.
-        XCTAssertEqual(vm.bareCapability("check_balance"), "check_balance")
-        XCTAssertEqual(vm.bareCapability("share_entry"), "share_entry")
-    }
-
-    func testBareCapabilityIsIdentityWithoutSlug() {
-        let vm = ReconciliationViewModel()
-        // No slug set — every name is treated as already-bare.
-        XCTAssertEqual(vm.bareCapability("optionality_share_entry"), "optionality_share_entry")
-        XCTAssertEqual(vm.bareCapability("share_entry"), "share_entry")
-    }
-
-    // MARK: - canonicalToolId produces the wheel-facing UUID
-
-    func testCanonicalToolIdMatchesWheelLookup() {
-        let vm = ReconciliationViewModel()
-        vm.setSlugForTesting("optionality")
-        // The whole point: feeding the protocol-visible MCP name in
-        // produces the canonical UUID the wheel computes from the bare
-        // capability — NOT the orphan UUID the old Reconcile produced.
-        XCTAssertEqual(
-            vm.canonicalToolId(forMCPName: "optionality_share_entry"),
-            "6accf6b4-617e-5727-9337-1df52729c116"
-        )
-        XCTAssertNotEqual(
-            vm.canonicalToolId(forMCPName: "optionality_share_entry"),
-            "aca27ddc-8076-5bb7-8e71-8a5c5c61246b"
-        )
-    }
-
-    // MARK: - applyReconciliation routes orphan removals
-
-    /// applyReconciliation must put the pre-repair orphan UUIDs into
-    /// localRemovals — otherwise the canonical row gets added but the
-    /// orphan row stays, and the next Reconcile detects it again.
-    func testApplyReconciliationRemovesOrphans() {
-        let vm = PricingViewModel()
-
-        let orphan = ToolPrice(
-            toolId: "aca27ddc-8076-5bb7-8e71-8a5c5c61246b",
-            toolName: "optionality_share_entry",
-            priceSats: 0,
-            priced: true,
-            category: "write",
-            intent: "share"
-        )
-        let canonical = ToolPrice(
-            toolId: "6accf6b4-617e-5727-9337-1df52729c116",
-            toolName: "optionality_share_entry",
-            priceSats: 0,
-            priced: true,
-            category: "write",
-            intent: "share"
-        )
-
-        let storedModel = PricingModelResponse(
+    private func makeStoredModel(tools: [ToolPrice]) -> PricingModelResponse {
+        PricingModelResponse(
             status: "ok",
             modelId: "test",
             name: "test",
             isActive: true,
-            tools: [orphan],
+            tools: tools,
             pipeline: nil,
             trancheLifetime: nil
         )
+    }
 
-        let suggested = [canonical]
+    // MARK: - applyReconciliation: UUID-keyed merge
+
+    /// A canonical row with a new UUID lands in localEdits as an addition.
+    func testApplyReconciliationAddsNewTool() {
+        let vm = PricingViewModel()
+
+        let storedModel = makeStoredModel(tools: [])
+
+        let newTool = ToolPrice(
+            toolId: "fb5188ae-5792-54b8-bbd1-6b289605fa31",
+            toolName: "brain_get_thought_by_name",
+            priceSats: 0,
+            priced: false,
+            category: "read",
+            intent: "Look up a thought by exact name."
+        )
+
         let mismatch = MCPService.ToolMismatch(
-            newTools: [],
+            newIdentities: [MCPService.CanonicalIdentity(
+                toolId: newTool.toolId,
+                mcpName: newTool.toolName,
+                category: newTool.category,
+                intent: newTool.intent
+            )],
             staleTools: [],
-            matchedTools: [orphan]
+            matchedPairs: []
         )
 
         vm.applyReconciliation(
-            suggestedTools: suggested,
+            suggestedTools: [newTool],
             mismatch: mismatch,
-            orphanIdsToRemove: [orphan.toolId],
             storedModel: storedModel
         )
 
-        XCTAssertTrue(vm.localRemovals.contains(orphan.toolId),
-                      "Orphan UUID must be staged for removal so the row drops on save.")
-        XCTAssertNotNil(vm.localEdits[canonical.toolId],
-                        "Canonical-UUID row must be staged as an add.")
-        XCTAssertFalse(vm.localRemovals.contains(canonical.toolId),
-                       "Canonical UUID must NOT be staged for removal.")
+        XCTAssertNotNil(vm.localEdits[newTool.toolId])
+        XCTAssertFalse(vm.localRemovals.contains(newTool.toolId))
     }
 
-    // MARK: - Orphan detection
+    /// A stored row whose UUID is no longer in the canonical inventory
+    /// gets added to localRemovals.
+    func testApplyReconciliationDropsStale() {
+        let vm = PricingViewModel()
 
-    /// A row whose stored toolId differs from the canonical UUID must
-    /// be flagged as an orphan. The bug the user reported: detection
-    /// silently said "everything is fine" when names matched but UUIDs
-    /// didn't.
-    func testOrphanRowIsDetected() {
-        let vm = ReconciliationViewModel()
-        vm.setSlugForTesting("optionality")
-
-        // Simulate the pre-1.9.2 Reconcile artifact: tool stored under
-        // the slug-prefixed UUID.
-        let orphan = ToolPrice(
-            toolId: "aca27ddc-8076-5bb7-8e71-8a5c5c61246b", // capabilityUUID("optionality_share_entry")
-            toolName: "optionality_share_entry",
-            priceSats: 0,
+        let removed = ToolPrice(
+            toolId: "00000000-1111-2222-3333-444444444444",
+            toolName: "optionality_obsolete_tool",
+            priceSats: 5,
             priced: true,
             category: "write",
-            intent: "share"
+            intent: "old"
         )
 
-        // Canonical (correct) row for comparison.
-        let healthy = ToolPrice(
-            toolId: "2d4f4988-8199-5753-9ed2-17f458b0d17a", // capabilityUUID("judge_trade")
-            toolName: "optionality_judge_trade",
-            priceSats: 50,
-            priced: true,
-            category: "write",
-            intent: "judge"
+        let storedModel = makeStoredModel(tools: [removed])
+
+        let mismatch = MCPService.ToolMismatch(
+            newIdentities: [],
+            staleTools: [removed],
+            matchedPairs: []
         )
 
-        XCTAssertNotEqual(orphan.toolId, vm.canonicalToolId(forMCPName: orphan.toolName),
-                          "Orphan must not match canonical — that's what makes it an orphan.")
-        XCTAssertEqual(healthy.toolId, vm.canonicalToolId(forMCPName: healthy.toolName),
-                       "Healthy row's stored UUID must match the canonical one.")
+        vm.applyReconciliation(
+            suggestedTools: [],
+            mismatch: mismatch,
+            storedModel: storedModel
+        )
+
+        XCTAssertTrue(vm.localRemovals.contains(removed.toolId))
+        XCTAssertNil(vm.localEdits[removed.toolId])
     }
-}
 
-// MARK: - Test-only seam
+    /// A matched row whose display name drifted (operator renamed the
+    /// MCP-exposed name) gets staged as an edit. The toolId is the same
+    /// on both sides; only display fields change.
+    func testApplyReconciliationStagesDriftedDisplay() {
+        let vm = PricingViewModel()
 
-extension ReconciliationViewModel {
-    /// Test seam — production code sets the slug via `detectMismatch()`.
-    /// Marked `_TEST_` so it's obvious at call sites that this is not
-    /// for app use.
-    func setSlugForTesting(_ slug: String) {
-        // Reach the private property via a same-module helper. We
-        // expose a setter here instead of widening the visibility of
-        // the stored property itself.
-        self._setOperatorSlug(slug)
+        let stored = ToolPrice(
+            toolId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            toolName: "brain_get_thought_by_name",   // before rename
+            priceSats: 5,
+            priced: true,
+            category: "read",
+            intent: "Look up a thought by exact name."
+        )
+
+        let suggested = ToolPrice(
+            toolId: stored.toolId,                     // same UUID
+            toolName: "brain_lookup_node",             // operator renamed the function
+            priceSats: 5,
+            priced: true,
+            category: "read",
+            intent: "Look up a thought by exact name."
+        )
+
+        let storedModel = makeStoredModel(tools: [stored])
+
+        let mismatch = MCPService.ToolMismatch(
+            newIdentities: [],
+            staleTools: [],
+            matchedPairs: [(
+                stored: stored,
+                canonical: MCPService.CanonicalIdentity(
+                    toolId: stored.toolId,
+                    mcpName: suggested.toolName,
+                    category: suggested.category,
+                    intent: suggested.intent
+                )
+            )]
+        )
+
+        vm.applyReconciliation(
+            suggestedTools: [suggested],
+            mismatch: mismatch,
+            storedModel: storedModel
+        )
+
+        // Renamed display: should be staged as an edit at the SAME UUID.
+        XCTAssertNotNil(vm.localEdits[stored.toolId])
+        XCTAssertEqual(vm.localEdits[stored.toolId]?.toolName, "brain_lookup_node")
+        // Critically: NOT staged for removal — identity is preserved.
+        XCTAssertFalse(vm.localRemovals.contains(stored.toolId))
+    }
+
+    /// A matched row with nothing changed produces no staged edit and no removal.
+    func testApplyReconciliationIsNoopWhenUnchanged() {
+        let vm = PricingViewModel()
+
+        let stored = ToolPrice(
+            toolId: "11111111-2222-3333-4444-555555555555",
+            toolName: "brain_get_thought_by_name",
+            priceSats: 5,
+            priced: true,
+            category: "read",
+            intent: "unchanged"
+        )
+
+        let storedModel = makeStoredModel(tools: [stored])
+
+        let mismatch = MCPService.ToolMismatch(
+            newIdentities: [],
+            staleTools: [],
+            matchedPairs: [(
+                stored: stored,
+                canonical: MCPService.CanonicalIdentity(
+                    toolId: stored.toolId,
+                    mcpName: stored.toolName,
+                    category: stored.category,
+                    intent: stored.intent
+                )
+            )]
+        )
+
+        vm.applyReconciliation(
+            suggestedTools: [stored],
+            mismatch: mismatch,
+            storedModel: storedModel
+        )
+
+        XCTAssertNil(vm.localEdits[stored.toolId])
+        XCTAssertFalse(vm.localRemovals.contains(stored.toolId))
     }
 }
