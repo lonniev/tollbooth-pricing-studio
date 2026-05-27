@@ -635,8 +635,20 @@ final class PricingViewModel {
         mergeEdits(into: model)
     }
 
-    /// Stage reconciliation results: only genuinely new or changed tools into localEdits, stale tools into localRemovals.
-    func applyReconciliation(suggestedTools: [ToolPrice], mismatch: MCPService.ToolMismatch, storedModel: PricingModelResponse) {
+    /// Stage reconciliation results: new or changed tools into localEdits;
+    /// stale tools and orphan-UUID rows into localRemovals.
+    ///
+    /// `orphanIdsToRemove` is the list of pre-repair UUIDs for rows that
+    /// Reconcile re-keyed to canonical UUIDs. Without this, the new
+    /// canonical row gets added but the original orphan row lingers, so
+    /// the next Reconcile pass keeps detecting the same orphan over and
+    /// over.
+    func applyReconciliation(
+        suggestedTools: [ToolPrice],
+        mismatch: MCPService.ToolMismatch,
+        orphanIdsToRemove: [String] = [],
+        storedModel: PricingModelResponse
+    ) {
         let storedById = Dictionary((storedModel.tools ?? []).map { ($0.toolId, $0) }, uniquingKeysWith: { _, b in b })
         for tool in suggestedTools {
             if let existing = storedById[tool.toolId] {
@@ -645,12 +657,17 @@ final class PricingViewModel {
                     localEdits[tool.toolId] = tool
                 }
             } else {
-                // Genuinely new tool
+                // Genuinely new tool OR a re-keyed orphan repair.
                 localEdits[tool.toolId] = tool
             }
         }
         for stale in mismatch.staleTools {
             localRemovals.insert(stale.toolId)
+        }
+        // Orphans that Reconcile re-keyed: drop the pre-repair UUID row
+        // so the stored model ends up with the canonical row only.
+        for orphanId in orphanIdsToRemove {
+            localRemovals.insert(orphanId)
         }
     }
 

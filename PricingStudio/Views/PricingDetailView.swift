@@ -152,7 +152,17 @@ struct PricingDetailView: View {
                     viewModel: reconciliationVM,
                     storedModel: model,
                     onApply: { suggested, mismatch in
-                        viewModel.applyReconciliation(suggestedTools: suggested, mismatch: mismatch, storedModel: model)
+                        // Pass the pre-repair orphan UUIDs so the
+                        // localRemovals set drops them on save.
+                        // Otherwise the canonical row is added but the
+                        // orphan row lingers, and the next Reconcile
+                        // detects the same orphan again.
+                        viewModel.applyReconciliation(
+                            suggestedTools: suggested,
+                            mismatch: mismatch,
+                            orphanIdsToRemove: reconciliationVM.orphanTools.map(\.toolId),
+                            storedModel: model
+                        )
                     }
                 )
             }

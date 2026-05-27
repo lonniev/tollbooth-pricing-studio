@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.9.4] — 2026-05-26
+
+### Fixed — orphan repair never removed the pre-repair row, so Reconcile looped
+
+1.9.3 detected orphan UUIDs and reconcile() built a `suggestedTools`
+list with the canonical-UUID row in place of the orphan. But
+`applyReconciliation`, which stages the changes for save, only
+inserted into `localRemovals` from `mismatch.staleTools` — and orphan
+rows aren't stale by name, so they never went into removals. The
+canonical row got added; the orphan row lingered. The next Reconcile
+pass saw the orphan still in the model and offered the same repair
+again, indefinitely. The operator reported: "Reconcile finds the same
+problems over and over."
+
+`applyReconciliation` now takes an `orphanIdsToRemove: [String]`
+argument and routes those UUIDs into `localRemovals`. The Reconcile
+sheet's caller passes `viewModel.orphanTools.map(\.toolId)` from the
+ReconciliationViewModel — which holds the pre-repair UUIDs that the
+Reconcile pass rewrote.
+
+After saving, the stored model holds only the canonical row, and the
+next Reconcile correctly reports no work pending.
+
 ## [1.9.3] — 2026-05-26
 
 ### Fixed — orphan UUIDs were silently invisible to mismatch detection

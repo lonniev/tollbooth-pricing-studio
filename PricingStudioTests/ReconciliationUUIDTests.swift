@@ -83,6 +83,63 @@ final class ReconciliationUUIDTests: XCTestCase {
         )
     }
 
+    // MARK: - applyReconciliation routes orphan removals
+
+    /// applyReconciliation must put the pre-repair orphan UUIDs into
+    /// localRemovals — otherwise the canonical row gets added but the
+    /// orphan row stays, and the next Reconcile detects it again.
+    func testApplyReconciliationRemovesOrphans() {
+        let vm = PricingViewModel()
+
+        let orphan = ToolPrice(
+            toolId: "aca27ddc-8076-5bb7-8e71-8a5c5c61246b",
+            toolName: "optionality_share_entry",
+            priceSats: 0,
+            priced: true,
+            category: "write",
+            intent: "share"
+        )
+        let canonical = ToolPrice(
+            toolId: "6accf6b4-617e-5727-9337-1df52729c116",
+            toolName: "optionality_share_entry",
+            priceSats: 0,
+            priced: true,
+            category: "write",
+            intent: "share"
+        )
+
+        let storedModel = PricingModelResponse(
+            status: "ok",
+            modelId: "test",
+            name: "test",
+            isActive: true,
+            tools: [orphan],
+            pipeline: nil,
+            trancheLifetime: nil
+        )
+
+        let suggested = [canonical]
+        let mismatch = MCPService.ToolMismatch(
+            newTools: [],
+            staleTools: [],
+            matchedTools: [orphan]
+        )
+
+        vm.applyReconciliation(
+            suggestedTools: suggested,
+            mismatch: mismatch,
+            orphanIdsToRemove: [orphan.toolId],
+            storedModel: storedModel
+        )
+
+        XCTAssertTrue(vm.localRemovals.contains(orphan.toolId),
+                      "Orphan UUID must be staged for removal so the row drops on save.")
+        XCTAssertNotNil(vm.localEdits[canonical.toolId],
+                        "Canonical-UUID row must be staged as an add.")
+        XCTAssertFalse(vm.localRemovals.contains(canonical.toolId),
+                       "Canonical UUID must NOT be staged for removal.")
+    }
+
     // MARK: - Orphan detection
 
     /// A row whose stored toolId differs from the canonical UUID must
