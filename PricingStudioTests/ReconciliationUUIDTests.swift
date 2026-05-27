@@ -82,6 +82,43 @@ final class ReconciliationUUIDTests: XCTestCase {
             "aca27ddc-8076-5bb7-8e71-8a5c5c61246b"
         )
     }
+
+    // MARK: - Orphan detection
+
+    /// A row whose stored toolId differs from the canonical UUID must
+    /// be flagged as an orphan. The bug the user reported: detection
+    /// silently said "everything is fine" when names matched but UUIDs
+    /// didn't.
+    func testOrphanRowIsDetected() {
+        let vm = ReconciliationViewModel()
+        vm.setSlugForTesting("optionality")
+
+        // Simulate the pre-1.9.2 Reconcile artifact: tool stored under
+        // the slug-prefixed UUID.
+        let orphan = ToolPrice(
+            toolId: "aca27ddc-8076-5bb7-8e71-8a5c5c61246b", // capabilityUUID("optionality_share_entry")
+            toolName: "optionality_share_entry",
+            priceSats: 0,
+            priced: true,
+            category: "write",
+            intent: "share"
+        )
+
+        // Canonical (correct) row for comparison.
+        let healthy = ToolPrice(
+            toolId: "2d4f4988-8199-5753-9ed2-17f458b0d17a", // capabilityUUID("judge_trade")
+            toolName: "optionality_judge_trade",
+            priceSats: 50,
+            priced: true,
+            category: "write",
+            intent: "judge"
+        )
+
+        XCTAssertNotEqual(orphan.toolId, vm.canonicalToolId(forMCPName: orphan.toolName),
+                          "Orphan must not match canonical — that's what makes it an orphan.")
+        XCTAssertEqual(healthy.toolId, vm.canonicalToolId(forMCPName: healthy.toolName),
+                       "Healthy row's stored UUID must match the canonical one.")
+    }
 }
 
 // MARK: - Test-only seam

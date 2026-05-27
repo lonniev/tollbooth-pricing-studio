@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.9.3] — 2026-05-26
+
+### Fixed — orphan UUIDs were silently invisible to mismatch detection
+
+1.9.2 introduced orphan-UUID repair in Reconcile, but the detection
+flow gated the entire reconcile pass behind `mismatch.hasMismatch` —
+which is only true when the **names** in the live MCP differ from
+those in the stored model. Orphans are precisely the case where names
+match but UUIDs don't, so detection happily reported "All good — live
+tools match the stored pricing model" and the repair code never ran.
+
+This release adds a separate orphan scan during detection:
+
+- `ReconciliationViewModel.detectMismatch()` now scans the matched
+  rows after the service call and collects any whose stored `toolId`
+  differs from `canonicalToolId(forMCPName: toolName)`. The orphans
+  are exposed via `viewModel.orphanTools` and `viewModel.hasOrphans`.
+- The Reconcile sheet's flow shows the diagnostic phase when there
+  are name-level mismatches **or** orphan UUIDs.
+- The diagnostic UI now has an orange "Orphan UUIDs" section listing
+  the affected rows with a short explanation of what the repair will
+  do.
+- `reconcile()`'s guard runs when either kind of work is pending.
+
+Operators who tried Reconcile on 1.9.2 and saw "All good" should
+update to 1.9.3 and try again — orphans should now be detected and
+offered for repair.
+
 ## [1.9.2] — 2026-05-26
 
 ### Fixed — Reconcile produced orphan tool UUIDs the wheel couldn't look up

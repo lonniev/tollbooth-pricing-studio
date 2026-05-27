@@ -18,7 +18,7 @@ struct ReconciliationSheet: View {
                     errorPhase(error)
                 } else if let suggested = viewModel.suggestedTools, let mismatch = viewModel.mismatch {
                     reviewPhase(suggested: suggested, mismatch: mismatch)
-                } else if let mismatch = viewModel.mismatch, mismatch.hasMismatch {
+                } else if let mismatch = viewModel.mismatch, mismatch.hasMismatch || viewModel.hasOrphans {
                     diagnosticPhase(mismatch: mismatch)
                 } else if let msg = viewModel.noMismatchMessage {
                     successPhase(msg)
@@ -99,6 +99,32 @@ struct ReconciliationSheet: View {
                     }
                     .padding()
                     .background(.red.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                }
+
+                if !viewModel.orphanTools.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("\(viewModel.orphanTools.count) Orphan UUID\(viewModel.orphanTools.count == 1 ? "" : "s")", systemImage: "wrench.and.screwdriver.fill")
+                            .font(.headline)
+                            .foregroundStyle(.orange)
+
+                        Text("These tools are visible here but unreachable by the wheel because an earlier Reconcile derived the UUID from the slug-prefixed name. Reconcile will rewrite the UUID; the price and multipliers are preserved.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        ForEach(viewModel.orphanTools) { tool in
+                            HStack {
+                                Text(tool.toolName)
+                                    .font(.caption.monospaced())
+                                Spacer()
+                                Text("UUID will be re-keyed")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                    .padding()
+                    .background(.orange.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
                 }
 
                 Text("\(mismatch.matchedTools.count) tools match and will be preserved.")

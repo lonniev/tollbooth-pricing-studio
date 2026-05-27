@@ -19,6 +19,13 @@ final class ReconciliationViewModel {
     /// Surfaced in the review UI so the operator knows the migration ran.
     private(set) var repairedOrphanCount: Int = 0
 
+    /// Stored rows whose toolId UUID doesn't match
+    /// capabilityUUID(bareCapability(toolName)) — they're present and
+    /// visible in Studio but unreachable by the wheel. Populated by
+    /// detectMismatch(); cleared once Reconcile applies its repairs.
+    private(set) var orphanTools: [ToolPrice] = []
+    var hasOrphans: Bool { !orphanTools.isEmpty }
+
     private let mcpService = MCPService()
 
     /// Operator slug captured during detectMismatch() so reconcile()
@@ -37,6 +44,8 @@ final class ReconciliationViewModel {
         error = nil
         mismatch = nil
         suggestedTools = nil
+        orphanTools = []
+        noMismatchMessage = nil
         // Capture for reconcile(): we strip this prefix from MCP tool
         // names to recover the bare capability the wheel's
         // capability_uuid() expects.
@@ -50,7 +59,18 @@ final class ReconciliationViewModel {
                     operatorSlug: operatorSlug
                 )
                 mismatch = result
-                if !result.hasMismatch {
+
+                // Orphan scan: stored rows whose toolId UUID doesn't
+                // match what the wheel will compute at lookup time.
+                // These come from the pre-1.9.2 Reconcile path that
+                // derived UUIDs from the slug-prefixed name. They're
+                // invisible to mismatch detection (the name matches
+                // live tools) but invisible to the wheel too.
+                orphanTools = result.matchedTools.filter { tool in
+                    tool.toolId != canonicalToolId(forMCPName: tool.toolName)
+                }
+
+                if !result.hasMismatch && orphanTools.isEmpty {
                     noMismatchMessage = "All good — live tools match the stored pricing model."
                 }
             } catch {
@@ -94,7 +114,10 @@ final class ReconciliationViewModel {
     /// 2. Add new tools at 0 sats with category inferred from the tool registry
     /// 3. Drop stale tools (they're simply omitted)
     func reconcile(storedModel: PricingModelResponse) {
-        guard let mismatch, mismatch.hasMismatch else { return }
+        // Run if there's a name-level mismatch OR orphan UUIDs to fix.
+        // The orphan branch is silent in mismatch detection because
+        // names match — only the UUIDs are wrong.
+        guard let mismatch, mismatch.hasMismatch || hasOrphans else { return }
 
         isReconciling = true
         suggestedTools = nil
