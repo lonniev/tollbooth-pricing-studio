@@ -32,6 +32,11 @@ final class PersistentRelayConnection: @unchecked Sendable {
     private var reconnectTask: Task<Void, Never>?
     private var pingTask: Task<Void, Never>?
 
+    /// Set only by an explicit `disconnect()`. Distinguishes a deliberate
+    /// teardown (don't reconnect) from a failed/lost connection (do reconnect,
+    /// including a failed *initial* connect — the relay may just be slow).
+    private var intentionallyClosed = false
+
     /// Number of pings sent since the last pong was received. Reset to 0 on each
     /// pong. If this reaches MAX_MISSED_PINGS we treat the socket as dead and
     /// force a reconnect — catches the half-open case where TCP says "fine" but
@@ -76,6 +81,10 @@ final class PersistentRelayConnection: @unchecked Sendable {
                     self?.reconnectAttempt = 0
                     self?.startPinging()
                     self?.startListening()
+                    // Replay any subscriptions registered while we were
+                    // disconnected. Makes first-connect and reconnect
+                    // symmetric so a sub never depends on connect ordering.
+                    self?.resubscribeAll()
                     continuation.resume()
                 }
             }
@@ -83,6 +92,10 @@ final class PersistentRelayConnection: @unchecked Sendable {
                 if oneShot.claim() {
                     self?.state = .disconnected
                     continuation.resume(throwing: error ?? PersistentRelayError.connectionFailed)
+                    // A failed *initial* connect would otherwise die here —
+                    // no delegate disconnect ever fires. Enter the backoff
+                    // loop so a slow/flaky relay keeps trying.
+                    self?.scheduleReconnect()
                 }
             }
 
@@ -93,6 +106,7 @@ final class PersistentRelayConnection: @unchecked Sendable {
                     ws.disconnect()
                     self?.state = .disconnected
                     continuation.resume(throwing: PersistentRelayError.timeout)
+                    self?.scheduleReconnect()
                 }
             }
         }
@@ -121,6 +135,7 @@ final class PersistentRelayConnection: @unchecked Sendable {
     // MARK: - Disconnect
 
     func disconnect() {
+        intentionallyClosed = true
         state = .disconnected
         pingTask?.cancel()
         pingTask = nil
@@ -184,7 +199,11 @@ final class PersistentRelayConnection: @unchecked Sendable {
     // MARK: - Reconnection
 
     private func scheduleReconnect() {
-        guard state != .disconnected else { return }
+        guard !intentionallyClosed else { return }
+        // Dedup: Starscream can surface one logical drop as several callbacks
+        // (.error then .cancelled, etc.). If a reconnect is already in flight
+        // or an attempt is mid-connect, don't stack another loop.
+        guard state != .reconnecting, state != .connecting else { return }
         state = .reconnecting
 
         let attempt = reconnectAttempt
@@ -198,15 +217,14 @@ final class PersistentRelayConnection: @unchecked Sendable {
                 TrafficLogger.shared.log(.outbound, label: "Sub Reconnect",
                                          detail: "\(self.url.host ?? "?") attempt #\(attempt + 1) after \(Int(delay))s")
             }
-            do {
-                try await self.connect()
-                self.resubscribeAll()
+            // connect() replays subscriptions on success and re-enters the
+            // backoff loop on failure, so there is nothing to do in either
+            // branch here beyond logging the win.
+            if (try? await self.connect()) != nil {
                 await MainActor.run {
                     TrafficLogger.shared.log(.inbound, label: "Sub Reconnected",
                                              detail: "\(self.url.host ?? "?") — resubscribed")
                 }
-            } catch {
-                self.scheduleReconnect()
             }
         }
     }
