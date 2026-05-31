@@ -178,7 +178,18 @@ actor MCPService {
 
     /// Request a poison-keyed npub ownership proof from the MCP.
     /// Returns the proof_token (poison phrase) that the application must remember.
-    func callRequestNpubProof(endpointURL: URL, patronNpub: String) async throws -> String {
+    /// The wheel's response to ``request_npub_proof``.
+    ///
+    /// ``rendezvousRelay`` is the per-conversation relay pin — the
+    /// responder MUST publish their signed reply DM on this exact
+    /// relay so the courier's listener finds it. Empty when the wheel
+    /// predates v0.39.0 (pre-pinning protocol).
+    struct NpubProofChallenge: Sendable {
+        let proofToken: String
+        let rendezvousRelay: String
+    }
+
+    func callRequestNpubProof(endpointURL: URL, patronNpub: String) async throws -> NpubProofChallenge {
         let result = try await callToolGeneric(
             endpointURL: endpointURL,
             toolName: "request_npub_proof",
@@ -190,7 +201,8 @@ actor MCPService {
               let proofToken = json["proof_token"] as? String else {
             throw MCPError.toolCallFailed("request_npub_proof failed: \(result)")
         }
-        return proofToken
+        let rendezvousRelay = json["rendezvous_relay"] as? String ?? ""
+        return NpubProofChallenge(proofToken: proofToken, rendezvousRelay: rendezvousRelay)
     }
 
     /// Receive and confirm a poison-keyed npub ownership proof.

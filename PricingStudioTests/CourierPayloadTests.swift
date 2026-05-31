@@ -240,4 +240,59 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertNotNil(payload)
         XCTAssertEqual(payload?.fields.first?.value, "abc@@def")
     }
+
+    // MARK: - Rendezvous Relay Pin (v0.39.0+ protocol)
+
+    func testRendezvousRelayExtracted() {
+        // The wheel embeds the per-conversation rendezvous relay so the
+        // responder knows where to publish their reply. Like ``poison``,
+        // it's protocol-control metadata, not a user-editable field.
+        let text = """
+        --- Credential Payload ---
+          nsec = @@@PASTE_YOUR_NSEC_HERE@@@
+          poison = @@@bold-hawk-42@@@
+          rendezvous_relay = @@@wss://relay.primal.net@@@
+        """
+
+        let payload = CourierPayload.parse(text)!
+
+        XCTAssertEqual(payload.fields.count, 1, "Only nsec is user-editable")
+        XCTAssertEqual(payload.fields[0].key, "nsec")
+        XCTAssertEqual(payload.poison?.value, "bold-hawk-42")
+        XCTAssertEqual(payload.rendezvousRelay?.value, "wss://relay.primal.net")
+    }
+
+    func testRendezvousRelayAbsentOnLegacyChallenge() {
+        // Pre-v0.39.0 wheels don't embed rendezvous_relay. Parsing must
+        // continue to succeed without it.
+        let text = """
+        --- Credential Payload ---
+          nsec = @@@PASTE_YOUR_NSEC_HERE@@@
+          poison = @@@bold-hawk-42@@@
+        """
+
+        let payload = CourierPayload.parse(text)!
+
+        XCTAssertNotNil(payload.poison)
+        XCTAssertNil(payload.rendezvousRelay)
+    }
+
+    func testRendezvousRelayNotSerializedInReply() {
+        // The reply only needs to echo user-editable fields plus the
+        // poison. The rendezvous URL is the sender's listener address
+        // — it has no business in the reply body.
+        let text = """
+        --- Credential Payload ---
+          nsec = @@@nsec1real@@@
+          poison = @@@bold-hawk-42@@@
+          rendezvous_relay = @@@wss://relay.primal.net@@@
+        """
+
+        let payload = CourierPayload.parse(text)!
+        let serialized = payload.serialize()
+
+        XCTAssertTrue(serialized.contains("nsec = @@@nsec1real@@@"))
+        XCTAssertTrue(serialized.contains("poison = @@@bold-hawk-42@@@"))
+        XCTAssertFalse(serialized.contains("rendezvous_relay"))
+    }
 }

@@ -37,6 +37,13 @@ struct CourierPayload: Sendable {
     /// The anti-replay poison field (if present), separated from editable fields.
     var poison: Field?
 
+    /// The rendezvous relay the courier published the challenge on. The
+    /// responder MUST publish their reply to this exact relay so the
+    /// courier's listener finds it — sender and receiver can't disagree
+    /// when the relay URL is in the wire data. Present when the wheel
+    /// is v0.39.0+; absent on older challenges.
+    var rendezvousRelay: Field?
+
     /// Metadata from the `--- Message Provenance ---` section.
     var provenance: Provenance
 
@@ -107,9 +114,12 @@ struct CourierPayload: Sendable {
             allFields.append(Field(key: key, value: value))
         }
 
-        // Separate poison from editable fields
+        // Separate poison and rendezvous_relay from editable fields.
+        // Both are protocol-control metadata, not user-editable values.
         let poison = allFields.first(where: { $0.key == "poison" })
-        let fields = allFields.filter { $0.key != "poison" }
+        let rendezvousRelay = allFields.first(where: { $0.key == "rendezvous_relay" })
+        let controlKeys: Set<String> = ["poison", "rendezvous_relay"]
+        let fields = allFields.filter { !controlKeys.contains($0.key) }
 
         // If no header was found, derive greeting from text before first field in full text
         var finalGreeting = greeting
@@ -127,6 +137,7 @@ struct CourierPayload: Sendable {
             greeting: finalGreeting,
             fields: fields,
             poison: poison,
+            rendezvousRelay: rendezvousRelay,
             provenance: provenance,
             rawText: text
         )
@@ -162,6 +173,8 @@ struct CourierPayload: Sendable {
     // MARK: - Serialization
 
     /// Re-serialize the fields back into `key = @@@value@@@` format for sending as a DM reply.
+    /// The rendezvous_relay is protocol-control metadata for the sender's
+    /// listener — it's not echoed back in the reply.
     func serialize() -> String {
         var lines: [String] = []
         for field in fields {

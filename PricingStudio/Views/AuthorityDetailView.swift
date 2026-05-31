@@ -994,6 +994,14 @@ struct AuthorityTopOffSheet: View {
     @State private var purchaseState: PurchaseState = .idle
     @State private var paymentCheckState: PaymentCheckState = .idle
     @State private var proofState: ProofExchangeState = .idle
+    /// The rendezvous relay the wheel committed when it published the
+    /// proof challenge. The responder must reply on this exact relay so
+    /// the courier's listener finds the DM. Populated from
+    /// ``MCPService.callRequestNpubProof``; surfaced in the
+    /// ``.awaitingReply`` UI so the human-in-the-loop responder routes
+    /// their Nostr client correctly. Empty when the wheel predates the
+    /// pinning protocol.
+    @State private var proofRendezvousRelay: String = ""
 
     private let presets = [500, 1000, 5000, 10000]
     private let mcpService = MCPService()
@@ -1239,6 +1247,32 @@ struct AuthorityTopOffSheet: View {
                 Label("Challenge sent. Open your Nostr client (or drag this sheet down and use the Messages tab) to reply to \(authorityName), then tap Verify.", systemImage: "envelope.badge")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if !proofRendezvousRelay.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Reply via this relay:")
+                            .font(.caption2)
+                            .foregroundStyle(.primary)
+                        Button {
+                            UIPasteboard.general.string = proofRendezvousRelay
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(proofRendezvousRelay)
+                                    .font(.caption2.monospaced())
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Image(systemName: "doc.on.doc")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.blue)
+                        }
+                        .buttonStyle(.plain)
+                        Text("\(authorityName) listens on this relay. Configure your Nostr client to publish there, or the reply will be missed.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(8)
+                    .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                }
                 Button {
                     verifyProofAndRetry()
                 } label: {
@@ -1282,10 +1316,11 @@ struct AuthorityTopOffSheet: View {
         proofState = .requesting
         Task {
             do {
-                _ = try await mcpService.callRequestNpubProof(
+                let challenge = try await mcpService.callRequestNpubProof(
                     endpointURL: endpointURL,
                     patronNpub: purchaserIdentityNpub
                 )
+                proofRendezvousRelay = challenge.rendezvousRelay
                 proofState = .awaitingReply
             } catch {
                 proofState = .failed(error.localizedDescription)

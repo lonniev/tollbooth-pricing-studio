@@ -32,6 +32,11 @@ struct SecureCourierCard: View {
 
     @State private var phase: Phase = .explain
     @State private var currentPoison: String = ""
+    /// The per-conversation rendezvous relay the wheel committed when it
+    /// published this challenge. The responder MUST reply on this relay
+    /// so the courier's listener finds the DM. Populated from the
+    /// open_channel response.
+    @State private var currentRendezvousRelay: String = ""
     @State private var credentialCard: String = ""
     @State private var ncredInput: String = ""
     @State private var showNcredField = false
@@ -392,6 +397,33 @@ struct SecureCourierCard: View {
             .padding(8)
             .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
 
+            if !currentRendezvousRelay.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Reply via this relay:")
+                        .font(.caption2)
+                        .foregroundStyle(.primary)
+                    Button {
+                        UIPasteboard.general.string = currentRendezvousRelay
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(currentRendezvousRelay)
+                                .font(.caption2.monospaced())
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Image(systemName: "doc.on.doc")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    Text("The courier listens here. Make sure your Nostr client publishes to this relay or your reply will be missed.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(8)
+                .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            }
+
             Text("Fill in the fields and send your reply. Then tap Collect.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -575,9 +607,11 @@ struct SecureCourierCard: View {
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let poison = json["poison"] as? String {
                 currentPoison = poison
+                currentRendezvousRelay = json["rendezvous_relay"] as? String ?? ""
                 phase = .ready(poison: poison)
             } else {
                 currentPoison = ""
+                currentRendezvousRelay = ""
                 phase = .ready(poison: "check your DMs")
             }
         } catch {
