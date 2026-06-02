@@ -107,9 +107,23 @@ struct ToolPriceRow: View {
         .accessibilityIdentifier("chainBadge_\(tool.toolName)")
     }
 
+    /// Tool ids that should ALSO receive any chain edits made in this row's
+    /// sheet — every other multi-selected tool (this row is the primary).
+    /// Mirrors the price-edit batch-apply pattern: edit one, save many.
+    private var chainBatchToolIds: [String] {
+        guard !selectedToolIds.isEmpty, selectedToolIds.contains(tool.toolId) else { return [] }
+        return selectedToolIds.filter { $0 != tool.toolId }
+    }
+
     @ViewBuilder
     private var chainSheet: some View {
         if let vm = viewModel {
+            // Fan-out targets: this row's tool + every other selected
+            // tool.  Every mutation in the chain editor is mirrored to
+            // each, so dragging / adding / removing one step writes
+            // through to the whole batch.
+            let batchIds = chainBatchToolIds
+            let allIds: [String] = [tool.toolId] + batchIds
             NavigationStack {
                 ScrollView {
                     ToolChainView(
@@ -118,18 +132,23 @@ struct ToolPriceRow: View {
                         chain: Binding(
                             get: { vm.chain(for: tool.toolId) },
                             set: { newChain in
-                                vm.beginChainEditing(toolId: tool.toolId)
-                                if var draft = vm.localEdits[tool.toolId] {
-                                    draft.chain = newChain
-                                    vm.localEdits[tool.toolId] = draft
+                                for tid in allIds {
+                                    vm.beginChainEditing(toolId: tid)
+                                    if var draft = vm.localEdits[tid] {
+                                        draft.chain = newChain
+                                        vm.localEdits[tid] = draft
+                                    }
                                 }
                             }
                         ),
-                        warnings: vm.chainWarnings[tool.toolId] ?? []
+                        warnings: vm.chainWarnings[tool.toolId] ?? [],
+                        batchToolCount: batchIds.count
                     )
                     .padding()
                 }
-                .navigationTitle("Constraints")
+                .navigationTitle(batchIds.isEmpty
+                    ? "Constraints"
+                    : "Constraints · \(allIds.count) tools")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {

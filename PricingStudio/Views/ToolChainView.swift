@@ -11,6 +11,9 @@ struct ToolChainView: View {
     /// Validation warnings for this tool's chain, indexed by step
     /// position (1-based).  Empty when the chain is clean.
     var warnings: [String] = []
+    /// Number of *additional* tools that will receive these edits via
+    /// the multi-select batch-apply.  0 = edits stay on `tool` only.
+    var batchToolCount: Int = 0
 
     @State private var showingAddSheet = false
     @State private var editingStep: PipelineStep?
@@ -87,6 +90,15 @@ struct ToolChainView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+            }
+            if batchToolCount > 0 {
+                Label(
+                    "Edits cascade to \(batchToolCount) other selected tool\(batchToolCount == 1 ? "" : "s")",
+                    systemImage: "rectangle.stack.fill.badge.person.crop"
+                )
+                .font(.caption)
+                .foregroundStyle(.blue)
+                .padding(.top, 4)
             }
         }
         .padding(.bottom, 16)
