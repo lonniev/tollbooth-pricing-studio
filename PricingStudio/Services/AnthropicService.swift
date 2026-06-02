@@ -159,7 +159,7 @@ final class AnthropicService: @unchecked Sendable {
                 "properties": [
                     "proposal_json": [
                         "type": "string",
-                        "description": "A JSON object matching PricingProposal: {tool_prices: [{tool_id, tool_name, price_sats, ...}], pipeline: [{type, params, ...}], projections: {projections: [{scenario, monthly_users, calls_per_user_per_month, revenue_sats, revenue_usd}, ...], tool_count, avg_price_sats}}."
+                        "description": "A JSON object matching PricingProposal: {tool_prices: [{tool_id, tool_name, price_sats, category, intent, chain: [{type, params, ...}]}], projections: {projections: [{scenario, monthly_users, calls_per_user_per_month, revenue_sats, revenue_usd}, ...], tool_count, avg_price_sats}}. Constraints live on each tool's `chain` array — there is no standalone pipeline as of tollbooth-dpyc 0.40.0."
                     ]
                 ],
                 "required": ["proposal_json"]

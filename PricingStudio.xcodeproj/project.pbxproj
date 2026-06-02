@@ -33,7 +33,7 @@
 		ONBD000100000000000000B1 /* OnboardingStatusSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */; };
 		SCUR000100000000000000B1 /* SecureCourierSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCUR000100000000000000A1 /* SecureCourierSheet.swift */; };
 		KEYS000100000000000000B1 /* KeypairGeneratorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = KEYS000100000000000000A1 /* KeypairGeneratorSheet.swift */; };
-		AA00000100000000000000BF /* PipelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EF /* PipelineView.swift */; };
+		AA00000100000000000007A0 /* ToolChainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000007A1 /* ToolChainView.swift */; };
 		AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F0 /* PipelineStepCard.swift */; };
 		AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F1 /* ConnectionStatusView.swift */; };
 		AA0000010000000000000F30 /* LoadingQuoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F31 /* LoadingQuoteView.swift */; };
@@ -200,7 +200,7 @@
 		ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStatusSheet.swift; sourceTree = "<group>"; };
 		SCUR000100000000000000A1 /* SecureCourierSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureCourierSheet.swift; sourceTree = "<group>"; };
 		KEYS000100000000000000A1 /* KeypairGeneratorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeypairGeneratorSheet.swift; sourceTree = "<group>"; };
-		AA00000100000000000000EF /* PipelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineView.swift; sourceTree = "<group>"; };
+		AA00000100000000000007A1 /* ToolChainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolChainView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F0 /* PipelineStepCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStepCard.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F1 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F31 /* LoadingQuoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingQuoteView.swift; sourceTree = "<group>"; };
@@ -546,7 +546,7 @@
 				ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */,
 				SCUR000100000000000000A1 /* SecureCourierSheet.swift */,
 				KEYS000100000000000000A1 /* KeypairGeneratorSheet.swift */,
-				AA00000100000000000000EF /* PipelineView.swift */,
+				AA00000100000000000007A1 /* ToolChainView.swift */,
 				AA00000100000000000000F0 /* PipelineStepCard.swift */,
 				AA00000100000000000000F1 /* ConnectionStatusView.swift */,
 				AA0000010000000000000F31 /* LoadingQuoteView.swift */,
@@ -952,7 +952,7 @@
 				ONBD000100000000000000B1 /* OnboardingStatusSheet.swift in Sources */,
 				SCUR000100000000000000B1 /* SecureCourierSheet.swift in Sources */,
 				KEYS000100000000000000B1 /* KeypairGeneratorSheet.swift in Sources */,
-				AA00000100000000000000BF /* PipelineView.swift in Sources */,
+				AA00000100000000000007A0 /* ToolChainView.swift in Sources */,
 				AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */,
 				AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */,
 				AA0000010000000000000F30 /* LoadingQuoteView.swift in Sources */,

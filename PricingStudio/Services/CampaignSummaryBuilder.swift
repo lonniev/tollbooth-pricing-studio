@@ -10,11 +10,13 @@ enum CampaignSummaryBuilder {
     // MARK: - Second Opinion Summary
 
     /// Build a single-message summary of the campaign for a reviewer LLM.
+    /// ``campaignJSON`` is the full CAMPAIGN_JSON the consultant emitted —
+    /// includes tools (with per-tool chains) and tranche_lifetime.
     static func buildForSecondOpinion(
         messages: [AssistantMessage],
         progress: InterviewProgress,
         projections: CampaignProjections?,
-        pipelineJSON: String?,
+        campaignJSON: String?,
         operatorName: String?,
         campaignName: String?
     ) -> String {
@@ -65,8 +67,8 @@ enum CampaignSummaryBuilder {
             }
         }
 
-        // Final pricing JSON
-        if let json = pipelineJSON {
+        // Final pricing JSON (tools with per-tool chains + tranche_lifetime)
+        if let json = campaignJSON {
             parts.append("\n## Pricing JSON")
             parts.append("```json")
             parts.append(json)
@@ -109,7 +111,9 @@ enum CampaignSummaryBuilder {
         parts.append("## Revision Context")
         parts.append("The pricing campaign has been reviewed by a peer analyst. Please revise the campaign based on their feedback.\n")
 
-        if let proposal, let json = proposal.pipelineJSON {
+        if let proposal,
+           let data = try? JSONEncoder().encode(proposal),
+           let json = String(data: data, encoding: .utf8) {
             parts.append("### Current Pricing JSON")
             parts.append("```json")
             parts.append(json)

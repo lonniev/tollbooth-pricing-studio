@@ -10,6 +10,7 @@ struct ToolPriceRow: View {
     @State private var showingInfo = false
     @State private var showingEditor = false
     @State private var showingTestCall = false
+    @State private var showingChain = false
 
     init(tool: ToolPrice, viewModel: PricingViewModel? = nil, target: (any PricingTarget)? = nil,
          selectedToolIds: Set<String> = [], allTools: [ToolPrice] = []) {
@@ -70,6 +71,8 @@ struct ToolPriceRow: View {
 
             Spacer()
 
+            chainBadge
+
             priceBadge
         }
         .padding(.vertical, 4)
@@ -77,6 +80,63 @@ struct ToolPriceRow: View {
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
         .sheet(isPresented: $showingTestCall) {
             TestCallView(preselectedTarget: target, preselectedTool: tool)
+        }
+        .sheet(isPresented: $showingChain) {
+            chainSheet
+        }
+    }
+
+    @ViewBuilder
+    private var chainBadge: some View {
+        let count = effectiveTool.chain.count
+        Button {
+            if viewModel != nil { showingChain = true }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: count > 0 ? "link.circle.fill" : "link.circle")
+                    .font(.caption)
+                Text(count == 0 ? "Chain" : "\(count)")
+                    .font(.caption2.monospaced())
+            }
+            .foregroundStyle(count > 0 ? .purple : .secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.quaternary.opacity(0.4), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("chainBadge_\(tool.toolName)")
+    }
+
+    @ViewBuilder
+    private var chainSheet: some View {
+        if let vm = viewModel {
+            NavigationStack {
+                ScrollView {
+                    ToolChainView(
+                        tool: effectiveTool,
+                        isEditing: true,
+                        chain: Binding(
+                            get: { vm.chain(for: tool.toolId) },
+                            set: { newChain in
+                                vm.beginChainEditing(toolId: tool.toolId)
+                                if var draft = vm.localEdits[tool.toolId] {
+                                    draft.chain = newChain
+                                    vm.localEdits[tool.toolId] = draft
+                                }
+                            }
+                        ),
+                        warnings: vm.chainWarnings[tool.toolId] ?? []
+                    )
+                    .padding()
+                }
+                .navigationTitle("Constraints")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showingChain = false }
+                    }
+                }
+            }
         }
     }
 

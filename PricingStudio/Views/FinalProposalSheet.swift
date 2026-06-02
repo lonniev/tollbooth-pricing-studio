@@ -26,8 +26,9 @@ struct FinalProposalSheet: View {
                         if let prices = proposal.toolPrices, !prices.isEmpty {
                             toolPricesSection(prices)
                         }
-                        if let pipeline = proposal.pipeline, !pipeline.isEmpty {
-                            pipelineSection(pipeline)
+                        let chainsByTool = proposal.toolsWithChains
+                        if !chainsByTool.isEmpty {
+                            chainsSection(chainsByTool)
                         }
                         if let projections = proposal.projections {
                             projectionsSection(projections)
@@ -141,8 +142,10 @@ struct FinalProposalSheet: View {
             let avg = count > 0 ? total / count : 0
             parts.append("\(count) tools priced, average \(avg) sats per call.")
         }
-        if let steps = proposal.pipeline?.count, steps > 0 {
-            parts.append("\(steps)-step constraint pipeline.")
+        let totalChainSteps = proposal.totalChainSteps
+        if totalChainSteps > 0 {
+            let tools = proposal.toolsWithChains.count
+            parts.append("\(totalChainSteps) constraint step\(totalChainSteps == 1 ? "" : "s") across \(tools) tool\(tools == 1 ? "" : "s").")
         }
         if let moderate = proposal.projections?.moderate {
             let usd = String(format: "%.2f", moderate.revenueUsd)
@@ -172,27 +175,36 @@ struct FinalProposalSheet: View {
         }
     }
 
-    private func pipelineSection(_ steps: [PipelineStep]) -> some View {
-        section("Constraint Pipeline") {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(index + 1).")
-                            .font(.caption.bold())
+    private func chainsSection(_ toolsWithChains: [ToolPrice]) -> some View {
+        section("Constraint Chains (per tool)") {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(toolsWithChains) { tool in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(tool.toolName)
+                            .font(.callout.weight(.semibold))
                             .foregroundStyle(.indigo)
-                        Text(step.type.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .font(.callout.weight(.medium))
-                        if step.isScoped {
-                            Image(systemName: "scope")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(Array(tool.chain.enumerated()), id: \.element.id) { index, step in
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text("\(index + 1).")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.indigo)
+                                    Text(step.type.replacingOccurrences(of: "_", with: " ").capitalized)
+                                        .font(.callout.weight(.medium))
+                                    if step.isScoped {
+                                        Image(systemName: "person.crop.circle.badge")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .background(Color(.secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
                         }
-                        Spacer()
                     }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 10)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
         }

@@ -86,7 +86,10 @@ final class OperatorCollectionViewModel {
 
     // MARK: - Campaign Slots
 
-    /// Deploy a campaign: mark it as live, clear siblings, and bridge the pipeline JSON.
+    /// Deploy a campaign: mark it as live, clear siblings, and bridge the
+    /// proposal JSON.  The serialized proposal carries per-tool chains
+    /// inside each ``ToolPrice.chain`` (0.40.0+); the receiving
+    /// ``PricingViewModel.applyConsultantJSON`` reads that shape.
     func deployCampaign(_ campaign: Campaign, for op: Operator, context: ModelContext) {
         // Clear deployed flag on all sibling campaigns
         let opNpub = op.npub
@@ -98,7 +101,13 @@ final class OperatorCollectionViewModel {
         }
 
         op.deployedCampaignName = campaign.name
-        deployedCampaignJSON = campaign.proposal?.pipelineJSON
+        if let proposal = campaign.proposal,
+           let data = try? JSONEncoder().encode(proposal),
+           let json = String(data: data, encoding: .utf8) {
+            deployedCampaignJSON = json
+        } else {
+            deployedCampaignJSON = nil
+        }
         try? context.save()
     }
 

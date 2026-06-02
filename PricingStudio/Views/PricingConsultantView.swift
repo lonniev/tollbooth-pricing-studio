@@ -68,7 +68,7 @@ struct PricingConsultantView: View {
             messageList
             Divider()
 
-            if let json = consultantVM.extractedPipelineJSON {
+            if let json = consultantVM.extractedCampaignJSON {
                 applyBar(json: json)
                 Divider()
             }
@@ -139,7 +139,7 @@ struct PricingConsultantView: View {
                         messages: consultantVM.messages,
                         progress: consultantVM.interviewProgress,
                         projections: consultantVM.revenueProjections,
-                        pipelineJSON: consultantVM.extractedPipelineJSON,
+                        campaignJSON: consultantVM.extractedCampaignJSON,
                         operatorName: context.operatorName,
                         campaignName: consultantVM.currentCampaign?.name
                     )
@@ -347,7 +347,7 @@ struct PricingConsultantView: View {
                             messages: consultantVM.messages,
                             progress: consultantVM.interviewProgress,
                             projections: consultantVM.revenueProjections,
-                            pipelineJSON: consultantVM.extractedPipelineJSON,
+                            campaignJSON: consultantVM.extractedCampaignJSON,
                             operatorName: context.operatorName,
                             campaignName: consultantVM.currentCampaign?.name
                         )
@@ -406,8 +406,7 @@ struct PricingConsultantView: View {
             .disabled(consultantVM.messages.isEmpty)
 
             // ── Deploy (far right, separated by spacer) ──
-            if let json = consultantVM.extractedPipelineJSON
-                ?? consultantVM.proposal.pipelineJSON {
+            if let json = consultantVM.extractedCampaignJSON {
                 Spacer().frame(width: 16)
                 Button {
                     onApplyJSON?(json)

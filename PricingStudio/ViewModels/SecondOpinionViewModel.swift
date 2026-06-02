@@ -40,7 +40,7 @@ final class SecondOpinionViewModel {
         messages: [AssistantMessage],
         progress: InterviewProgress,
         projections: CampaignProjections?,
-        pipelineJSON: String?,
+        campaignJSON: String?,
         operatorName: String?,
         campaignName: String?
     ) -> String {
@@ -48,7 +48,7 @@ final class SecondOpinionViewModel {
             messages: messages,
             progress: progress,
             projections: projections,
-            pipelineJSON: pipelineJSON,
+            campaignJSON: campaignJSON,
             operatorName: operatorName,
             campaignName: campaignName
         )
@@ -224,8 +224,9 @@ final class SecondOpinionViewModel {
     - **No KYC.** Identity is Nostr-based (npub/nsec). No email, no accounts, no PII.
     - **Sat-denominated micropayments.** Prices are in Bitcoin satoshis, not USD. \
       Typical tool calls cost 1–100 sats each. Think vending machine, not subscription.
-    - **Constraint pipelines, not paywalls.** Operators compose fairness rules \
-      (free tiers, rate limits, time windows) as pipeline steps — not binary access gates.
+    - **Per-tool constraint chains, not paywalls.** Operators compose fairness rules \
+      (free tiers, rate limits, time windows) as ordered chains on each tool — not binary access gates. \
+      Every constraint is owned by one tool's chain; there is no operator-wide pipeline.
     - **Austrian pricing philosophy.** Value is subjective; price discovery happens \
       between willing operator and willing patron. No central price authority.
     - **Tollbooth model.** Operators run MCP tool servers. Patrons pay per-call via \

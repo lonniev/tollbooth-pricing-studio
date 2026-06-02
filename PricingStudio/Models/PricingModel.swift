@@ -44,8 +44,14 @@ struct ToolPrice: Codable, Identifiable, Sendable {
     // enum value (e.g. "sovereign"); value is the multiplier (e.g. 4.0).
     // Missing values resolve to 1.0 at the wheel.
     var multipliers: [String: [String: Double]]? = nil
+    /// Ordered constraint chain owned by this tool. The wheel walks each
+    /// step in order at debit/preview time, transforming the running
+    /// price (each step's evaluate returns a PriceModifier that's
+    /// applied to the current value). Empty chain = base price applies
+    /// unchanged. See tollbooth-dpyc 0.40.0.
+    var chain: [PipelineStep] = []
 
-    init(toolId: String, toolName: String, priceSats: Int, priced: Bool = true, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil, multipliers: [String: [String: Double]]? = nil) {
+    init(toolId: String, toolName: String, priceSats: Int, priced: Bool = true, priceType: PriceType = .flat, priceFormula: String? = nil, category: String, intent: String, minCost: Int = 0, maxCost: Int? = nil, multipliers: [String: [String: Double]]? = nil, chain: [PipelineStep] = []) {
         precondition(!toolId.isEmpty, "toolId is required for tool '\(toolName)'. Reset the pricing model.")
         self.toolId = toolId
         self.toolName = toolName
@@ -58,6 +64,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         self.minCost = minCost
         self.maxCost = maxCost
         self.multipliers = multipliers
+        self.chain = chain
     }
 
     enum CodingKeys: String, CodingKey {
@@ -71,6 +78,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         case minCost = "min_cost"
         case maxCost = "max_cost"
         case multipliers
+        case chain
     }
 
     init(from decoder: Decoder) throws {
@@ -86,6 +94,7 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         minCost = try container.decodeIfPresent(Int.self, forKey: .minCost) ?? 0
         maxCost = try container.decodeIfPresent(Int.self, forKey: .maxCost)
         multipliers = try container.decodeIfPresent([String: [String: Double]].self, forKey: .multipliers)
+        chain = try container.decodeIfPresent([PipelineStep].self, forKey: .chain) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -106,6 +115,9 @@ struct ToolPrice: Codable, Identifiable, Sendable {
         }
         if let multipliers, !multipliers.isEmpty {
             try container.encode(multipliers, forKey: .multipliers)
+        }
+        if !chain.isEmpty {
+            try container.encode(chain, forKey: .chain)
         }
     }
 }
@@ -145,11 +157,14 @@ struct TrancheLifetime: Codable, Sendable, Equatable {
     static let `default` = TrancheLifetime(ttlDays: 15)
 }
 
+/// One step in a tool's constraint chain. The owning ``ToolPrice`` carries
+/// the chain, so tool scope is implicit. ``patronNpubs`` remains as an
+/// audience filter within that tool (max 10 npubs per group; clone for
+/// additional groups).
 struct PipelineStep: Codable, Identifiable, Sendable {
     let id: String
     let type: String
     let params: [String: AnyCodableValue]
-    let toolIds: [String]?
     let patronNpubs: [String]?
 
     var displayType: PipelineStepType {
@@ -157,22 +172,20 @@ struct PipelineStep: Codable, Identifiable, Sendable {
     }
 
     var isScoped: Bool {
-        (toolIds != nil && !(toolIds!.isEmpty)) || (patronNpubs != nil && !(patronNpubs!.isEmpty))
+        patronNpubs != nil && !(patronNpubs!.isEmpty)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, type, params
-        case toolIds = "tool_ids"
         case patronNpubs = "patron_npubs"
     }
 
     static func create(
         type: String,
         params: [String: AnyCodableValue] = [:],
-        toolIds: [String]? = nil,
         patronNpubs: [String]? = nil
     ) -> PipelineStep {
-        PipelineStep(id: UUID().uuidString, type: type, params: params, toolIds: toolIds, patronNpubs: patronNpubs)
+        PipelineStep(id: UUID().uuidString, type: type, params: params, patronNpubs: patronNpubs)
     }
 }
 
@@ -231,7 +244,6 @@ struct PricingModelResponse: Codable, Sendable {
     let name: String?
     let isActive: Bool?
     let tools: [ToolPrice]?
-    let pipeline: [PipelineStep]?
     let trancheLifetime: TrancheLifetime?
     var source: PricingSource = .synthesized
 
@@ -241,7 +253,6 @@ struct PricingModelResponse: Codable, Sendable {
         case name
         case isActive = "is_active"
         case tools
-        case pipeline
         case trancheLifetime = "tranche_lifetime"
         // source excluded — set programmatically, not from JSON
     }

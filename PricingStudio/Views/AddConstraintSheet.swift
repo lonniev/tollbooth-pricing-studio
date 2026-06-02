@@ -1,8 +1,11 @@
 import SwiftUI
 
+/// Picker for a new constraint to add to a tool's chain.  Tool scope is
+/// implicit (the parent ``ToolChainView`` owns the tool); only an
+/// optional patron-npub audience filter is offered after the param
+/// editor.
 struct AddConstraintSheet: View {
-    let tools: [ToolPrice]
-    let onAdd: (String, [String: AnyCodableValue], [String]?, [String]?) -> Void
+    let onAdd: (String, [String: AnyCodableValue], [String]?) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var selectedType: PipelineStepType?
     @State private var showingParamEditor = false
@@ -52,8 +55,8 @@ struct AddConstraintSheet: View {
             }
             .sheet(isPresented: $showingScopeSheet) {
                 if let type = selectedType, let params = pendingParams {
-                    ConstraintScopeSheet(tools: tools) { toolIds, patronNpubs in
-                        onAdd(type.rawValue, params, toolIds, patronNpubs)
+                    ConstraintScopeSheet { patronNpubs in
+                        onAdd(type.rawValue, params, patronNpubs)
                         dismiss()
                     }
                 }

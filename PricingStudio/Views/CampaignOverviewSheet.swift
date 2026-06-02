@@ -353,46 +353,52 @@ struct CampaignOverviewSheet: View {
         }
     }
 
-    // MARK: - Constraint Pipeline
+    // MARK: - Constraint Chains (per tool)
 
     @ViewBuilder
     private var pipelineSection: some View {
-        if let pipeline = proposal?.pipeline, !pipeline.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Constraint Pipeline", systemImage: "arrow.triangle.branch")
+        let toolsWithChains = proposal?.toolsWithChains ?? []
+        if !toolsWithChains.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                Label("Constraint Chains", systemImage: "arrow.triangle.branch")
                     .font(.title3.bold())
 
-                ForEach(Array(pipeline.enumerated()), id: \.element.id) { index, step in
-                    HStack(alignment: .top, spacing: 12) {
-                        // Timeline connector
-                        VStack(spacing: 0) {
-                            Circle()
-                                .fill(constraintColor(step.type))
-                                .frame(width: 10, height: 10)
-                            if index < pipeline.count - 1 {
-                                Rectangle()
-                                    .fill(Color.secondary.opacity(0.3))
-                                    .frame(width: 2)
-                                    .frame(minHeight: 30)
+                ForEach(toolsWithChains) { tool in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(tool.toolName)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.indigo)
+
+                        ForEach(Array(tool.chain.enumerated()), id: \.element.id) { index, step in
+                            HStack(alignment: .top, spacing: 12) {
+                                VStack(spacing: 0) {
+                                    Circle()
+                                        .fill(constraintColor(step.type))
+                                        .frame(width: 10, height: 10)
+                                    if index < tool.chain.count - 1 {
+                                        Rectangle()
+                                            .fill(Color.secondary.opacity(0.3))
+                                            .frame(width: 2)
+                                            .frame(minHeight: 30)
+                                    }
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(step.type.replacingOccurrences(of: "_", with: " ").capitalized)
+                                        .font(.subheadline.bold())
+                                    let paramSummary = step.params.map { "\($0.key): \($0.value)" }
+                                        .joined(separator: " · ")
+                                    if !paramSummary.isEmpty {
+                                        Text(paramSummary)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+
+                                Spacer()
                             }
                         }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(step.type.replacingOccurrences(of: "_", with: " ").capitalized)
-                                .font(.subheadline.bold())
-
-                            // Show key params
-                            let paramSummary = step.params.map { "\($0.key): \($0.value)" }
-                                .joined(separator: " · ")
-                            if !paramSummary.isEmpty {
-                                Text(paramSummary)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                        }
-
-                        Spacer()
                     }
                 }
             }

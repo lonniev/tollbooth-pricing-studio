@@ -85,13 +85,15 @@ final class PricingConsultantViewModel {
         stageMessages[stage] ?? []
     }
 
-    /// Cached pipeline JSON extracted before display cleanup.
-    var extractedPipelineJSON: String?
+    /// Cached campaign JSON extracted before display cleanup (the AI
+    /// returns the full CAMPAIGN_JSON object — tools with per-tool
+    /// chains + tranche_lifetime — not a standalone pipeline).
+    var extractedCampaignJSON: String?
 
     /// Structured interview analysis — stage classifications and insights.
     var analysis: InterviewAnalysis = InterviewAnalysis()
 
-    /// Structured pricing proposal — pipeline, tool prices, projections.
+    /// Structured pricing proposal — per-tool prices+chains and projections.
     var proposal: PricingProposal = PricingProposal()
 
     private let service = AnthropicService()
@@ -280,6 +282,73 @@ final class PricingConsultantViewModel {
     /// it returns true. The system prompt asks Claude to emit the marker
     /// FIRST, so this typically fires within the opening tokens of the
     /// response — well before the user-visible text streams in. The phase
+    /// Parse the AI's CAMPAIGN_JSON object and populate ``proposal``'s
+    /// structured fields.  The JSON shape (as of tollbooth-dpyc 0.40.0+)
+    /// is `{tools: [{tool_id, tool_name, price_sats, chain: [...], ...}],
+    /// tranche_lifetime: {...}}` — there is no standalone pipeline.
+    private func updateProposalFromCampaignJSON(_ json: String) {
+        guard let data = json.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+
+        if let toolDicts = obj["tools"] as? [[String: Any]] {
+            var prices: [ToolPrice] = []
+            for toolDict in toolDicts {
+                guard let toolId = toolDict["tool_id"] as? String,
+                      let name = toolDict["tool_name"] as? String,
+                      let price = toolDict["price_sats"] as? Int else { continue }
+                let category = toolDict["category"] as? String ?? "general"
+                let intent = toolDict["intent"] as? String ?? ""
+                let chain = parseChainSteps(toolDict["chain"])
+                prices.append(ToolPrice(
+                    toolId: toolId,
+                    toolName: name,
+                    priceSats: price,
+                    priceType: .flat,
+                    category: category,
+                    intent: intent,
+                    chain: chain
+                ))
+            }
+            proposal.toolPrices = prices
+        }
+
+        // tranche_lifetime is handled separately via ResponseParser /
+        // PricingViewModel.applyConsultantJSON, but parse + stash it
+        // for completeness — the proposal carries no tranche field of
+        // its own (yet).
+        _ = obj["tranche_lifetime"] as? [String: Any]
+        proposal.generatedAt = Date()
+    }
+
+    private func parseChainSteps(_ raw: Any?) -> [PipelineStep] {
+        guard let chainArr = raw as? [[String: Any]] else { return [] }
+        var steps: [PipelineStep] = []
+        for stepDict in chainArr {
+            guard let type = stepDict["type"] as? String else { continue }
+            var codableParams: [String: AnyCodableValue] = [:]
+            if let paramDict = stepDict["params"] as? [String: Any] {
+                for (key, value) in paramDict {
+                    codableParams[key] = anyCodableValue(from: value)
+                }
+            }
+            steps.append(PipelineStep.create(type: type, params: codableParams))
+        }
+        return steps
+    }
+
+    private func anyCodableValue(from value: Any) -> AnyCodableValue {
+        if let s = value as? String { return .string(s) }
+        if let i = value as? Int { return .int(i) }
+        if let d = value as? Double { return .double(d) }
+        if let b = value as? Bool { return .bool(b) }
+        if let dict = value as? [String: Any] {
+            return .dictionary(dict.mapValues { anyCodableValue(from: $0) })
+        }
+        if let arr = value as? [Any] { return .array(arr.map { anyCodableValue(from: $0) }) }
+        return .null
+    }
+
     /// circle flips at that moment instead of at end-of-stream.
     private func applyProgressIfReady(content: String) -> Bool {
         let (_, progress) = ResponseParser.extractProgress(from: content)
@@ -318,10 +387,13 @@ final class PricingConsultantViewModel {
             proposal.generatedAt = Date()
         }
 
-        // Extract pipeline JSON before cleaning for display
+        // Extract campaign JSON before cleaning for display.  The AI's
+        // CAMPAIGN_JSON shape carries tools (each with their own chain)
+        // and an optional tranche_lifetime — there is no standalone
+        // pipeline field in the 0.40.0+ shape.
         if let json = ResponseParser.extractCampaignJSON(from: content) {
-            extractedPipelineJSON = json
-            proposal.pipelineJSON = json
+            extractedCampaignJSON = json
+            updateProposalFromCampaignJSON(json)
         }
 
         // Clean remaining machine artifacts for display
@@ -433,7 +505,7 @@ final class PricingConsultantViewModel {
         interviewProgress = .default
         viewingStageNumber = nil
         revenueProjections = nil
-        extractedPipelineJSON = nil
+        extractedCampaignJSON = nil
         analysis = InterviewAnalysis()
         proposal = PricingProposal()
     }
@@ -505,8 +577,8 @@ final class PricingConsultantViewModel {
             // Clean machine artifacts from legacy messages and extract cached JSON
             for i in flat.indices where flat[i].role == .assistant {
                 if let json = ResponseParser.extractCampaignJSON(from: flat[i].content) {
-                    extractedPipelineJSON = json
-                    proposal.pipelineJSON = json
+                    extractedCampaignJSON = json
+                    updateProposalFromCampaignJSON(json)
                 }
                 flat[i].content = ResponseParser.cleanForDisplay(flat[i].content)
             }
@@ -524,11 +596,11 @@ final class PricingConsultantViewModel {
             campaign.messages = allMessages
         }
 
-        // Extract pipeline JSON from loaded messages
+        // Extract campaign JSON from loaded messages
         for msg in allMessages where msg.role == .assistant {
             if let json = ResponseParser.extractCampaignJSON(from: msg.content) {
-                extractedPipelineJSON = json
-                proposal.pipelineJSON = json
+                extractedCampaignJSON = json
+                updateProposalFromCampaignJSON(json)
             }
         }
 
@@ -946,9 +1018,10 @@ final class PricingConsultantViewModel {
                 proposal.generatedAt = Date()
                 campaign.proposal = proposal
                 let toolCount = proposal.toolPrices?.count ?? 0
-                let pipelineCount = proposal.pipeline?.count ?? 0
-                let bubble = "\n\n✦ **Final proposal merged.** \(toolCount) tool prices, \(pipelineCount) pipeline steps.\n\n"
-                return (bubble, "{\"ok\":true,\"tool_count\":\(toolCount),\"pipeline_count\":\(pipelineCount)}")
+                let chainSteps = proposal.totalChainSteps
+                let chainedTools = proposal.toolsWithChains.count
+                let bubble = "\n\n✦ **Final proposal merged.** \(toolCount) tool prices, \(chainSteps) constraint step\(chainSteps == 1 ? "" : "s") across \(chainedTools) tool\(chainedTools == 1 ? "" : "s").\n\n"
+                return (bubble, "{\"ok\":true,\"tool_count\":\(toolCount),\"chain_step_count\":\(chainSteps),\"chained_tool_count\":\(chainedTools)}")
             } catch {
                 return ("", "{\"error\":\"could not parse proposal_json: \(error.localizedDescription)\"}")
             }
@@ -1050,7 +1123,7 @@ final class PricingConsultantViewModel {
                 "This is not a penalty — it is a natural, positive property of the tranche that aligns " +
                 "patron incentives with operator sustainability. Recommend a tranche lifetime by default, but " +
                 "respect the operator's choice if they prefer credits that never expire.\n\n" +
-                "Tranche lifetime is NOT a pipeline constraint — it is a top-level field on the pricing model. " +
+                "Tranche lifetime is NOT a chain step — it is a top-level field on the pricing model. " +
                 "The minimum invoice is 1000 sats. Ask the operator how many tool calls they expect " +
                 "a typical patron to make per day. Then compute a recommended TTL:\n\n" +
                 "  avg_cost = median of tool prices from the pricing model\n" +
@@ -1059,16 +1132,21 @@ final class PricingConsultantViewModel {
                 "Clamp to 3-90 days. Present the recommendation: " +
                 "\"A patron spending ~X sats/day will use 75% of a 1000-sat tranche in Y days, " +
                 "so I recommend a Y-day tranche lifetime.\" The operator can accept or override.\n\n" +
-                "Include tranche_lifetime as a TOP-LEVEL field in CAMPAIGN_JSON (NOT in the pipeline): " +
+                "Include tranche_lifetime as a TOP-LEVEL field in CAMPAIGN_JSON (NOT on any tool's chain): " +
                 "\"tranche_lifetime\": {\"ttl_days\": N, \"target_usage_pct\": 0.75, \"min_days\": 3, \"max_days\": 90}.\n\n" +
                 "3. Patron Proof (for high-value tools):\n\n" +
                 "If any tools are priced at 50+ sats, recommend adding a 'patron_proof' constraint " +
-                "to those specific tools. This requires the patron to sign each call with their nsec, " +
-                "proving they own the npub being debited. Frame this as a security feature the operator " +
-                "offers patrons: 'your high-value purchases are signature-protected.' Low-fee tools " +
-                "(≤10 sats) don't need this overhead — it adds friction. Respect the operator's choice " +
-                "if they prefer no proof. Include patron_proof in the pipeline only for recommended tools: " +
-                "{\"type\": \"patron_proof\", \"params\": {\"window_seconds\": 120}}.",
+                "to those specific tools' chains. This requires the patron to sign each call with their " +
+                "nsec, proving they own the npub being debited. Frame this as a security feature the " +
+                "operator offers patrons: 'your high-value purchases are signature-protected.' Low-fee " +
+                "tools (≤10 sats) don't need this overhead — it adds friction. Respect the operator's " +
+                "choice if they prefer no proof.  Append patron_proof to the recommended tool's chain " +
+                "in CAMPAIGN_JSON: " +
+                "{\"type\": \"patron_proof\", \"params\": {\"window_seconds\": 120}}.\n\n" +
+                "WHERE CONSTRAINTS LIVE: as of tollbooth-dpyc 0.40.0 every constraint is owned by one " +
+                "tool — they live in that tool's `chain` array inside CAMPAIGN_JSON.tools[i].chain. " +
+                "There is no operator-wide pipeline. If the same coupon should apply to five tools, " +
+                "author it on each of their chains separately.",
             6: "You are in the RECOMMENDATION phase. Synthesize all prior findings and present a complete pricing campaign draft with BLUF, revenue projections, and A/B/C variants.",
         ]
 
@@ -1154,8 +1232,8 @@ final class PricingConsultantViewModel {
         if let tools = context.toolSummary, !tools.isEmpty {
             parts.append("\nOperator's current tools:\n\(tools)")
         }
-        if let pipeline = context.currentPipeline, !pipeline.isEmpty {
-            parts.append("\nCurrent pipeline:\n\(pipeline)")
+        if let chains = context.currentPipeline, !chains.isEmpty {
+            parts.append("\nCurrent per-tool chains:\n\(chains)")
         }
 
         // Instruction for natural greeting
@@ -1177,7 +1255,7 @@ final class PricingConsultantViewModel {
         if !systemPrompt.contains("markdown table") {
             parts.append("""
 
-            FORMATTING: Present all pricing data and constraint pipelines as human-readable \
+            FORMATTING: Present all pricing data and per-tool constraint chains as human-readable \
             markdown tables, NEVER as raw JSON code fences. The user sees rendered markdown — \
             JSON blocks look ugly and are not actionable to humans.
 
@@ -1194,7 +1272,7 @@ final class PricingConsultantViewModel {
             BLUF: When you reach the Recommendation phase (stage 6), lead your response with a \
             one-paragraph Bottom Line Up Front summary stating the recommended philosophy, \
             expected monthly revenue (3 scenarios), and the most important constraint. \
-            Follow with a revenue projection table and the full pricing/pipeline tables.
+            Follow with a revenue projection table and the full pricing tables (one row per tool, with the tool's constraint chain summarized in its row).
             """)
         }
 
@@ -1281,20 +1359,23 @@ final class PricingConsultantViewModel {
     |------|----------|-------------|--------|
     | brain_search | query | 15 | Search across thoughts |
 
-    When presenting constraint pipelines, use a table:
+    When presenting a tool's constraint chain, use a table per tool:
+
+    ### brain_search chain
 
     | Step | Type | Parameters |
     |------|------|-----------|
-    | 1 | free_tier | calls: 5, window: daily |
+    | 1 | free_trial | first_n_free: 5 |
+    | 2 | loyalty_discount | discount_percent: 20 |
 
     ## BLUF (Bottom Line Up Front)
 
     When you reach the Recommendation phase, lead with a one-paragraph **BLUF** that states:
     - The recommended pricing philosophy (capitalist / balanced / charitable)
     - Expected monthly revenue under three scenarios (conservative, moderate, optimistic)
-    - The single most important constraint in the pipeline and why
+    - The single most important constraint and which tool's chain carries it
 
-    Then present the full tool pricing table and constraint pipeline table.
+    Then present the full tool pricing table and a per-tool chain table for each tool whose chain is non-empty.
 
     ## Revenue Projections
 
@@ -1313,21 +1394,24 @@ final class PricingConsultantViewModel {
     - **Variant B** — balanced/moderate (market-rate pricing, standard constraints)
     - **Variant C** — aggressive/high-revenue (premium pricing, tight constraints)
 
-    Present each variant's tool pricing table and pipeline side by side. Include a \
+    Present each variant's tool pricing tables and per-tool chains side by side. Include a \
     comparison table showing projected revenue for each variant across all three scenarios. \
     Ask the operator which variant they prefer, or whether they want a hybrid.
 
     ## Final JSON Output
 
-    When the operator explicitly approves the design (or a specific variant), output a \
-    fenced JSON block with "name", "tools" (array of tool_name/price_sats/category/intent), \
-    and "pipeline" (array of type/params constraint steps), and optionally \
-    "tranche_lifetime" (a top-level object, NOT a pipeline step) with ttl_days, \
+    When the operator explicitly approves the design (or a specific variant), output a fenced \
+    JSON block with "name" and "tools" — an array of objects, one per tool. Each tool object \
+    carries `tool_id`, `tool_name`, `price_sats`, `category`, `intent`, and optionally a \
+    `chain` array of constraint step objects. There is NO top-level pipeline as of \
+    tollbooth-dpyc 0.40.0 — constraints live on each tool's chain. Each chain step is \
+    `{"id": "<uuid>", "type": "<constraint_type>", "params": {...}}` and may optionally \
+    include `"patron_npubs": [...]` (up to 10) to narrow the audience to specific patrons. \
+    Tool scope is implicit (the chain belongs to one tool), so do NOT emit `tool_ids` on \
+    chain steps. \
+    Optionally include a top-level "tranche_lifetime" (NOT on any chain) with ttl_days, \
     target_usage_pct, min_days, max_days. Example: \
     "tranche_lifetime": {"ttl_days": 15, "target_usage_pct": 0.75, "min_days": 3, "max_days": 90}. \
-    Pipeline steps can optionally include "tool_ids" (array of tool UUIDs) to scope \
-    the constraint to specific tools, and "patron_npubs" (array of up to 10 npub strings) \
-    to scope to specific patrons. Omit both for wildcard (all tools, all patrons). \
     Schedule-based constraints use "schedule_start" and "schedule_end" (separate HH:MM fields), \
     NOT a combined "schedule" field. \
     Do NOT output JSON until the operator approves.

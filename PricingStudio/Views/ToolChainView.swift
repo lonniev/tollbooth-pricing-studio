@@ -1,23 +1,29 @@
 import SwiftUI
 
-struct PipelineView: View {
-    @Binding var steps: [PipelineStep]
+/// Per-tool constraint chain editor.  Opened by drilling into a
+/// ``ToolPriceRow``.  The chain belongs to one tool; tool scope is
+/// implicit, so the affordances here are add / clone / remove /
+/// reorder, plus an optional patron audience filter per step.
+struct ToolChainView: View {
+    let tool: ToolPrice
     let isEditing: Bool
-    var tools: [ToolPrice] = []
+    @Binding var chain: [PipelineStep]
+    /// Validation warnings for this tool's chain, indexed by step
+    /// position (1-based).  Empty when the chain is clean.
+    var warnings: [String] = []
 
     @State private var showingAddSheet = false
     @State private var editingStep: PipelineStep?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Constraints")
-                .font(.title3.bold())
-                .padding(.bottom, 16)
+            header
 
-            if steps.isEmpty && !isEditing {
-                Text("No constraints configured")
+            if chain.isEmpty && !isEditing {
+                Text("No constraints on this tool")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
             } else {
                 stepList
             }
@@ -32,11 +38,15 @@ struct PipelineView: View {
                 .accessibilityIdentifier("addConstraintButton")
                 .padding(.top, 12)
             }
+
+            if !warnings.isEmpty {
+                warningsBlock
+            }
         }
         .sheet(isPresented: $showingAddSheet) {
-            AddConstraintSheet(tools: tools) { type, params, toolIds, patronNpubs in
+            AddConstraintSheet { type, params, patronNpubs in
                 withAnimation {
-                    steps.append(PipelineStep.create(type: type, params: params, toolIds: toolIds, patronNpubs: patronNpubs))
+                    chain.append(PipelineStep.create(type: type, params: params, patronNpubs: patronNpubs))
                 }
             }
         }
@@ -46,10 +56,10 @@ struct PipelineView: View {
                     spec: spec,
                     existingParams: step.params,
                     onSave: { newParams in
-                        if let idx = steps.firstIndex(where: { $0.id == step.id }) {
-                            steps[idx] = PipelineStep(
+                        if let idx = chain.firstIndex(where: { $0.id == step.id }) {
+                            chain[idx] = PipelineStep(
                                 id: step.id, type: step.type, params: newParams,
-                                toolIds: step.toolIds, patronNpubs: step.patronNpubs
+                                patronNpubs: step.patronNpubs
                             )
                         }
                     }
@@ -58,8 +68,32 @@ struct PipelineView: View {
         }
     }
 
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Constraint Chain")
+                .font(.title3.bold())
+            Text(tool.toolName)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Label("\(tool.priceSats) sat\(tool.priceSats == 1 ? "" : "s") base", systemImage: "tag")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                if !tool.intent.isEmpty {
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+                    Text(tool.intent)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.bottom, 16)
+    }
+
     private var stepList: some View {
-        let items = Array(steps)
+        let items = Array(chain)
         return ForEach(items.indices, id: \.self) { index in
             let step = items[index]
             HStack(alignment: .top, spacing: 16) {
@@ -67,7 +101,6 @@ struct PipelineView: View {
                     Circle()
                         .fill(.tint)
                         .frame(width: 12, height: 12)
-
                     if index < items.count - 1 {
                         Rectangle()
                             .fill(.tint.opacity(0.3))
@@ -82,9 +115,7 @@ struct PipelineView: View {
                         .padding(.bottom, index < items.count - 1 ? 8 : 0)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if isEditing {
-                                editingStep = step
-                            }
+                            if isEditing { editingStep = step }
                         }
 
                     if isEditing {
@@ -93,10 +124,10 @@ struct PipelineView: View {
                                 withAnimation {
                                     let clone = PipelineStep.create(
                                         type: step.type, params: step.params,
-                                        toolIds: step.toolIds, patronNpubs: step.patronNpubs
+                                        patronNpubs: step.patronNpubs
                                     )
-                                    if let idx = steps.firstIndex(where: { $0.id == step.id }) {
-                                        steps.insert(clone, at: idx + 1)
+                                    if let idx = chain.firstIndex(where: { $0.id == step.id }) {
+                                        chain.insert(clone, at: idx + 1)
                                     }
                                 }
                             } label: {
@@ -109,7 +140,7 @@ struct PipelineView: View {
 
                             Button(role: .destructive) {
                                 withAnimation {
-                                    steps.removeAll { $0.id == step.id }
+                                    chain.removeAll { $0.id == step.id }
                                 }
                             } label: {
                                 Image(systemName: "minus.circle.fill")
@@ -120,13 +151,29 @@ struct PipelineView: View {
                         }
                     }
                 }
-                .accessibilityIdentifier("pipelineStepRow_\(index)")
+                .accessibilityIdentifier("chainStepRow_\(index)")
             }
         }
         .onMove { source, destination in
             if isEditing {
-                steps.move(fromOffsets: source, toOffset: destination)
+                chain.move(fromOffsets: source, toOffset: destination)
             }
         }
+    }
+
+    private var warningsBlock: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(warnings.indices, id: \.self) { i in
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .imageScale(.small)
+                    Text(warnings[i])
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.top, 12)
     }
 }

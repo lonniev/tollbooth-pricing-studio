@@ -420,19 +420,22 @@ final class Campaign {
             md += "\n"
         }
 
-        // ── Constraint Pipeline ──────────────────────────────────
-        if let pipeline = proposal?.pipeline, !pipeline.isEmpty {
-            md += "## Constraint Pipeline\n\n"
-            md += "The constraint pipeline evaluates each tool invocation to determine "
-            md += "the effective price. Steps execute in order; each can modify the price "
-            md += "or deny access.\n\n"
-            for (i, step) in pipeline.enumerated() {
-                let typeName = step.type.replacingOccurrences(of: "_", with: " ").capitalized
-                md += "### Step \(i + 1): \(typeName)\n\n"
-                for (key, value) in step.params.sorted(by: { $0.key < $1.key }) {
-                    md += "- **\(key):** \(value)\n"
+        // ── Per-tool Constraint Chains ──────────────────────────
+        let toolsWithChains = (proposal?.toolPrices ?? []).filter { !$0.chain.isEmpty }
+        if !toolsWithChains.isEmpty {
+            md += "## Constraint Chains (per tool)\n\n"
+            md += "Each tool walks its own ordered chain at debit time; each step "
+            md += "transforms the running price or denies the call.\n\n"
+            for tool in toolsWithChains {
+                md += "### \(tool.toolName)\n\n"
+                for (i, step) in tool.chain.enumerated() {
+                    let typeName = step.type.replacingOccurrences(of: "_", with: " ").capitalized
+                    md += "**Step \(i + 1) · \(typeName)**\n\n"
+                    for (key, value) in step.params.sorted(by: { $0.key < $1.key }) {
+                        md += "- **\(key):** \(value)\n"
+                    }
+                    md += "\n"
                 }
-                md += "\n"
             }
         }
 

@@ -392,11 +392,17 @@ struct ContentView: View {
 
         if let model = pricingVM.pricingModel, let tools = model.tools {
             ctx.toolSummary = tools.prefix(30).map { "\($0.toolName): \($0.priceSats) sats (\($0.category))" }.joined(separator: "\n")
-            if let pipeline = model.pipeline {
-                let pipelineDesc = pipeline.enumerated().map { (i, step) in
-                    "  \(i + 1). \(step.type)" + (step.params.isEmpty ? "" : " — \(step.params)")
+            // Per-tool chains as of tollbooth-dpyc 0.40.0 — summarize each
+            // tool's chain so the consultant sees the current shape.
+            let toolsWithChains = tools.filter { !$0.chain.isEmpty }
+            if !toolsWithChains.isEmpty {
+                let desc = toolsWithChains.map { tool -> String in
+                    let steps = tool.chain.enumerated().map { (i, step) in
+                        "    \(i + 1). \(step.type)" + (step.params.isEmpty ? "" : " — \(step.params)")
+                    }.joined(separator: "\n")
+                    return "  \(tool.toolName):\n\(steps)"
                 }.joined(separator: "\n")
-                ctx.currentPipeline = "[EXISTING server model — may be outdated]\n" + pipelineDesc
+                ctx.currentPipeline = "[EXISTING per-tool chains — may be outdated]\n" + desc
             }
         }
 

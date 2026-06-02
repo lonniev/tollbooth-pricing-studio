@@ -1,45 +1,22 @@
 import SwiftUI
 import SwiftData
 
-/// Lets the operator choose which tools and patrons a constraint applies to.
+/// Patron audience filter for a single constraint step.  Tool scope is
+/// implicit (the chain that owns this step belongs to one tool), so this
+/// sheet only narrows the audience to a list of named patron npubs —
+/// optional, max 10 per group (clone the constraint for more).
 struct ConstraintScopeSheet: View {
-    let tools: [ToolPrice]
-    let onSave: (_ toolIds: [String]?, _ patronNpubs: [String]?) -> Void
+    let onSave: (_ patronNpubs: [String]?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Patron.addedAt) private var patrons: [Patron]
 
-    @State private var scopeAllTools = true
-    @State private var selectedToolIds: Set<String> = []
     @State private var scopeAllPatrons = true
     @State private var selectedPatronNpubs: Set<String> = []
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Tool Scope") {
-                    Toggle("All tools", isOn: $scopeAllTools)
-                    if !scopeAllTools {
-                        ForEach(tools) { tool in
-                            Toggle(isOn: Binding(
-                                get: { selectedToolIds.contains(tool.toolId) },
-                                set: { on in
-                                    if on { selectedToolIds.insert(tool.toolId) }
-                                    else { selectedToolIds.remove(tool.toolId) }
-                                }
-                            )) {
-                                VStack(alignment: .leading) {
-                                    Text(tool.toolName)
-                                        .font(.subheadline)
-                                    Text(tool.category)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-
                 Section {
                     Toggle("All patrons", isOn: $scopeAllPatrons)
                     if !scopeAllPatrons {
@@ -74,25 +51,26 @@ struct ConstraintScopeSheet: View {
                         }
                     }
                 } header: {
-                    Text("Patron Scope")
+                    Text("Patron Audience")
                 } footer: {
                     if !scopeAllPatrons && !selectedPatronNpubs.isEmpty {
                         Text("\(selectedPatronNpubs.count) patron\(selectedPatronNpubs.count == 1 ? "" : "s") selected")
+                    } else if scopeAllPatrons {
+                        Text("Constraint applies to every patron calling this tool.")
                     }
                 }
             }
-            .navigationTitle("Constraint Scope")
+            .navigationTitle("Constraint Audience")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Skip") {
-                        onSave(nil, nil)
+                        onSave(nil)
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let toolIds = scopeAllTools ? nil : Array(selectedToolIds)
                         let patronNpubs = scopeAllPatrons ? nil : Array(selectedPatronNpubs)
-                        onSave(toolIds, patronNpubs)
+                        onSave(patronNpubs)
                     }
                 }
             }

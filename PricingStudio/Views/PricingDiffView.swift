@@ -199,24 +199,41 @@ struct PricingDiffView: View {
         }
     }
 
-    // MARK: - Pipeline Comparison
+    // MARK: - Per-tool Chain Comparison
 
     @ViewBuilder
     private var pipelineComparisonSection: some View {
-        let pipeA = modelA.pipeline ?? []
-        let pipeB = modelB.pipeline ?? []
+        // Build a unified list of (toolId → chainA, chainB) so we can
+        // diff each tool side-by-side.  Tools that have a chain on
+        // either side appear; tools with no chains on both sides are
+        // omitted.
+        let a = Dictionary(uniqueKeysWithValues:
+            (modelA.tools ?? []).map { ($0.toolId, $0) }
+        )
+        let b = Dictionary(uniqueKeysWithValues:
+            (modelB.tools ?? []).map { ($0.toolId, $0) }
+        )
+        let allIds = Set(a.keys).union(b.keys)
+        let withChains = allIds.filter { (a[$0]?.chain.isEmpty ?? true) == false || (b[$0]?.chain.isEmpty ?? true) == false }
 
-        if pipeA.isEmpty && pipeB.isEmpty {
+        if withChains.isEmpty {
             EmptyView()
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Pipeline")
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Constraint Chains (per tool)")
                     .font(.title3.bold())
 
-                HStack(alignment: .top, spacing: 16) {
-                    pipelineColumn(steps: pipeA, label: labelA, color: .blue)
-                    Divider()
-                    pipelineColumn(steps: pipeB, label: labelB, color: .orange)
+                ForEach(Array(withChains).sorted(), id: \.self) { toolId in
+                    let tool = a[toolId] ?? b[toolId]
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(tool?.toolName ?? "(unknown)")
+                            .font(.subheadline.bold())
+                        HStack(alignment: .top, spacing: 16) {
+                            pipelineColumn(steps: a[toolId]?.chain ?? [], label: labelA, color: .blue)
+                            Divider()
+                            pipelineColumn(steps: b[toolId]?.chain ?? [], label: labelB, color: .orange)
+                        }
+                    }
                 }
             }
         }

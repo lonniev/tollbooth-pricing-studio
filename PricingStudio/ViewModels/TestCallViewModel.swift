@@ -121,12 +121,12 @@ final class TestCallViewModel {
         }
     }
 
-    /// The pricing model's pipeline steps, if loaded. Set externally.
-    var pipelineSteps: [PipelineStep] = []
-
-    /// Whether the selected tool has a patron_proof constraint in the pipeline.
+    /// Whether the currently-selected tool has a ``patron_proof`` constraint
+    /// in its chain.  Each tool walks its own chain at debit time, so this
+    /// is a per-tool check, not an operator-wide one (0.40.0+).
     var toolRequiresPatronProof: Bool {
-        pipelineSteps.contains { $0.type == "patron_proof" }
+        guard let selected = selectedTool else { return false }
+        return selected.chain.contains { $0.type == "patron_proof" }
     }
 
     private let mcpService = MCPService()
@@ -151,7 +151,6 @@ final class TestCallViewModel {
                 onStep: { _ in }
             )
             availableTools = result.tools ?? []
-            pipelineSteps = result.pipeline ?? []
 
             // Fetch MCP tool schemas for parameter info
             let mcpTools = try await mcpService.fetchToolList(

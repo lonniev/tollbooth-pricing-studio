@@ -19,7 +19,6 @@ final class ReconciliationUUIDTests: XCTestCase {
             name: "test",
             isActive: true,
             tools: tools,
-            pipeline: nil,
             trancheLifetime: nil
         )
     }

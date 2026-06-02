@@ -46,7 +46,7 @@ struct FullScreenInterviewView: View {
                     Button("Close") { onDismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    if let json = consultantVM.extractedPipelineJSON {
+                    if let json = consultantVM.extractedCampaignJSON {
                         Button {
                             onApplyJSON?(json)
                             onDismiss()
@@ -171,7 +171,7 @@ struct FullScreenInterviewView: View {
         stageProgressOverview
 
         // Pipeline JSON preview
-        if let json = consultantVM.extractedPipelineJSON {
+        if let json = consultantVM.extractedCampaignJSON {
             pipelinePreview(json)
         }
     }

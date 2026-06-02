@@ -1131,17 +1131,19 @@ actor MCPService {
 
     // MARK: - Set Pricing Model
 
-    /// Payload for serializing a pricing model to the format expected by set_pricing_model.
+    /// Payload for serializing a pricing model to the format expected by
+    /// set_pricing_model.  Per tollbooth-dpyc 0.40.0+: there is no
+    /// operator-wide pipeline — each ``ToolPrice.chain`` carries that
+    /// tool's ordered constraint chain.
     private struct SetPricingPayload: Encodable {
         let modelId: String?
         let name: String
         let tools: [ToolPrice]
-        let pipeline: [PipelineStep]?
         let trancheLifetime: TrancheLifetime?
 
         enum CodingKeys: String, CodingKey {
             case modelId = "model_id"
-            case name, tools, pipeline
+            case name, tools
             case trancheLifetime = "tranche_lifetime"
         }
     }
@@ -1179,7 +1181,6 @@ actor MCPService {
             modelId: effectiveModelId,
             name: model.name ?? "Pricing Model",
             tools: model.tools ?? [],
-            pipeline: model.pipeline,
             trancheLifetime: model.trancheLifetime
         )
         let jsonData = try JSONEncoder().encode(payload)
@@ -1923,7 +1924,6 @@ actor MCPService {
             name: "Live Tool Pricing",
             isActive: true,
             tools: toolPrices,
-            pipeline: nil,
             trancheLifetime: nil
         )
     }

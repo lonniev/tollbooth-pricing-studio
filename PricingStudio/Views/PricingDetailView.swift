@@ -92,8 +92,8 @@ struct PricingDetailView: View {
             let n = viewModel.localRemovals.count
             parts.append("\(n) \(n == 1 ? "removal" : "removals")")
         }
-        if viewModel.hasPipelineEdits {
-            parts.append("pipeline changes")
+        if viewModel.hasChainEdits {
+            parts.append("constraint chain changes")
         }
         return parts.joined(separator: ", ")
     }
@@ -121,8 +121,9 @@ struct PricingDetailView: View {
 
                         trancheLifetimeSection(model: model)
 
-                        pipelineSection(model.pipeline ?? [])
-
+                        // Constraint chains now live on each tool (0.40.0+);
+                        // drill into a row from the list below to edit its
+                        // chain.
                         ToolPriceListView(tools: allTools, viewModel: viewModel, target: target)
                     }
                     .padding()
@@ -513,19 +514,6 @@ struct PricingDetailView: View {
         )
     }
 
-    private func pipelineSection(_ serverPipeline: [PipelineStep]) -> some View {
-        PipelineView(
-            steps: isEditingPipeline
-                ? Binding(
-                    get: { viewModel.localPipeline ?? serverPipeline },
-                    set: { viewModel.localPipeline = $0 }
-                )
-                : .constant(viewModel.localPipeline ?? serverPipeline),
-            isEditing: isEditingPipeline,
-            tools: viewModel.pricingModel?.tools ?? []
-        )
-    }
-
     @ViewBuilder
     private func modelHeader(name: String, isActive: Bool, member: MemberRecord?, source: PricingSource) -> some View {
         HStack(alignment: .top) {
@@ -587,10 +575,9 @@ struct PricingDetailView: View {
                     }
                 } else {
                     Button {
-                        viewModel.beginPipelineEditing()
                         isEditingPipeline = true
                     } label: {
-                        Label("Manage Constraints", systemImage: "pencil")
+                        Label("Edit Prices", systemImage: "pencil")
                             .font(.subheadline)
                     }
                     .buttonStyle(.bordered)

@@ -35,28 +35,34 @@ final class PricingViewModel {
 
     var localEdits: [String: ToolPrice] = [:]
     var localRemovals: Set<String> = []
-    var localPipeline: [PipelineStep]? = nil
     var localTrancheLifetime: TrancheLifetime? = nil
     var campaignApplied = false  // true when edits came from a campaign recommendation
 
-    /// Warnings from client-side pipeline validation (displayed before save).
-    var pipelineWarnings: [String] = []
+    /// Warnings from client-side chain validation (displayed before save).
+    /// Keyed by toolId so the editor can show them next to the affected tool.
+    var chainWarnings: [String: [String]] = [:]
 
-    var hasPipelineEdits: Bool {
-        guard let localPipeline else { return false }
-        guard let serverPipeline = pricingModel?.pipeline else {
-            return !localPipeline.isEmpty
-        }
-        guard localPipeline.count == serverPipeline.count else { return true }
-        for (local, server) in zip(localPipeline, serverPipeline) {
-            if local.id != server.id || local.type != server.type { return true }
-            if local.params.count != server.params.count { return true }
-            for (key, val) in local.params {
-                guard let serverVal = server.params[key] else { return true }
-                if val.description != serverVal.description { return true }
-            }
+    /// True if any tool's locally-edited chain differs from its server-side chain.
+    var hasChainEdits: Bool {
+        for (toolId, edited) in localEdits {
+            let serverChain = pricingModel?.tools?.first(where: { $0.toolId == toolId })?.chain ?? []
+            if !chainsEqual(edited.chain, serverChain) { return true }
         }
         return false
+    }
+
+    private func chainsEqual(_ a: [PipelineStep], _ b: [PipelineStep]) -> Bool {
+        guard a.count == b.count else { return false }
+        for (lhs, rhs) in zip(a, b) {
+            if lhs.id != rhs.id || lhs.type != rhs.type { return false }
+            if lhs.params.count != rhs.params.count { return false }
+            for (key, val) in lhs.params {
+                guard let rhsVal = rhs.params[key] else { return false }
+                if val.description != rhsVal.description { return false }
+            }
+            if lhs.patronNpubs ?? [] != rhs.patronNpubs ?? [] { return false }
+        }
+        return true
     }
 
     func editedTool(for toolId: String) -> ToolPrice? {
@@ -94,18 +100,20 @@ final class PricingViewModel {
     func resetAllEdits() {
         localEdits.removeAll()
         localRemovals.removeAll()
-        localPipeline = nil
         localTrancheLifetime = nil
+        chainWarnings.removeAll()
         campaignApplied = false
     }
 
     /// Apply JSON output from the AI Pricing Consultant.
-    /// Parses the consultant's campaign JSON and stages tool prices + pipeline as local edits.
+    /// Parses the consultant's campaign JSON and stages tool prices —
+    /// each tool's ``chain`` field carries that tool's proposed
+    /// constraint chain (per the 0.40.0 wire shape).
     func applyConsultantJSON(_ json: String, for target: any PricingTarget) {
         guard let data = json.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
 
-        // Apply tool prices
+        // Apply tool prices + their per-tool chains.
         if let toolDicts = obj["tools"] as? [[String: Any]] {
             for toolDict in toolDicts {
                 guard let name = toolDict["tool_name"] as? String,
@@ -113,32 +121,18 @@ final class PricingViewModel {
                       let toolId = toolDict["tool_id"] as? String else { continue }
                 let category = toolDict["category"] as? String ?? "general"
                 let intent = toolDict["intent"] as? String ?? ""
+                let chain = parseChain(toolDict["chain"])
                 let tool = ToolPrice(
                     toolId: toolId,
                     toolName: name,
                     priceSats: price,
                     priceType: .flat,
                     category: category,
-                    intent: intent
+                    intent: intent,
+                    chain: chain
                 )
                 localEdits[tool.toolId] = tool
             }
-        }
-
-        // Apply pipeline
-        if let pipelineDicts = obj["pipeline"] as? [[String: Any]] {
-            var steps: [PipelineStep] = []
-            for stepDict in pipelineDicts {
-                guard let type = stepDict["type"] as? String else { continue }
-                var codableParams: [String: AnyCodableValue] = [:]
-                if let paramDict = stepDict["params"] as? [String: Any] {
-                    for (key, value) in paramDict {
-                        codableParams[key] = anyCodableValue(from: value)
-                    }
-                }
-                steps.append(PipelineStep.create(type: type, params: codableParams))
-            }
-            localPipeline = steps
         }
 
         // Apply tranche_lifetime
@@ -153,66 +147,84 @@ final class PricingViewModel {
 
         campaignApplied = true
 
-        // Validate and repair pipeline against ConstraintCatalog
-        validateAndRepairPipeline()
+        // Validate and repair chains against ConstraintCatalog
+        validateAndRepairChains()
     }
 
-    /// Validate pipeline steps against the ConstraintCatalog.
-    /// Backfills missing required params that have catalog defaults.
-    /// Populates `pipelineWarnings` for anything that can't be auto-fixed.
-    func validateAndRepairPipeline() {
-        guard var steps = localPipeline else {
-            pipelineWarnings = []
-            return
-        }
-
-        var warnings: [String] = []
-
-        for i in steps.indices {
-            let step = steps[i]
-            guard let spec = ConstraintCatalog.spec(for: step.displayType) else {
-                warnings.append("Step \(i + 1) (\(step.type)): unknown constraint type")
-                continue
+    /// Parse a raw chain array (from AI JSON) into ``PipelineStep`` values.
+    private func parseChain(_ raw: Any?) -> [PipelineStep] {
+        guard let chainArr = raw as? [[String: Any]] else { return [] }
+        var steps: [PipelineStep] = []
+        for stepDict in chainArr {
+            guard let type = stepDict["type"] as? String else { continue }
+            var codableParams: [String: AnyCodableValue] = [:]
+            if let paramDict = stepDict["params"] as? [String: Any] {
+                for (key, value) in paramDict {
+                    codableParams[key] = anyCodableValue(from: value)
+                }
             }
+            steps.append(PipelineStep.create(type: type, params: codableParams))
+        }
+        return steps
+    }
 
-            var params = step.params
+    /// Validate every locally-edited tool's chain against the
+    /// ConstraintCatalog.  Backfills missing required params that have
+    /// catalog defaults; populates ``chainWarnings`` keyed by toolId for
+    /// anything that can't be auto-fixed.
+    func validateAndRepairChains() {
+        var warnings: [String: [String]] = [:]
 
-            for paramSpec in spec.params {
-                if params[paramSpec.name] == nil {
-                    if paramSpec.required {
-                        if let defaultValue = paramSpec.defaultValue {
-                            // Auto-repair: backfill the catalog default
-                            params[paramSpec.name] = defaultValue
-                            warnings.append(
-                                "Step \(i + 1) (\(step.type)): " +
-                                "missing '\(paramSpec.name)' — defaulted to \(defaultValue)"
-                            )
-                        } else {
-                            // No default available — hard error, server will reject
-                            warnings.append(
-                                "Step \(i + 1) (\(step.type)): " +
-                                "missing required '\(paramSpec.name)' with no default — " +
-                                "server will reject this pipeline"
-                            )
+        for (toolId, var tool) in localEdits {
+            var steps = tool.chain
+            var toolWarnings: [String] = []
+
+            for i in steps.indices {
+                let step = steps[i]
+                guard let spec = ConstraintCatalog.spec(for: step.displayType) else {
+                    toolWarnings.append("Step \(i + 1) (\(step.type)): unknown constraint type")
+                    continue
+                }
+
+                var params = step.params
+                for paramSpec in spec.params {
+                    if params[paramSpec.name] == nil {
+                        if paramSpec.required {
+                            if let defaultValue = paramSpec.defaultValue {
+                                params[paramSpec.name] = defaultValue
+                                toolWarnings.append(
+                                    "Step \(i + 1) (\(step.type)): " +
+                                    "missing '\(paramSpec.name)' — defaulted to \(defaultValue)"
+                                )
+                            } else {
+                                toolWarnings.append(
+                                    "Step \(i + 1) (\(step.type)): " +
+                                    "missing required '\(paramSpec.name)' with no default — " +
+                                    "server will reject this chain"
+                                )
+                            }
                         }
                     }
                 }
+
+                if params.count != step.params.count {
+                    steps[i] = PipelineStep(
+                        id: step.id, type: step.type, params: params,
+                        patronNpubs: step.patronNpubs
+                    )
+                }
             }
 
-            // Write repaired params back if changed
-            if params.count != step.params.count {
-                steps[i] = PipelineStep(
-                    id: step.id,
-                    type: step.type,
-                    params: params,
-                    toolIds: step.toolIds,
-                    patronNpubs: step.patronNpubs
-                )
+            if !toolWarnings.isEmpty {
+                warnings[toolId] = toolWarnings
+            }
+            if !chainsEqual(steps, tool.chain) {
+                tool.chain = steps
+                localEdits[toolId] = tool
             }
         }
 
-        localPipeline = steps
-        pipelineWarnings = warnings
+        chainWarnings = warnings
     }
 
     private func anyCodableValue(from value: Any) -> AnyCodableValue {
@@ -233,50 +245,95 @@ final class PricingViewModel {
     }
 
     var hasEdits: Bool {
-        !localEdits.isEmpty || !localRemovals.isEmpty || hasPipelineEdits || hasTrancheLifetimeEdits
+        !localEdits.isEmpty || !localRemovals.isEmpty || hasChainEdits || hasTrancheLifetimeEdits
     }
 
-    // MARK: - Pipeline Edits
+    // MARK: - Per-tool Chain Edits
 
-    func beginPipelineEditing() {
-        localPipeline = pricingModel?.pipeline ?? []
-        localTrancheLifetime = pricingModel?.trancheLifetime
+    /// Materialize a localEdits entry for *toolId* with the server-side
+    /// chain copied in, so subsequent chain operations have something
+    /// to mutate.  No-op if the tool already has a localEdits entry.
+    func beginChainEditing(toolId: String) {
+        guard localEdits[toolId] == nil else { return }
+        guard let server = pricingModel?.tools?.first(where: { $0.toolId == toolId }) else { return }
+        // ToolPrice is a value type — this copy is independent of the server-side one.
+        localEdits[toolId] = server
     }
 
-    func addPipelineStep(type: String, params: [String: AnyCodableValue], toolIds: [String]? = nil, patronNpubs: [String]? = nil) {
-        guard localPipeline != nil else { return }
-        let step = PipelineStep.create(type: type, params: params, toolIds: toolIds, patronNpubs: patronNpubs)
-        localPipeline?.append(step)
+    /// Return the currently-drafted chain for *toolId*: the localEdits
+    /// copy if one exists, otherwise the server's chain (read-only).
+    func chain(for toolId: String) -> [PipelineStep] {
+        if let local = localEdits[toolId] { return local.chain }
+        return pricingModel?.tools?.first(where: { $0.toolId == toolId })?.chain ?? []
     }
 
-    func clonePipelineStep(at index: Int) {
-        guard let steps = localPipeline, index < steps.count else { return }
-        let original = steps[index]
-        let clone = PipelineStep.create(type: original.type, params: original.params, toolIds: original.toolIds, patronNpubs: original.patronNpubs)
-        localPipeline?.insert(clone, at: index + 1)
+    func addChainStep(toolId: String, type: String, params: [String: AnyCodableValue], patronNpubs: [String]? = nil) {
+        beginChainEditing(toolId: toolId)
+        guard var tool = localEdits[toolId] else { return }
+        tool.chain.append(PipelineStep.create(type: type, params: params, patronNpubs: patronNpubs))
+        localEdits[toolId] = tool
     }
 
-    func removePipelineStep(at offsets: IndexSet) {
-        localPipeline?.remove(atOffsets: offsets)
+    func cloneChainStep(toolId: String, at index: Int) {
+        beginChainEditing(toolId: toolId)
+        guard var tool = localEdits[toolId], index < tool.chain.count else { return }
+        let original = tool.chain[index]
+        let clone = PipelineStep.create(type: original.type, params: original.params, patronNpubs: original.patronNpubs)
+        tool.chain.insert(clone, at: index + 1)
+        localEdits[toolId] = tool
     }
 
-    func movePipelineStep(from source: IndexSet, to destination: Int) {
-        localPipeline?.move(fromOffsets: source, toOffset: destination)
+    func removeChainStep(toolId: String, at offsets: IndexSet) {
+        beginChainEditing(toolId: toolId)
+        guard var tool = localEdits[toolId] else { return }
+        tool.chain.remove(atOffsets: offsets)
+        localEdits[toolId] = tool
     }
 
-    func updatePipelineStepParams(stepId: String, params: [String: AnyCodableValue], toolIds: [String]? = nil, patronNpubs: [String]? = nil) {
-        guard let idx = localPipeline?.firstIndex(where: { $0.id == stepId }) else { return }
-        let existing = localPipeline![idx]
-        localPipeline![idx] = PipelineStep(
+    func moveChainStep(toolId: String, from source: IndexSet, to destination: Int) {
+        beginChainEditing(toolId: toolId)
+        guard var tool = localEdits[toolId] else { return }
+        tool.chain.move(fromOffsets: source, toOffset: destination)
+        localEdits[toolId] = tool
+    }
+
+    func updateChainStepParams(
+        toolId: String,
+        stepId: String,
+        params: [String: AnyCodableValue],
+        patronNpubs: [String]? = nil,
+    ) {
+        beginChainEditing(toolId: toolId)
+        guard var tool = localEdits[toolId],
+              let idx = tool.chain.firstIndex(where: { $0.id == stepId }) else { return }
+        let existing = tool.chain[idx]
+        tool.chain[idx] = PipelineStep(
             id: existing.id, type: existing.type, params: params,
-            toolIds: toolIds ?? existing.toolIds,
-            patronNpubs: patronNpubs ?? existing.patronNpubs
+            patronNpubs: patronNpubs ?? existing.patronNpubs,
         )
+        localEdits[toolId] = tool
     }
 
-    func resetPipeline() {
-        localPipeline = nil
-        localTrancheLifetime = nil
+    /// Drop the local chain draft for *toolId* — revert to the server's
+    /// stored chain.  If no other edits exist on the tool, also remove
+    /// the localEdits entry so ``hasEdits`` flips false cleanly.
+    func resetChain(for toolId: String) {
+        guard var tool = localEdits[toolId] else { return }
+        let serverTool = pricingModel?.tools?.first(where: { $0.toolId == toolId })
+        tool.chain = serverTool?.chain ?? []
+        // If the local edit only existed for chain reasons, drop the entry.
+        if let serverTool, tool.priceSats == serverTool.priceSats,
+           tool.priced == serverTool.priced,
+           tool.priceType == serverTool.priceType,
+           tool.priceFormula == serverTool.priceFormula,
+           tool.minCost == serverTool.minCost,
+           tool.maxCost == serverTool.maxCost,
+           tool.category == serverTool.category {
+            localEdits.removeValue(forKey: toolId)
+        } else {
+            localEdits[toolId] = tool
+        }
+        chainWarnings.removeValue(forKey: toolId)
     }
 
     // MARK: - In-Memory Discovery Cache (5-minute TTL)
@@ -331,8 +388,8 @@ final class PricingViewModel {
         // Clear reconciliation state from previous target to prevent cross-contamination
         localEdits.removeAll()
         localRemovals.removeAll()
-        localPipeline = nil
         localTrancheLifetime = nil
+        chainWarnings.removeAll()
         resolvedOperatorNpub = nil
 
         currentOperatorNpub = target.npub
@@ -354,8 +411,8 @@ final class PricingViewModel {
         cache.removeValue(forKey: target.npub)
         localEdits.removeAll()
         localRemovals.removeAll()
-        localPipeline = nil
         localTrancheLifetime = nil
+        chainWarnings.removeAll()
         resolvedOperatorNpub = nil
         currentOperatorNpub = nil  // allow loadPricing guard to pass
         startLoading(for: target)
@@ -385,7 +442,7 @@ final class PricingViewModel {
             } catch {
                 let msg = error.localizedDescription
                 if msg.contains("No pricing model") || msg.contains("not configured pricing") {
-                    state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, pipeline: nil, trancheLifetime: nil))
+                    state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, trancheLifetime: nil))
                 } else {
                     state = .error(msg)
                 }
@@ -435,7 +492,7 @@ final class PricingViewModel {
             let msg = error.localizedDescription
             // "No pricing model" is not a fatal error — show empty loaded state
             if msg.contains("No pricing model") || msg.contains("not configured pricing") {
-                state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, pipeline: nil, trancheLifetime: nil))
+                state = .loaded(PricingModelResponse(status: "ok", modelId: nil, name: nil, isActive: nil, tools: nil, trancheLifetime: nil))
             } else {
                 let detail = "\(msg)\n\nUnderlying: \(String(describing: error))"
                 TrafficLogger.shared.log(.error, label: "Load Failed: \(target.displayName)", detail: detail)
@@ -542,13 +599,15 @@ final class PricingViewModel {
             throw MCPError.toolCallFailed(reason)
         }
 
-        // Pre-flight: validate and repair pipeline before sending to server
-        validateAndRepairPipeline()
-        let hardErrors = pipelineWarnings.filter { $0.contains("server will reject") }
+        // Pre-flight: validate and repair every tool's chain before sending.
+        validateAndRepairChains()
+        let hardErrors: [String] = chainWarnings.flatMap { entry in
+            entry.value.filter { $0.contains("server will reject") }
+        }
         if !hardErrors.isEmpty {
             let detail = hardErrors.joined(separator: "\n")
-            TrafficLogger.shared.log(.error, label: "Pipeline Validation", detail: detail)
-            throw MCPError.toolCallFailed("Pipeline validation failed:\n\(detail)")
+            TrafficLogger.shared.log(.error, label: "Chain Validation", detail: detail)
+            throw MCPError.toolCallFailed("Constraint chain validation failed:\n\(detail)")
         }
 
         state = .loading(step: "Saving pricing...")
@@ -571,8 +630,8 @@ final class PricingViewModel {
         // Clear local edits after successful save
         localEdits.removeAll()
         localRemovals.removeAll()
-        localPipeline = nil
         localTrancheLifetime = nil
+        chainWarnings.removeAll()
 
         // Invalidate cache and reload
         cache.removeValue(forKey: target.npub)
@@ -616,7 +675,6 @@ final class PricingViewModel {
             tools.removeAll { localRemovals.contains($0.toolId) }
         }
 
-        let pipeline = localPipeline ?? model.pipeline
         let trancheLifetime = localTrancheLifetime ?? model.trancheLifetime
         return PricingModelResponse(
             status: model.status,
@@ -624,7 +682,6 @@ final class PricingViewModel {
             name: model.name,
             isActive: model.isActive,
             tools: tools,
-            pipeline: pipeline,
             trancheLifetime: trancheLifetime,
             source: model.source
         )
