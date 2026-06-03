@@ -471,7 +471,12 @@ struct PricingDetailView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(12)
+            .background(.background, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(.separator), lineWidth: 0.5)
+            )
             .onAppear {
                 // Hydrate quietly so the chain editor's picker has data.
                 if case .idle = couponVM.loadState {
