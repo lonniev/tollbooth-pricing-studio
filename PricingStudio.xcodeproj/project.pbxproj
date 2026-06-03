@@ -96,6 +96,9 @@
 		AA0000010000000000000931 /* ConstraintScopeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000930 /* ConstraintScopeSheet.swift */; };
 		AA0000010000000000000941 /* CommunityCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000940 /* CommunityCanvasView.swift */; };
 		AA0000010000000000000612 /* ConstraintParamEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000602 /* ConstraintParamEditor.swift */; };
+		COUP00010000000000000001 /* Coupon.swift in Sources */ = {isa = PBXBuildFile; fileRef = COUP00010000000000000002 /* Coupon.swift */; };
+		COUP00010000000000000003 /* CouponViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = COUP00010000000000000004 /* CouponViewModel.swift */; };
+		COUP00010000000000000005 /* CouponsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = COUP00010000000000000006 /* CouponsView.swift */; };
 		AA0000010000000000000711 /* RelaySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000701 /* RelaySettings.swift */; };
 		AA0000010000000000000712 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000702 /* SettingsSheet.swift */; };
 		AA0000010000000000000811 /* DMPollingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000801 /* DMPollingService.swift */; };
@@ -263,6 +266,9 @@
 		AA0000010000000000000930 /* ConstraintScopeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintScopeSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000940 /* CommunityCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityCanvasView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000602 /* ConstraintParamEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintParamEditor.swift; sourceTree = "<group>"; };
+		COUP00010000000000000002 /* Coupon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Coupon.swift; sourceTree = "<group>"; };
+		COUP00010000000000000004 /* CouponViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CouponViewModel.swift; sourceTree = "<group>"; };
+		COUP00010000000000000006 /* CouponsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CouponsView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000701 /* RelaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySettings.swift; sourceTree = "<group>"; };
 		AA0000010000000000000702 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000801 /* DMPollingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMPollingService.swift; sourceTree = "<group>"; };
@@ -461,6 +467,7 @@
 				DECD000100000000000003A1 /* PeerReview.swift */,
 				DECD000100000000000007A1 /* ConsultantNote.swift */,
 				DECD00010000000000000FA1 /* NpubNameResolver.swift */,
+				COUP00010000000000000002 /* Coupon.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -519,6 +526,7 @@
 				AA0000010000000000000B04 /* SecondOpinionViewModel.swift */,
 				AA0000010000000000000B08 /* ReconciliationViewModel.swift */,
 				AA0000010000000000000C10 /* AuthorityBalanceViewModel.swift */,
+				COUP00010000000000000004 /* CouponViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -583,6 +591,7 @@
 				AA0000010000000000000B05 /* SecondOpinionSheet.swift */,
 				AA0000010000000000000B09 /* ReconciliationSheet.swift */,
 				AA0000010000000000000C02 /* ClaimAuthoritySheet.swift */,
+				COUP00010000000000000006 /* CouponsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1015,6 +1024,9 @@
 				AA0000010000000000000931 /* ConstraintScopeSheet.swift in Sources */,
 				AA0000010000000000000941 /* CommunityCanvasView.swift in Sources */,
 				AA0000010000000000000612 /* ConstraintParamEditor.swift in Sources */,
+				COUP00010000000000000001 /* Coupon.swift in Sources */,
+				COUP00010000000000000003 /* CouponViewModel.swift in Sources */,
+				COUP00010000000000000005 /* CouponsView.swift in Sources */,
 				AA0000010000000000000711 /* RelaySettings.swift in Sources */,
 				AA0000010000000000000712 /* SettingsSheet.swift in Sources */,
 				AA0000010000000000000811 /* DMPollingService.swift in Sources */,

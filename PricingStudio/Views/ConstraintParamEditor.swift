@@ -4,6 +4,9 @@ struct ConstraintParamEditor: View {
     let spec: ConstraintSpec
     let existingParams: [String: AnyCodableValue]?
     let onSave: ([String: AnyCodableValue]) -> Void
+    /// Optional — feeds the `.couponPicker` ParamType.  Nil when the
+    /// editor is opened from a context without coupon CRUD wired up.
+    var couponViewModel: CouponViewModel? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var values: [String: String] = [:]
     @State private var boolValues: [String: Bool] = [:]
@@ -115,6 +118,47 @@ struct ConstraintParamEditor: View {
                 ForEach(param.options ?? [], id: \.self) { option in
                     Text(option.capitalized).tag(option)
                 }
+            }
+
+        case .couponPicker:
+            couponPickerField(for: param)
+        }
+    }
+
+    @ViewBuilder
+    private func couponPickerField(for param: ParamSpec) -> some View {
+        if let vm = couponViewModel {
+            let pickable = vm.pickableCoupons
+            if pickable.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No coupons to pick yet.")
+                        .font(.subheadline)
+                    Text("Mint a coupon in this operator's Coupons screen, then return here to attach it to this tool's chain.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Picker(
+                    param.name.replacingOccurrences(of: "_", with: " ").capitalized,
+                    selection: binding(for: param.name),
+                ) {
+                    Text("Select a coupon…").tag("")
+                    ForEach(pickable) { coupon in
+                        Text("\(coupon.name) — \(Int(coupon.discountPercent))% off").tag(coupon.id)
+                    }
+                }
+            }
+        } else {
+            // Degraded mode — operator can still paste a UUID, but the
+            // CRUD screen is the supported flow.  Surface that.
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("coupon UUID", text: binding(for: param.name))
+                    .monospaced()
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                Text("Coupon picker isn't wired up here. Paste a coupon UUID, or attach this constraint from the Pricing detail view where the coupon list is available.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -372,6 +416,12 @@ struct ConstraintParamEditor: View {
                 }
 
             case .picklist:
+                let raw = values[param.name, default: ""]
+                if !raw.isEmpty {
+                    result[param.name] = .string(raw)
+                }
+
+            case .couponPicker:
                 let raw = values[param.name, default: ""]
                 if !raw.isEmpty {
                     result[param.name] = .string(raw)

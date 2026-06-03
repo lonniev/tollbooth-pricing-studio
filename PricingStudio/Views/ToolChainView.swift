@@ -14,6 +14,9 @@ struct ToolChainView: View {
     /// Number of *additional* tools that will receive these edits via
     /// the multi-select batch-apply.  0 = edits stay on `tool` only.
     var batchToolCount: Int = 0
+    /// Operator-side coupon catalog.  Forwarded to constraint sheets
+    /// so the coupon-picker ParamType can render a dropdown.
+    var couponViewModel: CouponViewModel? = nil
 
     @State private var showingAddSheet = false
     @State private var editingStep: PipelineStep?
@@ -47,11 +50,14 @@ struct ToolChainView: View {
             }
         }
         .sheet(isPresented: $showingAddSheet) {
-            AddConstraintSheet { type, params, patronNpubs in
-                withAnimation {
-                    chain.append(PipelineStep.create(type: type, params: params, patronNpubs: patronNpubs))
-                }
-            }
+            AddConstraintSheet(
+                onAdd: { type, params, patronNpubs in
+                    withAnimation {
+                        chain.append(PipelineStep.create(type: type, params: params, patronNpubs: patronNpubs))
+                    }
+                },
+                couponViewModel: couponViewModel,
+            )
         }
         .sheet(item: $editingStep) { step in
             if let spec = ConstraintCatalog.spec(for: step.displayType) {
@@ -65,7 +71,8 @@ struct ToolChainView: View {
                                 patronNpubs: step.patronNpubs
                             )
                         }
-                    }
+                    },
+                    couponViewModel: couponViewModel,
                 )
             }
         }

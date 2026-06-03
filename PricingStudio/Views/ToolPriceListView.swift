@@ -4,6 +4,7 @@ struct ToolPriceListView: View {
     let tools: [ToolPrice]
     var viewModel: PricingViewModel?
     var target: (any PricingTarget)?
+    var couponViewModel: CouponViewModel? = nil
 
     @State private var selectedToolIds: Set<String> = []
     @State private var batchSats: String = ""
@@ -103,8 +104,11 @@ struct ToolPriceListView: View {
                                             selectedToolIds.insert(tool.toolId)
                                         }
                                     }
-                                ToolPriceRow(tool: tool, viewModel: viewModel, target: target,
-                                             selectedToolIds: selectedToolIds, allTools: tools)
+                                ToolPriceRow(
+                                    tool: tool, viewModel: viewModel, target: target,
+                                    selectedToolIds: selectedToolIds, allTools: tools,
+                                    couponViewModel: couponViewModel,
+                                )
                             }
                         }
                     }

@@ -7,18 +7,28 @@ struct ToolPriceRow: View {
     /// When non-empty, edits apply to every selected tool (batch mode).
     var selectedToolIds: Set<String> = []
     var allTools: [ToolPrice] = []
+    /// Forwarded to the chain editor so the coupon-picker ParamType
+    /// can show the operator's coupons.
+    var couponViewModel: CouponViewModel? = nil
     @State private var showingInfo = false
     @State private var showingEditor = false
     @State private var showingTestCall = false
     @State private var showingChain = false
 
-    init(tool: ToolPrice, viewModel: PricingViewModel? = nil, target: (any PricingTarget)? = nil,
-         selectedToolIds: Set<String> = [], allTools: [ToolPrice] = []) {
+    init(
+        tool: ToolPrice,
+        viewModel: PricingViewModel? = nil,
+        target: (any PricingTarget)? = nil,
+        selectedToolIds: Set<String> = [],
+        allTools: [ToolPrice] = [],
+        couponViewModel: CouponViewModel? = nil,
+    ) {
         self.tool = tool
         self.viewModel = viewModel
         self.target = target
         self.selectedToolIds = selectedToolIds
         self.allTools = allTools
+        self.couponViewModel = couponViewModel
     }
 
     /// Tool names for batch apply — all selected tools except this one (this one is handled directly).
@@ -142,7 +152,8 @@ struct ToolPriceRow: View {
                             }
                         ),
                         warnings: vm.chainWarnings[tool.toolId] ?? [],
-                        batchToolCount: batchIds.count
+                        batchToolCount: batchIds.count,
+                        couponViewModel: couponViewModel,
                     )
                     .padding()
                 }

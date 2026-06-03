@@ -6,6 +6,9 @@ import SwiftUI
 /// editor.
 struct AddConstraintSheet: View {
     let onAdd: (String, [String: AnyCodableValue], [String]?) -> Void
+    /// Optional — passed straight through to ``ConstraintParamEditor``
+    /// so the coupon picker can render the operator's coupons.
+    var couponViewModel: CouponViewModel? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var selectedType: PipelineStepType?
     @State private var showingParamEditor = false
@@ -49,7 +52,8 @@ struct AddConstraintSheet: View {
                         onSave: { params in
                             pendingParams = params
                             showingScopeSheet = true
-                        }
+                        },
+                        couponViewModel: couponViewModel,
                     )
                 }
             }

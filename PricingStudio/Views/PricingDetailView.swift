@@ -25,6 +25,8 @@ struct PricingDetailView: View {
     @State private var showingOnboardingSheet = false
     @State private var authorityBalanceVM = AuthorityBalanceViewModel()
     @State private var showingAuthorityTopOff = false
+    @State private var couponVM = CouponViewModel()
+    @State private var showingCoupons = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
@@ -121,10 +123,17 @@ struct PricingDetailView: View {
 
                         trancheLifetimeSection(model: model)
 
+                        couponsSection
+
                         // Constraint chains now live on each tool (0.40.0+);
                         // drill into a row from the list below to edit its
                         // chain.
-                        ToolPriceListView(tools: allTools, viewModel: viewModel, target: target)
+                        ToolPriceListView(
+                            tools: allTools,
+                            viewModel: viewModel,
+                            target: target,
+                            couponViewModel: couponVM,
+                        )
                     }
                     .padding()
                 }
@@ -436,6 +445,54 @@ struct PricingDetailView: View {
     private func resolveAuthority(npub: String) -> Authority? {
         let descriptor = FetchDescriptor<Authority>(predicate: #Predicate { $0.npub == npub })
         return try? modelContext.fetch(descriptor).first
+    }
+
+    @ViewBuilder
+    private var couponsSection: some View {
+        if let raw = target.mcpEndpointURL, let endpoint = URL(string: raw) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "ticket")
+                        .foregroundStyle(.secondary)
+                    Text("Coupons")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Button {
+                        couponVM.refresh(endpointURL: endpoint, operatorNpub: target.npub)
+                        showingCoupons = true
+                    } label: {
+                        let n = couponVM.coupons.count
+                        Text(n == 0 ? "Manage…" : "\(n) coupon\(n == 1 ? "" : "s") · Manage…")
+                            .font(.caption)
+                    }
+                    .accessibilityIdentifier("manageCouponsButton")
+                }
+                Text("Mint and edit discount codes that patrons redeem once. The chain editor's coupon constraint references coupons by id.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 4)
+            .onAppear {
+                // Hydrate quietly so the chain editor's picker has data.
+                if case .idle = couponVM.loadState {
+                    couponVM.refresh(endpointURL: endpoint, operatorNpub: target.npub)
+                }
+            }
+            .sheet(isPresented: $showingCoupons) {
+                NavigationStack {
+                    CouponsView(
+                        endpointURL: endpoint,
+                        operatorNpub: target.npub,
+                        viewModel: couponVM,
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showingCoupons = false }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder

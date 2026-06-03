@@ -2278,4 +2278,210 @@ extension MCPService {
         try await throwIfSoftError(text: text, label: "Publish Campaign")
         return text
     }
+
+    // MARK: - Coupon CRUD (wheel 0.41.0+)
+
+    /// Mint a new operator-owned discount coupon.
+    func callMintCoupon(
+        endpointURL: URL,
+        operatorNpub: String,
+        name: String,
+        discountPercent: Double,
+        validFrom: Date,
+        validUntil: Date,
+        usesPerPatron: Int?,
+        totalUses: Int?
+    ) async throws -> Coupon {
+        await traffic(.outbound, label: "Mint Coupon", detail: "\(name) — \(discountPercent)% off")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+        try await client.connect(transport: transport)
+
+        let tool = try await findCouponTool(client: client, suffix: "mint_coupon")
+        let proof = try await signRuntimeProof(
+            capability: "mint_coupon",
+            endpointURL: endpointURL,
+            operatorNpub: operatorNpub,
+        )
+
+        var args: [String: Value] = [
+            "name": .string(name),
+            "discount_percent": .double(discountPercent),
+            "valid_from": .string(isoFormatter.string(from: validFrom)),
+            "valid_until": .string(isoFormatter.string(from: validUntil)),
+            "proof": .string(proof),
+        ]
+        if let upp = usesPerPatron { args["uses_per_patron"] = .int(upp) }
+        if let tu = totalUses { args["total_uses"] = .int(tu) }
+
+        let json = try await callJSONTool(client: client, name: tool.name, arguments: args, label: "Mint Coupon")
+        return try decodeCoupon(from: json, key: "coupon", label: "Mint Coupon")
+    }
+
+    /// List the operator's coupons (newest first per server order).
+    func callListCoupons(
+        endpointURL: URL,
+        operatorNpub: String
+    ) async throws -> [Coupon] {
+        await traffic(.outbound, label: "List Coupons", detail: "SSE → \(endpointURL.absoluteString)")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+        try await client.connect(transport: transport)
+
+        let tool = try await findCouponTool(client: client, suffix: "list_coupons")
+        let proof = try await signRuntimeProof(
+            capability: "list_coupons",
+            endpointURL: endpointURL,
+            operatorNpub: operatorNpub,
+        )
+
+        let json = try await callJSONTool(
+            client: client, name: tool.name,
+            arguments: ["proof": .string(proof)],
+            label: "List Coupons",
+        )
+
+        guard let rows = json["coupons"] as? [[String: Any]] else { return [] }
+        let data = try JSONSerialization.data(withJSONObject: rows)
+        let decoder = JSONDecoder()
+        return try decoder.decode([Coupon].self, from: data)
+    }
+
+    /// Patch a coupon's editable fields.  Pass only the fields you
+    /// want to change.  Use ``clearUsesPerPatron`` / ``clearTotalUses``
+    /// to set the cap to NULL (unlimited).
+    func callUpdateCoupon(
+        endpointURL: URL,
+        operatorNpub: String,
+        couponId: String,
+        name: String? = nil,
+        discountPercent: Double? = nil,
+        validFrom: Date? = nil,
+        validUntil: Date? = nil,
+        usesPerPatron: Int? = nil,
+        totalUses: Int? = nil,
+        clearUsesPerPatron: Bool = false,
+        clearTotalUses: Bool = false
+    ) async throws -> Coupon {
+        await traffic(.outbound, label: "Update Coupon", detail: couponId.prefix(8) + "…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+        try await client.connect(transport: transport)
+
+        let tool = try await findCouponTool(client: client, suffix: "update_coupon")
+        let proof = try await signRuntimeProof(
+            capability: "update_coupon",
+            endpointURL: endpointURL,
+            operatorNpub: operatorNpub,
+        )
+
+        var args: [String: Value] = [
+            "coupon_id": .string(couponId),
+            "proof": .string(proof),
+        ]
+        if let n = name { args["name"] = .string(n) }
+        if let d = discountPercent { args["discount_percent"] = .double(d) }
+        if let vf = validFrom { args["valid_from"] = .string(isoFormatter.string(from: vf)) }
+        if let vu = validUntil { args["valid_until"] = .string(isoFormatter.string(from: vu)) }
+        if let upp = usesPerPatron { args["uses_per_patron"] = .int(upp) }
+        if let tu = totalUses { args["total_uses"] = .int(tu) }
+        if clearUsesPerPatron { args["clear_uses_per_patron"] = .bool(true) }
+        if clearTotalUses { args["clear_total_uses"] = .bool(true) }
+
+        let json = try await callJSONTool(client: client, name: tool.name, arguments: args, label: "Update Coupon")
+        return try decodeCoupon(from: json, key: "coupon", label: "Update Coupon")
+    }
+
+    /// Delete a coupon (cascades to all patron redemptions).
+    func callDeleteCoupon(
+        endpointURL: URL,
+        operatorNpub: String,
+        couponId: String
+    ) async throws {
+        await traffic(.outbound, label: "Delete Coupon", detail: couponId.prefix(8) + "…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+        try await client.connect(transport: transport)
+
+        let tool = try await findCouponTool(client: client, suffix: "delete_coupon")
+        let proof = try await signRuntimeProof(
+            capability: "delete_coupon",
+            endpointURL: endpointURL,
+            operatorNpub: operatorNpub,
+        )
+
+        _ = try await callJSONTool(
+            client: client, name: tool.name,
+            arguments: [
+                "coupon_id": .string(couponId),
+                "proof": .string(proof),
+            ],
+            label: "Delete Coupon",
+        )
+    }
+
+    // MARK: - Coupon helpers
+
+    private var isoFormatter: ISO8601DateFormatter {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }
+
+    private func findCouponTool(
+        client: Client, suffix: String,
+    ) async throws -> Tool {
+        let all = try await listAllTools(client: client)
+        guard let t = all.first(where: { $0.name.hasSuffix("_" + suffix) || $0.name == suffix }) else {
+            await traffic(.error, label: "Coupon Tool", detail: "No \(suffix) tool found")
+            throw MCPError.toolCallFailed("No \(suffix) tool found on this MCP")
+        }
+        return t
+    }
+
+    private func callJSONTool(
+        client: Client,
+        name: String,
+        arguments: [String: Value],
+        label: String,
+    ) async throws -> [String: Any] {
+        await traffic(.outbound, label: "callTool: \(name)", detail: "args=\(arguments.keys.sorted().joined(separator: ","))")
+        let (content, isError) = try await client.callTool(name: name, arguments: arguments)
+        let text = content.compactMap { extractText($0) }.joined()
+        if isError == true {
+            await traffic(.error, label: "\(label) Error", detail: text)
+            throw MCPError.toolCallFailed(text)
+        }
+        await traffic(.inbound, label: label, detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: label)
+        guard
+            let data = text.data(using: .utf8),
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            throw MCPError.invalidResponse
+        }
+        if let success = json["success"] as? Bool, success == false {
+            let err = (json["error"] as? String) ?? "Unknown error"
+            throw MCPError.toolCallFailed(err)
+        }
+        return json
+    }
+
+    private func decodeCoupon(
+        from json: [String: Any], key: String, label: String,
+    ) throws -> Coupon {
+        guard let row = json[key] as? [String: Any] else {
+            throw MCPError.toolCallFailed("\(label) response missing '\(key)'")
+        }
+        let data = try JSONSerialization.data(withJSONObject: row)
+        return try JSONDecoder().decode(Coupon.self, from: data)
+    }
 }

@@ -13,6 +13,7 @@ enum ParamType {
     case daysOfWeek    // array of day indices (0=Mon..6=Sun, ISO 8601)
     case date          // YYYY-MM-DD calendar date picker
     case picklist      // selection from a fixed list of options
+    case couponPicker  // operator-owned coupon UUID; renders a picker fed by CouponViewModel
 }
 
 // MARK: - Parameter specification
@@ -82,56 +83,14 @@ struct ConstraintCatalog {
         ConstraintSpec(
             type: .coupon,
             category: "Pricing",
-            description: "Apply a discount when a valid coupon code is supplied.",
+            description: "Apply a redeemed coupon's discount. The coupon is owned by the operator (mint via Coupons) — this chain step just references it by id.",
             params: [
                 ParamSpec(
-                    name: "code",
-                    type: .string,
+                    name: "coupon_id",
+                    type: .couponPicker,
                     required: true,
                     defaultValue: nil,
-                    description: "The coupon code string."
-                ),
-                ParamSpec(
-                    name: "discount_percent",
-                    type: .float,
-                    required: false,
-                    defaultValue: .double(0.0),
-                    description: "Percentage discount (0-100)."
-                ),
-                ParamSpec(
-                    name: "discount_sats",
-                    type: .int,
-                    required: false,
-                    defaultValue: .int(0),
-                    description: "Absolute discount in api-sats."
-                ),
-                ParamSpec(
-                    name: "free",
-                    type: .bool,
-                    required: false,
-                    defaultValue: .bool(false),
-                    description: "If true, the tool call is free when this coupon is applied."
-                ),
-                ParamSpec(
-                    name: "max_redemptions",
-                    type: .int,
-                    required: false,
-                    defaultValue: nil,
-                    description: "Optional global cap on total redemptions."
-                ),
-                ParamSpec(
-                    name: "max_per_patron",
-                    type: .int,
-                    required: false,
-                    defaultValue: nil,
-                    description: "Optional per-patron redemption cap."
-                ),
-                ParamSpec(
-                    name: "expires_at",
-                    type: .string,
-                    required: false,
-                    defaultValue: nil,
-                    description: "Optional ISO-8601 expiry datetime."
+                    description: "Pick an operator-owned coupon. The discount % and window live on the coupon row, not on this chain step."
                 ),
             ]
         ),
