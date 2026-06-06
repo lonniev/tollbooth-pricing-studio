@@ -76,13 +76,21 @@ final class NostrRelayService: Sendable {
     // MARK: - Publish
 
     /// Publish an event to ALL relays in parallel — maximizes reach.
+    /// When `primaryRelay` is given it joins the target set even if absent
+    /// from the user's configured relay list (courier rendezvous pinning —
+    /// the courier's listener drains only its rendezvous relay).
     func publish(_ event: NostrEvent, primaryRelay: URL? = nil) async -> [(URL, Bool, String)] {
+        var targets = relays
+        if let primary = primaryRelay, !targets.contains(primary) {
+            targets.insert(primary, at: 0)
+        }
+
         guard let message = try? event.toRelayMessage() else {
-            return relays.map { ($0, false, "serialization failed") }
+            return targets.map { ($0, false, "serialization failed") }
         }
 
         return await withTaskGroup(of: (URL, Bool, String).self) { group in
-            for relay in relays {
+            for relay in targets {
                 group.addTask {
                     await Self.publishToRelay(relay, message: message)
                 }

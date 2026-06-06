@@ -338,13 +338,26 @@ final class ChatViewModel {
             )
         }
 
+        // Courier relay pinning: if the counterparty's latest courier DM
+        // names a rendezvous relay, the reply MUST be published there —
+        // the courier's listener drains only that relay.
+        let pinnedRelay = conversations
+            .first(where: { $0.counterpartyPubkeyHex == counterpartyPubkeyHex })?
+            .messages
+            .filter { !$0.isFromMe }
+            .reversed()
+            .compactMap { CourierPayload.parse($0.content)?.rendezvousRelay?.value }
+            .compactMap { URL(string: $0) }
+            .first
+
         // Send to relay in background — message is already visible as pending
         do {
             try await dmService.sendDM(
                 privateKeyHex: privHex,
                 publicKeyHex: identity.publicKeyHex,
                 recipientPubkeyHex: counterpartyPubkeyHex,
-                message: content
+                message: content,
+                pinnedRelay: pinnedRelay
             )
             // Relay accepted — clear pending state and update cache immediately
             pendingMessageIds.remove(optimisticId)

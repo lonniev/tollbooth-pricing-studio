@@ -56,15 +56,27 @@ actor NostrDMService {
     // MARK: - Send DM (Dual Protocol)
 
     /// Send a DM via both NIP-17 gift wrap and NIP-04 legacy.
+    ///
+    /// When `pinnedRelay` is given (courier rendezvous pinning), the send
+    /// only counts as successful if that exact relay accepted the event —
+    /// the courier's listener drains only its rendezvous relay, so a reply
+    /// that lands anywhere else is invisible to it.
     func sendDM(
         privateKeyHex: String,
         publicKeyHex: String,
         recipientPubkeyHex: String,
-        message: String
+        message: String,
+        pinnedRelay: URL? = nil
     ) async throws {
         var nip17OK = false
         var nip04OK = false
+        var pinnedOK = false
         var errors: [String] = []
+
+        func pinnedAccepted(_ results: [(URL, Bool, String)]) -> Bool {
+            guard let pinned = pinnedRelay else { return true }
+            return results.contains { $0.0 == pinned && $0.1 }
+        }
 
         // NIP-17 gift wrap (kind 1059 → 13 → 14)
         do {
@@ -74,9 +86,10 @@ actor NostrDMService {
                 recipientPubKeyHex: recipientPubkeyHex,
                 message: message
             )
-            let results = await relay.publish(wrapEvent)
+            let results = await relay.publish(wrapEvent, primaryRelay: pinnedRelay)
             let accepted = results.filter { $0.1 }.count
             nip17OK = accepted > 0
+            pinnedOK = pinnedOK || pinnedAccepted(results)
             if !nip17OK {
                 let details = results.filter { !$0.1 }.map { "\($0.0): \($0.2)" }.joined(separator: "; ")
                 errors.append("NIP-17: \(details)")
@@ -93,9 +106,10 @@ actor NostrDMService {
                 recipientPubKeyHex: recipientPubkeyHex,
                 message: message
             )
-            let results = await relay.publish(dmEvent)
+            let results = await relay.publish(dmEvent, primaryRelay: pinnedRelay)
             let accepted = results.filter { $0.1 }.count
             nip04OK = accepted > 0
+            pinnedOK = pinnedOK || pinnedAccepted(results)
             if !nip04OK {
                 let details = results.filter { !$0.1 }.map { "\($0.0): \($0.2)" }.joined(separator: "; ")
                 errors.append("NIP-04: \(details)")
@@ -113,8 +127,17 @@ actor NostrDMService {
             throw DMError.allSendsFailed(errors.joined(separator: "; "))
         }
 
+        if let pinned = pinnedRelay, !pinnedOK {
+            let detail = errors.isEmpty ? "relay did not acknowledge the event" : errors.joined(separator: "; ")
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "DM Pin Missed", detail: "\(pinned.absoluteString): \(detail)", npub: senderNpub)
+            }
+            throw DMError.pinnedRelayFailed(pinned.absoluteString, detail)
+        }
+
         await MainActor.run {
-            TrafficLogger.shared.log(.outbound, label: "DM Sent", detail: "\(publicKeyHex.prefix(8))\u{2192}\(recipientPubkeyHex.prefix(8)) NIP-17: \(nip17OK ? "OK" : "fail"), NIP-04: \(nip04OK ? "OK" : "fail")", npub: senderNpub)
+            let pinNote = pinnedRelay.map { ", pinned \($0.host ?? $0.absoluteString): OK" } ?? ""
+            TrafficLogger.shared.log(.outbound, label: "DM Sent", detail: "\(publicKeyHex.prefix(8))\u{2192}\(recipientPubkeyHex.prefix(8)) NIP-17: \(nip17OK ? "OK" : "fail"), NIP-04: \(nip04OK ? "OK" : "fail")\(pinNote)", npub: senderNpub)
         }
         logger.info("Sent DM (NIP-17: \(nip17OK), NIP-04: \(nip04OK))")
     }
@@ -382,11 +405,14 @@ struct DecryptedDM: Identifiable, Sendable {
 
 enum DMError: LocalizedError {
     case allSendsFailed(String)
+    case pinnedRelayFailed(String, String)
     case serializationFailed
 
     var errorDescription: String? {
         switch self {
         case .allSendsFailed(let detail): return "All relay sends failed: \(detail)"
+        case .pinnedRelayFailed(let relay, let detail):
+            return "The courier is listening on \(relay), but the reply could not be published there: \(detail). Retry — the reply must land on that exact relay to be seen."
         case .serializationFailed: return "Event serialization failed"
         }
     }
