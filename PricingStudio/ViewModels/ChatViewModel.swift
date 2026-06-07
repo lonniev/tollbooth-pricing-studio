@@ -1,5 +1,8 @@
 import Foundation
 import OSLog
+#if canImport(UIKit)
+import UIKit
+#endif
 
 private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "Chat")
 
@@ -106,12 +109,14 @@ final class ChatViewModel {
                 cached[idx].messages[optimisticIdx] = dm
             } else {
                 cached[idx].messages.append(dm)
+                if !dm.isFromMe { Haptics.messageReceived() }
             }
         } else {
             cached.insert(
                 DMConversation(counterpartyPubkeyHex: counterpartyHex, messages: [dm]),
                 at: 0
             )
+            if !dm.isFromMe { Haptics.messageReceived() }
         }
 
         conversationCache[npub] = CachedConversations(
@@ -361,6 +366,7 @@ final class ChatViewModel {
             )
             // Relay accepted — clear pending state and update cache immediately
             pendingMessageIds.remove(optimisticId)
+            Haptics.messageConfirmed()
             if let npub = currentIdentity?.npub {
                 conversationCache[npub] = CachedConversations(
                     conversations: conversations,
@@ -414,6 +420,32 @@ final class ChatViewModel {
     var selectedConversation: DMConversation? {
         guard let id = selectedConversationId else { return nil }
         return conversations.first { $0.id == id }
+    }
+}
+
+// MARK: - Haptics
+
+/// Gentle haptic cues for Nostr chat events. Centralized so the "feel" stays
+/// consistent and so new touch points can reuse the same vocabulary. Inbound
+/// DMs get a medium bump (unsolicited — worth a nudge); an outbound DM clearing
+/// from pending to relay-confirmed gets a lighter tick (an ack, not an alert).
+@MainActor
+enum Haptics {
+
+    /// A new inbound DM landed in a conversation.
+    static func messageReceived() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        #endif
+    }
+
+    /// An outbound DM transitioned from sent-but-pending to relay-confirmed.
+    static func messageConfirmed() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        #endif
     }
 }
 
