@@ -624,7 +624,8 @@ struct SecureCourierCard: View {
             let result = try await MCPService().callReceiveCredentials(
                 endpointURL: endpointURL,
                 senderNpub: effectiveSender,
-                service: credentialService
+                service: credentialService,
+                poison: currentPoison
             )
             if let data = result.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {

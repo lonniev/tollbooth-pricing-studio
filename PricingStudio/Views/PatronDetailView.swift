@@ -586,6 +586,9 @@ struct TopOffSheet: View {
     @State private var purchaseState: PurchaseState = .idle
     @State private var paymentCheckState: PaymentCheckState = .idle
     @State private var proofState: ProofExchangeState = .idle
+    /// proof_token (poison) from request_npub_proof, passed to the matching
+    /// receive_npub_proof so the wheel can resolve the pinned relay.
+    @State private var proofToken: String = ""
 
     private let presets = [100, 500, 1000, 5000]
     private let mcpService = MCPService()
@@ -1010,10 +1013,11 @@ struct TopOffSheet: View {
         proofState = .requesting
         Task {
             do {
-                _ = try await mcpService.callRequestNpubProof(
+                let challenge = try await mcpService.callRequestNpubProof(
                     endpointURL: endpointURL,
                     patronNpub: patronNpub
                 )
+                proofToken = challenge.proofToken
                 proofState = .awaitingReply
             } catch {
                 proofState = .failed(error.localizedDescription)
@@ -1034,7 +1038,8 @@ struct TopOffSheet: View {
                 // purchase() call picks it up via argsWithProof.
                 _ = try await mcpService.callReceiveNpubProof(
                     endpointURL: endpointURL,
-                    patronNpub: patronNpub
+                    patronNpub: patronNpub,
+                    poison: proofToken
                 )
                 proofState = .idle
                 purchase()

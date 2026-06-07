@@ -1002,6 +1002,9 @@ struct AuthorityTopOffSheet: View {
     /// their Nostr client correctly. Empty when the wheel predates the
     /// pinning protocol.
     @State private var proofRendezvousRelay: String = ""
+    /// The proof_token (poison) from request_npub_proof; required by
+    /// receive_npub_proof to resolve the pinned rendezvous relay.
+    @State private var proofToken: String = ""
 
     private let presets = [500, 1000, 5000, 10000]
     private let mcpService = MCPService()
@@ -1321,6 +1324,7 @@ struct AuthorityTopOffSheet: View {
                     patronNpub: purchaserIdentityNpub
                 )
                 proofRendezvousRelay = challenge.rendezvousRelay
+                proofToken = challenge.proofToken
                 proofState = .awaitingReply
             } catch {
                 proofState = .failed(error.localizedDescription)
@@ -1338,7 +1342,8 @@ struct AuthorityTopOffSheet: View {
             do {
                 _ = try await mcpService.callReceiveNpubProof(
                     endpointURL: endpointURL,
-                    patronNpub: purchaserIdentityNpub
+                    patronNpub: purchaserIdentityNpub,
+                    poison: proofToken
                 )
                 proofState = .idle
                 purchase()

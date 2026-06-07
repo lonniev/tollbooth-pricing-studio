@@ -207,11 +207,18 @@ actor MCPService {
 
     /// Receive and confirm a poison-keyed npub ownership proof.
     /// Returns the proof_token and stores it in Keychain for the patron+operator pair.
-    func callReceiveNpubProof(endpointURL: URL, patronNpub: String) async throws -> String {
+    ///
+    /// - Parameter poison: the `proof_token` returned by ``callRequestNpubProof``.
+    ///   The wheel's deterministic retrieve contract requires it to resolve the
+    ///   pinned rendezvous relay for this exact challenge.
+    func callReceiveNpubProof(endpointURL: URL, patronNpub: String, poison: String) async throws -> String {
         let result = try await callToolGeneric(
             endpointURL: endpointURL,
             toolName: "receive_npub_proof",
-            arguments: ["patron_npub": .string(patronNpub)]
+            arguments: [
+                "patron_npub": .string(patronNpub),
+                "poison": .string(poison),
+            ]
         )
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -1801,6 +1808,7 @@ actor MCPService {
         endpointURL: URL,
         senderNpub: String,
         service: String = "",
+        poison: String = "",
         credentialCard: String = ""
     ) async throws -> String {
         let label = credentialCard.isEmpty ? "Receive Credentials" : "Redeem ncred"
@@ -1823,6 +1831,11 @@ actor MCPService {
         ]
         if !service.isEmpty {
             args["service"] = .string(service)
+        }
+        // Poison (the session phrase from request_credential_channel) is
+        // required by the wheel unless redeeming a credential card.
+        if !poison.isEmpty {
+            args["poison"] = .string(poison)
         }
         if !credentialCard.isEmpty {
             args["credential_card"] = .string(credentialCard)

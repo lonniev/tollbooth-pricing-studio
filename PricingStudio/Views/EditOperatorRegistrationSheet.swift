@@ -12,6 +12,9 @@ struct EditOperatorRegistrationSheet: View {
     @State private var serviceURL: String = ""
     @State private var displayName: String = ""
     @State private var status: UpdateStatus = .idle
+    /// proof_token (poison) from request_npub_proof, passed to the matching
+    /// receive_npub_proof so the wheel can resolve the pinned relay.
+    @State private var proofToken: String = ""
 
     enum UpdateStatus: Equatable {
         case idle
@@ -352,10 +355,11 @@ struct EditOperatorRegistrationSheet: View {
         status = .acquiringProof(npub: npub, phase: .sending)
         let mcpService = MCPService()
         do {
-            _ = try await mcpService.callRequestNpubProof(
+            let challenge = try await mcpService.callRequestNpubProof(
                 endpointURL: endpointURL,
                 patronNpub: npub
             )
+            proofToken = challenge.proofToken
             status = .acquiringProof(npub: npub, phase: .awaitingReply)
         } catch {
             status = .failed("Failed to send proof challenge: \(error.localizedDescription)")
@@ -378,7 +382,8 @@ struct EditOperatorRegistrationSheet: View {
             // on the retry's cached-token fallback.
             _ = try await mcpService.callReceiveNpubProof(
                 endpointURL: endpointURL,
-                patronNpub: npub
+                patronNpub: npub,
+                poison: proofToken
             )
             await performUpdate()
         } catch {

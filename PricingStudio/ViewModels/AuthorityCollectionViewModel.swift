@@ -209,6 +209,9 @@ final class AuthorityCollectionViewModel {
 
     var showingAdoptSheet = false
     var adoptionStatus: AdoptionStatus = .idle
+    /// proof_token (poison) from the most recent request_npub_proof, threaded
+    /// into the matching receive_npub_proof so the wheel can resolve the pin.
+    private var pendingProofToken: String = ""
 
     func requestAdopt(_ auth: Authority) {
         authorityToClaim = auth  // reuse to track which authority
@@ -311,10 +314,11 @@ final class AuthorityCollectionViewModel {
         adoptionStatus = .acquiringProof(npub: npub, phase: .sending)
         let mcpService = MCPService()
         do {
-            _ = try await mcpService.callRequestNpubProof(
+            let challenge = try await mcpService.callRequestNpubProof(
                 endpointURL: endpointURL,
                 patronNpub: npub
             )
+            pendingProofToken = challenge.proofToken
             adoptionStatus = .acquiringProof(npub: npub, phase: .awaitingReply)
         } catch {
             adoptionStatus = .failed("Failed to send proof challenge: \(error.localizedDescription)")
@@ -341,7 +345,8 @@ final class AuthorityCollectionViewModel {
             // for (npub, host) — argsWithProof will use it on the retry.
             _ = try await mcpService.callReceiveNpubProof(
                 endpointURL: endpointURL,
-                patronNpub: npub
+                patronNpub: npub,
+                poison: pendingProofToken
             )
             await adoptOperator(
                 authority: authority,
