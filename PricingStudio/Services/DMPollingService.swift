@@ -127,11 +127,16 @@ final class DMPollingService {
     /// the persisted last-seen timestamp. Unlike the foreground first poll
     /// (which only baselines timestamps to avoid flagging the existing backlog),
     /// this DELIBERATELY notifies: surfacing new DMs while the app is suspended
-    /// is the whole point. Builds its own ModelContext from the shared container
-    /// since there is no view in scope. Does not start the persistent loop.
+    /// is the whole point.
+    ///
+    /// Crucially, this path NEVER touches SwiftData. iOS can launch the app
+    /// directly into the background to service the refresh task, before any
+    /// scene — and thus before the CloudKit-backed ModelContainer — exists.
+    /// Constructing that container on a headless background thread traps inside
+    /// SwiftData (EXC_BREAKPOINT). So the roster comes from a UserDefaults
+    /// snapshot written by the foreground; nsecs come from the Keychain.
     func runBackgroundDrain() async {
-        let context = ModelContext(AppModelContainer.shared)
-        let entities = gatherEntities(modelContext: context)
+        let entities = backgroundEntities()
         guard entities.contains(where: { $0.hasKeys }) else { return }
 
         pollCycle += 1
@@ -241,7 +246,25 @@ final class DMPollingService {
         let authorities = (try? modelContext.fetch(FetchDescriptor<Authority>())) ?? []
         let allNpubs = operators.map(\.npub) + patrons.map(\.npub) + authorities.map(\.npub)
 
-        return allNpubs.map { npub in
+        // Snapshot the roster so the background refresh task can rebuild these
+        // entities WITHOUT touching SwiftData (see backgroundEntities()).
+        UserDefaults.standard.set(allNpubs, forKey: Self.knownNpubsKey)
+
+        return entitiesForNpubs(allNpubs)
+    }
+
+    /// Build poll entities for the background refresh task WITHOUT touching
+    /// SwiftData — reads the roster from the foreground's UserDefaults snapshot.
+    /// See runBackgroundDrain() for why a ModelContainer must not be built here.
+    private func backgroundEntities() -> [DMPollEntity] {
+        let npubs = (UserDefaults.standard.array(forKey: Self.knownNpubsKey) as? [String]) ?? []
+        return entitiesForNpubs(npubs)
+    }
+
+    /// Map npubs → poll entities by pulling each nsec from the Keychain.
+    /// Keychain + key derivation only — no SwiftData, safe off any thread.
+    private func entitiesForNpubs(_ npubs: [String]) -> [DMPollEntity] {
+        npubs.map { npub in
             let nsec = KeychainService.loadNsec(forNpub: npub)
             let privKeyHex = nsec.flatMap { try? NostrKeyService.privateKeyHexFromNsec($0) }
             let pubKeyHex = try? NostrKeyService.publicKeyHexFromNpub(npub)
@@ -379,6 +402,7 @@ final class DMPollingService {
     // MARK: - Persistence
 
     private static let storageKey = "dm.lastSeenTimestamps"
+    private static let knownNpubsKey = "dm.knownNpubs"
     private func saveLastSeen() { UserDefaults.standard.set(lastSeenTimestamps, forKey: Self.storageKey) }
     private func loadLastSeen() {
         if let saved = UserDefaults.standard.dictionary(forKey: Self.storageKey) as? [String: Int] {
