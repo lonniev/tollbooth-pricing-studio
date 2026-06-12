@@ -24,5 +24,19 @@
 			</array>
 		</dict>
 	</array>
+	<!--
+	  Background DM notifications: `fetch` lets iOS opportunistically wake the
+	  app to drain the relay and post local notifications while it is NOT the
+	  foreground app. iOS controls the cadence (it is not real-time); the
+	  registered BGAppRefreshTask identifier must be listed here.
+	-->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.tollbooth.dpyc.PricingStudio.dmrefresh</string>
+	</array>
 </dict>
 </plist>

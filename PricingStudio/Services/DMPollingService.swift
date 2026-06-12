@@ -120,6 +120,30 @@ final class DMPollingService {
         subscriptionsActive = false
     }
 
+    /// One-shot drain for the background DM-refresh task (BGAppRefreshTask).
+    ///
+    /// Runs a single fetch cycle via the poll path — the background has no live
+    /// websocket subscriptions — and posts notifications for anything newer than
+    /// the persisted last-seen timestamp. Unlike the foreground first poll
+    /// (which only baselines timestamps to avoid flagging the existing backlog),
+    /// this DELIBERATELY notifies: surfacing new DMs while the app is suspended
+    /// is the whole point. Builds its own ModelContext from the shared container
+    /// since there is no view in scope. Does not start the persistent loop.
+    func runBackgroundDrain() async {
+        let context = ModelContext(AppModelContainer.shared)
+        let entities = gatherEntities(modelContext: context)
+        guard entities.contains(where: { $0.hasKeys }) else { return }
+
+        pollCycle += 1
+        let cycle = pollCycle
+        let timestamps = lastSeenTimestamps
+        let results = await Task.detached {
+            await dmPollEntities(entities: entities, timestamps: timestamps, cycle: cycle)
+        }.value
+        applyResults(results)
+        lastPollAt = Date()
+    }
+
     // MARK: - Subscriptions
 
     private func startSubscriptions(modelContext: ModelContext) {
