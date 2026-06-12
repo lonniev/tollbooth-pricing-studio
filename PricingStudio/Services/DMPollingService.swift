@@ -137,8 +137,13 @@ final class DMPollingService {
         pollCycle += 1
         let cycle = pollCycle
         let timestamps = lastSeenTimestamps
-        let results = await Task.detached {
-            await dmPollEntities(entities: entities, timestamps: timestamps, cycle: cycle)
+        // iOS grants a BGAppRefreshTask only ~30s. Cap the whole drain well
+        // under that so it completes and signals the OS cleanly, instead of
+        // racing the per-entity 45s fetch timeout and getting watchdog-killed.
+        let results: [DMPollResult] = await Task.detached {
+            (try? await withThrowingTimeout(seconds: 20) {
+                await dmPollEntities(entities: entities, timestamps: timestamps, cycle: cycle)
+            }) ?? []
         }.value
         applyResults(results)
         lastPollAt = Date()

@@ -72,15 +72,44 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
     /// One opportunistic background drain: fetch new DMs, post notifications,
     /// then complete. Always reschedules first so the chain continues.
+    ///
+    /// iOS grants a BGAppRefreshTask only ~30s and KILLS the app (watchdog) if
+    /// `setTaskCompleted` is not called in time. The drain itself can race past
+    /// that budget (and `work.cancel()` cannot interrupt the detached relay
+    /// fetch), so we MUST guarantee a completion signal from whichever fires
+    /// first — the drain finishing or iOS expiring us. The latch makes that
+    /// call exactly-once; calling `setTaskCompleted` twice is itself a crash.
     private func handleDMRefresh(_ task: BGAppRefreshTask) {
         scheduleDMRefresh()
 
+        let latch = CompletionLatch()
         let work = Task {
             await DMPollingService.shared.runBackgroundDrain()
-            task.setTaskCompleted(success: !Task.isCancelled)
+            if latch.tryComplete() {
+                task.setTaskCompleted(success: !Task.isCancelled)
+            }
         }
-        // iOS grants ~30s; if it runs out, cancel the drain cleanly.
-        task.expirationHandler = { work.cancel() }
+        task.expirationHandler = {
+            work.cancel()
+            if latch.tryComplete() {
+                task.setTaskCompleted(success: false)
+            }
+        }
+    }
+}
+
+/// Thread-safe one-shot flag: the BGTask completion and its expiration handler
+/// run on different threads and either may win the race. `tryComplete()` lets
+/// exactly one of them call `setTaskCompleted`.
+private final class CompletionLatch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    func tryComplete() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if done { return false }
+        done = true
+        return true
     }
 }
 
