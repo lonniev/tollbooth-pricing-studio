@@ -48,23 +48,22 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Register the background DM-refresh handler (must happen before launch
         // completes) and queue the first opportunity.
         //
-        // BGTaskScheduler invokes this @Sendable launch handler on a BACKGROUND
-        // dispatch queue, but handleDMRefresh — and everything it reaches (the
-        // @MainActor DMPollingService) — is main-actor isolated (because
-        // UIApplicationDelegate is @MainActor). Touching that isolation
-        // synchronously from the background queue makes the Swift runtime's
-        // dynamic isolation check trap (dispatch_assert_queue → brk 1). So hop
-        // to the main actor first, then do the work.
+        // Register on the MAIN queue — this is load-bearing. BGTaskScheduler's
+        // launchHandler is a non-Sendable ObjC block (no NS_SWIFT_SENDABLE), so
+        // a closure written here, inside the @MainActor didFinishLaunching, is
+        // inferred @MainActor-isolated — as are handleDMRefresh and the
+        // @MainActor DMPollingService it drives. With `using: nil` the system
+        // runs that closure on a BACKGROUND queue, and the Swift runtime's
+        // isolation check traps on closure entry (dispatch_assert_queue → brk 1)
+        // before the body even runs — so no amount of hopping inside the body
+        // helps. Running the handler (and its same-queue expirationHandler) on
+        // the main queue satisfies the main-actor executor; BGTask is also
+        // non-Sendable, so keeping it main-confined avoids a Sendable boundary.
+        // The heavy work is still offloaded inside runBackgroundDrain.
         BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: Self.dmRefreshTaskID, using: nil
+            forTaskWithIdentifier: Self.dmRefreshTaskID, using: .main
         ) { [weak self] task in
-            guard let refreshTask = task as? BGAppRefreshTask else {
-                task.setTaskCompleted(success: false)
-                return
-            }
-            Task { @MainActor in
-                self?.handleDMRefresh(refreshTask)
-            }
+            self?.handleDMRefresh(task as! BGAppRefreshTask)
         }
         scheduleDMRefresh()
         return true
