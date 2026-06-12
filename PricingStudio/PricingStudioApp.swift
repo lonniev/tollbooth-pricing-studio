@@ -47,10 +47,24 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
         // Register the background DM-refresh handler (must happen before launch
         // completes) and queue the first opportunity.
+        //
+        // BGTaskScheduler invokes this @Sendable launch handler on a BACKGROUND
+        // dispatch queue, but handleDMRefresh — and everything it reaches (the
+        // @MainActor DMPollingService) — is main-actor isolated (because
+        // UIApplicationDelegate is @MainActor). Touching that isolation
+        // synchronously from the background queue makes the Swift runtime's
+        // dynamic isolation check trap (dispatch_assert_queue → brk 1). So hop
+        // to the main actor first, then do the work.
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.dmRefreshTaskID, using: nil
         ) { [weak self] task in
-            self?.handleDMRefresh(task as! BGAppRefreshTask)
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            Task { @MainActor in
+                self?.handleDMRefresh(refreshTask)
+            }
         }
         scheduleDMRefresh()
         return true
