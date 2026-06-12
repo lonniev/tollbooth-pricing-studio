@@ -150,7 +150,7 @@ final class DMPollingService {
                 await dmPollEntities(entities: entities, timestamps: timestamps, cycle: cycle)
             }) ?? []
         }.value
-        applyResults(results)
+        applyBackgroundResults(results, priorWatermarks: timestamps)
         lastPollAt = Date()
     }
 
@@ -289,6 +289,39 @@ final class DMPollingService {
         }
         unreadCounts = updated
         updateAppBadge()
+    }
+
+    /// Apply a background-drain result set so notifications feel like *arrivals*,
+    /// not a recap of the relay backlog. Differs from `applyResults` in two ways:
+    ///
+    ///   1. An npub we have no watermark for yet is BASELINED silently — we
+    ///      record where the conversation stands but post nothing, so a cold
+    ///      start (or a lost watermark) never dumps the existing backlog as
+    ///      "new." Only npubs with an established watermark can notify.
+    ///   2. The advanced watermark is flushed to disk synchronously. Each
+    ///      background wake is a fresh, short-lived process that iOS suspends the
+    ///      moment it finishes; without forcing the write, consecutive wakes load
+    ///      the stale watermark and re-announce the same messages every time.
+    private func applyBackgroundResults(_ results: [DMPollResult], priorWatermarks: [String: Int]) {
+        var updatedUnread = unreadCounts
+        for r in results {
+            let hadWatermark = priorWatermarks[r.npub] != nil
+            if hadWatermark && r.newCount > 0 {
+                updatedUnread[r.npub] = (updatedUnread[r.npub] ?? 0) + r.newCount
+                postLocalNotification(npub: r.npub, preview: "\(r.newCount) new message\(r.newCount == 1 ? "" : "s")")
+            }
+            // Advance — or, on first sight, silently baseline — the watermark.
+            let lastSeen = lastSeenTimestamps[r.npub] ?? 0
+            if r.latestTimestamp > lastSeen {
+                lastSeenTimestamps[r.npub] = r.latestTimestamp
+            }
+        }
+        unreadCounts = updatedUnread
+        updateAppBadge()
+        saveLastSeen()
+        // Force the watermark to disk before iOS suspends this background process,
+        // so the next wake resumes from here instead of re-announcing the backlog.
+        UserDefaults.standard.synchronize()
     }
 
     /// First poll only: update timestamps without incrementing unread counts.
