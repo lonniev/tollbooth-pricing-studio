@@ -51,6 +51,10 @@ final class DMPollingService {
         updated[npub] = 0
         unreadCounts = updated
         lastSeenTimestamps[npub] = Int(Date().timeIntervalSince1970)
+        // Reading the queue clears the seen-set: the slate resets so a later,
+        // genuinely-new DM announces, while the just-advanced watermark keeps any
+        // replayed backlog (now older than the watermark) from re-announcing.
+        notifiedStore.clear(npub: npub)
         saveLastSeen()
         updateAppBadge()
     }
@@ -199,14 +203,23 @@ final class DMPollingService {
                         let isNew = self.subscriptionsStartedAt == nil
                             || dm.createdAt > (self.subscriptionsStartedAt! - 60)  // 60s grace for clock skew
                         if !dm.isFromMe && isNew {
-                            var updated = self.unreadCounts
-                            updated[npub] = (updated[npub] ?? 0) + 1
-                            self.unreadCounts = updated
-                            self.updateAppBadge()
-                            // Redact courier payloads — don't leak secrets in notifications or logs
-                            let isCourier = dm.content.contains("@@@")
-                            let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
-                            self.postLocalNotification(npub: npub, preview: safePreview, dm: dm)
+                            // Dedup BEFORE touching unread or posting. Relays replay
+                            // their backlog on every (re)connect, so the same event
+                            // arrives repeatedly; the durable store collapses those to
+                            // one announcement and keeps the unread count honest.
+                            // NOTE: delivery happened above via onLiveDM and is NOT
+                            // gated by this — only the badge/banner are.
+                            let fresh = self.notifiableEventIds(npub: npub, eventIds: [dm.rawEventId])
+                            if !fresh.isEmpty {
+                                var updated = self.unreadCounts
+                                updated[npub] = (updated[npub] ?? 0) + 1
+                                self.unreadCounts = updated
+                                self.updateAppBadge()
+                                // Redact courier payloads — don't leak secrets in notifications or logs
+                                let isCourier = dm.content.contains("@@@")
+                                let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
+                                self.postLocalNotification(npub: npub, preview: safePreview, dm: dm)
+                            }
                         }
                         self.lastPollAt = Date()
                         let isCourierLog = dm.content.contains("@@@")
@@ -277,9 +290,13 @@ final class DMPollingService {
     private func applyResults(_ results: [DMPollResult]) {
         var updated = unreadCounts
         for r in results {
-            if r.newCount > 0 {
-                updated[r.npub] = (updated[r.npub] ?? 0) + r.newCount
-                postLocalNotification(npub: r.npub, preview: "\(r.newCount) new message\(r.newCount == 1 ? "" : "s")")
+            // Dedup per-message against the durable store so a re-fetch of the
+            // same events never re-announces (the watermark is the first guard;
+            // this is the second, and it survives processes).
+            let fresh = notifiableEventIds(npub: r.npub, eventIds: r.newEventIds)
+            if !fresh.isEmpty {
+                updated[r.npub] = (updated[r.npub] ?? 0) + fresh.count
+                postLocalNotification(npub: r.npub, preview: "\(fresh.count) new message\(fresh.count == 1 ? "" : "s")")
             }
             let lastSeen = lastSeenTimestamps[r.npub] ?? 0
             if r.latestTimestamp > lastSeen {
@@ -306,9 +323,16 @@ final class DMPollingService {
         var updatedUnread = unreadCounts
         for r in results {
             let hadWatermark = priorWatermarks[r.npub] != nil
-            if hadWatermark && r.newCount > 0 {
-                updatedUnread[r.npub] = (updatedUnread[r.npub] ?? 0) + r.newCount
-                postLocalNotification(npub: r.npub, preview: "\(r.newCount) new message\(r.newCount == 1 ? "" : "s")")
+            if hadWatermark {
+                // Per-message dedup via the durable store, on top of the
+                // first-sight baseline gate. The store persists across these
+                // short-lived background processes, so consecutive wakes don't
+                // re-announce the same DM even before the watermark advances.
+                let fresh = notifiableEventIds(npub: r.npub, eventIds: r.newEventIds)
+                if !fresh.isEmpty {
+                    updatedUnread[r.npub] = (updatedUnread[r.npub] ?? 0) + fresh.count
+                    postLocalNotification(npub: r.npub, preview: "\(fresh.count) new message\(fresh.count == 1 ? "" : "s")")
+                }
             }
             // Advance — or, on first sight, silently baseline — the watermark.
             let lastSeen = lastSeenTimestamps[r.npub] ?? 0
@@ -319,8 +343,9 @@ final class DMPollingService {
         unreadCounts = updatedUnread
         updateAppBadge()
         saveLastSeen()
-        // Force the watermark to disk before iOS suspends this background process,
-        // so the next wake resumes from here instead of re-announcing the backlog.
+        // Force the watermark AND the notified-event store to disk before iOS
+        // suspends this background process, so the next wake resumes from here
+        // instead of re-announcing the backlog.
         UserDefaults.standard.synchronize()
     }
 
@@ -372,17 +397,25 @@ final class DMPollingService {
         }
     }
 
-    /// Event IDs that have already triggered a notification (dedup window).
-    private var notifiedEventIds: Set<String> = []
-    private var notifiedEventTimestamps: [String: Date] = [:]
-    private static let dedupWindow: TimeInterval = 300  // 5 minutes
+    /// Durable, per-npub record of DM event IDs already announced. Replaces the
+    /// old 5-minute in-memory window, which forgot any DM left unread longer than
+    /// five minutes and evaporated on every app relaunch / background process —
+    /// so relay backlog replays re-announced the same unread DM repeatedly. An
+    /// event now stays "seen" until the actor reads that conversation
+    /// (markRead → clear), persisted across processes.
+    private var notifiedStore = NotifiedEventStore()
 
-    private func pruneNotifiedEvents() {
-        let cutoff = Date().addingTimeInterval(-Self.dedupWindow)
-        let expired = notifiedEventTimestamps.filter { $0.value < cutoff }.map(\.key)
-        for id in expired {
-            notifiedEventIds.remove(id)
-            notifiedEventTimestamps.removeValue(forKey: id)
+    /// Which of `eventIds` should produce a notification now, honoring the mode.
+    /// Dedup lives HERE — upstream of postLocalNotification — so the badge count
+    /// and the banner stay in lock-step and a replayed event increments neither.
+    ///   • .off         → notify for none
+    ///   • .allRelays   → notify for every delivery (no dedup, no recording)
+    ///   • .deduplicated→ record + return only the not-yet-seen IDs
+    private func notifiableEventIds(npub: String, eventIds: [String]) -> [String] {
+        switch notificationMode {
+        case .off: return []
+        case .allRelays: return eventIds
+        case .deduplicated: return notifiedStore.register(npub: npub, eventIds: eventIds)
         }
     }
 
@@ -390,20 +423,12 @@ final class DMPollingService {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
+    /// Post a banner. Dedup is the CALLER's responsibility via
+    /// `notifiableEventIds(npub:eventIds:)`; this method only honors the off mode
+    /// and renders. Keeping dedup out of here lets the unread count and the
+    /// banner be gated by the same decision.
     private func postLocalNotification(npub: String, preview: String? = nil, dm: DecryptedDM? = nil) {
-        switch notificationMode {
-        case .off:
-            return
-        case .deduplicated:
-            if let dm {
-                pruneNotifiedEvents()
-                guard !notifiedEventIds.contains(dm.rawEventId) else { return }
-                notifiedEventIds.insert(dm.rawEventId)
-                notifiedEventTimestamps[dm.rawEventId] = Date()
-            }
-        case .allRelays:
-            break  // no filtering
-        }
+        guard notificationMode != .off else { return }
         let resolve = resolveDisplayName ?? { key in String(key.prefix(16)) + "…" }
 
         let senderName: String
@@ -456,6 +481,10 @@ struct DMPollEntity: Sendable {
 struct DMPollResult: Sendable {
     let npub: String
     let newCount: Int
+    /// Raw Nostr event IDs of the new (inbound, past-watermark) messages, in
+    /// timestamp-encounter order. Lets the notification layer dedup per-message
+    /// against the durable store rather than re-announcing by count alone.
+    let newEventIds: [String]
     let totalEvents: Int
     let latestTimestamp: Int
 }
@@ -548,11 +577,15 @@ private func dmPollSingleEntity(
 
     let lastSeen = timestamps[entity.npub] ?? 0
     var newCount = 0
+    var newEventIds: [String] = []
     var latestTimestamp = lastSeen
     for (_, dms) in fetchResult {
         for dm in dms where !dm.isFromMe {
             let ts = Int(dm.createdAt.timeIntervalSince1970)
-            if ts > lastSeen { newCount += 1 }
+            if ts > lastSeen {
+                newCount += 1
+                newEventIds.append(dm.rawEventId)
+            }
             latestTimestamp = max(latestTimestamp, ts)
         }
     }
@@ -562,7 +595,7 @@ private func dmPollSingleEntity(
         TrafficLogger.shared.log(.inbound, label: label, detail: "\(tag) \(totalEvents) events, \(newCount) new", npub: entity.npub)
     }
 
-    return DMPollResult(npub: entity.npub, newCount: newCount, totalEvents: totalEvents, latestTimestamp: latestTimestamp)
+    return DMPollResult(npub: entity.npub, newCount: newCount, newEventIds: newEventIds, totalEvents: totalEvents, latestTimestamp: latestTimestamp)
 }
 
 /// Timeout that actually works: uses a detached timeout task + continuation.
@@ -589,6 +622,74 @@ private func withThrowingTimeout<T: Sendable>(
         }
     }
     return result
+}
+
+/// Durable, per-npub record of DM event IDs that have already produced a
+/// notification.
+///
+/// Replaces the previous 5-minute in-memory dedup window, which had two holes:
+/// it forgot any DM left unread longer than five minutes, and it evaporated on
+/// every app relaunch and background-refresh process (each a fresh process).
+/// Relays replay their backlog on every (re)connect, so those holes meant the
+/// same unread DM got re-announced again and again.
+///
+/// Semantics: an event ID stays "seen" until the actor reads that conversation
+/// (`clear(npub:)`), persisted across processes via UserDefaults. Per-npub, so a
+/// read of one conversation never forgets another's announcements. Lives on the
+/// MainActor-isolated DMPollingService; not Sendable by design.
+struct NotifiedEventStore {
+    private let defaults: UserDefaults
+    private let key: String
+    private let maxPerNpub: Int
+    private var ids: [String: [String]]
+
+    init(defaults: UserDefaults = .standard,
+         key: String = "dm.notifiedEventIds",
+         maxPerNpub: Int = 500) {
+        self.defaults = defaults
+        self.key = key
+        self.maxPerNpub = maxPerNpub
+        self.ids = (defaults.dictionary(forKey: key) as? [String: [String]]) ?? [:]
+    }
+
+    /// Record `eventIds` as announced for `npub`; return the subset that was NOT
+    /// already known — i.e. the IDs that should produce a notification now.
+    /// Idempotent: replaying the same IDs (relay backlog) returns []. Dedups
+    /// within the batch too. Oldest IDs are evicted past `maxPerNpub` to bound
+    /// UserDefaults growth.
+    mutating func register(npub: String, eventIds: [String]) -> [String] {
+        guard !eventIds.isEmpty else { return [] }
+        var list = ids[npub] ?? []
+        var seen = Set(list)
+        var fresh: [String] = []
+        for id in eventIds where seen.insert(id).inserted {
+            fresh.append(id)
+        }
+        guard !fresh.isEmpty else { return [] }
+        list.append(contentsOf: fresh)
+        if list.count > maxPerNpub {
+            list.removeFirst(list.count - maxPerNpub)
+        }
+        ids[npub] = list
+        persist()
+        return fresh
+    }
+
+    func contains(npub: String, eventId: String) -> Bool {
+        ids[npub]?.contains(eventId) ?? false
+    }
+
+    /// Forget every announced ID for `npub` — called when the actor reads the
+    /// conversation and its unread count clears.
+    mutating func clear(npub: String) {
+        guard ids[npub] != nil else { return }
+        ids.removeValue(forKey: npub)
+        persist()
+    }
+
+    private func persist() {
+        defaults.set(ids, forKey: key)
+    }
 }
 
 /// Thread-safe one-shot flag for timeout racing.
