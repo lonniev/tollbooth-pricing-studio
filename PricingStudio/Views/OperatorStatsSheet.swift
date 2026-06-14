@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct OperatorStatsSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -66,15 +65,15 @@ struct OperatorStatsSheet: View {
     private func connectionSection() -> some View {
         Section("Connection") {
             if let urlStr = operator_.mcpEndpointURL, !urlStr.isEmpty {
-                copyableRow(label: "MCP URL", value: urlStr)
+                identityRow(label: "MCP URL", value: urlStr)
             }
-            copyableRow(label: "npub", value: operator_.npub)
+            identityRow(label: "npub", value: operator_.npub)
         }
     }
 
-    /// A label + monospaced value that can be long-pressed to select, plus a
-    /// context-menu Copy that puts the FULL (untruncated) value on the clipboard.
-    private func copyableRow(label: String, value: String) -> some View {
+    /// A label + monospaced value. Selectable/⌘C-copyable via the app-wide
+    /// textSelection at the root — no per-row Copy control needed.
+    private func identityRow(label: String, value: String) -> some View {
         HStack {
             Text(label)
             Spacer()
@@ -84,14 +83,6 @@ struct OperatorStatsSheet: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .textSelection(.enabled)
-        }
-        .contextMenu {
-            Button {
-                UIPasteboard.general.string = value
-            } label: {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
         }
     }
 
@@ -187,17 +178,9 @@ struct OperatorStatsSheet: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
-                            .textSelection(.enabled)
                     }
                 }
                 .padding(.vertical, 2)
-                .contextMenu {
-                    Button {
-                        UIPasteboard.general.string = service.url
-                    } label: {
-                        Label("Copy URL", systemImage: "doc.on.doc")
-                    }
-                }
             }
         }
     }
