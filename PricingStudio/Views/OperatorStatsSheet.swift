@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct OperatorStatsSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -10,23 +11,36 @@ struct OperatorStatsSheet: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            List {
+                // Locally-known identity — shown IMMEDIATELY, no remote fetch.
+                // Lets you read and copy the MCP URL / npub without waiting on
+                // the live-stats round-trips below.
+                connectionSection()
+
                 if let s = stats ?? fetchedStats {
-                    statsContent(s)
+                    registrySection(s)
+                    if let versions = s.versions, !versions.isEmpty {
+                        buildInfoSection(versions)
+                    }
+                    toolInventorySection(s)
+                    if !s.services.isEmpty {
+                        servicesSection(s)
+                    }
                 } else if let err = fetchError {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundStyle(.orange)
-                        Text(err)
+                    Section("Live Details") {
+                        Label(err, systemImage: "exclamationmark.triangle")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
                     }
-                    .padding()
                 } else {
-                    ProgressView("Loading operator details...")
-                        .task { await loadStats() }
+                    Section("Live Details") {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Loading from operator's MCP…")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
             .navigationTitle(operator_.displayName)
@@ -36,19 +50,47 @@ struct OperatorStatsSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .task {
+                // Only the live sections need a fetch; the connection section is
+                // already on screen. Skip if stats were supplied by the caller.
+                if stats == nil && fetchedStats == nil && fetchError == nil {
+                    await loadStats()
+                }
+            }
         }
     }
 
+    /// Identity the app already holds locally — rendered without any MCP call so
+    /// the MCP URL is visible and copyable the instant the sheet opens.
     @ViewBuilder
-    private func statsContent(_ stats: OperatorStats) -> some View {
-        List {
-            registrySection(stats)
-            if let versions = stats.versions, !versions.isEmpty {
-                buildInfoSection(versions)
+    private func connectionSection() -> some View {
+        Section("Connection") {
+            if let urlStr = operator_.mcpEndpointURL, !urlStr.isEmpty {
+                copyableRow(label: "MCP URL", value: urlStr)
             }
-            toolInventorySection(stats)
-            if !stats.services.isEmpty {
-                servicesSection(stats)
+            copyableRow(label: "npub", value: operator_.npub)
+        }
+    }
+
+    /// A label + monospaced value that can be long-pressed to select, plus a
+    /// context-menu Copy that puts the FULL (untruncated) value on the clipboard.
+    private func copyableRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value)
+                .font(.caption)
+                .monospaced()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+        }
+        .contextMenu {
+            Button {
+                UIPasteboard.general.string = value
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
             }
         }
     }
@@ -97,11 +139,7 @@ struct OperatorStatsSheet: View {
                         in: Capsule()
                     )
             }
-            Text(operator_.npub)
-                .font(.caption)
-                .monospaced()
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
+            // npub lives in the always-visible Connection section above.
         }
     }
 
@@ -149,9 +187,17 @@ struct OperatorStatsSheet: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
+                            .textSelection(.enabled)
                     }
                 }
                 .padding(.vertical, 2)
+                .contextMenu {
+                    Button {
+                        UIPasteboard.general.string = service.url
+                    } label: {
+                        Label("Copy URL", systemImage: "doc.on.doc")
+                    }
+                }
             }
         }
     }
