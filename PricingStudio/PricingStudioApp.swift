@@ -25,6 +25,10 @@ struct PricingStudioApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // App-wide: any text is selectable and ⌘C-copyable, no per-view
+                // Copy controls needed. textSelection propagates through the
+                // environment, including into sheets and navigation destinations.
+                .textSelection(.enabled)
                 .onAppear {
                     Authority.ensurePrimeExists(in: AppModelContainer.shared.mainContext)
                     LoadingQuoteView.prefetch()
