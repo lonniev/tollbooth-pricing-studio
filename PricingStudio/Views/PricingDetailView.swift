@@ -82,6 +82,20 @@ struct PricingDetailView: View {
         .onChange(of: target.npub) { _, _ in
             viewModel.startLoading(for: target)
         }
+        // Hoisted from loadedContent to body so the sheet is mounted in
+        // every state. The .notRegistered "Register with Authority" button
+        // and the loaded "Switch Authority" button both drive it; if it
+        // lived only inside loadedContent the orphan button was a dead end.
+        .sheet(isPresented: $showingAdoptionRequest, onDismiss: {
+            // After a successful (re-)registration / switch, the sheet sets
+            // op.authorityNpub. Transition directly to registeredNotConfigured
+            // so the user doesn't see a stale GitHub registry cache.
+            if let op = target as? Operator, op.authorityNpub != nil {
+                viewModel.markRegisteredNotConfigured()
+            }
+        }) {
+            RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
+        }
     }
 
     private var editSummary: String {
@@ -740,17 +754,6 @@ struct PricingDetailView: View {
             }
             .sheet(isPresented: $showingEditRegistration) {
                 EditOperatorRegistrationSheet(operatorTarget: target)
-            }
-            .sheet(isPresented: $showingAdoptionRequest, onDismiss: {
-                // After a successful (re-)registration / switch, the
-                // sheet sets op.authorityNpub. Transition directly to
-                // registeredNotConfigured so the user doesn't see a stale
-                // GitHub registry cache.
-                if let op = target as? Operator, op.authorityNpub != nil {
-                    viewModel.markRegisteredNotConfigured()
-                }
-            }) {
-                RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
             }
             .sheet(isPresented: $showingRecoverPayment) {
                 if let endpointString = target.mcpEndpointURL,
