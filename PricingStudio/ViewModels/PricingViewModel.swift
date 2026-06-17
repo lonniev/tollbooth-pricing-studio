@@ -475,8 +475,14 @@ final class PricingViewModel {
                     endpointURL: url
                 )
                 if !status.ready {
-                    // Operator isn't fully configured — show onboarding, not pricing
-                    state = .registeredNotConfigured
+                    // An operator with no provisioned persistence (no Neon) has
+                    // not been adopted yet — show the orphan / seeking-adoption
+                    // state, not "registered but needs persistence". Per the
+                    // deferred-adoption model, Neon IS the adoption signal: an
+                    // operator missing it still needs an Authority to adopt it,
+                    // even though it's deployed and answering onboarding checks.
+                    let missingPersistence = status.missing.contains { $0.field == "neon_database_url" }
+                    state = missingPersistence ? .notRegistered : .registeredNotConfigured
                     return
                 }
             } catch {
