@@ -9,7 +9,7 @@ import SwiftData
 /// Authority's **Pending Adoptions** queue; the owner approves on their own
 /// time. The operator stays orphaned until then.
 ///
-/// This is distinct from `RequestAdoptionSheet`, which performs the inline
+/// This is distinct from `RegisterOperatorSheet`, which performs the inline
 /// `register_operator` (Authority-side, immediate-consent) flow used when the
 /// Authority owner adopts/moves an operator directly.
 struct SeekAdoptionSheet: View {

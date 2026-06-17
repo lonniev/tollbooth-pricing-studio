@@ -93,7 +93,7 @@ struct PricingDetailView: View {
                 viewModel.markRegisteredNotConfigured()
             }
         }) {
-            RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
+            RegisterOperatorSheet(operatorTarget: target, pricingVM: viewModel)
         }
         // Deferred courtship (operator-initiated request_adoption → the
         // Authority owner's Pending Adoptions queue), driven by the orphan
