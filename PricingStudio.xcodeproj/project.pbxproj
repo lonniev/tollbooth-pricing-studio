@@ -27,7 +27,7 @@
 		AA00000100000000000000BD /* ToolPriceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000ED /* ToolPriceListView.swift */; };
 		AA00000100000000000000BE /* ToolPriceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EE /* ToolPriceRow.swift */; };
 				NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTA000100000000000000A1 /* NotarizationStatusView.swift */; };
-		ADPT000100000000000000B1 /* RequestAdoptionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */; };
+		ADPT000100000000000000B1 /* RegisterOperatorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000100000000000000A1 /* RegisterOperatorSheet.swift */; };
 		ADPT000200000000000000B1 /* ProofConsentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A1 /* ProofConsentSection.swift */; };
 		ADPT000300000000000000B1 /* SeekAdoptionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000300000000000000A1 /* SeekAdoptionSheet.swift */; };
 		ADPT000200000000000000B2 /* PendingAdoptionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */; };
@@ -202,7 +202,7 @@
 		AA00000100000000000000ED /* ToolPriceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPriceListView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000EE /* ToolPriceRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPriceRow.swift; sourceTree = "<group>"; };
 		NOTA000100000000000000A1 /* NotarizationStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotarizationStatusView.swift; sourceTree = "<group>"; };
-		ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestAdoptionSheet.swift; sourceTree = "<group>"; };
+		ADPT000100000000000000A1 /* RegisterOperatorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterOperatorSheet.swift; sourceTree = "<group>"; };
 		ADPT000200000000000000A1 /* ProofConsentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofConsentSection.swift; sourceTree = "<group>"; };
 		ADPT000300000000000000A1 /* SeekAdoptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeekAdoptionSheet.swift; sourceTree = "<group>"; };
 		ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAdoptionsViewModel.swift; sourceTree = "<group>"; };
@@ -561,7 +561,7 @@
 				AA00000100000000000000ED /* ToolPriceListView.swift */,
 				AA00000100000000000000EE /* ToolPriceRow.swift */,
 				NOTA000100000000000000A1 /* NotarizationStatusView.swift */,
-				ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */,
+				ADPT000100000000000000A1 /* RegisterOperatorSheet.swift */,
 				ADPT000200000000000000A1 /* ProofConsentSection.swift */,
 				ADPT000300000000000000A1 /* SeekAdoptionSheet.swift */,
 				RCVR000100000000000000A1 /* RecoverPaymentSheet.swift */,
@@ -970,7 +970,7 @@
 				AA00000100000000000000BD /* ToolPriceListView.swift in Sources */,
 				AA00000100000000000000BE /* ToolPriceRow.swift in Sources */,
 				NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */,
-				ADPT000100000000000000B1 /* RequestAdoptionSheet.swift in Sources */,
+				ADPT000100000000000000B1 /* RegisterOperatorSheet.swift in Sources */,
 				ADPT000200000000000000B1 /* ProofConsentSection.swift in Sources */,
 				ADPT000300000000000000B1 /* SeekAdoptionSheet.swift in Sources */,
 				ADPT000200000000000000B2 /* PendingAdoptionsViewModel.swift in Sources */,

@@ -1,7 +1,11 @@
 import SwiftUI
 import SwiftData
 
-/// Operator-initiated adoption / re-registration / switch sheet.
+/// Inline operator registration / re-registration / Authority-switch sheet.
+///
+/// Performs the immediate-consent `register_operator` flow (Authority-side).
+/// For the operator-initiated *deferred courtship* (`request_adoption` → the
+/// Authority owner's Pending Adoptions queue) see `SeekAdoptionSheet`.
 ///
 /// Three cases, all handled by the same Form:
 ///   1. Operator has no current Authority — straight register flow.
@@ -11,7 +15,7 @@ import SwiftData
 ///      deregister(A) is attempted first, then register(B). A failure
 ///      on the deregister step does NOT block the register; the user
 ///      gets a warning that A's registry record may be stale.
-struct RequestAdoptionSheet: View {
+struct RegisterOperatorSheet: View {
     let operatorTarget: any PricingTarget
     @Bindable var pricingVM: PricingViewModel
     @Environment(\.dismiss) private var dismiss

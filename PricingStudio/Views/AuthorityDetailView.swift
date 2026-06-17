@@ -118,7 +118,7 @@ struct AuthorityDetailView: View {
             }
         }
         .sheet(item: $movingOperator) { op in
-            RequestAdoptionSheet(operatorTarget: op, pricingVM: pricingVM)
+            RegisterOperatorSheet(operatorTarget: op, pricingVM: pricingVM)
         }
     }
 

@@ -164,7 +164,7 @@ struct EditOperatorSheet: View {
                 }
 
                 // 6. Registration switch — shown only when a PricingViewModel
-                //    is available (the sheet has to feed RequestAdoptionSheet).
+                //    is available (the sheet has to feed RegisterOperatorSheet).
                 if pricingVM != nil {
                     Section {
                         Button {
@@ -200,7 +200,7 @@ struct EditOperatorSheet: View {
             }
             .sheet(isPresented: $showingSwitchSheet) {
                 if let pricingVM {
-                    RequestAdoptionSheet(operatorTarget: operator_, pricingVM: pricingVM)
+                    RegisterOperatorSheet(operatorTarget: operator_, pricingVM: pricingVM)
                 }
             }
         }
