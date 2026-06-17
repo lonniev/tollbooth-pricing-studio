@@ -391,6 +391,13 @@ final class PricingViewModel {
         localTrancheLifetime = nil
         chainWarnings.removeAll()
         resolvedOperatorNpub = nil
+        // Drop the previous actor's community badge + service versions so a
+        // failed/empty lookup for the new target (e.g. an un-adopted orphan
+        // operator the Oracle has no record of) can't leave a stale
+        // "Registered in the Community" badge from whoever was selected before.
+        // A cache hit or successful lookup below re-populates these.
+        memberRecord = nil
+        serviceVersions = nil
 
         currentOperatorNpub = target.npub
 
@@ -414,6 +421,8 @@ final class PricingViewModel {
         localTrancheLifetime = nil
         chainWarnings.removeAll()
         resolvedOperatorNpub = nil
+        memberRecord = nil
+        serviceVersions = nil
         currentOperatorNpub = nil  // allow loadPricing guard to pass
         startLoading(for: target)
     }
