@@ -1818,6 +1818,62 @@ actor MCPService {
         return text
     }
 
+    /// Operator-initiated **deferred adoption** — calls `request_adoption` on
+    /// the OPERATOR's own MCP endpoint, asking a chosen Authority to adopt it.
+    /// The request is delivered MCP-to-MCP to the Authority and recorded as
+    /// pending in its Pending Adoptions queue; the operator stays orphaned
+    /// until the owner approves. Gated by the operator's OWN npub proof
+    /// (`makeIdentityProof` signs it inline from the Keychain nsec, or uses a
+    /// cached token); no Authority consent is needed at request time.
+    func callRequestAdoption(
+        operatorEndpointURL: URL,
+        operatorNpub: String,
+        authorityNpub: String,
+        serviceURL: String = "",
+        note: String = ""
+    ) async throws -> String {
+        await traffic(.outbound, label: "Request Adoption", detail: "SSE → \(operatorEndpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: operatorEndpointURL)
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("request_adoption") }) else {
+            await traffic(.error, label: "Request Adoption", detail: "No request_adoption tool found")
+            throw MCPError.toolCallFailed("This operator's MCP has no request_adoption tool — it needs tollbooth-dpyc 0.45.0 or newer.")
+        }
+
+        var args: [String: Value] = [
+            "authority_npub": .string(authorityNpub),
+            "proof": .string(await makeIdentityProof(
+                forNpub: operatorNpub,
+                capability: "request_adoption",
+                endpointURL: operatorEndpointURL
+            )),
+        ]
+        if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
+        if !note.isEmpty { args["note"] = .string(note) }
+
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Request Adoption Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Request Adoption", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Request Adoption")
+        return text
+    }
+
     // MARK: - Onboarding Status
 
     struct OnboardingField: Decodable {

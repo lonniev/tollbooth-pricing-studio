@@ -82,10 +82,9 @@ struct PricingDetailView: View {
         .onChange(of: target.npub) { _, _ in
             viewModel.startLoading(for: target)
         }
-        // Hoisted from loadedContent to body so the sheet is mounted in
-        // every state. The .notRegistered "Register with Authority" button
-        // and the loaded "Switch Authority" button both drive it; if it
-        // lived only inside loadedContent the orphan button was a dead end.
+        // Inline register/switch flow (Authority-side, immediate consent),
+        // driven by the loaded "Switch Authority" button. Hoisted to body so
+        // it's mounted in every state.
         .sheet(isPresented: $showingAdoptionRequest, onDismiss: {
             // After a successful (re-)registration / switch, the sheet sets
             // op.authorityNpub. Transition directly to registeredNotConfigured
@@ -95,6 +94,15 @@ struct PricingDetailView: View {
             }
         }) {
             RequestAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
+        }
+        // Deferred courtship (operator-initiated request_adoption → the
+        // Authority owner's Pending Adoptions queue), driven by the orphan
+        // "Request Adoption" button. The operator stays orphaned until
+        // approved, so reload to reflect current state on dismiss.
+        .sheet(isPresented: $showingSeekAdoption, onDismiss: {
+            viewModel.startLoading(for: target)
+        }) {
+            SeekAdoptionSheet(operatorTarget: target, pricingVM: viewModel)
         }
     }
 
@@ -887,6 +895,7 @@ struct PricingDetailView: View {
     }
 
     @State private var showingAdoptionRequest = false
+    @State private var showingSeekAdoption = false
 
     private var registeredNotConfiguredContent: some View {
         ScrollView {
@@ -1196,9 +1205,12 @@ struct PricingDetailView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    showingAdoptionRequest = true
+                    // Deferred courtship: the operator requests adoption and the
+                    // chosen Authority's owner approves in their Pending Adoptions
+                    // queue (distinct from the inline register_operator switch).
+                    showingSeekAdoption = true
                 } label: {
-                    Label("Register with Authority", systemImage: "building.columns")
+                    Label("Request Adoption", systemImage: "building.columns")
                 }
                 .buttonStyle(.borderedProminent)
 
