@@ -28,6 +28,9 @@
 		AA00000100000000000000BE /* ToolPriceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000EE /* ToolPriceRow.swift */; };
 				NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTA000100000000000000A1 /* NotarizationStatusView.swift */; };
 		ADPT000100000000000000B1 /* RequestAdoptionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */; };
+		ADPT000200000000000000B1 /* ProofConsentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A1 /* ProofConsentSection.swift */; };
+		ADPT000200000000000000B2 /* PendingAdoptionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */; };
+		ADPT000200000000000000B3 /* AdoptionRequestDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */; };
 		RCVR000100000000000000B1 /* RecoverPaymentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCVR000100000000000000A1 /* RecoverPaymentSheet.swift */; };
 		EDOP000100000000000000B1 /* EditOperatorRegistrationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDOP000100000000000000A1 /* EditOperatorRegistrationSheet.swift */; };
 		ONBD000100000000000000B1 /* OnboardingStatusSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */; };
@@ -199,6 +202,9 @@
 		AA00000100000000000000EE /* ToolPriceRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolPriceRow.swift; sourceTree = "<group>"; };
 		NOTA000100000000000000A1 /* NotarizationStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotarizationStatusView.swift; sourceTree = "<group>"; };
 		ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestAdoptionSheet.swift; sourceTree = "<group>"; };
+		ADPT000200000000000000A1 /* ProofConsentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofConsentSection.swift; sourceTree = "<group>"; };
+		ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAdoptionsViewModel.swift; sourceTree = "<group>"; };
+		ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdoptionRequestDecodeTests.swift; sourceTree = "<group>"; };
 		RCVR000100000000000000A1 /* RecoverPaymentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoverPaymentSheet.swift; sourceTree = "<group>"; };
 		EDOP000100000000000000A1 /* EditOperatorRegistrationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditOperatorRegistrationSheet.swift; sourceTree = "<group>"; };
 		ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStatusSheet.swift; sourceTree = "<group>"; };
@@ -398,6 +404,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000010000000000000D02 /* CourierPayloadTests.swift */,
+				ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */,
 				BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */,
 				DD0000010000000000000E01 /* NostrCryptoTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
@@ -529,6 +536,7 @@
 				AA0000010000000000000B04 /* SecondOpinionViewModel.swift */,
 				AA0000010000000000000B08 /* ReconciliationViewModel.swift */,
 				AA0000010000000000000C10 /* AuthorityBalanceViewModel.swift */,
+				ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */,
 				COUP00010000000000000004 /* CouponViewModel.swift */,
 			);
 			path = ViewModels;
@@ -552,6 +560,7 @@
 				AA00000100000000000000EE /* ToolPriceRow.swift */,
 				NOTA000100000000000000A1 /* NotarizationStatusView.swift */,
 				ADPT000100000000000000A1 /* RequestAdoptionSheet.swift */,
+				ADPT000200000000000000A1 /* ProofConsentSection.swift */,
 				RCVR000100000000000000A1 /* RecoverPaymentSheet.swift */,
 				EDOP000100000000000000A1 /* EditOperatorRegistrationSheet.swift */,
 				ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */,
@@ -959,6 +968,8 @@
 				AA00000100000000000000BE /* ToolPriceRow.swift in Sources */,
 				NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */,
 				ADPT000100000000000000B1 /* RequestAdoptionSheet.swift in Sources */,
+				ADPT000200000000000000B1 /* ProofConsentSection.swift in Sources */,
+				ADPT000200000000000000B2 /* PendingAdoptionsViewModel.swift in Sources */,
 				RCVR000100000000000000B1 /* RecoverPaymentSheet.swift in Sources */,
 				EDOP000100000000000000B1 /* EditOperatorRegistrationSheet.swift in Sources */,
 				ONBD000100000000000000B1 /* OnboardingStatusSheet.swift in Sources */,
@@ -1060,6 +1071,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0000010000000000000D01 /* CourierPayloadTests.swift in Sources */,
+				ADPT000200000000000000B3 /* AdoptionRequestDecodeTests.swift in Sources */,
 				BB0000010000000000000A01 /* NotifiedEventStoreTests.swift in Sources */,
 				DD0000010000000000000F01 /* NostrCryptoTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
