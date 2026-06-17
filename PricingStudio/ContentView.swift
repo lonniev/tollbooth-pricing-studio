@@ -619,8 +619,18 @@ struct ContentView: View {
                         ownEndpoint: op.mcpEndpointURL
                     )
                 } else {
-                    ContentUnavailableView("No Authority", systemImage: "building.columns",
-                        description: Text("Connect to an Authority to view your cert-sat account."))
+                    ContentUnavailableView {
+                        Label("No Authority", systemImage: "building.columns")
+                    } description: {
+                        Text("This operator isn’t registered with an Authority yet, so it has no cert-sat account. Register it on the Pricing tab to request adoption.")
+                    } actions: {
+                        Button {
+                            detailTab = .pricing
+                        } label: {
+                            Label("Register with Authority", systemImage: "building.columns")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
             }
         }
