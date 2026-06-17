@@ -1621,6 +1621,203 @@ actor MCPService {
         return text
     }
 
+    // MARK: - Deferred Operator Adoption (owner queue)
+
+    /// One pending operator-adoption request, as returned by the Authority's
+    /// `list_adoption_requests`. The owner reviews these and decides via
+    /// `approve_adoption` / `reject_adoption`. All fields default to empty
+    /// when the wheel omits them so a sparse row still decodes.
+    struct AdoptionRequest: Decodable, Identifiable, Equatable {
+        let operatorNpub: String
+        let serviceURL: String
+        let note: String
+        let requestedAt: String
+        let expiresAt: String
+
+        var id: String { operatorNpub }
+
+        enum CodingKeys: String, CodingKey {
+            case operatorNpub = "operator_npub"
+            case serviceURL = "service_url"
+            case note
+            case requestedAt = "requested_at"
+            case expiresAt = "expires_at"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            operatorNpub = try c.decodeIfPresent(String.self, forKey: .operatorNpub) ?? ""
+            serviceURL = try c.decodeIfPresent(String.self, forKey: .serviceURL) ?? ""
+            note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
+            requestedAt = try c.decodeIfPresent(String.self, forKey: .requestedAt) ?? ""
+            expiresAt = try c.decodeIfPresent(String.self, forKey: .expiresAt) ?? ""
+        }
+
+        /// Memberwise init for tests / previews (the Decodable init shadows
+        /// the synthesized one).
+        init(operatorNpub: String, serviceURL: String = "", note: String = "",
+             requestedAt: String = "", expiresAt: String = "") {
+            self.operatorNpub = operatorNpub
+            self.serviceURL = serviceURL
+            self.note = note
+            self.requestedAt = requestedAt
+            self.expiresAt = expiresAt
+        }
+    }
+
+    private struct AdoptionListResponse: Decodable {
+        let requests: [AdoptionRequest]?
+    }
+
+    /// List the Authority's pending operator-adoption requests.
+    ///
+    /// The single restricted owner-queue tool: gated by an `authority_proof`
+    /// signed by the Authority's OWN npub. `makeIdentityProof` produces it
+    /// inline from the Keychain nsec, or falls back to a cached poison token;
+    /// when neither is held it yields "" and the wheel returns
+    /// `authority_consent_required`, which surfaces as `MCPError.structuredError`
+    /// for the caller to drive the npub-proof handshake.
+    func callListAdoptionRequests(
+        endpointURL: URL,
+        authorityNpub: String
+    ) async throws -> [AdoptionRequest] {
+        await traffic(.outbound, label: "List Adoptions", detail: "SSE → \(endpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("list_adoption_requests") }) else {
+            await traffic(.error, label: "List Adoptions", detail: "No list_adoption_requests tool found")
+            throw MCPError.toolCallFailed("No list_adoption_requests tool found on this Authority")
+        }
+
+        let args: [String: Value] = [
+            "authority_proof": .string(await makeIdentityProof(
+                forNpub: authorityNpub,
+                capability: "list_adoption_requests",
+                endpointURL: endpointURL
+            ))
+        ]
+
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "List Adoptions Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "List Adoptions", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "List Adoptions")
+
+        guard let data = text.data(using: .utf8) else { throw MCPError.invalidResponse }
+        let parsed = try JSONDecoder().decode(AdoptionListResponse.self, from: data)
+        return parsed.requests ?? []
+    }
+
+    /// Approve a pending adoption — provisions the operator (same effect as
+    /// `register_operator`). Consent witnessed by the Authority's own proof.
+    func callApproveAdoption(
+        endpointURL: URL,
+        operatorNpub: String,
+        authorityNpub: String
+    ) async throws -> String {
+        await traffic(.outbound, label: "Approve Adoption", detail: "SSE → \(endpointURL.absoluteString) op=\(operatorNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("approve_adoption") }) else {
+            await traffic(.error, label: "Approve Adoption", detail: "No approve_adoption tool found")
+            throw MCPError.toolCallFailed("No approve_adoption tool found on this Authority")
+        }
+
+        let args: [String: Value] = [
+            "operator_npub": .string(operatorNpub),
+            "authority_proof": .string(await makeIdentityProof(
+                forNpub: authorityNpub,
+                capability: "approve_adoption",
+                endpointURL: endpointURL
+            ))
+        ]
+
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Approve Adoption Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Approve Adoption", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Approve Adoption")
+        return text
+    }
+
+    /// Reject a pending adoption (owner consent). `reason` is optional.
+    func callRejectAdoption(
+        endpointURL: URL,
+        operatorNpub: String,
+        authorityNpub: String,
+        reason: String = ""
+    ) async throws -> String {
+        await traffic(.outbound, label: "Reject Adoption", detail: "SSE → \(endpointURL.absoluteString) op=\(operatorNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("reject_adoption") }) else {
+            await traffic(.error, label: "Reject Adoption", detail: "No reject_adoption tool found")
+            throw MCPError.toolCallFailed("No reject_adoption tool found on this Authority")
+        }
+
+        var args: [String: Value] = [
+            "operator_npub": .string(operatorNpub),
+            "authority_proof": .string(await makeIdentityProof(
+                forNpub: authorityNpub,
+                capability: "reject_adoption",
+                endpointURL: endpointURL
+            ))
+        ]
+        if !reason.isEmpty { args["reason"] = .string(reason) }
+
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Reject Adoption Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Reject Adoption", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Reject Adoption")
+        return text
+    }
+
     // MARK: - Onboarding Status
 
     struct OnboardingField: Decodable {

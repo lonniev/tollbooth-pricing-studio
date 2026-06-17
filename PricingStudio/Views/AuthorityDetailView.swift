@@ -15,6 +15,10 @@ struct AuthorityDetailView: View {
     @State private var loadingOnboarding = false
     @State private var showingForgetConfirm = false
     @State private var forgetState: ForgetState = .idle
+    @State private var adoptionsVM = PendingAdoptionsViewModel()
+    @State private var rejectingRequest: MCPService.AdoptionRequest?
+    @State private var rejectReason = ""
+    @Environment(\.modelContext) private var modelContext
 
     private enum ForgetState {
         case idle, forgetting, done(String), error(String)
@@ -41,12 +45,43 @@ struct AuthorityDetailView: View {
                     authorityBalanceSection
                     Divider()
                     operatorCredentialSection
+                    Divider()
+                    pendingAdoptionsSection
                 }
                 Divider()
                 connectedOperatorsSection
             }
         }
         // navigationTitle removed — shared entityHeader provides the name
+        .alert(
+            "Reject adoption request?",
+            isPresented: Binding(
+                get: { rejectingRequest != nil },
+                set: { if !$0 { rejectingRequest = nil } }
+            ),
+            presenting: rejectingRequest
+        ) { req in
+            TextField("Reason (optional)", text: $rejectReason)
+            Button("Reject", role: .destructive) {
+                rejectingRequest = nil
+                let reason = rejectReason
+                rejectReason = ""
+                Task {
+                    await adoptionsVM.decide(
+                        .reject(reason: reason),
+                        on: req,
+                        authority: authority,
+                        context: modelContext
+                    )
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                rejectingRequest = nil
+                rejectReason = ""
+            }
+        } message: { _ in
+            Text("The operator will see this request as rejected. A reason is optional.")
+        }
         .sheet(isPresented: Binding(
             get: { authorityVM?.showingAdoptSheet ?? false },
             set: { authorityVM?.showingAdoptSheet = $0 }
@@ -425,6 +460,200 @@ struct AuthorityDetailView: View {
             .split(separator: " ")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
             .joined(separator: " ")
+    }
+
+    // MARK: - Pending Adoptions (deferred-courtship owner queue)
+
+    @ViewBuilder
+    private var pendingAdoptionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label("Pending Adoptions", systemImage: "person.crop.circle.badge.questionmark")
+                    .font(.headline)
+                if adoptionsVM.pendingCount > 0 {
+                    Text("\(adoptionsVM.pendingCount)")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(.orange.opacity(0.2)))
+                }
+                Spacer()
+                if isLinked {
+                    Button {
+                        Task { await reloadAdoptions() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                }
+            }
+
+            switch adoptionsVM.state {
+            case .idle:
+                if !isLinked {
+                    Text("Link this Authority’s identity to review adoption requests.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            case .loading:
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading requests…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            case .loaded(let rows):
+                if rows.isEmpty {
+                    Text("No pending requests.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(rows) { req in
+                        adoptionRow(req)
+                        if req.id != rows.last?.id { Divider() }
+                    }
+                }
+            case .error(let msg):
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(msg, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    if isLinked {
+                        Button("Retry") { Task { await reloadAdoptions() } }
+                            .font(.caption)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .task(id: authority.npub) {
+            if isLinked, authority.mcpEndpointURL != nil {
+                await reloadAdoptions()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func adoptionRow(_ req: MCPService.AdoptionRequest) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(req.operatorNpub)
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.secondary)
+            if !req.serviceURL.isEmpty {
+                Text(req.serviceURL)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            if !req.note.isEmpty {
+                Text(req.note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            let timing = adoptionTimingText(req)
+            if !timing.isEmpty {
+                Text(timing)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            switch adoptionsVM.decisionStatus[req.operatorNpub] {
+            case .none:
+                adoptionActions(req)
+            case .deciding:
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Working…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            case .needsAuthorityProof(let npub):
+                ProofConsentSection(
+                    kind: "Authority",
+                    npub: npub,
+                    explanation: "Approving provisions this operator. The wheel needs cryptographic proof that you hold this Authority’s nsec.",
+                    phase: nil,
+                    onAcquire: { await adoptionsVM.acquireProofAndRetry(on: req, authority: authority, context: modelContext) },
+                    onVerify: { await adoptionsVM.verifyProofAndRetry(on: req, authority: authority, context: modelContext) }
+                )
+            case .acquiringProof(let npub, let phase):
+                ProofConsentSection(
+                    kind: "Authority",
+                    npub: npub,
+                    explanation: "",
+                    phase: phase,
+                    onAcquire: { await adoptionsVM.acquireProofAndRetry(on: req, authority: authority, context: modelContext) },
+                    onVerify: { await adoptionsVM.verifyProofAndRetry(on: req, authority: authority, context: modelContext) }
+                )
+            case .failed(let msg):
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(msg, systemImage: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    adoptionActions(req)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func adoptionActions(_ req: MCPService.AdoptionRequest) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                Task { await adoptionsVM.decide(.approve, on: req, authority: authority, context: modelContext) }
+            } label: {
+                // Label strips the glyph under .borderedProminent — use HStack.
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.seal.fill")
+                    Text("Approve")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .controlSize(.small)
+
+            Button(role: .destructive) {
+                rejectReason = ""
+                rejectingRequest = req
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "xmark")
+                    Text("Reject")
+                }
+            }
+            .buttonStyle(.bordered)
+            .tint(.red)
+            .controlSize(.small)
+        }
+    }
+
+    private func reloadAdoptions() async {
+        guard let endpoint = authority.mcpEndpointURL,
+              let url = URL(string: endpoint) else { return }
+        await adoptionsVM.load(endpointURL: url, authorityNpub: authority.npub)
+    }
+
+    /// "requested 2026-06-17 11:29 · expires 2026-06-24 11:29". Trimmed to
+    /// minute precision and tolerant of both `T` and space separators —
+    /// deliberately not relative-formatted to avoid misparsing the wheel's
+    /// Postgres TIMESTAMPTZ strings into nonsense intervals.
+    private func adoptionTimingText(_ req: MCPService.AdoptionRequest) -> String {
+        var parts: [String] = []
+        if !req.requestedAt.isEmpty { parts.append("requested \(shortStamp(req.requestedAt))") }
+        if !req.expiresAt.isEmpty { parts.append("expires \(shortStamp(req.expiresAt))") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func shortStamp(_ s: String) -> String {
+        String(s.replacingOccurrences(of: "T", with: " ").prefix(16))
     }
 
     // MARK: - Connected Operators
@@ -807,30 +1036,50 @@ private struct AdoptOperatorSheet: View {
                 // --- Proof acquisition flow ----------------------------------
                 // When the Authority's wheel reports a missing/invalid proof
                 // for either side, surface a remedy path instead of dead-ending.
+                // Shared with the Pending Adoptions queue via ProofConsentSection.
                 if case .needsAuthorityProof(let npub) = authorityVM.adoptionStatus {
-                    proofRemedySection(
-                        kind: "Authority",
-                        npub: npub,
-                        explanation: "The Authority’s wheel needs cryptographic proof that you hold the Authority’s nsec before it will adopt this operator.",
-                        operatorToAdopt: selectedOperator
-                    )
+                    Section {
+                        ProofConsentSection(
+                            kind: "Authority",
+                            npub: npub,
+                            explanation: "The Authority’s wheel needs cryptographic proof that you hold the Authority’s nsec before it will adopt this operator.",
+                            phase: nil,
+                            onAcquire: { await retryAcquire(npub: npub) },
+                            onVerify: { await retryVerify(npub: npub) }
+                        )
+                    } header: {
+                        Text("Proof needed to continue")
+                    }
                 }
 
                 if case .needsOperatorProof(let npub) = authorityVM.adoptionStatus {
-                    proofRemedySection(
-                        kind: "Operator",
-                        npub: npub,
-                        explanation: "The Authority’s wheel needs cryptographic proof that you hold the operator’s nsec.",
-                        operatorToAdopt: selectedOperator
-                    )
+                    Section {
+                        ProofConsentSection(
+                            kind: "Operator",
+                            npub: npub,
+                            explanation: "The Authority’s wheel needs cryptographic proof that you hold the operator’s nsec.",
+                            phase: nil,
+                            onAcquire: { await retryAcquire(npub: npub) },
+                            onVerify: { await retryVerify(npub: npub) }
+                        )
+                    } header: {
+                        Text("Proof needed to continue")
+                    }
                 }
 
                 if case .acquiringProof(let npub, let phase) = authorityVM.adoptionStatus {
-                    proofAcquisitionInProgressSection(
-                        npub: npub,
-                        phase: phase,
-                        operatorToAdopt: selectedOperator
-                    )
+                    Section {
+                        ProofConsentSection(
+                            kind: "Authority",
+                            npub: npub,
+                            explanation: "",
+                            phase: phase,
+                            onAcquire: { await retryAcquire(npub: npub) },
+                            onVerify: { await retryVerify(npub: npub) }
+                        )
+                    } header: {
+                        Text("Acquiring proof")
+                    }
                 }
             }
             .navigationTitle("Adopt Operator")
@@ -867,108 +1116,27 @@ private struct AdoptOperatorSheet: View {
         }
     }
 
-    @ViewBuilder
-    private func proofRemedySection(
-        kind: String,
-        npub: String,
-        explanation: String,
-        operatorToAdopt: Operator?
-    ) -> some View {
-        let hasNsec = KeychainService.loadNsec(forNpub: npub) != nil
-        Section {
-            Label("\(kind) proof required", systemImage: "key.fill")
-                .foregroundStyle(.orange)
-            Text(explanation)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("npub: \(npub)")
-                .font(.caption2.monospaced())
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            if hasNsec {
-                Button {
-                    guard let op = operatorToAdopt else { return }
-                    Task {
-                        // Inline Schnorr tactic — argsWithProof signs from
-                        // Keychain on the retry; no DM needed.
-                        await authorityVM.acquireProofAndRetryAdopt(
-                            for: npub,
-                            authority: authority,
-                            operatorToAdopt: op,
-                            context: modelContext
-                        )
-                    }
-                } label: {
-                    Label("Sign with Keychain nsec & retry", systemImage: "signature")
-                }
-            } else {
-                Text("The nsec for this npub is not in this device’s Keychain. Use the DM challenge below if you hold the nsec on another Nostr client (e.g. Oxchat).")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button {
-                    guard let op = operatorToAdopt else { return }
-                    Task {
-                        await authorityVM.acquireProofAndRetryAdopt(
-                            for: npub,
-                            authority: authority,
-                            operatorToAdopt: op,
-                            context: modelContext
-                        )
-                    }
-                } label: {
-                    Label("Send DM proof challenge", systemImage: "paperplane.fill")
-                }
-            }
-        } header: {
-            Text("Proof needed to continue")
-        }
+    /// Retry closures injected into the shared `ProofConsentSection`. They
+    /// capture the currently-selected operator and drive the adopt VM's
+    /// reused npub-proof handshake.
+    private func retryAcquire(npub: String) async {
+        guard let op = selectedOperator else { return }
+        await authorityVM.acquireProofAndRetryAdopt(
+            for: npub,
+            authority: authority,
+            operatorToAdopt: op,
+            context: modelContext
+        )
     }
 
-    @ViewBuilder
-    private func proofAcquisitionInProgressSection(
-        npub: String,
-        phase: AuthorityCollectionViewModel.ProofPhase,
-        operatorToAdopt: Operator?
-    ) -> some View {
-        Section {
-            switch phase {
-            case .sending:
-                HStack {
-                    ProgressView()
-                    Text("Sending proof challenge DM…")
-                        .foregroundStyle(.secondary)
-                }
-            case .awaitingReply:
-                Label("DM sent", systemImage: "envelope.badge.fill")
-                    .foregroundStyle(.blue)
-                Text("Open your Nostr client (e.g. Oxchat) and find the DM from this Authority. Reply with any text — your signature on the reply is the proof. Then click Verify below.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button {
-                    guard let op = operatorToAdopt else { return }
-                    Task {
-                        await authorityVM.verifyProofAndRetryAdopt(
-                            for: npub,
-                            authority: authority,
-                            operatorToAdopt: op,
-                            context: modelContext
-                        )
-                    }
-                } label: {
-                    Label("I’ve replied — verify now", systemImage: "checkmark.shield")
-                }
-            case .verifying:
-                HStack {
-                    ProgressView()
-                    Text("Verifying reply…")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        } header: {
-            Text("Acquiring proof")
-        }
+    private func retryVerify(npub: String) async {
+        guard let op = selectedOperator else { return }
+        await authorityVM.verifyProofAndRetryAdopt(
+            for: npub,
+            authority: authority,
+            operatorToAdopt: op,
+            context: modelContext
+        )
     }
 }
 
