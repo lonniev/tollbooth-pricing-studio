@@ -61,7 +61,7 @@ A full encrypted DM client built on NIP-04, NIP-44v2, and NIP-17 gift wrap. Swit
 
 ### Network Topology
 
-Visual graph of the DPYC Honor Chain hierarchy: Prime Authority &rarr; Authorities &rarr; Operators. Auto-discovers upstream Authorities when loading Operator pricing models.
+Visual graph of the DPYC Certification Chain hierarchy: Prime Authority &rarr; Authorities &rarr; Operators. Auto-discovers upstream Authorities when loading Operator pricing models.
 
 <p align="center">
   <img src="assets/pricing-studio-launch.png" width="50%" alt="Pricing Studio — network topology view" />
@@ -70,6 +70,7 @@ Visual graph of the DPYC Honor Chain hierarchy: Prime Authority &rarr; Authoriti
 ### Operator Management
 
 - **Adopt Operator** — register unclaimed operators via an Authority's MCP endpoint
+- **Pending Adoptions** — Authority owner queue of operator-initiated adoption requests (deferred-courtship flow), reviewed and approved from the Authority view
 - **Onboarding status** — credential readiness dashboard for operators and patrons
 - **Account statements** — SVG/PNG infographic rendering of patron balances
 - **Bitcoin notarization** — Merkle tree construction + OpenTimestamps submission with per-patron inclusion proofs
@@ -94,7 +95,7 @@ Real-time inspector for all MCP, HTTP, and Nostr relay traffic. Nostr events hid
 
 ### Entity Model
 
-- **Authority** — certification body in the DPYC Honor Chain with MCP endpoint
+- **Authority** — certification body in the DPYC Certification Chain with MCP endpoint
 - **Operator** — MCP service provider with pricing model, tool catalog, and constraint pipeline
 - **Patron** — end user with Nostr identity for multi-identity DM support (alias detection for shared npubs)
 - **Campaign** — persisted pricing interview with per-stage messages, revenue projections, A/B/C variants, and deployment state
@@ -150,8 +151,11 @@ make test-bdd-sim
 | [schwab-mcp](https://github.com/lonniev/schwab-mcp) | Charles Schwab brokerage data (operational example) |
 | [thebrain-mcp](https://github.com/lonniev/thebrain-mcp) | TheBrain personal knowledge graph (operational example) |
 | [excalibur-mcp](https://github.com/lonniev/excalibur-mcp) | X/Twitter posting (operational example) |
+| [cypher-mcp](https://github.com/lonniev/cypher-mcp) | Monetized graph answers — named Cypher query templates over Neo4j/AuraDB (operational example) |
 | [taxsort-mcp](https://github.com/lonniev/taxsort-mcp) | Tax classification + Cloudflare Pages UI (operational example) |
+| [optionality-mcp](https://github.com/lonniev/optionality-mcp) | Options analytics (operational example) |
 | [tollbooth-oauth2-collector](https://github.com/lonniev/tollbooth-oauth2-collector) | OAuth2 callback handler — shared advocate service |
+| [tollbooth-shortlinks](https://github.com/lonniev/tollbooth-shortlinks) | URL shortener — lightweight utility service |
 | [stablecoin.myshopify.com](https://stablecoin.myshopify.com) | DPYC merch and Austrian economics |
 
 ## Prior Art & Attribution
