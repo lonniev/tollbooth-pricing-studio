@@ -1889,6 +1889,7 @@ actor MCPService {
         let ready: Bool
         let configured: [OnboardingField]
         let missing: [OnboardingField]
+        var optionalMissing: [OnboardingField] = []
         let summary: String
         var bootstrapError: String?
         var vaultOk: Bool?
@@ -1898,6 +1899,7 @@ actor MCPService {
 
         enum CodingKeys: String, CodingKey {
             case ready, configured, missing, summary
+            case optionalMissing = "optional_missing"
             case bootstrapError = "bootstrap_error"
             case vaultOk = "vault_ok"
             case credentialGreeting = "credential_greeting"

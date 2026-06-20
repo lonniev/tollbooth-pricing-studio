@@ -50,7 +50,7 @@ struct OnboardingStatusSheet: View {
                         operatorNpub: operator_.npub,
                         endpointURL: url,
                         credentialService: status.credentialService ?? "",
-                        missingSecrets: status.missing
+                        missingSecrets: (status.missing + status.optionalMissing)
                             .filter { $0.category == "secret" }
                             .map { fieldLabel($0.field) },
                         onDismiss: { showingCourierCard = false }
@@ -106,8 +106,24 @@ struct OnboardingStatusSheet: View {
                 }
             }
 
+            if !status.optionalMissing.isEmpty {
+                Section("Optional") {
+                    ForEach(status.optionalMissing, id: \.field) { field in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(fieldLabel(field.field), systemImage: categoryIcon(field.category))
+                                .foregroundStyle(.secondary)
+                            if let how = field.how {
+                                Text(how)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+
             Section("Actions") {
-                let hasSecrets = status.missing.contains { $0.category == "secret" }
+                let hasSecrets = (status.missing + status.optionalMissing).contains { $0.category == "secret" }
 
                 HStack(spacing: 10) {
                     if hasSecrets {
