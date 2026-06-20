@@ -1704,6 +1704,17 @@ struct AccountStatementView: View {
                             .foregroundStyle(.orange)
                     }
                 }
+
+                ForEach(status.optionalMissing, id: \.field) { field in
+                    HStack(spacing: 4) {
+                        Image(systemName: "circle.dashed")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("\(fieldLabel(field.field)) (optional)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             HStack(spacing: 8) {
@@ -1719,10 +1730,12 @@ struct AccountStatementView: View {
                 }
 
                 let hasMissing = !(onboardingStatus?.missing.isEmpty ?? true)
+                    || !(onboardingStatus?.optionalMissing.isEmpty ?? true)
                 if hasMissing,
                    let ep = ownEndpoint, let url = URL(string: ep) {
                     Button {
-                        let missing = onboardingStatus?.missing.map(\.field) ?? []
+                        let missing = ((onboardingStatus?.missing ?? [])
+                            + (onboardingStatus?.optionalMissing ?? [])).map(\.field)
                         let svc = onboardingStatus?.credentialService ?? "operator"
                         onRequestCourier?(CourierParams(
                             operatorName: serviceName,

@@ -352,6 +352,17 @@ struct AuthorityDetailView: View {
                             .foregroundStyle(.orange)
                     }
                 }
+
+                ForEach(status.optionalMissing, id: \.field) { field in
+                    HStack(spacing: 4) {
+                        Image(systemName: "circle.dashed")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("\(fieldLabel(field.field)) (optional)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             HStack(spacing: 8) {
@@ -367,6 +378,7 @@ struct AuthorityDetailView: View {
                 }
 
                 let hasMissing = !(onboardingStatus?.missing.isEmpty ?? true)
+                    || !(onboardingStatus?.optionalMissing.isEmpty ?? true)
                 if hasMissing, let onRequestCourier,
                    let endpoint = authority.mcpEndpointURL,
                    let url = URL(string: endpoint),
@@ -377,7 +389,7 @@ struct AuthorityDetailView: View {
                             operatorNpub: authority.npub,
                             endpointURL: url,
                             credentialService: status.credentialService ?? "",
-                            missingSecrets: status.missing
+                            missingSecrets: (status.missing + status.optionalMissing)
                                 .filter { $0.category == "secret" }
                                 .map { fieldLabel($0.field) }
                         ))
