@@ -73,6 +73,28 @@ final class NostrRelayService: Sendable {
         return ([], nil)
     }
 
+    // MARK: - Fetch Profile (kind-0)
+
+    /// Fetch the latest kind-0 metadata event for a pubkey across all relays
+    /// (newest `created_at` wins). Returns nil if none found.
+    func fetchProfileEvent(pubkeyHex: String) async -> NostrEvent? {
+        let filter: [String: Any] = ["kinds": [0], "authors": [pubkeyHex], "limit": 1]
+        let subId = UUID().uuidString.prefix(16).lowercased()
+        let reqArray: [Any] = ["REQ", String(subId), filter]
+        guard let reqData = try? JSONSerialization.data(withJSONObject: reqArray),
+              let reqString = String(data: reqData, encoding: .utf8) else {
+            return nil
+        }
+        var newest: NostrEvent?
+        for relay in relays {
+            let events = await Self.fetchFromRelay(relay, reqString: reqString, subId: String(subId))
+            for ev in events where ev.kind == 0 {
+                if newest == nil || ev.created_at > newest!.created_at { newest = ev }
+            }
+        }
+        return newest
+    }
+
     // MARK: - Publish
 
     /// Publish an event to ALL relays in parallel — maximizes reach.

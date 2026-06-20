@@ -11,6 +11,8 @@ struct PatronDetailView: View {
     var onRequestCourier: ((CourierParams) -> Void)?
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
 
+    @State private var showingProfile = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -20,6 +22,9 @@ struct PatronDetailView: View {
             .padding()
         }
         .navigationTitle(patron.displayName)
+        .sheet(isPresented: $showingProfile) {
+            EditNostrProfileSheet(npub: patron.npub, initialDisplayName: patron.displayName)
+        }
         .task(id: patron.npub) {
             await accountVM.loadBalances(for: patron, sources: operators.map(\.asInvoiceSource))
         }
@@ -70,6 +75,14 @@ struct PatronDetailView: View {
                 Label("nsec stored in Keychain", systemImage: "checkmark.shield.fill")
                     .font(.caption)
                     .foregroundStyle(.green)
+
+                Button {
+                    showingProfile = true
+                } label: {
+                    Label("Edit Nostr Profile", systemImage: "person.text.rectangle")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
             }
         }
     }
@@ -1798,5 +1811,136 @@ struct AccountStatementView: View {
             .split(separator: " ")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
             .joined(separator: " ")
+    }
+}
+
+// MARK: - Edit Nostr Profile (kind-0)
+
+/// Edit and publish the holder's Nostr kind-0 profile (name, about, avatar URL).
+/// Studio signs with the identity's Keychain nsec and publishes to relays — the
+/// profile is self-sovereign and shows up in every Nostr client.
+struct EditNostrProfileSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let npub: String
+    var initialDisplayName: String = ""
+
+    @State private var name = ""
+    @State private var about = ""
+    @State private var picture = ""
+    @State private var loading = true
+    @State private var publishing = false
+    @State private var status: String?
+    @State private var statusIsError = false
+
+    private let service = NostrProfileService()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(npub)
+                        .font(.callout).monospaced().textSelection(.enabled)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Identity (npub)")
+                } footer: {
+                    Text("Signed by this npub's key and published to your relays.")
+                }
+
+                Section("Name") {
+                    TextField("Display name", text: $name)
+                }
+
+                Section {
+                    TextField("https://… (image or SVG URL)", text: $picture)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.callout)
+                    if let url = URL(string: picture),
+                       !picture.trimmingCharacters(in: .whitespaces).isEmpty {
+                        HStack {
+                            Spacer()
+                            AsyncImage(url: url) { image in
+                                image.resizable().scaledToFit()
+                            } placeholder: {
+                                ProgressView()
+                            }
+                            .frame(width: 72, height: 72)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(.quaternary))
+                            Spacer()
+                        }
+                    }
+                } header: {
+                    Text("Avatar URL")
+                } footer: {
+                    Text("A public image URL (e.g. an Iconify SVG). kind-0 stores the URL, not the bytes.")
+                }
+
+                Section("Description") {
+                    TextField("About", text: $about, axis: .vertical).lineLimit(3 ... 6)
+                }
+
+                Section {
+                    Button {
+                        Task { await publish() }
+                    } label: {
+                        HStack {
+                            if publishing { ProgressView().controlSize(.small) }
+                            Text(publishing ? "Publishing…" : "Publish to Nostr")
+                        }
+                    }
+                    .disabled(publishing || loading)
+                } footer: {
+                    if let status {
+                        Text(status).foregroundStyle(statusIsError ? .red : .green)
+                    }
+                }
+            }
+            .navigationTitle("Nostr Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task { await load() }
+            .overlay {
+                if loading { ProgressView("Reading from relays…") }
+            }
+        }
+    }
+
+    private func load() async {
+        loading = true
+        if let m = await service.fetch(npub: npub) {
+            name = m.display_name ?? m.name ?? initialDisplayName
+            about = m.about ?? ""
+            picture = m.picture ?? ""
+        } else {
+            name = initialDisplayName
+        }
+        loading = false
+    }
+
+    private func publish() async {
+        publishing = true
+        status = nil
+        let meta = NostrProfileMetadata(
+            name: name, display_name: name, about: about, picture: picture
+        )
+        do {
+            let results = try await service.publish(npub: npub, metadata: meta)
+            let ok = results.filter { $0.1 }.count
+            statusIsError = ok == 0
+            status = ok > 0
+                ? "Published to \(ok)/\(results.count) relays."
+                : "No relay accepted the event."
+        } catch {
+            statusIsError = true
+            status = error.localizedDescription
+        }
+        publishing = false
     }
 }

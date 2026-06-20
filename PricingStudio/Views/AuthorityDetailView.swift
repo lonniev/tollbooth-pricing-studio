@@ -14,6 +14,7 @@ struct AuthorityDetailView: View {
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var loadingOnboarding = false
     @State private var showingForgetConfirm = false
+    @State private var showingProfile = false
     @State private var forgetState: ForgetState = .idle
     @State private var adoptionsVM = PendingAdoptionsViewModel()
     @State private var rejectingRequest: MCPService.AdoptionRequest?
@@ -92,6 +93,9 @@ struct AuthorityDetailView: View {
                 pricingVM: pricingVM
             )
         }
+        .sheet(isPresented: $showingProfile) {
+            EditNostrProfileSheet(npub: authority.npub, initialDisplayName: authority.displayName)
+        }
         .sheet(isPresented: $showingTopOff) {
             if let endpoint = authority.mcpEndpointURL {
                 AuthorityTopOffSheet(
@@ -165,6 +169,13 @@ struct AuthorityDetailView: View {
                 Label("Identity Linked", systemImage: "checkmark.seal.fill")
                     .font(.caption2)
                     .foregroundStyle(.green)
+                Button {
+                    showingProfile = true
+                } label: {
+                    Image(systemName: "person.text.rectangle")
+                }
+                .font(.caption2)
+                .buttonStyle(.borderless)
             }
         }
         .padding(.horizontal)
