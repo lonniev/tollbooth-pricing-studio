@@ -83,14 +83,14 @@ struct CourierPayloadView: View {
                     sent = true
                 } label: {
                     Label(
-                        sent ? "Credentials Sent" : (payload.isComplete ? "Send Credentials" : "Fill All Fields First"),
+                        sent ? "Credentials Sent" : (payload.canSend ? "Send Filled Fields" : "Fill at Least One Field"),
                         systemImage: sent ? "checkmark.circle.fill" : "paperplane.fill"
                     )
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(sent ? .secondary : (payload.isComplete ? .accentColor : .gray))
-                .disabled(sent || !payload.isComplete)
+                .tint(sent ? .secondary : (payload.canSend ? .accentColor : .gray))
+                .disabled(sent || !payload.canSend)
             }
         }
         .padding()

@@ -58,6 +58,17 @@ struct CourierPayload: Sendable {
         fields.allSatisfy { !$0.needsInput }
     }
 
+    /// Fields the operator actually filled (non-placeholder, non-empty).
+    var filledFields: [Field] {
+        fields.filter { !$0.needsInput }
+    }
+
+    /// A reply is sendable once at least one field is filled. Partial
+    /// deliveries are allowed — the backend merges them into the vault and
+    /// leaves untouched whatever you don't send — so you can set just one
+    /// new secret (e.g. an Anthropic key) without re-entering the others.
+    var canSend: Bool { !filledFields.isEmpty }
+
     // MARK: - Parsing
 
     /// Regex matching `key = @@@value@@@` pairs.
@@ -173,11 +184,13 @@ struct CourierPayload: Sendable {
     // MARK: - Serialization
 
     /// Re-serialize the fields back into `key = @@@value@@@` format for sending as a DM reply.
-    /// The rendezvous_relay is protocol-control metadata for the sender's
-    /// listener — it's not echoed back in the reply.
+    /// Only FILLED fields are emitted — unfilled placeholders are omitted so a
+    /// partial reply doesn't overwrite vaulted secrets you didn't touch (the
+    /// backend merges what it receives). The rendezvous_relay is protocol-
+    /// control metadata for the sender's listener — not echoed back.
     func serialize() -> String {
         var lines: [String] = []
-        for field in fields {
+        for field in filledFields {
             lines.append("  \(field.key) = @@@\(field.value)@@@")
         }
         if let poison {
