@@ -1848,71 +1848,63 @@ struct EditNostrProfileSheet: View {
     @State private var publishing = false
     @State private var status: String?
     @State private var statusIsError = false
+    @State private var showAvatarPicker = false
 
     private let service = NostrProfileService()
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
+                Section("Identity") {
                     Text(npub)
                         .font(.callout).monospaced().textSelection(.enabled)
                         .foregroundStyle(.secondary)
-                } header: {
-                    Text("Identity (npub)")
-                } footer: {
-                    Text("Signed by this npub's key and published to your relays.")
+                        .help("Your Nostr public key. The profile is signed by this key and published to your relays.")
                 }
 
                 Section("Name") {
                     TextField("Display name", text: $name)
                 }
 
-                Section {
-                    AvatarPickerView(selectedURL: $picture)
-                } header: {
-                    Text("Avatar")
-                } footer: {
-                    Text("Choose an emoji or paste an image URL. kind-0 stores the URL, not the bytes.")
+                Section("Avatar") {
+                    DisclosureGroup(isExpanded: $showAvatarPicker) {
+                        AvatarPickerView(selectedURL: $picture)
+                    } label: {
+                        HStack {
+                            Text("Avatar")
+                            Spacer()
+                            AvatarView(value: picture, size: 30)
+                        }
+                    }
                 }
 
-                Section("Description") {
+                Section("About") {
                     TextField("About", text: $about, axis: .vertical).lineLimit(3 ... 6)
                 }
 
-                Section {
+                Section("NIP-05") {
                     TextField("user@domain.org", text: $nip05)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .font(.callout)
-                } header: {
-                    Text("NIP-05 Identity")
-                } footer: {
-                    Text("Optional. Nostr-verifiable name (e.g. curator@example.org).")
+                        .help("Optional. A Nostr-verifiable name, e.g. curator@example.org.")
                 }
 
-                Section {
+                Section("Website") {
                     TextField("https://example.com", text: $website)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
                         .font(.callout)
-                } header: {
-                    Text("Website")
-                } footer: {
-                    Text("Optional. Your personal or business website.")
                 }
 
-                Section {
-                    TextField("your-handle@provider.com", text: $lud16)
+                Section("Lightning Address") {
+                    TextField("you@wallet.com", text: $lud16)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.emailAddress)
                         .font(.callout)
-                } header: {
-                    Text("Lightning Address")
-                } footer: {
-                    Text("Optional. LNURL-pay address for Bitcoin Lightning payments (e.g. name@stacker.news).")
+                        .help("Optional. A Lightning (LNURL-pay) address for receiving sats.")
                 }
 
                 Section {

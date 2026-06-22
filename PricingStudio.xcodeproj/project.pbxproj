@@ -731,6 +731,7 @@
 				AA00000100000000000000A2 /* MCP */,
 				AA00000100000000000000A4 /* P256K */,
 				BB00000100000000STAR0002 /* Starscream */,
+				CC00000100000000SVGV0002 /* SVGView */,
 			);
 			productName = PricingStudio;
 			productReference = AA00000100000000000000FF /* PricingStudio.app */;
@@ -828,6 +829,7 @@
 				AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */,
 				AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */,
 				BB00000100000000STAR0001 /* XCRemoteSwiftPackageReference "Starscream" */,
+				CC00000100000000SVGV0001 /* XCRemoteSwiftPackageReference "SVGView" */,
 			);
 			productRefGroup = AA000001000000000000004C /* Products */;
 			projectDirPath = "";
@@ -1501,6 +1503,14 @@
 				minimumVersion = 4.0.8;
 			};
 		};
+		CC00000100000000SVGV0001 /* XCRemoteSwiftPackageReference "SVGView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/exyte/SVGView.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1518,6 +1528,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BB00000100000000STAR0001 /* XCRemoteSwiftPackageReference "Starscream" */;
 			productName = Starscream;
+		};
+		CC00000100000000SVGV0002 /* SVGView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC00000100000000SVGV0001 /* XCRemoteSwiftPackageReference "SVGView" */;
+			productName = SVGView;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

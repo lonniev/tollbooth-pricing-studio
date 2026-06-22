@@ -77,6 +77,11 @@ final class NostrRelayService: Sendable {
 
     /// Fetch the latest kind-0 metadata event for a pubkey across all relays
     /// (newest `created_at` wins). Returns nil if none found.
+    ///
+    /// Relays are queried in PARALLEL with short timeouts: a profile read is a
+    /// single `limit: 1` lookup, so total wall-clock is bounded by the slowest
+    /// single relay (~`Self.profileReadTimeout`s) rather than the sum across
+    /// the set, and a slow/dead relay can't hold the whole fetch hostage.
     func fetchProfileEvent(pubkeyHex: String) async -> NostrEvent? {
         let filter: [String: Any] = ["kinds": [0], "authors": [pubkeyHex], "limit": 1]
         let subId = UUID().uuidString.prefix(16).lowercased()
@@ -85,15 +90,31 @@ final class NostrRelayService: Sendable {
               let reqString = String(data: reqData, encoding: .utf8) else {
             return nil
         }
-        var newest: NostrEvent?
-        for relay in relays {
-            let events = await Self.fetchFromRelay(relay, reqString: reqString, subId: String(subId))
-            for ev in events where ev.kind == 0 {
-                if newest == nil || ev.created_at > newest!.created_at { newest = ev }
+
+        return await withTaskGroup(of: [NostrEvent].self) { group in
+            for relay in relays {
+                group.addTask {
+                    await Self.fetchFromRelay(
+                        relay, reqString: reqString, subId: String(subId),
+                        connectTimeout: Self.profileConnectTimeout,
+                        readDeadline: Self.profileReadTimeout,
+                        receiveTimeout: Self.profileReadTimeout
+                    )
+                }
             }
+            var newest: NostrEvent?
+            for await events in group {
+                for ev in events where ev.kind == 0 {
+                    if newest == nil || ev.created_at > newest!.created_at { newest = ev }
+                }
+            }
+            return newest
         }
-        return newest
     }
+
+    /// Short timeouts for public kind-0 profile reads (parallel fan-out).
+    private static let profileConnectTimeout: TimeInterval = 6
+    private static let profileReadTimeout: TimeInterval = 6
 
     // MARK: - Publish
 
@@ -128,8 +149,13 @@ final class NostrRelayService: Sendable {
     // MARK: - Starscream Relay Communication
 
     /// Fetch events from a single relay using a one-shot Starscream WebSocket.
+    /// Timeouts default to the conservative DM-fetch values; callers serving
+    /// latency-sensitive reads (e.g. profile lookups) pass shorter ones.
     private static func fetchFromRelay(
-        _ relay: URL, reqString: String, subId: String
+        _ relay: URL, reqString: String, subId: String,
+        connectTimeout: TimeInterval = 30,
+        readDeadline: TimeInterval = 45,
+        receiveTimeout: TimeInterval = 30
     ) async -> [NostrEvent] {
         let host = relay.host ?? relay.absoluteString
         await MainActor.run {
@@ -138,14 +164,14 @@ final class NostrRelayService: Sendable {
 
         do {
             let conn = RelayConnection(url: relay)
-            try await conn.connect(timeout: 30)
+            try await conn.connect(timeout: connectTimeout)
             conn.send(reqString)
 
             var events: [NostrEvent] = []
-            let deadline = Date().addingTimeInterval(45)
+            let deadline = Date().addingTimeInterval(readDeadline)
 
             while Date() < deadline {
-                guard let text = try await conn.receive(timeout: 30) else { break }
+                guard let text = try await conn.receive(timeout: receiveTimeout) else { break }
 
                 guard let data = text.data(using: .utf8),
                       let arr = try? JSONSerialization.jsonObject(with: data) as? [Any],
