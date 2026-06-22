@@ -1841,6 +1841,9 @@ struct EditNostrProfileSheet: View {
     @State private var name = ""
     @State private var about = ""
     @State private var picture = ""
+    @State private var nip05 = ""
+    @State private var website = ""
+    @State private var lud16 = ""
     @State private var loading = true
     @State private var publishing = false
     @State private var status: String?
@@ -1866,33 +1869,50 @@ struct EditNostrProfileSheet: View {
                 }
 
                 Section {
-                    TextField("https://… (image or SVG URL)", text: $picture)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.callout)
-                    if let url = URL(string: picture),
-                       !picture.trimmingCharacters(in: .whitespaces).isEmpty {
-                        HStack {
-                            Spacer()
-                            AsyncImage(url: url) { image in
-                                image.resizable().scaledToFit()
-                            } placeholder: {
-                                ProgressView()
-                            }
-                            .frame(width: 72, height: 72)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(.quaternary))
-                            Spacer()
-                        }
-                    }
+                    AvatarPickerView(selectedURL: $picture)
                 } header: {
-                    Text("Avatar URL")
+                    Text("Avatar")
                 } footer: {
-                    Text("A public image URL (e.g. an Iconify SVG). kind-0 stores the URL, not the bytes.")
+                    Text("Choose an emoji or paste an image URL. kind-0 stores the URL, not the bytes.")
                 }
 
                 Section("Description") {
                     TextField("About", text: $about, axis: .vertical).lineLimit(3 ... 6)
+                }
+
+                Section {
+                    TextField("user@domain.org", text: $nip05)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.callout)
+                } header: {
+                    Text("NIP-05 Identity")
+                } footer: {
+                    Text("Optional. Nostr-verifiable name (e.g. curator@example.org).")
+                }
+
+                Section {
+                    TextField("https://example.com", text: $website)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .font(.callout)
+                } header: {
+                    Text("Website")
+                } footer: {
+                    Text("Optional. Your personal or business website.")
+                }
+
+                Section {
+                    TextField("your-handle@provider.com", text: $lud16)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                        .font(.callout)
+                } header: {
+                    Text("Lightning Address")
+                } footer: {
+                    Text("Optional. LNURL-pay address for Bitcoin Lightning payments (e.g. name@stacker.news).")
                 }
 
                 Section {
@@ -1931,6 +1951,9 @@ struct EditNostrProfileSheet: View {
             name = m.display_name ?? m.name ?? initialDisplayName
             about = m.about ?? ""
             picture = m.picture ?? ""
+            nip05 = m.nip05 ?? ""
+            website = m.website ?? ""
+            lud16 = m.lud16 ?? ""
         } else {
             name = initialDisplayName
         }
@@ -1941,7 +1964,8 @@ struct EditNostrProfileSheet: View {
         publishing = true
         status = nil
         let meta = NostrProfileMetadata(
-            name: name, display_name: name, about: about, picture: picture
+            name: name, display_name: name, about: about, picture: picture,
+            nip05: nip05, website: website, lud16: lud16
         )
         do {
             let results = try await service.publish(npub: npub, metadata: meta)

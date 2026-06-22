@@ -88,6 +88,7 @@
 		AA0000010000000000000249 /* NoNsecView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000259 /* NoNsecView.swift */; };
 		AA0000010000000000000311 /* PatronAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000301 /* PatronAccountViewModel.swift */; };
 		AA0000010000000000000312 /* PatronDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000302 /* PatronDetailView.swift */; };
+		AA000001000000000000F002 /* AvatarPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000F001 /* AvatarPickerView.swift */; };
 		AA0000010000000000000E11 /* InvoiceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000E01 /* InvoiceListView.swift */; };
 		AA0000010000000000000401 /* AssistantMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000411 /* AssistantMessage.swift */; };
 		AA0000010000000000000402 /* AnthropicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000412 /* AnthropicService.swift */; };
@@ -263,6 +264,7 @@
 		AA0000010000000000000259 /* NoNsecView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoNsecView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000301 /* PatronAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronAccountViewModel.swift; sourceTree = "<group>"; };
 		AA0000010000000000000302 /* PatronDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronDetailView.swift; sourceTree = "<group>"; };
+		AA000001000000000000F001 /* AvatarPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarPickerView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000E01 /* InvoiceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceListView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000411 /* AssistantMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantMessage.swift; sourceTree = "<group>"; };
 		AA0000010000000000000412 /* AnthropicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicService.swift; sourceTree = "<group>"; };
@@ -584,6 +586,7 @@
 				AA00000100000000000001A8 /* NetworkTopologyView.swift */,
 				ORCL000100000000000000A1 /* OracleChatView.swift */,
 				AA0000010000000000000302 /* PatronDetailView.swift */,
+				AA000001000000000000F001 /* AvatarPickerView.swift */,
 				AA0000010000000000000E01 /* InvoiceListView.swift */,
 				AA0000010000000000000414 /* AssistantPanelView.swift */,
 				AA0000010000000000000415 /* AssistantAPIKeySheet.swift */,
@@ -1030,6 +1033,7 @@
 				AA0000010000000000000249 /* NoNsecView.swift in Sources */,
 				AA0000010000000000000311 /* PatronAccountViewModel.swift in Sources */,
 				AA0000010000000000000312 /* PatronDetailView.swift in Sources */,
+				AA000001000000000000F002 /* AvatarPickerView.swift in Sources */,
 				AA0000010000000000000E11 /* InvoiceListView.swift in Sources */,
 				AA0000010000000000000401 /* AssistantMessage.swift in Sources */,
 				AA0000010000000000000402 /* AnthropicService.swift in Sources */,
