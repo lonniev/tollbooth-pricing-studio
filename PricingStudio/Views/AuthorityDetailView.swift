@@ -19,6 +19,8 @@ struct AuthorityDetailView: View {
     @State private var adoptionsVM = PendingAdoptionsViewModel()
     @State private var rejectingRequest: MCPService.AdoptionRequest?
     @State private var rejectReason = ""
+    @Query private var allAuthorities: [Authority]
+    @Query private var allOperators: [Operator]
     @Environment(\.modelContext) private var modelContext
 
     private enum ForgetState {
@@ -27,6 +29,26 @@ struct AuthorityDetailView: View {
 
     private var isLinked: Bool {
         KeychainService.loadNsec(forNpub: authority.npub) != nil
+    }
+
+    /// Where this Authority's *certification* balance lives — the api_sats it
+    /// spends to `certify_sats` its children's purchases. For a standard
+    /// (certified) Authority that's its **parent**; for a penultimate one
+    /// (self-funding, parent is Prime) that's **itself**. The economic model
+    /// is uniform: you replenish your certification capacity wherever you pay
+    /// for it. `nil` only when the source isn't resolvable (e.g. parent not in
+    /// the roster yet), in which case we fall back to the Authority itself.
+    private var certificationSource: InvoiceSource {
+        authority.asRole()
+            .invoiceSources(authorities: allAuthorities, operators: allOperators)
+            .first
+            ?? authority.asInvoiceSource
+    }
+
+    /// True when the certification balance lives upstream (a standard
+    /// Authority paying its parent), false when self-funding (penultimate).
+    private var replenishesUpstream: Bool {
+        certificationSource.npub != authority.npub
     }
 
     var body: some View {
@@ -97,13 +119,17 @@ struct AuthorityDetailView: View {
             EditNostrProfileSheet(npub: authority.npub, initialDisplayName: authority.displayName)
         }
         .sheet(isPresented: $showingTopOff) {
-            if let endpoint = authority.mcpEndpointURL {
+            // Replenish this Authority's certification capacity at the place it
+            // actually pays for it: its parent (standard) or itself
+            // (penultimate). Cashier = the source; beneficiary = this Authority.
+            if let endpoint = certificationSource.mcpEndpointURL {
                 AuthorityTopOffSheet(
-                    authorityName: authority.displayName,
-                    authorityNpub: authority.npub,
+                    authorityName: certificationSource.displayName,
+                    authorityNpub: certificationSource.npub,
                     endpoint: endpoint,
                     balanceVM: balanceVM,
                     authority: authority,
+                    purchaserNpub: replenishesUpstream ? authority.npub : "",
                     beneficiaryDisplayName: authority.displayName
                 )
             }
@@ -188,21 +214,33 @@ struct AuthorityDetailView: View {
     private var authorityBalanceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("Authority Balance", systemImage: "creditcard.fill")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Label("Certification Balance", systemImage: "creditcard.fill")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    Text(replenishesUpstream
+                         ? "api_sats held at \(certificationSource.displayName) — spent to certify your operators' purchases"
+                         : "self-funded (parent is Prime)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                }
                 Spacer()
                 Button {
                     showingTopOff = true
                 } label: {
-                    Label("Top Off", systemImage: "bolt.fill")
+                    Label(replenishesUpstream ? "Replenish" : "Top Off", systemImage: "bolt.fill")
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .tint(.green)
                 Button {
-                    Task { await balanceVM.loadBalance(for: authority) }
+                    Task {
+                        await balanceVM.loadCertificationBalance(
+                            authorityNpub: authority.npub, source: certificationSource
+                        )
+                    }
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                         .font(.caption)
@@ -217,7 +255,11 @@ struct AuthorityDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .onAppear {
-                        Task { await balanceVM.loadBalance(for: authority) }
+                        Task {
+                            await balanceVM.loadCertificationBalance(
+                                authorityNpub: authority.npub, source: certificationSource
+                            )
+                        }
                     }
             case .loading:
                 HStack(spacing: 4) {
@@ -245,7 +287,13 @@ struct AuthorityDetailView: View {
 
                     if !result.pendingInvoiceIds.isEmpty {
                         Button {
-                            Task { await balanceVM.reconcile(authority: authority, pendingIds: result.pendingInvoiceIds) }
+                            Task {
+                                await balanceVM.reconcileCertification(
+                                    authorityNpub: authority.npub,
+                                    source: certificationSource,
+                                    pendingIds: result.pendingInvoiceIds
+                                )
+                            }
                         } label: {
                             if balanceVM.isReconciling {
                                 ProgressView().controlSize(.mini)
@@ -297,7 +345,11 @@ struct AuthorityDetailView: View {
                             .foregroundStyle(.orange)
                     }
                     Button {
-                        Task { await balanceVM.loadBalance(for: authority) }
+                        Task {
+                            await balanceVM.loadCertificationBalance(
+                                authorityNpub: authority.npub, source: certificationSource
+                            )
+                        }
                     } label: {
                         Label("Retry", systemImage: "arrow.clockwise")
                             .font(.caption2)
@@ -1570,7 +1622,17 @@ struct AuthorityTopOffSheet: View {
                 )
                 if result.status == "Settled" || result.creditsGranted > 0 {
                     paymentCheckState = .checked("Settled! +\(result.creditsGranted) sats credited.")
-                    Task { await balanceVM.loadBalance(for: authority) }
+                    // Refresh the beneficiary's balance at the cashier endpoint we
+                    // just paid — keeps the detail view's certification-balance
+                    // display consistent with the source we funded.
+                    let source = InvoiceSource(
+                        npub: authorityNpub, displayName: authorityName, mcpEndpointURL: endpoint
+                    )
+                    Task {
+                        await balanceVM.loadCertificationBalance(
+                            authorityNpub: purchaserIdentityNpub, source: source
+                        )
+                    }
                 } else if result.status == "Expired" {
                     paymentCheckState = .checked("Invoice expired.")
                 } else {
