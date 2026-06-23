@@ -202,7 +202,16 @@ final class DMPollingService {
                         // (not historical backfill, not our own sent messages)
                         let isNew = self.subscriptionsStartedAt == nil
                             || dm.createdAt > (self.subscriptionsStartedAt! - 60)  // 60s grace for clock skew
-                        if !dm.isFromMe && isNew {
+                        // A self-notice (sender == recipient == this entity's own
+                        // npub) is a legitimate inbound alert — e.g. an Operator
+                        // /sub-Authority's own low-certification-balance reminder
+                        // (SDK _dun_self_low_cert_balance). It carries isFromMe ==
+                        // true, so the normal "don't notify my own sent messages"
+                        // gate would swallow it. Let it through; ordinary messages
+                        // we sent to *others* stay suppressed.
+                        let isSelfNotice = dm.senderPubkeyHex == pubKeyHex
+                            && dm.recipientPubkeyHex == pubKeyHex
+                        if (!dm.isFromMe || isSelfNotice) && isNew {
                             // Dedup BEFORE touching unread or posting. Relays replay
                             // their backlog on every (re)connect, so the same event
                             // arrives repeatedly; the durable store collapses those to
@@ -580,7 +589,11 @@ private func dmPollSingleEntity(
     var newEventIds: [String] = []
     var latestTimestamp = lastSeen
     for (_, dms) in fetchResult {
-        for dm in dms where !dm.isFromMe {
+        // `!dm.isFromMe` excludes our own sent-to-others messages; a self-notice
+        // (sender == recipient == our own npub, e.g. the SDK's low-cert-balance
+        // reminder) is a real inbound alert and must still count/announce.
+        for dm in dms where !dm.isFromMe
+            || (dm.senderPubkeyHex == pubKeyHex && dm.recipientPubkeyHex == pubKeyHex) {
             let ts = Int(dm.createdAt.timeIntervalSince1970)
             if ts > lastSeen {
                 newCount += 1
