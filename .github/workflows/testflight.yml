@@ -137,13 +137,49 @@ jobs:
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           API_PRIVATE_KEYS_DIR: ${{ runner.temp }}
         run: |
+          set -eo pipefail
           echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode \
-            > $RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$(ls $RUNNER_TEMP/export/*.ipa)" \
-            --apiKey "$ASC_KEY_ID" \
-            --apiIssuer "$ASC_ISSUER_ID"
+            > "$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          IPA="$(ls "$RUNNER_TEMP"/export/*.ipa)"
+
+          # altool prints "ERROR:" to stdout but can still EXIT 0 — notably the
+          # "Failed to determine the Apple ID from Bundle ID" lookup failure
+          # (pending agreement / lapsed membership / transient ASC API). A bare
+          # exit-code check therefore lets a non-delivery pass as green, and the
+          # missing build only surfaces later in TestFlight. Gate on BOTH the
+          # exit code AND the absence of altool's error markers, and retry a few
+          # times to ride out transient App Store Connect hiccups.
+          attempts=3
+          delay=30
+          for n in $(seq 1 "$attempts"); do
+            echo "::group::altool upload attempt $n/$attempts"
+            set +e
+            out="$(xcrun altool --upload-app \
+              --type ios \
+              --file "$IPA" \
+              --apiKey "$ASC_KEY_ID" \
+              --apiIssuer "$ASC_ISSUER_ID" 2>&1)"
+            code=$?
+            set -e
+            printf '%s\n' "$out"
+            echo "::endgroup::"
+
+            # Success = altool exited 0 AND emitted none of its error markers.
+            # (We deliberately do not require a specific success string, whose
+            # wording changes across Xcode versions and could false-fail.)
+            if [ "$code" -eq 0 ] \
+               && ! printf '%s' "$out" | grep -qiE 'ERROR:|Failed to determine the Apple ID|product-errors'; then
+              echo "✅ Build delivered to App Store Connect."
+              exit 0
+            fi
+
+            echo "::warning::altool upload attempt $n did NOT deliver (exit=$code) — see log above."
+            [ "$n" -lt "$attempts" ] && { echo "Retrying in ${delay}s…"; sleep "$delay"; }
+          done
+
+          echo "::error::altool failed to deliver the build to App Store Connect after ${attempts} attempts."
+          echo "::error::Most common cause of 'Failed to determine the Apple ID from Bundle ID': a pending agreement (App Store Connect → Business — visible to the Account Holder only) or a lapsed Apple Developer Program membership."
+          exit 1
 
       - name: Clean up secrets
         if: always()
