@@ -424,12 +424,16 @@ struct ContentView: View {
             .tag(ChatContainerTab.messages)
     }
 
-    private func entityHeader(name: String, npub: String, endpoint: String?, icon: String) -> some View {
+    private func entityHeader(name: String, npub: String, endpoint: String?, icon: String, avatar: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if let avatar, !avatar.trimmingCharacters(in: .whitespaces).isEmpty {
+                    PatronAvatar(pictureURL: avatar, size: 22)
+                } else {
+                    Image(systemName: icon)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
                 Text(name)
                     .font(.headline)
                 if let member = pricingVM.memberRecord {
@@ -642,7 +646,7 @@ struct ContentView: View {
         let role = patron.asRole()
 
         VStack(spacing: 0) {
-            entityHeader(name: patron.displayName, npub: patron.npub, endpoint: nil, icon: "person.badge.key.fill")
+            entityHeader(name: patron.displayName, npub: patron.npub, endpoint: nil, icon: "person.badge.key.fill", avatar: patron.pictureURL)
 
             Picker("View", selection: $detailTab) {
                 Text("📊 Account").tag(ChatContainerTab.pricing)

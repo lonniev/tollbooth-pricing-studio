@@ -118,6 +118,28 @@ struct AvatarView: View {
     }
 }
 
+// MARK: - Patron avatar (Nostr picture when set, else the generic glyph)
+
+/// Renders a patron's cached Nostr avatar (``pictureURL``) when one is set, so
+/// patrons are visually distinguishable wherever they appear; otherwise falls
+/// back to the generic ``person.badge.key`` glyph used elsewhere in Studio.
+struct PatronAvatar: View {
+    let pictureURL: String?
+    var size: CGFloat = 40
+
+    var body: some View {
+        if let url = pictureURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !url.isEmpty {
+            AvatarView(value: url, size: size)
+        } else {
+            Image(systemName: "person.badge.key.fill")
+                .font(.system(size: size * 0.6))
+                .foregroundStyle(.teal)
+                .frame(width: size, height: size)
+        }
+    }
+}
+
 // MARK: - Icon catalog fetch (Iconify collection name lists, cached)
 
 private struct IconifyCollection: Decodable {

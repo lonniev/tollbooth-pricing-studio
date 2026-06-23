@@ -44,9 +44,7 @@ private struct PatronRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Image(systemName: "person.badge.key")
-                        .foregroundStyle(.teal)
-                        .font(.caption)
+                    PatronAvatar(pictureURL: patron.pictureURL, size: 22)
                     Text(patron.displayName)
                         .font(.headline)
                 }
