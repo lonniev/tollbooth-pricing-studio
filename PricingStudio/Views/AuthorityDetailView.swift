@@ -1605,3 +1605,153 @@ struct AuthorityTopOffSheet: View {
     }
 
 }
+
+// MARK: - Edit Nostr Profile (kind-0)
+
+/// Edit and publish the holder's Nostr kind-0 profile (name, about, avatar URL).
+/// Studio signs with the identity's Keychain nsec and publishes to relays — the
+/// profile is self-sovereign and shows up in every Nostr client.
+///
+/// Used by Authorities. (Patrons now manage their profile inside the unified
+/// Patron Edit dialog, so this standalone sheet is Authority-only.)
+struct EditNostrProfileSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let npub: String
+    var initialDisplayName: String = ""
+
+    @State private var name = ""
+    @State private var about = ""
+    @State private var picture = ""
+    @State private var nip05 = ""
+    @State private var website = ""
+    @State private var lud16 = ""
+    @State private var loading = true
+    @State private var publishing = false
+    @State private var status: String?
+    @State private var statusIsError = false
+    @State private var showAvatarPicker = false
+
+    private let service = NostrProfileService()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Identity") {
+                    Text(npub)
+                        .font(.callout).monospaced().textSelection(.enabled)
+                        .foregroundStyle(.secondary)
+                        .help("Your Nostr public key. The profile is signed by this key and published to your relays.")
+                }
+
+                Section("Name") {
+                    TextField("Display name", text: $name)
+                }
+
+                Section("Avatar") {
+                    DisclosureGroup(isExpanded: $showAvatarPicker) {
+                        AvatarPickerView(selectedURL: $picture)
+                    } label: {
+                        HStack {
+                            Text("Avatar")
+                            Spacer()
+                            AvatarView(value: picture, size: 30)
+                        }
+                    }
+                }
+
+                Section("About") {
+                    TextField("About", text: $about, axis: .vertical).lineLimit(3 ... 6)
+                }
+
+                Section("NIP-05") {
+                    TextField("user@domain.org", text: $nip05)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.callout)
+                        .help("Optional. A Nostr-verifiable name, e.g. curator@example.org.")
+                }
+
+                Section("Website") {
+                    TextField("https://example.com", text: $website)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .font(.callout)
+                }
+
+                Section("Lightning Address") {
+                    TextField("you@wallet.com", text: $lud16)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                        .font(.callout)
+                        .help("Optional. A Lightning (LNURL-pay) address for receiving sats.")
+                }
+
+                Section {
+                    Button {
+                        Task { await publish() }
+                    } label: {
+                        HStack {
+                            if publishing { ProgressView().controlSize(.small) }
+                            Text(publishing ? "Publishing…" : "Publish to Nostr")
+                        }
+                    }
+                    .disabled(publishing || loading)
+                } footer: {
+                    if let status {
+                        Text(status).foregroundStyle(statusIsError ? .red : .green)
+                    }
+                }
+            }
+            .navigationTitle("Nostr Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task { await load() }
+            .overlay {
+                if loading { ProgressView("Reading from relays…") }
+            }
+        }
+    }
+
+    private func load() async {
+        loading = true
+        if let m = await service.fetch(npub: npub) {
+            name = m.display_name ?? m.name ?? initialDisplayName
+            about = m.about ?? ""
+            picture = m.picture ?? ""
+            nip05 = m.nip05 ?? ""
+            website = m.website ?? ""
+            lud16 = m.lud16 ?? ""
+        } else {
+            name = initialDisplayName
+        }
+        loading = false
+    }
+
+    private func publish() async {
+        publishing = true
+        status = nil
+        let meta = NostrProfileMetadata(
+            name: name, display_name: name, about: about, picture: picture,
+            nip05: nip05, website: website, lud16: lud16
+        )
+        do {
+            let results = try await service.publish(npub: npub, metadata: meta)
+            let ok = results.filter { $0.1 }.count
+            statusIsError = ok == 0
+            status = ok > 0
+                ? "Published to \(ok)/\(results.count) relays."
+                : "No relay accepted the event."
+        } catch {
+            statusIsError = true
+            status = error.localizedDescription
+        }
+        publishing = false
+    }
+}

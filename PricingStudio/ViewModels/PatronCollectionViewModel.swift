@@ -39,8 +39,17 @@ final class PatronCollectionViewModel {
         selectedPatron = patron
     }
 
-    func updatePatron(_ patron: Patron, displayName: String, nsec: String?, context: ModelContext) {
+    func updatePatron(
+        _ patron: Patron,
+        displayName: String,
+        nsec: String?,
+        nip05: String? = nil,
+        pictureURL: String? = nil,
+        context: ModelContext
+    ) {
         patron.displayName = displayName
+        patron.nip05 = nip05
+        patron.pictureURL = pictureURL
 
         if let nsec, !nsec.isEmpty {
             // Derive new npub from the updated nsec
