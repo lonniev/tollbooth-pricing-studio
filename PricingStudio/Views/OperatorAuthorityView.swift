@@ -39,14 +39,14 @@ struct OperatorAuthorityView: View {
         }
         .sheet(isPresented: $showingTopOff) {
             if let auth = authority {
-                AuthorityTopOffSheet(
-                    authorityName: auth.displayName,
-                    authorityNpub: auth.npub,
+                PurchaseCreditsSheet(
+                    cashierName: auth.displayName,
+                    cashierNpub: auth.npub,
                     endpoint: auth.mcpEndpointURL ?? "",
-                    balanceVM: balanceVM,
-                    authority: auth,
                     purchaserNpub: `operator`.npub,
-                    beneficiaryDisplayName: `operator`.displayName
+                    beneficiaryDisplayName: `operator`.displayName,
+                    presets: [500, 1000, 5000, 10000],
+                    onSettled: { Task { await loadOperatorBalance() } }
                 )
             }
         }

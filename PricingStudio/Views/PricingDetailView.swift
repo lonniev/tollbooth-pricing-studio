@@ -452,13 +452,24 @@ struct PricingDetailView: View {
         }
         .sheet(isPresented: $showingAuthorityTopOff) {
             if let auth = authority {
-                AuthorityTopOffSheet(
-                    authorityName: auth.displayName,
-                    authorityNpub: auth.npub,
+                PurchaseCreditsSheet(
+                    cashierName: auth.displayName,
+                    cashierNpub: auth.npub,
                     endpoint: auth.mcpEndpointURL ?? "",
-                    balanceVM: authorityBalanceVM,
-                    authority: auth,
-                    purchaserNpub: operatorNpub
+                    purchaserNpub: operatorNpub,
+                    presets: [500, 1000, 5000, 10000],
+                    onSettled: {
+                        Task {
+                            await authorityBalanceVM.loadCertificationBalance(
+                                authorityNpub: operatorNpub,
+                                source: InvoiceSource(
+                                    npub: auth.npub,
+                                    displayName: auth.displayName,
+                                    mcpEndpointURL: auth.mcpEndpointURL
+                                )
+                            )
+                        }
+                    }
                 )
             }
         }

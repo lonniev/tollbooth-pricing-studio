@@ -316,21 +316,6 @@ final class PatronAccountViewModel {
         await forceRefresh(forNpub: patron.npub, sources: sources)
     }
 
-    func purchaseCredits(
-        patronNpub: String,
-        operatorEndpoint: String,
-        amountSats: Int
-    ) async throws -> MCPService.PurchaseResult {
-        guard let endpointURL = URL(string: operatorEndpoint) else {
-            throw MCPError.connectionFailed("Invalid endpoint URL")
-        }
-        return try await mcpService.callPurchaseCredits(
-            endpointURL: endpointURL,
-            amountSats: amountSats,
-            patronNpub: patronNpub
-        )
-    }
-
     // MARK: - Invoice Reconciliation
 
     struct ReconcileResult {
