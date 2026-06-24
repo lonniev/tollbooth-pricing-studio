@@ -212,157 +212,33 @@ struct AuthorityDetailView: View {
 
     @ViewBuilder
     private var authorityBalanceSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 1) {
-                    Label("Certification Balance", systemImage: "creditcard.fill")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    Text(replenishesUpstream
-                         ? "api_sats held at \(certificationSource.displayName) — spent to certify your operators' purchases"
-                         : "self-funded (parent is Prime)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(2)
+        ParentAccountCard(
+            parentDisplayName: certificationSource.displayName,
+            balance: balanceVM.balanceState,
+            selfFunded: authority.isPenultimate,
+            feeExplanation: "spent as the certification fee each time you sell",
+            topUpLabel: "Replenish",
+            isReconciling: balanceVM.isReconciling,
+            reconcileResult: balanceVM.reconcileResult,
+            onTopUp: { showingTopOff = true },
+            onReconcile: {
+                guard case .loaded(let result) = balanceVM.balanceState else { return }
+                Task {
+                    await balanceVM.reconcileCertification(
+                        authorityNpub: authority.npub,
+                        source: certificationSource,
+                        pendingIds: result.pendingInvoiceIds
+                    )
                 }
-                Spacer()
-                Button {
-                    showingTopOff = true
-                } label: {
-                    Label(replenishesUpstream ? "Replenish" : "Top Off", systemImage: "bolt.fill")
-                        .font(.caption)
+            },
+            onRefresh: {
+                Task {
+                    await balanceVM.loadCertificationBalance(
+                        authorityNpub: authority.npub, source: certificationSource
+                    )
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-                .tint(.green)
-                Button {
-                    Task {
-                        await balanceVM.loadCertificationBalance(
-                            authorityNpub: authority.npub, source: certificationSource
-                        )
-                    }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
             }
-
-            switch balanceVM.balanceState {
-            case .idle:
-                Text("Tap refresh to check balance")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .onAppear {
-                        Task {
-                            await balanceVM.loadCertificationBalance(
-                                authorityNpub: authority.npub, source: certificationSource
-                            )
-                        }
-                    }
-            case .loading:
-                HStack(spacing: 4) {
-                    ProgressView().controlSize(.small)
-                    Text("Loading...").font(.caption).foregroundStyle(.secondary)
-                }
-            case .loaded(let result):
-                let isUnknown = result.balanceApiSats == 0 && result.totalDeposited == 0
-                let balanceColor: Color = isUnknown ? .secondary : (result.balanceApiSats < 50 ? .red : .primary)
-                HStack(spacing: 16) {
-                    Text(isUnknown ? "N/A" : "\(result.balanceApiSats) sats")
-                        .font(.subheadline.monospacedDigit().bold())
-                        .foregroundStyle(balanceColor)
-
-                    if result.pendingInvoiceCount > 0 {
-                        Text("\(result.pendingInvoiceCount) pending")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.orange.opacity(0.2), in: Capsule())
-                            .foregroundStyle(.orange)
-                    }
-
-                    Spacer()
-
-                    if !result.pendingInvoiceIds.isEmpty {
-                        Button {
-                            Task {
-                                await balanceVM.reconcileCertification(
-                                    authorityNpub: authority.npub,
-                                    source: certificationSource,
-                                    pendingIds: result.pendingInvoiceIds
-                                )
-                            }
-                        } label: {
-                            if balanceVM.isReconciling {
-                                ProgressView().controlSize(.mini)
-                            } else {
-                                Label("Reconcile", systemImage: "arrow.triangle.2.circlepath")
-                                    .font(.caption2)
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .disabled(balanceVM.isReconciling)
-                    }
-                }
-
-                if !isUnknown && result.balanceApiSats < 50 {
-                    Label("Low balance — operators may fail to certify purchases", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                }
-
-                if let rr = balanceVM.reconcileResult {
-                    HStack(spacing: 6) {
-                        if rr.settled > 0 {
-                            Label("+\(rr.creditsGained)", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        }
-                        if rr.expired > 0 {
-                            Label("\(rr.expired) expired", systemImage: "xmark.circle.fill")
-                                .foregroundStyle(.red)
-                        }
-                    }
-                    .font(.caption2)
-                }
-
-            case .error(let msg):
-                let isAuthIssue = msg.localizedCaseInsensitiveContains("auth")
-                    || msg.localizedCaseInsensitiveContains("token")
-                    || msg.localizedCaseInsensitiveContains("401")
-                    || msg.localizedCaseInsensitiveContains("403")
-                    || msg.localizedCaseInsensitiveContains("OAuth")
-                HStack(spacing: 8) {
-                    Text("??? sats")
-                        .font(.subheadline.monospacedDigit().bold())
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if isAuthIssue {
-                        Label("Authenticating…", systemImage: "key.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
-                    Button {
-                        Task {
-                            await balanceVM.loadCertificationBalance(
-                                authorityNpub: authority.npub, source: certificationSource
-                            )
-                        }
-                    } label: {
-                        Label("Retry", systemImage: "arrow.clockwise")
-                            .font(.caption2)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                }
-                Text(isAuthIssue ? "Authentication in progress — tap Retry after signing in." : msg)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-        }
+        )
         .padding(.horizontal)
         .padding(.vertical, 8)
     }

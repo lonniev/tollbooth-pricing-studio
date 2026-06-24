@@ -9,11 +9,21 @@ struct OperatorAuthorityView: View {
     let authorityNpub: String
 
     @Query private var authorities: [Authority]
-    @State private var operatorBalance: Int?
-    @State private var isLoadingBalance = false
+    @State private var balanceVM = AuthorityBalanceViewModel()
+    @State private var showingTopOff = false
 
     private var authority: Authority? {
         authorities.first { $0.npub == authorityNpub }
+    }
+
+    /// The store where this operator's balance lives — its Authority. Same
+    /// shape every actor uses: you hold one balance, at your parent.
+    private var source: InvoiceSource {
+        InvoiceSource(
+            npub: authorityNpub,
+            displayName: authority?.displayName ?? "Authority",
+            mcpEndpointURL: authority?.mcpEndpointURL
+        )
     }
 
     var body: some View {
@@ -25,8 +35,20 @@ struct OperatorAuthorityView: View {
             .padding()
         }
         .task(id: `operator`.npub) {
-            operatorBalance = nil
             await loadOperatorBalance()
+        }
+        .sheet(isPresented: $showingTopOff) {
+            if let auth = authority {
+                AuthorityTopOffSheet(
+                    authorityName: auth.displayName,
+                    authorityNpub: auth.npub,
+                    endpoint: auth.mcpEndpointURL ?? "",
+                    balanceVM: balanceVM,
+                    authority: auth,
+                    purchaserNpub: `operator`.npub,
+                    beneficiaryDisplayName: `operator`.displayName
+                )
+            }
         }
     }
 
@@ -63,85 +85,35 @@ struct OperatorAuthorityView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    // MARK: - Certification Tax Balance
+    // MARK: - Account at parent (the operator's one balance, at its Authority)
 
-    @ViewBuilder
     private var operatorBalanceCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "creditcard.fill")
-                    .foregroundStyle(.orange)
-                Text("Balance at \(authority?.displayName ?? "Authority") for \(`operator`.displayName)")
-                    .font(.subheadline.bold())
-                Spacer()
-                Button {
-                    Task { await loadOperatorBalance() }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                        .font(.caption)
+        ParentAccountCard(
+            parentDisplayName: source.displayName,
+            balance: balanceVM.balanceState,
+            feeExplanation: "spent as the certification fee each time a patron buys",
+            isReconciling: balanceVM.isReconciling,
+            reconcileResult: balanceVM.reconcileResult,
+            onTopUp: { showingTopOff = true },
+            onReconcile: {
+                guard case .loaded(let result) = balanceVM.balanceState else { return }
+                Task {
+                    await balanceVM.reconcileCertification(
+                        authorityNpub: `operator`.npub,
+                        source: source,
+                        pendingIds: result.pendingInvoiceIds
+                    )
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-            }
-
-            if isLoadingBalance {
-                HStack(spacing: 4) {
-                    ProgressView().controlSize(.small)
-                    Text("Loading...").font(.caption).foregroundStyle(.secondary)
-                }
-            } else if let balance = operatorBalance {
-                HStack(spacing: 8) {
-                    Text("\(balance) sats")
-                        .font(.title2.monospacedDigit().bold())
-                        .foregroundStyle(balance < 50 ? .red : .green)
-
-                    if balance == 0 {
-                        Label("Empty — patron purchases will fail", systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    } else if balance < 50 {
-                        Label("Low — top off soon", systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                }
-
-                Text("\(`operator`.displayName)'s certification tax account. " +
-                     "The Authority deducts a fee from this balance " +
-                     "each time a patron purchases credits.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Tap refresh to check balance")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+            },
+            onRefresh: { Task { await loadOperatorBalance() } }
+        )
     }
 
     // MARK: - Balance Loading
 
     private func loadOperatorBalance() async {
-        guard let auth = authority,
-              let endpointString = auth.mcpEndpointURL,
-              let endpointURL = URL(string: endpointString) else { return }
-
-        isLoadingBalance = true
-        let mcpService = MCPService()
-
-        do {
-            let result = try await mcpService.callCheckBalance(
-                endpointURL: endpointURL,
-                patronNpub: `operator`.npub
-            )
-            operatorBalance = result.balanceApiSats
-        } catch {
-            // Leave nil — will show "tap refresh"
-        }
-
-        isLoadingBalance = false
+        await balanceVM.loadCertificationBalance(
+            authorityNpub: `operator`.npub, source: source
+        )
     }
 }

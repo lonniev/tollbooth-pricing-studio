@@ -4,14 +4,9 @@ import Foundation
 @Observable
 final class AuthorityBalanceViewModel {
 
-    enum BalanceState {
-        case idle
-        case loading
-        case loaded(PatronAccountViewModel.BalanceResult)
-        case error(String)
-    }
-
-    private(set) var balanceState: BalanceState = .idle
+    // Balance load state is the shared `BalanceLoadState` (see ParentAccountCard)
+    // so the one unified card can render this VM directly.
+    private(set) var balanceState: BalanceLoadState = .idle
     private(set) var isReconciling = false
     var reconcileResult: PatronAccountViewModel.ReconcileResult?
 
