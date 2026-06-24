@@ -403,7 +403,7 @@ struct PricingDetailView: View {
                     Button {
                         showingAuthorityTopOff = true
                     } label: {
-                        Label("Top Off", systemImage: "plus.circle.fill")
+                        Label("Top Up", systemImage: "plus.circle.fill")
                             .font(.caption.bold())
                     }
                     .buttonStyle(.borderedProminent)

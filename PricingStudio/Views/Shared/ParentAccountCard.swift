@@ -33,8 +33,9 @@ struct ParentAccountCard: View {
     /// Qualitative description of what drains the balance. NEVER a specific
     /// percentage — the fee comes from the operator's dynamic pricing model.
     var feeExplanation: String = ""
-    /// "Top up" for an on-ramp, "Replenish" when restoring upstream capacity.
-    var topUpLabel: String = "Top up"
+    /// Funding action label. One verb everywhere — "Top Up" (the SIM-card
+    /// analogy) — for patrons, operators, and authorities alike.
+    var topUpLabel: String = "Top Up"
 
     var isReconciling: Bool = false
     var reconcileResult: PatronAccountViewModel.ReconcileResult? = nil
@@ -135,7 +136,7 @@ struct ParentAccountCard: View {
             : (result.balanceApiSats < 50 ? .red : .primary)
 
         HStack(spacing: 16) {
-            Text(isUnknown ? "N/A" : "\(result.balanceApiSats) api_sats")
+            Text(isUnknown ? "N/A" : "\(result.balanceApiSats) sats")
                 .font(.subheadline.monospacedDigit().bold())
                 .foregroundStyle(balanceColor)
 
@@ -166,8 +167,7 @@ struct ParentAccountCard: View {
         }
 
         if !isUnknown && result.balanceApiSats < 50 {
-            Label("Low balance — sales may fail to certify until you top up",
-                  systemImage: "exclamationmark.triangle.fill")
+            Label("Low balance — top up soon", systemImage: "exclamationmark.triangle.fill")
                 .font(.caption2)
                 .foregroundStyle(.red)
         }
@@ -189,7 +189,7 @@ struct ParentAccountCard: View {
 
     private var errorBody: some View {
         HStack(spacing: 8) {
-            Text("??? api_sats")
+            Text("??? sats")
                 .font(.subheadline.monospacedDigit().bold())
                 .foregroundStyle(.secondary)
             Spacer()

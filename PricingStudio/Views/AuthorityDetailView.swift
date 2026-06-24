@@ -222,7 +222,6 @@ struct AuthorityDetailView: View {
             balance: balanceVM.balanceState,
             selfFunded: authority.isPenultimate,
             feeExplanation: "spent as the certification fee each time you sell",
-            topUpLabel: "Replenish",
             isReconciling: balanceVM.isReconciling,
             reconcileResult: balanceVM.reconcileResult,
             onTopUp: { showingTopOff = true },

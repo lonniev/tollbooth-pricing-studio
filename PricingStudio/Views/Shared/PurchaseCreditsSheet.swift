@@ -90,16 +90,16 @@ struct PurchaseCreditsSheet: View {
                         Text(cashierName).font(.subheadline.bold())
                     }
                 } header: {
-                    Text("Top up your account at \(cashierName)")
+                    Text("Top Up your account at \(cashierName)")
                 } footer: {
-                    Text("api_sats are credited to the beneficiary's account at \(cashierName). Anyone can pay the Lightning invoice — the source of funds doesn't matter.")
+                    Text("Sats are credited to the beneficiary's account at \(cashierName). Anyone can pay the Lightning invoice — the source of funds doesn't matter.")
                         .font(.caption2)
                 }
 
                 amountSection
                 purchaseStateSection
             }
-            .navigationTitle("Top up")
+            .navigationTitle("Top Up")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(paymentCheckState.isSettled ? "Done" : "Cancel") { dismiss() }
@@ -142,7 +142,7 @@ struct PurchaseCreditsSheet: View {
                 Button {
                     purchase()
                 } label: {
-                    Label("Top up \(effectiveAmount) sats", systemImage: "bolt.fill")
+                    Label("Top Up \(effectiveAmount) sats", systemImage: "bolt.fill")
                 }
                 .disabled(effectiveAmount < minimumSats)
             } footer: {
@@ -297,7 +297,7 @@ struct PurchaseCreditsSheet: View {
             )
         }
         return ErrorGuidance(
-            headline: "Top-up Failed",
+            headline: "Top Up Failed",
             icon: "exclamationmark.triangle.fill",
             color: .red,
             explanation: message,
@@ -357,7 +357,7 @@ struct PurchaseCreditsSheet: View {
                     .font(.caption)
 
             case .verifying:
-                progressRow("Verifying proof and retrying top-up…")
+                progressRow("Verifying proof and retrying…")
 
             case .failed(let msg):
                 Label(msg, systemImage: "exclamationmark.triangle.fill")
@@ -491,7 +491,7 @@ struct PurchaseCreditsSheet: View {
                     npub: purchaserNpub
                 )
                 if result.status == "Settled" || result.creditsGranted > 0 {
-                    paymentCheckState = .settled("Settled! +\(result.creditsGranted) api_sats credited.")
+                    paymentCheckState = .settled("Settled! +\(result.creditsGranted) sats credited.")
                     onSettled?()
                 } else if result.status == "Expired" {
                     paymentCheckState = .checked("Invoice expired.")

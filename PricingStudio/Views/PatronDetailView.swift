@@ -126,46 +126,39 @@ private struct OperatorBalanceCard: View {
     @State private var reconcileResult: PatronAccountViewModel.ReconcileResult?
     @State private var patronOnboarding: MCPService.PatronOnboardingStatus?
     @State private var loadingOnboarding = false
-    @State private var showingErrorDetail = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(balance.operatorName)
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.primary)
-                        Text(balance.endpoint)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+        VStack(alignment: .leading, spacing: 6) {
+            // Same self-similar card every actor uses: this patron's one
+            // balance, at this operator.
+            ParentAccountCard(
+                parentDisplayName: balance.operatorName,
+                balance: cardBalance,
+                feeExplanation: "spent on your tool calls at \(balance.operatorName)",
+                isReconciling: isReconciling,
+                reconcileResult: reconcileResult,
+                onTopUp: { showingTopOff = true },
+                onReconcile: {
+                    if case .loaded(let result) = balance.balanceState {
+                        Task { await reconcilePending(result) }
                     }
+                },
+                onRefresh: { onRefreshNeeded?() }
+            )
 
-                    Spacer()
-
-                    balanceBadge
-
-                    if case .loaded = balance.balanceState {
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            if case .loaded(let result) = balance.balanceState {
+                DisclosureGroup(isExpanded: $isExpanded) {
+                    detailBody(result)
+                } label: {
+                    Text("Details & secrets")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
                 }
                 .padding(12)
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded, case .loaded(let result) = balance.balanceState {
-                expandedDetail(result)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
         .sheet(isPresented: $showingTopOff) {
             PurchaseCreditsSheet(
                 cashierName: balance.operatorName,
@@ -197,59 +190,17 @@ private struct OperatorBalanceCard: View {
         }
     }
 
-    @ViewBuilder
-    private var balanceBadge: some View {
+    /// Maps the patron-side balance state onto the shared card's load state.
+    private var cardBalance: BalanceLoadState {
         switch balance.balanceState {
-        case .loading:
-            HStack(spacing: 4) {
-                ProgressView().controlSize(.small)
-                Text("Brr\u{2026}").font(.caption).foregroundStyle(.secondary)
-            }
-        case .loaded(let result):
-            HStack(spacing: 6) {
-                Text("\(result.balanceApiSats) sats")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundColor(result.balanceApiSats > 0 ? .green : .red)
-                if result.pendingInvoiceCount > 0 {
-                    Text("\(result.pendingInvoiceCount) pending")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.orange.opacity(0.2), in: Capsule())
-                        .foregroundStyle(.orange)
-                }
-            }
-        case .error(let msg):
-            Button {
-                showingErrorDetail = true
-            } label: {
-                Label("Error", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showingErrorDetail) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Balance Check Failed", systemImage: "exclamationmark.triangle.fill")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.red)
-                    Text(msg)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-                .padding()
-                .frame(maxWidth: 320)
-                .presentationCompactAdaptation(.popover)
-            }
+        case .loading: return .loading
+        case .loaded(let r): return .loaded(r)
+        case .error(let m): return .error(m)
         }
     }
 
     @ViewBuilder
-    private func expandedDetail(_ result: PatronAccountViewModel.BalanceResult) -> some View {
-        Divider()
-            .padding(.bottom, 8)
-
+    private func detailBody(_ result: PatronAccountViewModel.BalanceResult) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
             GridRow {
                 Text("Deposited").font(.caption).foregroundStyle(.secondary)
@@ -310,66 +261,22 @@ private struct OperatorBalanceCard: View {
         Divider()
             .padding(.vertical, 4)
 
-        HStack(spacing: 12) {
-            Button {
-                showingTopOff = true
-            } label: {
-                Label("Top Off", systemImage: "plus.circle.fill")
-                    .font(.caption.bold())
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(result.balanceApiSats < 100 || result.expiringWithin24h > 0 ? .orange : Color.accentColor)
-            .controlSize(.small)
-
-            Button {
-                showingInfographic = true
-                if let op = self.operator {
-                    Task {
-                        await accountVM.fetchInfographic(for: patron, operator: op)
-                    }
+        // Top Up + Reconcile (and the reconcile result) live on the shared
+        // ParentAccountCard above; here we keep only the patron-specific
+        // Statement affordance.
+        Button {
+            showingInfographic = true
+            if let op = self.operator {
+                Task {
+                    await accountVM.fetchInfographic(for: patron, operator: op)
                 }
-            } label: {
-                Label("Statement", systemImage: "chart.bar.doc.horizontal")
-                    .font(.caption.bold())
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-
-            if !result.pendingInvoiceIds.isEmpty {
-                Button {
-                    Task { await reconcilePending(result) }
-                } label: {
-                    if isReconciling {
-                        ProgressView().controlSize(.mini)
-                    } else {
-                        Label("Reconcile", systemImage: "arrow.triangle.2.circlepath")
-                            .font(.caption.bold())
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(isReconciling)
-            }
+        } label: {
+            Label("Statement", systemImage: "chart.bar.doc.horizontal")
+                .font(.caption.bold())
         }
-
-        if let rr = reconcileResult {
-            HStack(spacing: 8) {
-                if rr.settled > 0 {
-                    Label("\(rr.settled) settled (+\(rr.creditsGained) sats)", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                }
-                if rr.expired > 0 {
-                    Label("\(rr.expired) expired", systemImage: "xmark.circle.fill")
-                        .foregroundStyle(.red)
-                }
-                if rr.stillPending > 0 {
-                    Label("\(rr.stillPending) still pending", systemImage: "clock")
-                        .foregroundStyle(.orange)
-                }
-            }
-            .font(.caption2)
-            .padding(.top, 4)
-        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
 
         // Credential status
         credentialSection
@@ -1018,7 +925,7 @@ struct AccountStatementView: View {
 
         HStack(spacing: 12) {
             Button { showingTopOff = true } label: {
-                Label("Top Off", systemImage: "plus.circle.fill").font(.caption.bold())
+                Label("Top Up", systemImage: "plus.circle.fill").font(.caption.bold())
             }
             .buttonStyle(.borderedProminent)
             .tint(result.balanceApiSats < 100 || result.expiringWithin24h > 0 ? .orange : Color.accentColor)
