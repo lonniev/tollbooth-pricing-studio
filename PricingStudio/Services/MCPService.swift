@@ -103,8 +103,26 @@ actor MCPService {
         capability: String,
         endpointURL: URL
     ) async -> String {
-        guard !npub.isEmpty else { return "" }
         let toolName = await runtimeName(for: capability, endpointURL: endpointURL)
+        return await makeIdentityProof(forNpub: npub, toolName: toolName, endpointURL: endpointURL)
+    }
+
+    /// Identity proof bound to an EXACT runtime tool name — the `u` tag the
+    /// wheel validates against the tool being invoked.
+    ///
+    /// Prefer this whenever the caller already knows the real tool name (e.g.
+    /// from `tools/list`). The capability-based overload re-derives the name as
+    /// `<slug>_<capability>` via a second slug lookup; if that lookup transiently
+    /// fails (cold start / dropped fetch) it falls back to the *bare* capability,
+    /// producing a proof whose `u` tag (`check_balance`) doesn't match the real
+    /// tool (`authority_check_balance`) — which the wheel rejects as
+    /// `proof_invalid`. Signing for the known tool name removes that race.
+    private func makeIdentityProof(
+        forNpub npub: String,
+        toolName: String,
+        endpointURL: URL
+    ) async -> String {
+        guard !npub.isEmpty else { return "" }
         let host = endpointURL.host ?? endpointURL.absoluteString
         if let signed = try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub) {
             return signed
@@ -135,6 +153,23 @@ actor MCPService {
         guard !npub.isEmpty else { return args }
         args[npubKey] = .string(npub)
         args["proof"] = .string(await makeIdentityProof(forNpub: npub, capability: capability, endpointURL: endpointURL))
+        return args
+    }
+
+    /// Like ``argsWithProof(npub:capability:…)`` but binds the proof to an
+    /// already-known runtime tool name (from `tools/list`), avoiding the slug
+    /// re-derivation race that can yield a mismatched `proof_invalid`.
+    private func argsWithProof(
+        npub: String,
+        toolName: String,
+        endpointURL: URL,
+        npubKey: String = "npub",
+        extra: [String: Value] = [:]
+    ) async -> [String: Value] {
+        var args = extra
+        guard !npub.isEmpty else { return args }
+        args[npubKey] = .string(npub)
+        args["proof"] = .string(await makeIdentityProof(forNpub: npub, toolName: toolName, endpointURL: endpointURL))
         return args
     }
 
@@ -398,7 +433,10 @@ actor MCPService {
             throw MCPError.toolCallFailed("No check_balance tool found")
         }
 
-        let args = await argsWithProof(npub: patronNpub, capability: "check_balance", endpointURL: endpointURL)
+        // Bind the proof to the actual balance tool we resolved from tools/list
+        // (e.g. authority_check_balance), not a re-derived <slug>_check_balance —
+        // the latter can mis-resolve on a cold endpoint and trip proof_invalid.
+        let args = await argsWithProof(npub: patronNpub, toolName: balanceTool.name, endpointURL: endpointURL)
         let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: args)
 
         if isError == true {
@@ -599,7 +637,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement tool found")
         }
 
-        let args = await argsWithProof(npub: patronNpub, capability: "account_statement", endpointURL: endpointURL)
+        let args = await argsWithProof(npub: patronNpub, toolName: tool.name, endpointURL: endpointURL)
         let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
 
         if isError == true {
@@ -794,7 +832,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement_infographic tool found")
         }
 
-        let args = await argsWithProof(npub: patronNpub, capability: "account_statement_infographic", endpointURL: endpointURL)
+        let args = await argsWithProof(npub: patronNpub, toolName: infoTool.name, endpointURL: endpointURL)
         let (content, isError) = try await client.callTool(name: infoTool.name, arguments: args)
 
         if isError == true {
