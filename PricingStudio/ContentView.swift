@@ -508,11 +508,18 @@ struct ContentView: View {
                     CommunityCanvasView()
                 }
             case .invoices:
-                if hasEconomicSurface, let endpoint = auth.mcpEndpointURL {
+                // The Authority's "Account" balance lives at its certification
+                // source — its parent for a standard sub-Authority, itself for a
+                // penultimate one — the same source the Authority and Invoices
+                // tabs read. (Reading auth's OWN endpoint showed a meaningless
+                // self-balance of 0 while the real balance sits at the parent.)
+                if hasEconomicSurface,
+                   let source = role.invoiceSources(authorities: authorities, operators: operators).first,
+                   let endpoint = source.mcpEndpointURL {
                     AccountStatementView(
                         patronNpub: auth.npub,
-                        serviceName: auth.displayName,
-                        serviceNpub: auth.npub,
+                        serviceName: source.displayName,
+                        serviceNpub: source.npub,
                         serviceEndpoint: endpoint,
                         accountVM: patronAccountVM
                     )
