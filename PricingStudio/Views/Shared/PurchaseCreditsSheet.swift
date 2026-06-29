@@ -40,6 +40,10 @@ struct PurchaseCreditsSheet: View {
     @State private var proofRendezvousRelay: String = ""
     /// proof_token (poison) from request_npub_proof, fed to receive_npub_proof.
     @State private var proofToken: String = ""
+    /// Opening sheet height. Defaults to ~80% so the amount, invoice, and proof
+    /// fields are visible without dragging; `.medium` stays available so the
+    /// user can drag down to reach the Messages tab during the proof exchange.
+    @State private var detent: PresentationDetent = .fraction(0.8)
 
     private let mcpService = MCPService()
 
@@ -106,9 +110,10 @@ struct PurchaseCreditsSheet: View {
                 }
             }
         }
-        // Drag-down detents let the user reach the Messages tab to reply to the
+        // Opens at ~80% so the goto fields are visible up front; drag-down
+        // detents let the user reach the Messages tab to reply to the
         // proof-challenge DM without losing the in-flight exchange or amount.
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .fraction(0.8), .large], selection: $detent)
         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         .presentationContentInteraction(.scrolls)
     }
