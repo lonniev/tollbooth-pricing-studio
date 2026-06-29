@@ -64,39 +64,39 @@ final class NotifiedEventStoreTests: XCTestCase {
                        "a relaunched process must not re-announce an already-seen DM")
     }
 
-    // MARK: - Clear on read
+    // MARK: - Permanent dedup (no forget-on-read)
 
-    /// Reading the conversation clears that npub's set. A redelivery of the read
-    /// message could technically re-enter the set, but in production the watermark
-    /// (advanced by markRead) suppresses it; here we assert the clear itself works
-    /// and that a genuinely-new message still announces afterward.
-    func testClearOnReadResetsNpub() {
+    /// There is no forget-on-read path: once a banner has fired for an event, the
+    /// ledger suppresses it forever (until oldest-eviction), even as the same event
+    /// is replayed by relays across many poll cycles and across a relaunch. This is
+    /// what stops a read-then-replayed DM from re-announcing — the leak that wiping
+    /// the ledger on read used to open.
+    func testAnnouncedEventStaysSuppressedAcrossReplays() {
         let defaults = makeDefaults()
         var store = NotifiedEventStore(defaults: defaults)
-        _ = store.register(npub: npub, eventIds: ["e1", "e2"])
-        store.clear(npub: npub)
+        XCTAssertEqual(store.register(npub: npub, eventIds: ["e1"]), ["e1"])
 
-        XCTAssertFalse(store.contains(npub: npub, eventId: "e1"))
-        // A new message after read announces.
-        XCTAssertEqual(store.register(npub: npub, eventIds: ["e3"]), ["e3"])
+        // Many relay replays over the app's lifetime — never re-announces.
+        for _ in 0..<10 {
+            XCTAssertEqual(store.register(npub: npub, eventIds: ["e1"]), [])
+        }
 
-        // The clear is durable too.
-        let reloaded = NotifiedEventStore(defaults: defaults)
-        XCTAssertFalse(reloaded.contains(npub: npub, eventId: "e1"))
-        XCTAssertTrue(reloaded.contains(npub: npub, eventId: "e3"))
+        // And after a relaunch (fresh process reading the same defaults).
+        var relaunched = NotifiedEventStore(defaults: defaults)
+        XCTAssertEqual(relaunched.register(npub: npub, eventIds: ["e1"]), [],
+                       "a read, already-announced DM must stay suppressed after relaunch")
     }
 
-    /// Clearing one conversation must not forget another's announcements.
-    func testClearIsScopedPerNpub() {
+    /// Each npub keeps its own ledger; announcing for one never affects another,
+    /// even for an identical event ID.
+    func testLedgerIsScopedPerNpub() {
         var store = NotifiedEventStore(defaults: makeDefaults())
         let other = "npub1bbbbbbbbbbbbbbbbbbbbbbbb"
-        _ = store.register(npub: npub, eventIds: ["e1"])
-        _ = store.register(npub: other, eventIds: ["e1"])
-
-        store.clear(npub: npub)
-        XCTAssertFalse(store.contains(npub: npub, eventId: "e1"))
-        XCTAssertTrue(store.contains(npub: other, eventId: "e1"),
-                      "reading one actor's queue must not re-announce another's DMs")
+        XCTAssertEqual(store.register(npub: npub, eventIds: ["e1"]), ["e1"])
+        XCTAssertEqual(store.register(npub: other, eventIds: ["e1"]), ["e1"],
+                       "the same event ID under a different npub is independent")
+        XCTAssertTrue(store.contains(npub: npub, eventId: "e1"))
+        XCTAssertTrue(store.contains(npub: other, eventId: "e1"))
     }
 
     // MARK: - Bounded growth

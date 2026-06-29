@@ -51,10 +51,15 @@ final class DMPollingService {
         updated[npub] = 0
         unreadCounts = updated
         lastSeenTimestamps[npub] = Int(Date().timeIntervalSince1970)
-        // Reading the queue clears the seen-set: the slate resets so a later,
-        // genuinely-new DM announces, while the just-advanced watermark keeps any
-        // replayed backlog (now older than the watermark) from re-announcing.
-        notifiedStore.clear(npub: npub)
+        // Reading only resets the unread badge and advances the watermark. The
+        // announced-event ledger is deliberately NOT cleared here: it is a
+        // permanent (bounded, oldest-evicted) record of "a banner already fired
+        // for this event ID." Relays replay their backlog on every reconnect/poll,
+        // and the subscription path has no watermark gate — so the ledger is the
+        // ONLY guard between a re-delivered, already-read DM and a duplicate
+        // banner. Wiping it on read was the re-notification leak: a read message
+        // got re-announced the moment a relay replayed it, which bumped unread and
+        // re-triggered markRead in a loop.
         saveLastSeen()
         updateAppBadge()
     }
@@ -410,8 +415,10 @@ final class DMPollingService {
     /// old 5-minute in-memory window, which forgot any DM left unread longer than
     /// five minutes and evaporated on every app relaunch / background process —
     /// so relay backlog replays re-announced the same unread DM repeatedly. An
-    /// event now stays "seen" until the actor reads that conversation
-    /// (markRead → clear), persisted across processes.
+    /// event now stays "seen" permanently — bounded to the most-recent
+    /// `maxPerNpub` IDs per npub (oldest evicted), persisted across processes.
+    /// Reading a conversation does NOT forget its announcements; that is what
+    /// stops a replayed, already-read DM from re-banner-ing.
     private var notifiedStore = NotifiedEventStore()
 
     /// Which of `eventIds` should produce a notification now, honoring the mode.
@@ -646,10 +653,12 @@ private func withThrowingTimeout<T: Sendable>(
 /// Relays replay their backlog on every (re)connect, so those holes meant the
 /// same unread DM got re-announced again and again.
 ///
-/// Semantics: an event ID stays "seen" until the actor reads that conversation
-/// (`clear(npub:)`), persisted across processes via UserDefaults. Per-npub, so a
-/// read of one conversation never forgets another's announcements. Lives on the
-/// MainActor-isolated DMPollingService; not Sendable by design.
+/// Semantics: an event ID stays "seen" permanently once a banner has fired for
+/// it — bounded to the most-recent `maxPerNpub` IDs per npub (oldest evicted),
+/// persisted across processes via UserDefaults. There is no forget-on-read path:
+/// reading a conversation resets its unread badge but must not re-open the door
+/// to a replayed DM re-announcing. Per-npub, so one npub's ledger never affects
+/// another's. Lives on the MainActor-isolated DMPollingService; not Sendable.
 struct NotifiedEventStore {
     private let defaults: UserDefaults
     private let key: String
@@ -690,14 +699,6 @@ struct NotifiedEventStore {
 
     func contains(npub: String, eventId: String) -> Bool {
         ids[npub]?.contains(eventId) ?? false
-    }
-
-    /// Forget every announced ID for `npub` — called when the actor reads the
-    /// conversation and its unread count clears.
-    mutating func clear(npub: String) {
-        guard ids[npub] != nil else { return }
-        ids.removeValue(forKey: npub)
-        persist()
     }
 
     private func persist() {
