@@ -234,7 +234,7 @@ struct TestCallView: View {
                         Text(vm.paramValues["npub", default: "select identity above"])
                             .font(.caption.monospaced())
                             .foregroundStyle(.green)
-                    } else if param.name == "proof" {
+                    } else if param.name == "dpop_token" {
                         // One canonical tactic-selection — wheel v0.23.0 accepts
                         // EITHER inline Schnorr OR cached poison at every gate.
                         // Prefer Schnorr from Keychain so the user skips the DM dance.

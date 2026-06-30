@@ -152,7 +152,7 @@ actor MCPService {
         var args = extra
         guard !npub.isEmpty else { return args }
         args[npubKey] = .string(npub)
-        args["proof"] = .string(await makeIdentityProof(forNpub: npub, capability: capability, endpointURL: endpointURL))
+        args["dpop_token"] = .string(await makeIdentityProof(forNpub: npub, capability: capability, endpointURL: endpointURL))
         return args
     }
 
@@ -169,7 +169,7 @@ actor MCPService {
         var args = extra
         guard !npub.isEmpty else { return args }
         args[npubKey] = .string(npub)
-        args["proof"] = .string(await makeIdentityProof(forNpub: npub, toolName: toolName, endpointURL: endpointURL))
+        args["dpop_token"] = .string(await makeIdentityProof(forNpub: npub, toolName: toolName, endpointURL: endpointURL))
         return args
     }
 
@@ -233,7 +233,7 @@ actor MCPService {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               json["success"] as? Bool == true,
-              let proofToken = json["proof_token"] as? String else {
+              let proofToken = json["dpop_token"] as? String else {
             throw MCPError.toolCallFailed("request_npub_proof failed: \(result)")
         }
         let rendezvousRelay = json["rendezvous_relay"] as? String ?? ""
@@ -252,13 +252,13 @@ actor MCPService {
             toolName: "receive_npub_proof",
             arguments: [
                 "patron_npub": .string(patronNpub),
-                "poison": .string(poison),
+                "dpop_token": .string(poison),
             ]
         )
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               json["success"] as? Bool == true,
-              let proofToken = json["proof_token"] as? String else {
+              let proofToken = json["dpop_token"] as? String else {
             throw MCPError.toolCallFailed("receive_npub_proof failed: \(result)")
         }
         // Persist to Keychain for this patron+operator
@@ -1047,7 +1047,7 @@ actor MCPService {
         let args: [String: Value] = [
             "invoice_id": .string(invoiceId),
             "patron_npub": .string(patronNpub),
-            "proof": .string(proof),
+            "dpop_token": .string(proof),
         ]
         let (content, isError) = try await client.callTool(name: restoreTool.name, arguments: args)
 
@@ -1241,7 +1241,7 @@ actor MCPService {
                 operatorNpub: npub
             )) ?? ""
             if !proof.isEmpty {
-                arguments["proof"] = .string(proof)
+                arguments["dpop_token"] = .string(proof)
             }
             await traffic(.outbound, label: "Proof", detail: "Signed kind-27235 for \(npub.prefix(16))…")
         }
@@ -1886,7 +1886,7 @@ actor MCPService {
 
         var args: [String: Value] = [
             "authority_npub": .string(authorityNpub),
-            "proof": .string(await makeIdentityProof(
+            "dpop_token": .string(await makeIdentityProof(
                 forNpub: operatorNpub,
                 capability: "request_adoption",
                 endpointURL: operatorEndpointURL
@@ -2617,7 +2617,7 @@ extension MCPService {
             "discount_percent": .double(discountPercent),
             "valid_from": .string(isoFormatter.string(from: validFrom)),
             "valid_until": .string(isoFormatter.string(from: validUntil)),
-            "proof": .string(proof),
+            "dpop_token": .string(proof),
         ]
         if let upp = usesPerPatron { args["uses_per_patron"] = .int(upp) }
         if let tu = totalUses { args["total_uses"] = .int(tu) }
@@ -2647,7 +2647,7 @@ extension MCPService {
 
         let json = try await callJSONTool(
             client: client, name: tool.name,
-            arguments: ["proof": .string(proof)],
+            arguments: ["dpop_token": .string(proof)],
             label: "List Coupons",
         )
 
@@ -2689,7 +2689,7 @@ extension MCPService {
 
         var args: [String: Value] = [
             "coupon_id": .string(couponId),
-            "proof": .string(proof),
+            "dpop_token": .string(proof),
         ]
         if let n = name { args["name"] = .string(n) }
         if let d = discountPercent { args["discount_percent"] = .double(d) }
@@ -2728,7 +2728,7 @@ extension MCPService {
             client: client, name: tool.name,
             arguments: [
                 "coupon_id": .string(couponId),
-                "proof": .string(proof),
+                "dpop_token": .string(proof),
             ],
             label: "Delete Coupon",
         )

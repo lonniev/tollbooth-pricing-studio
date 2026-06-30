@@ -95,7 +95,7 @@ final class TestCallViewModel {
             if toolParams.contains(where: { $0.name == "npub" }) {
                 paramValues["npub"] = npub
             }
-            guard toolParams.contains(where: { $0.name == "proof" }),
+            guard toolParams.contains(where: { $0.name == "dpop_token" }),
                   let toolName = selectedTool?.toolName, !toolName.isEmpty else {
                 proofTactic = .noneAvailable
                 return
@@ -105,18 +105,18 @@ final class TestCallViewModel {
             // which is exactly what the pricing model lists. Sign that name
             // directly — no slug-strip, no capability lookup.
             if let proof = try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub) {
-                paramValues["proof"] = proof
+                paramValues["dpop_token"] = proof
                 proofTactic = .schnorrFromKeychain
                 return
             }
             let host = selectedOperator?.mcpEndpointURL
                 .flatMap { URL(string: $0)?.host } ?? ""
             if let token = KeychainService.loadProofToken(forPatron: npub, operator: host), !token.isEmpty {
-                paramValues["proof"] = token
+                paramValues["dpop_token"] = token
                 proofTactic = .cachedPoisonToken
                 return
             }
-            paramValues["proof"] = ""
+            paramValues["dpop_token"] = ""
             proofTactic = .noneAvailable
         }
     }
@@ -399,7 +399,7 @@ final class TestCallViewModel {
         guard let data = response.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               json["success"] as? Bool == true,
-              let token = json["proof_token"] as? String else {
+              let token = json["dpop_token"] as? String else {
             return
         }
         let host = endpoint.host ?? endpoint.absoluteString

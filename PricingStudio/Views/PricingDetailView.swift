@@ -1131,7 +1131,7 @@ struct PricingDetailView: View {
                 _ = try await service.callToolGeneric(
                     endpointURL: endpointURL,
                     toolName: "reset_pricing_model",
-                    arguments: ["proof": .string(proof)]
+                    arguments: ["dpop_token": .string(proof)]
                 )
                 viewModel.forceRefresh(for: target)
             } catch {
