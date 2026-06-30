@@ -125,11 +125,12 @@ struct CourierPayload: Sendable {
             allFields.append(Field(key: key, value: value))
         }
 
-        // Separate poison and rendezvous_relay from editable fields.
+        // Separate the dpop_token and rendezvous_relay from editable fields.
         // Both are protocol-control metadata, not user-editable values.
-        let poison = allFields.first(where: { $0.key == "poison" })
+        // (Wheel 0.57.0+ renamed the credential-DM control field poison → dpop_token.)
+        let poison = allFields.first(where: { $0.key == "dpop_token" })
         let rendezvousRelay = allFields.first(where: { $0.key == "rendezvous_relay" })
-        let controlKeys: Set<String> = ["poison", "rendezvous_relay"]
+        let controlKeys: Set<String> = ["dpop_token", "rendezvous_relay"]
         let fields = allFields.filter { !controlKeys.contains($0.key) }
 
         // If no header was found, derive greeting from text before first field in full text

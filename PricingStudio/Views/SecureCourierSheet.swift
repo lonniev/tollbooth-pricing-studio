@@ -605,7 +605,7 @@ struct SecureCourierCard: View {
             )
             if let data = result.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let poison = json["poison"] as? String {
+               let poison = json["dpop_token"] as? String {
                 currentPoison = poison
                 currentRendezvousRelay = json["rendezvous_relay"] as? String ?? ""
                 phase = .ready(poison: poison)
