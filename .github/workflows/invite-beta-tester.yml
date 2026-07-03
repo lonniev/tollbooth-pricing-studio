@@ -25,6 +25,10 @@ on:
         type: choice
         options: [external, internal]
         default: external
+      create_group:
+        description: "Create the external group if it doesn't exist"
+        type: boolean
+        default: true
       bundle_id:
         description: "App bundle id"
         required: false
@@ -62,4 +66,5 @@ jobs:
             --last-name "${{ inputs.last_name }}" \
             --bundle-id "${{ inputs.bundle_id }}" \
             --group "${{ inputs.group }}" \
-            --type "${{ inputs.tester_type }}"
+            --type "${{ inputs.tester_type }}" \
+            ${{ inputs.create_group == true && '--create-group' || '' }}

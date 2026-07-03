@@ -92,6 +92,8 @@ def main() -> None:
     ap.add_argument("--bundle-id", required=True)
     ap.add_argument("--group", default="", help="Beta group name; blank = the app's sole group of the chosen kind")
     ap.add_argument("--type", choices=["external", "internal"], default="external")
+    ap.add_argument("--create-group", action="store_true",
+                    help="Create the external group if it doesn't exist (external only)")
     args = ap.parse_args()
 
     token = make_token()
@@ -117,21 +119,40 @@ def main() -> None:
     want_internal = args.type == "internal"
     groups = [g for g in data.get("data", [])
               if bool(g["attributes"].get("isInternalGroup")) == want_internal]
-    if not groups:
-        kind = "internal" if want_internal else "external"
-        fail(f"No {kind} beta group exists for this app. Create one in "
-             f"App Store Connect → TestFlight first.")
+
+    group = None
     if args.group:
         match = [g for g in groups if g["attributes"]["name"].lower() == args.group.lower()]
-        if not match:
-            names = ", ".join(g["attributes"]["name"] for g in groups)
-            fail(f"No {args.type} group named '{args.group}'. Available: {names}")
-        group = match[0]
+        if match:
+            group = match[0]
     elif len(groups) == 1:
         group = groups[0]
-    else:
+    elif len(groups) > 1:
         names = ", ".join(g["attributes"]["name"] for g in groups)
         fail(f"Multiple {args.type} groups exist — pass --group. Available: {names}")
+
+    if group is None:
+        kind = "internal" if want_internal else "external"
+        if want_internal:
+            fail("No internal beta group exists. Internal groups can't be created "
+                 "via the API — create one in App Store Connect → TestFlight.")
+        if not args.create_group:
+            names = ", ".join(g["attributes"]["name"] for g in groups) or "(none)"
+            fail(f"No matching {kind} group. Existing: {names}. "
+                 f"Re-run with --create-group to make it.")
+        new_name = args.group or "External Testers"
+        print(f"Creating external group '{new_name}'…")
+        status, data = api("POST", "/v1/betaGroups", token, body={
+            "data": {
+                "type": "betaGroups",
+                "attributes": {"name": new_name, "publicLinkEnabled": False},
+                "relationships": {"app": {"data": {"type": "apps", "id": app_id}}},
+            }
+        })
+        if status not in (200, 201):
+            fail(f"Could not create external group (HTTP {status}): "
+                 f"{first_error_detail(data)}", data)
+        group = data["data"]
     group_id = group["id"]
     print(f"Group: {group['attributes']['name']} → id {group_id}")
 
