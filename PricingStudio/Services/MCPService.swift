@@ -1348,6 +1348,11 @@ actor MCPService {
         if let v = json["tollbooth_dpyc_version"] as? String, v != "unknown" {
             versions["tollbooth_dpyc"] = v
         }
+        // The Spin/WASI host (tollbooth-wasmcp) version, reported alongside the wheel
+        // by operators built on the SpinOperatorHost adapter.
+        if let v = json["tollbooth_wasmcp_version"] as? String, v != "unknown" {
+            versions["tollbooth_wasmcp"] = v
+        }
         if let buildInfo = json["build_info"] as? [String: String] {
             if let sha = buildInfo["fastmcp_cloud_git_commit_sha"] {
                 versions["git_commit"] = String(sha.prefix(8))
