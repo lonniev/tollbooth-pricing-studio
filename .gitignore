@@ -8,3 +8,7 @@ DerivedData/
 *.dSYM.zip
 *.dSYM
 PricingStudio/BuildTimestamp.txt
+
+# Python bytecode from CI helper scripts
+__pycache__/
+*.pyc
