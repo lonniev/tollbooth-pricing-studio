@@ -19,6 +19,11 @@ struct PurchaseCreditsSheet: View {
 
     /// Caller-supplied beneficiary display name; bypasses the SwiftData walk.
     var beneficiaryDisplayName: String? = nil
+    /// Actor glyphs shown on the fare pass. Defaults suit the most common
+    /// flow (a Patron topping up at its Operator); other call sites pass the
+    /// matching pair (e.g. Operator → Authority).
+    var beneficiaryBadge: ActorBadge = .patron
+    var cashierBadge: ActorBadge = .operator
     var presets: [Int] = [100, 500, 1000, 5000]
     var minimumSats: Int = 100
     /// Fired after the payment settles, so the host can refresh whatever balance
@@ -143,20 +148,39 @@ struct PurchaseCreditsSheet: View {
                     .frame(height: 1)
                     .padding(.bottom, 12)
 
-                HStack(spacing: 10) {
-                    Text("To").font(.caption).foregroundStyle(.secondary)
-                        .frame(width: 26, alignment: .leading)
-                    beneficiaryLabel(purchaserNpub)
-                    Spacer()
+                HStack(alignment: .top, spacing: 12) {
+                    // Benefitting — the account being funded — on the left.
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 5) {
+                            Image(systemName: beneficiaryBadge.icon)
+                                .font(.caption)
+                                .foregroundStyle(beneficiaryBadge.color)
+                            Text("Benefitting")
+                                .font(.caption2.weight(.semibold))
+                                .tracking(1)
+                                .foregroundStyle(.secondary)
+                        }
+                        beneficiaryLabel(purchaserNpub)
+                    }
+                    Spacer(minLength: 12)
+                    // Cashier — the store receiving the Lightning payment — right.
+                    VStack(alignment: .trailing, spacing: 6) {
+                        HStack(spacing: 5) {
+                            Text("Cashier")
+                                .font(.caption2.weight(.semibold))
+                                .tracking(1)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: cashierBadge.icon)
+                                .font(.caption)
+                                .foregroundStyle(cashierBadge.color)
+                        }
+                        Text(cashierName)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.trailing)
+                    }
                 }
-                .padding(.vertical, 3)
-                HStack(spacing: 10) {
-                    Text("At").font(.caption).foregroundStyle(.secondary)
-                        .frame(width: 26, alignment: .leading)
-                    Text(cashierName).font(.subheadline.bold())
-                    Spacer()
-                }
-                .padding(.vertical, 3)
+                .padding(.top, 2)
             }
             .padding(16)
             .background(
@@ -672,6 +696,19 @@ struct PurchaseCreditsSheet: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.green)
         }
+    }
+}
+
+extension PurchaseCreditsSheet {
+    /// An SF Symbol + tint identifying an actor on the fare pass. Canonical
+    /// glyphs mirror `TopologyViewModel`: Operator = server.rack (orange),
+    /// Authority = building.columns (blue); Patron = person (green).
+    struct ActorBadge {
+        let icon: String
+        let color: Color
+        static let patron = ActorBadge(icon: "person.fill", color: .green)
+        static let `operator` = ActorBadge(icon: "server.rack", color: .orange)
+        static let authority = ActorBadge(icon: "building.columns", color: .blue)
     }
 }
 

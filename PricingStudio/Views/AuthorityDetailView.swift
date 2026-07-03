@@ -129,6 +129,8 @@ struct AuthorityDetailView: View {
                     endpoint: endpoint,
                     purchaserNpub: authority.npub,
                     beneficiaryDisplayName: authority.displayName,
+                    beneficiaryBadge: .authority,
+                    cashierBadge: .authority,
                     presets: [500, 1000, 5000, 10000],
                     onSettled: {
                         Task {
@@ -148,6 +150,8 @@ struct AuthorityDetailView: View {
                     endpoint: endpoint,
                     purchaserNpub: op.npub,
                     beneficiaryDisplayName: op.displayName,
+                    beneficiaryBadge: .operator,
+                    cashierBadge: .authority,
                     presets: [500, 1000, 5000, 10000]
                 )
             }

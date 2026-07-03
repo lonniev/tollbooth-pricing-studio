@@ -45,6 +45,8 @@ struct OperatorAuthorityView: View {
                     endpoint: auth.mcpEndpointURL ?? "",
                     purchaserNpub: `operator`.npub,
                     beneficiaryDisplayName: `operator`.displayName,
+                    beneficiaryBadge: .operator,
+                    cashierBadge: .authority,
                     presets: [500, 1000, 5000, 10000],
                     onSettled: { Task { await loadOperatorBalance() } }
                 )

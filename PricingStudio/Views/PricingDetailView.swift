@@ -457,6 +457,8 @@ struct PricingDetailView: View {
                     cashierNpub: auth.npub,
                     endpoint: auth.mcpEndpointURL ?? "",
                     purchaserNpub: operatorNpub,
+                    beneficiaryBadge: .operator,
+                    cashierBadge: .authority,
                     presets: [500, 1000, 5000, 10000],
                     onSettled: {
                         Task {
