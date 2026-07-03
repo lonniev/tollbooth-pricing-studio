@@ -1,5 +1,36 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed — Top Up sheet redesigned as a ticket-kiosk fare picker
+
+The shared `PurchaseCreditsSheet` now buys credits the way you buy a
+transit pass at a station kiosk, using SF Symbols and the app's native
+card idioms (no hand-drawn artwork):
+
+- **Hero "fare pass" stub** folds the former Beneficiary/Cashier rows
+  into a printed ticket header with a dashed perforation tear line. The
+  two parties sit side by side — **Benefitting** on the left, **Cashier**
+  on the right — each tagged with its actor badge: Operator =
+  `server.rack` (orange), Authority = `building.columns` (blue), Patron =
+  `person.fill` (green), mirroring `TopologyViewModel`.
+- **Fare-card grid** replaces the row of grey amount pills with a 2×2
+  grid of tappable ticket tiles (`ticket.fill` + bold denomination).
+  Selecting one gives it a tinted fill, accent border, and a
+  punched-ticket checkmark.
+- **Full-width Custom tile** reveals the number pad on tap;
+  `effectiveAmount` keys off the custom-field state so the Top Up button
+  and minimum-amount logic stay correct.
+
+Presentation only — the Lightning purchase, payment-check, and
+npub-proof exchange flows are untouched. Sat tranches are styled as
+stored-value denominations, not time-based passes (100 sats is a
+quantity, not a day).
+
+Badges are parameterized (`ActorBadge`) with Patron→Operator defaults,
+so the two Patron call sites are unchanged; the Operator/Authority sites
+pass their matching pair.
+
 ## [1.10.0] — 2026-05-27
 
 ### Changed — Reconcile is now UUID-joined against the wheel's canonical inventory
