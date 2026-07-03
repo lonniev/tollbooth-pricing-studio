@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""Invite a TestFlight beta tester via the App Store Connect API.
+
+Reuses the same API-key credentials the release CI already holds:
+  ASC_KEY_ID           — the key's Key ID (kid)
+  ASC_ISSUER_ID        — the team's Issuer ID (iss)
+  ASC_PRIVATE_KEY      — the .p8 private key, PEM text (BEGIN PRIVATE KEY …)
+
+Resolves the app by bundle id, picks the target beta group (by name, or the
+sole group of the requested kind), then creates the tester and attaches them
+to that group — which is what triggers the invitation for external testers.
+
+Docs: https://developer.apple.com/documentation/appstoreconnectapi
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+import jwt  # PyJWT (needs `cryptography` for ES256)
+
+API_ROOT = "https://api.appstoreconnect.apple.com"
+
+
+def make_token() -> str:
+    key_id = os.environ["ASC_KEY_ID"]
+    issuer_id = os.environ["ASC_ISSUER_ID"]
+    private_key = os.environ["ASC_PRIVATE_KEY"]
+    now = int(time.time())
+    return jwt.encode(
+        {
+            "iss": issuer_id,
+            "iat": now,
+            "exp": now + 1200,  # max 20 minutes
+            "aud": "appstoreconnect-v1",
+        },
+        private_key,
+        algorithm="ES256",
+        headers={"kid": key_id, "typ": "JWT"},
+    )
+
+
+def api(method: str, path: str, token: str, body=None, query=None):
+    url = API_ROOT + path
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, method=method)
+    req.add_header("Authorization", "Bearer " + token)
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            raw = resp.read()
+            return resp.status, (json.loads(raw) if raw else {})
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        try:
+            return exc.code, json.loads(raw)
+        except json.JSONDecodeError:
+            return exc.code, {"raw": raw.decode(errors="replace")}
+
+
+def fail(msg: str, payload=None) -> None:
+    print(f"::error::{msg}", file=sys.stderr)
+    if payload is not None:
+        print(json.dumps(payload, indent=2), file=sys.stderr)
+    sys.exit(1)
+
+
+def first_error_detail(payload) -> str:
+    if isinstance(payload, dict):
+        for err in payload.get("errors", []):
+            detail = err.get("detail") or err.get("title")
+            if detail:
+                return detail
+    return json.dumps(payload)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--email", required=True)
+    ap.add_argument("--first-name", default="Beta")
+    ap.add_argument("--last-name", default="Tester")
+    ap.add_argument("--bundle-id", required=True)
+    ap.add_argument("--group", default="", help="Beta group name; blank = the app's sole group of the chosen kind")
+    ap.add_argument("--type", choices=["external", "internal"], default="external")
+    args = ap.parse_args()
+
+    token = make_token()
+
+    # 1) Resolve the app by bundle id.
+    status, data = api("GET", "/v1/apps", token,
+                       query={"filter[bundleId]": args.bundle_id, "fields[apps]": "name,bundleId"})
+    if status != 200:
+        fail(f"Could not list apps (HTTP {status}). The API key may lack access.", data)
+    apps = data.get("data", [])
+    if not apps:
+        fail(f"No app found for bundle id '{args.bundle_id}'.")
+    app = apps[0]
+    app_id = app["id"]
+    print(f"App: {app['attributes'].get('name')} ({args.bundle_id}) → id {app_id}")
+
+    # 2) Resolve the target beta group.
+    status, data = api("GET", "/v1/betaGroups", token,
+                       query={"filter[app]": app_id, "limit": "200",
+                              "fields[betaGroups]": "name,isInternalGroup"})
+    if status != 200:
+        fail(f"Could not list beta groups (HTTP {status}).", data)
+    want_internal = args.type == "internal"
+    groups = [g for g in data.get("data", [])
+              if bool(g["attributes"].get("isInternalGroup")) == want_internal]
+    if not groups:
+        kind = "internal" if want_internal else "external"
+        fail(f"No {kind} beta group exists for this app. Create one in "
+             f"App Store Connect → TestFlight first.")
+    if args.group:
+        match = [g for g in groups if g["attributes"]["name"].lower() == args.group.lower()]
+        if not match:
+            names = ", ".join(g["attributes"]["name"] for g in groups)
+            fail(f"No {args.type} group named '{args.group}'. Available: {names}")
+        group = match[0]
+    elif len(groups) == 1:
+        group = groups[0]
+    else:
+        names = ", ".join(g["attributes"]["name"] for g in groups)
+        fail(f"Multiple {args.type} groups exist — pass --group. Available: {names}")
+    group_id = group["id"]
+    print(f"Group: {group['attributes']['name']} → id {group_id}")
+
+    # 3) Create the tester attached to the group (this sends the invite).
+    body = {
+        "data": {
+            "type": "betaTesters",
+            "attributes": {
+                "email": args.email,
+                "firstName": args.first_name,
+                "lastName": args.last_name,
+            },
+            "relationships": {
+                "betaGroups": {"data": [{"type": "betaGroups", "id": group_id}]},
+            },
+        }
+    }
+    status, data = api("POST", "/v1/betaTesters", token, body=body)
+    if status in (200, 201):
+        print(f"✅ Invited {args.email} to '{group['attributes']['name']}'.")
+        return
+    if status == 409:
+        # Tester already exists — just add them to the group.
+        print(f"{args.email} already exists as a tester; adding to the group…")
+        status, data = api("GET", "/v1/betaTesters", token,
+                           query={"filter[email]": args.email, "limit": "1"})
+        if status != 200 or not data.get("data"):
+            fail("Tester exists but could not be looked up by email.", data)
+        tester_id = data["data"][0]["id"]
+        status, data = api("POST", f"/v1/betaGroups/{group_id}/relationships/betaTesters",
+                           token, body={"data": [{"type": "betaTesters", "id": tester_id}]})
+        if status in (200, 201, 204):
+            print(f"✅ Added existing tester {args.email} to '{group['attributes']['name']}'.")
+            return
+        fail(f"Failed to add existing tester to the group (HTTP {status}): "
+             f"{first_error_detail(data)}", data)
+    fail(f"Failed to invite tester (HTTP {status}): {first_error_detail(data)}", data)
+
+
+if __name__ == "__main__":
+    main()

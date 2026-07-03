@@ -1,0 +1,65 @@
+name: Invite Beta Tester
+
+# Manually invite a TestFlight tester using the App Store Connect API,
+# reusing the same API-key secrets the release pipeline already holds.
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Tester's email address"
+        required: true
+      first_name:
+        description: "First name"
+        required: false
+        default: "Beta"
+      last_name:
+        description: "Last name"
+        required: false
+        default: "Tester"
+      group:
+        description: "Beta group name (blank = the app's sole group of the chosen kind)"
+        required: false
+        default: ""
+      tester_type:
+        description: "Tester kind"
+        type: choice
+        options: [external, internal]
+        default: external
+      bundle_id:
+        description: "App bundle id"
+        required: false
+        default: "com.tollbooth.dpyc.PricingStudio"
+
+permissions:
+  contents: read
+
+jobs:
+  invite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet pyjwt cryptography
+
+      - name: Invite tester
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -eo pipefail
+          # Decode the .p8 (same secret the upload step uses) into an env var.
+          ASC_PRIVATE_KEY="$(echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode)"
+          export ASC_PRIVATE_KEY
+          python scripts/invite_beta_tester.py \
+            --email "${{ inputs.email }}" \
+            --first-name "${{ inputs.first_name }}" \
+            --last-name "${{ inputs.last_name }}" \
+            --bundle-id "${{ inputs.bundle_id }}" \
+            --group "${{ inputs.group }}" \
+            --type "${{ inputs.tester_type }}"
