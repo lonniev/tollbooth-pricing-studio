@@ -32,6 +32,10 @@ struct PurchaseCreditsSheet: View {
 
     @State private var selectedAmount = 1000
     @State private var customAmount = ""
+    /// Whether the full-width "Custom amount" ticket is active. When true the
+    /// preset tiles deselect and the inline number pad drives the amount.
+    @State private var showCustomField = false
+    @FocusState private var customFocused: Bool
     @State private var purchaseState: PurchaseState = .idle
     @State private var paymentCheckState: PaymentCheckState = .idle
     @State private var proofState: ProofExchangeState = .idle
@@ -79,8 +83,13 @@ struct PurchaseCreditsSheet: View {
     }
 
     private var effectiveAmount: Int {
-        if let val = Int(customAmount), val > 0 { return val }
+        if showCustomField { return Int(customAmount) ?? 0 }
         return selectedAmount
+    }
+
+    /// A preset tile is selected only when the custom pad is inactive.
+    private func isPresetSelected(_ amount: Int) -> Bool {
+        !showCustomField && selectedAmount == amount
     }
 
     // MARK: - Body
@@ -88,18 +97,7 @@ struct PurchaseCreditsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    LabeledContent("Beneficiary") { beneficiaryLabel(purchaserNpub) }
-                    LabeledContent("Cashier") {
-                        Text(cashierName).font(.subheadline.bold())
-                    }
-                } header: {
-                    Text("Top Up your account at \(cashierName)")
-                } footer: {
-                    Text("Sats are credited to the beneficiary's account at \(cashierName). Anyone can pay the Lightning invoice — the source of funds doesn't matter.")
-                        .font(.caption2)
-                }
-
+                heroTicketSection
                 amountSection
                 purchaseStateSection
             }
@@ -118,25 +116,176 @@ struct PurchaseCreditsSheet: View {
         .presentationContentInteraction(.scrolls)
     }
 
-    private var amountSection: some View {
-        Section("Amount (sats)") {
-            HStack(spacing: 8) {
-                ForEach(presets, id: \.self) { amount in
-                    Button("\(amount)") {
-                        selectedAmount = amount
-                        customAmount = ""
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(selectedAmount == amount && customAmount.isEmpty ? .accentColor : .secondary)
-                    .controlSize(.small)
+    // MARK: - Hero fare pass
+
+    /// The printed "ticket stub" header: beneficiary + cashier rendered as a
+    /// pass you're about to load, with a perforation tear line for flavor.
+    private var heroTicketSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "ticket.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentColor)
+                    Text("FARE PASS")
+                        .font(.caption.weight(.semibold))
+                        .tracking(2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "bolt.fill")
+                        .foregroundStyle(.yellow)
                 }
+                .padding(.bottom, 12)
+
+                DashedLine()
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundStyle(Color(.separator))
+                    .frame(height: 1)
+                    .padding(.bottom, 12)
+
+                HStack(spacing: 10) {
+                    Text("To").font(.caption).foregroundStyle(.secondary)
+                        .frame(width: 26, alignment: .leading)
+                    beneficiaryLabel(purchaserNpub)
+                    Spacer()
+                }
+                .padding(.vertical, 3)
+                HStack(spacing: 10) {
+                    Text("At").font(.caption).foregroundStyle(.secondary)
+                        .frame(width: 26, alignment: .leading)
+                    Text(cashierName).font(.subheadline.bold())
+                    Spacer()
+                }
+                .padding(.vertical, 3)
             }
-            TextField("Custom amount", text: $customAmount)
-                .keyboardType(.numberPad)
-                .onChange(of: customAmount) { _, newValue in
-                    if let val = Int(newValue), val > 0 { selectedAmount = val }
-                }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
+            )
+        } header: {
+            Text("Top Up your account at \(cashierName)")
+        } footer: {
+            Text("Sats are credited to the beneficiary's account at \(cashierName). Anyone can pay the Lightning invoice — the source of funds doesn't matter.")
+                .font(.caption2)
         }
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        .listRowBackground(Color.clear)
+    }
+
+    // MARK: - Fare-card grid
+
+    private var amountSection: some View {
+        Section {
+            VStack(spacing: 10) {
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 10),
+                              GridItem(.flexible(), spacing: 10)],
+                    spacing: 10
+                ) {
+                    ForEach(presets, id: \.self) { amount in
+                        fareTile(amount: amount)
+                    }
+                }
+                customTile
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Choose a fare")
+        }
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        .listRowBackground(Color.clear)
+    }
+
+    /// A single tappable denomination ticket. Selected → tinted fill, accent
+    /// border, and a punched-ticket checkmark.
+    private func fareTile(amount: Int) -> some View {
+        let selected = isPresetSelected(amount)
+        return Button {
+            selectedAmount = amount
+            customAmount = ""
+            showCustomField = false
+            customFocused = false
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "ticket.fill")
+                        .font(.title3)
+                        .foregroundStyle(selected ? Color.accentColor : .secondary)
+                    Spacer()
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                Text(amount.formatted())
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .foregroundStyle(.primary)
+                Text("sats")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(fareTileBackground(selected: selected))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The full-width "Custom amount" ticket. Tapping it reveals the number pad.
+    private var customTile: some View {
+        let selected = showCustomField
+        return VStack(spacing: 8) {
+            Button {
+                showCustomField = true
+                customFocused = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "keyboard")
+                        .font(.title3)
+                        .foregroundStyle(selected ? Color.accentColor : .secondary)
+                    Text(customLabel)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(customAmount.isEmpty ? .secondary : .primary)
+                    Spacer()
+                    if selected, !customAmount.isEmpty {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(fareTileBackground(selected: selected))
+            }
+            .buttonStyle(.plain)
+
+            if showCustomField {
+                TextField("Enter sats", text: $customAmount)
+                    .keyboardType(.numberPad)
+                    .focused($customFocused)
+                    .textFieldStyle(.roundedBorder)
+            }
+        }
+    }
+
+    private var customLabel: String {
+        if let val = Int(customAmount), val > 0 { return "\(val.formatted()) sats" }
+        return "Custom amount…"
+    }
+
+    private func fareTileBackground(selected: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(selected ? Color.accentColor.opacity(0.15)
+                           : Color(.secondarySystemGroupedBackground))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(selected ? Color.accentColor : Color(.separator),
+                                  lineWidth: selected ? 2 : 1)
+            )
     }
 
     @ViewBuilder
@@ -523,5 +672,15 @@ struct PurchaseCreditsSheet: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.green)
         }
+    }
+}
+
+/// A single horizontal line, stroked dashed to read as a ticket perforation.
+private struct DashedLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.width, y: rect.midY))
+        return path
     }
 }
