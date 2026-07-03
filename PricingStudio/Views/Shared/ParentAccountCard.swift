@@ -136,9 +136,16 @@ struct ParentAccountCard: View {
             : (result.balanceApiSats < 50 ? .red : .primary)
 
         HStack(spacing: 16) {
-            Text(isUnknown ? "N/A" : "\(result.balanceApiSats) sats")
-                .font(.subheadline.monospacedDigit().bold())
-                .foregroundStyle(balanceColor)
+            Group {
+                if isUnknown {
+                    // A registered account that simply hasn't been topped up yet —
+                    // not a failure. Plain language beats "N/A".
+                    Text("Not funded yet").font(.subheadline.weight(.semibold))
+                } else {
+                    Text("\(result.balanceApiSats) sats").font(.subheadline.monospacedDigit().bold())
+                }
+            }
+            .foregroundStyle(balanceColor)
 
             if result.pendingInvoiceCount > 0 {
                 Text("\(result.pendingInvoiceCount) pending")
@@ -166,7 +173,11 @@ struct ParentAccountCard: View {
             }
         }
 
-        if !isUnknown && result.balanceApiSats < 50 {
+        if isUnknown {
+            Label("Top up to fund this account", systemImage: "bolt.fill")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        } else if result.balanceApiSats < 50 {
             Label("Low balance — top up soon", systemImage: "exclamationmark.triangle.fill")
                 .font(.caption2)
                 .foregroundStyle(.red)
