@@ -17,10 +17,14 @@ actor MCPService {
 
     // MARK: - Proof Tactics
 
-    /// Per-host slug cache. The slug is the operator's FastMCP namespace
-    /// prefix ("schwab", "brain", …) — discovered once per host from the
-    /// universal `<slug>_service_status` standard tool. Cached forever
-    /// after first resolution.
+    /// Per-host slug fallback. The slug is the operator's namespace prefix
+    /// ("schwab", "brain", "fermyon", …), derived from the universal
+    /// `<slug>_service_status` standard tool. This is NOT a "resolve once"
+    /// cache — `resolveSlug` re-derives from the live `tools/list` on every
+    /// call so a renamed operator (or a reused host, e.g. a repointed
+    /// Tailscale funnel) can't leave us binding proofs to a stale slug. This
+    /// dictionary is consulted only when a `tools/list` fetch transiently
+    /// fails, so a cold-start blip degrades gracefully instead of throwing.
     private var slugCache: [String: String] = [:]
 
     /// Public helper for callers that build their own proof outside
@@ -49,15 +53,21 @@ actor MCPService {
     /// `<slug>_oracle_*` for delegated oracle tools).
     private func resolveSlug(endpointURL: URL) async -> String {
         let host = endpointURL.host ?? endpointURL.absoluteString
-        if let cached = slugCache[host] { return cached }
-        guard let tools = try? await fetchToolList(endpointURL: endpointURL) else { return "" }
+        // Always derive from the CURRENT tools/list. The proof's `u`-tag and the
+        // invoked tool name must agree, and the invocation name comes straight
+        // from `tools/list`; re-deriving here keeps the two in lockstep even
+        // after an operator renames its slug. Fall back to the last-known slug
+        // only if the live fetch fails.
+        guard let tools = try? await fetchToolList(endpointURL: endpointURL) else {
+            return slugCache[host] ?? ""
+        }
         let marker = "_service_status"
         if let tool = tools.first(where: { $0.name.hasSuffix(marker) && $0.name.count > marker.count }) {
             let slug = String(tool.name.dropLast(marker.count))
             slugCache[host] = slug
             return slug
         }
-        return ""
+        return slugCache[host] ?? ""
     }
 
     /// Build args for any tool that takes an npub + proof. Picks the best
