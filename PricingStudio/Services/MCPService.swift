@@ -1225,7 +1225,15 @@ actor MCPService {
         try await client.connect(transport: transport)
 
         let allTools = try await listAllTools(client: client)
-        guard let setTool = allTools.first(where: { $0.name.contains("set_pricing_model") }) else {
+        // Match the EXACT `<slug>_set_pricing_model` — the same runtime name the
+        // proof is signed for. `.contains("set_pricing_model")` also matches
+        // `<slug>_reset_pricing_model` (it *contains* "set_pricing_model"), and when
+        // tools/list is sorted (reset < set) `.first` picks RESET — invoking reset
+        // with a set-bound proof → proof_invalid. `_set_pricing_model` (leading `_`)
+        // excludes reset, which ends in `…eset_pricing_model`.
+        guard let setTool = allTools.first(where: {
+            $0.name == "set_pricing_model" || $0.name.hasSuffix("_set_pricing_model")
+        }) else {
             await traffic(.error, label: "Set Pricing Model", detail: "No set_pricing_model tool found")
             throw MCPError.toolCallFailed("No set_pricing_model tool found")
         }
