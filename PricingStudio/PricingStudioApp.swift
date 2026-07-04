@@ -23,6 +23,7 @@ enum AppModelContainer {
 @main
 struct PricingStudioApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -32,11 +33,21 @@ struct PricingStudioApp: App {
                 // environment, including into sheets and navigation destinations.
                 .textSelection(.enabled)
                 .onAppear {
+                    // Dedupe BEFORE ensurePrimeExists: CloudKit sync merges
+                    // each device's locally-minted records (including their
+                    // Primes), and ensurePrimeExists must see one survivor.
+                    EntityDeduplicator.dedupeAll(in: AppModelContainer.shared.mainContext)
                     Authority.ensurePrimeExists(in: AppModelContainer.shared.mainContext)
                     LoadingQuoteView.prefetch()
                 }
         }
         .modelContainer(AppModelContainer.shared)
+        .onChange(of: scenePhase) { _, phase in
+            // Imports land while the app is away; fold them in on each return.
+            if phase == .active {
+                EntityDeduplicator.dedupeAll(in: AppModelContainer.shared.mainContext)
+            }
+        }
     }
 }
 

@@ -88,7 +88,9 @@ final class TopologyViewModel {
         operators: [Operator],
         entries: [RegistryService.RegistryEntry]
     ) -> [TopologyNode] {
-        let entryByNpub = Dictionary(uniqueKeysWithValues: entries.map { ($0.npub, $0) })
+        // Tolerant of duplicate npubs: synced entities can hold transient
+        // duplicates between CloudKit import and the dedupe pass.
+        let entryByNpub = Dictionary(entries.map { ($0.npub, $0) }, uniquingKeysWith: { first, _ in first })
 
         // Find Prime Authority from registry
         let primeEntries = entries.filter { $0.role == "prime_authority" }
@@ -121,7 +123,7 @@ final class TopologyViewModel {
         let allAuthNpubs = localAuthNpubs.union(registryAuthNpubs)
 
         // Build operator nodes
-        let operatorNodes: [String: TopologyNode] = Dictionary(uniqueKeysWithValues:
+        let operatorNodes: [String: TopologyNode] = Dictionary(
             operators.map { op in
                 let node = TopologyNode(
                     id: op.npub,
@@ -130,7 +132,8 @@ final class TopologyViewModel {
                     children: []
                 )
                 return (op.npub, node)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
 
         // Helper: resolve an authority's parent npub from registry, falling back

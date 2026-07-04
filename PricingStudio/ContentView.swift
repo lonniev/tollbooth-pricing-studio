@@ -1052,7 +1052,12 @@ private struct SidebarView: View {
     /// the result so the sidebar hides them entirely. Cycle-guarded so a
     /// malformed parent chain can't loop.
     private var authorityTreeEntries: [AuthorityTreeEntry] {
-        let byNpub = Dictionary(uniqueKeysWithValues: authorities.map { ($0.npub, $0) })
+        // A CloudKit import can momentarily hold duplicate npubs (the dedupe
+        // pass folds them on the next foreground activation) — the view must
+        // render through that window, never trap on a uniqueness assumption.
+        var seen = Set<String>()
+        let authorities = self.authorities.filter { seen.insert($0.npub).inserted }
+        let byNpub = Dictionary(authorities.map { ($0.npub, $0) }, uniquingKeysWith: { first, _ in first })
         let childrenByParent = Dictionary(grouping: authorities.compactMap { auth -> (String, Authority)? in
             guard let parent = auth.parentAuthorityNpub, !parent.isEmpty else { return nil }
             return (parent, auth)

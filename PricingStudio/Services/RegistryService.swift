@@ -28,7 +28,7 @@ enum RegistryService {
     static func resolveOracleURL(forOperator operatorNpub: String) async throws -> URL {
         let entries = try await fetchRegistry()
 
-        let entryByNpub = Dictionary(uniqueKeysWithValues: entries.map { ($0.npub, $0) })
+        let entryByNpub = Dictionary(entries.map { ($0.npub, $0) }, uniquingKeysWith: { first, _ in first })
 
         // Find the operator entry to start the chain walk
         guard let operatorEntry = entryByNpub[operatorNpub] else {
