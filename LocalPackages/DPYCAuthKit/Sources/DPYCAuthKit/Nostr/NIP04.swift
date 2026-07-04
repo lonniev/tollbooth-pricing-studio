@@ -8,16 +8,16 @@ import P256K
 /// Shared secret: x-coordinate of ECDH(privkey, pubkey) — raw, no SHA-256.
 ///
 /// Reference: https://github.com/nostr-protocol/nips/blob/master/04.md
-enum NIP04Service {
+public enum NIP04Service {
 
-    enum NIP04Error: LocalizedError {
+    public enum NIP04Error: LocalizedError {
         case invalidKey
         case ecdhFailed
         case encryptionFailed
         case decryptionFailed(String)
         case invalidFormat
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .invalidKey: return "Invalid key data"
             case .ecdhFailed: return "ECDH key agreement failed"
@@ -31,7 +31,7 @@ enum NIP04Service {
     // MARK: - ECDH Shared Secret
 
     /// Derive NIP-04 shared secret: x-coordinate of ECDH shared point.
-    static func sharedSecret(
+    public static func sharedSecret(
         privateKeyHex: String,
         publicKeyHex: String
     ) throws -> Data {
@@ -89,7 +89,7 @@ enum NIP04Service {
     /// Encrypt plaintext using NIP-04 AES-256-CBC.
     ///
     /// - Returns: `base64(ciphertext)?iv=base64(iv)`
-    static func encrypt(
+    public static func encrypt(
         _ plaintext: String,
         privateKeyHex: String,
         publicKeyHex: String
@@ -141,7 +141,7 @@ enum NIP04Service {
     // MARK: - Decrypt
 
     /// Decrypt a NIP-04 `base64(ciphertext)?iv=base64(iv)` message.
-    static func decrypt(
+    public static func decrypt(
         _ ciphertextWithIV: String,
         privateKeyHex: String,
         publicKeyHex: String

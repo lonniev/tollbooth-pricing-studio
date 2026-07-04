@@ -1,3 +1,4 @@
+import DPYCAuthKit
 import SwiftUI
 
 /// Menu button that sets a binding to trigger a sheet from the parent view.

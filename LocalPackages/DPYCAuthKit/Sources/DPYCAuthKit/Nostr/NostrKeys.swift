@@ -1,15 +1,15 @@
 import Foundation
 import P256K
 
-enum NostrKeyService {
+public enum NostrKeyService {
 
-    enum KeyError: LocalizedError {
+    public enum KeyError: LocalizedError {
         case invalidNsec
         case invalidNpub
         case invalidBech32
         case keyDerivationFailed
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .invalidNsec: return "Invalid nsec format — must start with nsec1"
             case .invalidNpub: return "Invalid npub format — must start with npub1"
@@ -20,7 +20,7 @@ enum NostrKeyService {
     }
 
     /// Generate a fresh Nostr keypair (nsec + npub).
-    static func generateKeyPair() throws -> (nsec: String, npub: String) {
+    public static func generateKeyPair() throws -> (nsec: String, npub: String) {
         // 1. Generate 32 random bytes for the private key
         var privateKeyBytes = [UInt8](repeating: 0, count: 32)
         let status = SecRandomCopyBytes(kSecRandomDefault, 32, &privateKeyBytes)
@@ -41,7 +41,7 @@ enum NostrKeyService {
     }
 
     /// Derive an npub from an nsec.
-    static func npubFromNsec(_ nsec: String) throws -> String {
+    public static func npubFromNsec(_ nsec: String) throws -> String {
         guard nsec.hasPrefix("nsec1") else { throw KeyError.invalidNsec }
 
         // 1. Bech32 decode nsec → 32-byte private key
@@ -70,7 +70,7 @@ enum NostrKeyService {
     }
 
     /// Validate that a string looks like a valid nsec.
-    static func isValidNsec(_ nsec: String) -> Bool {
+    public static func isValidNsec(_ nsec: String) -> Bool {
         guard nsec.hasPrefix("nsec1"), nsec.count > 10 else { return false }
         return (try? npubFromNsec(nsec)) != nil
     }
@@ -78,7 +78,7 @@ enum NostrKeyService {
     // MARK: - Hex Conversion Utilities
 
     /// Convert an nsec (bech32) to a 32-byte private key hex string.
-    static func privateKeyHexFromNsec(_ nsec: String) throws -> String {
+    public static func privateKeyHexFromNsec(_ nsec: String) throws -> String {
         guard nsec.hasPrefix("nsec1") else { throw KeyError.invalidNsec }
         guard let (hrp, data5bit) = bech32Decode(nsec), hrp == "nsec" else {
             throw KeyError.invalidBech32
@@ -91,7 +91,7 @@ enum NostrKeyService {
     }
 
     /// Convert an npub (bech32) to a 32-byte public key hex string.
-    static func publicKeyHexFromNpub(_ npub: String) throws -> String {
+    public static func publicKeyHexFromNpub(_ npub: String) throws -> String {
         guard npub.hasPrefix("npub1") else { throw KeyError.invalidNpub }
         guard let (hrp, data5bit) = bech32Decode(npub), hrp == "npub" else {
             throw KeyError.invalidBech32
@@ -104,7 +104,7 @@ enum NostrKeyService {
     }
 
     /// Convert a 32-byte hex public key to an npub (bech32).
-    static func npubFromHex(_ hex: String) throws -> String {
+    public static func npubFromHex(_ hex: String) throws -> String {
         guard hex.count == 64 else { throw KeyError.invalidNpub }
         var keyBytes = [UInt8]()
         var index = hex.startIndex
