@@ -110,6 +110,14 @@ def main() -> None:
     print(f"  {mark(bd)} Build attached: "
           f"{bd['attributes'].get('version') if bd else '— MISSING (attach a processed build)'}")
 
+    # ---- Age rating (API-visible) ----
+    print("\n== Age rating ==")
+    ard = get(token, f"/v1/appStoreVersions/{vid}/ageRatingDeclaration")
+    if ard and ard.get("data"):
+        print("  ✅ Age rating declaration exists.")
+    else:
+        print("  ❌ No age rating declaration — complete Age Rating in the UI and Save.")
+
     # ---- Pricing ----
     print("\n== Pricing ==")
     sched = get(token, f"/v1/apps/{app_id}/appPriceSchedule",
