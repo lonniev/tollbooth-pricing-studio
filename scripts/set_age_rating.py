@@ -43,30 +43,36 @@ def main() -> None:
 
     token = make_token()
     app_id, app_name = resolve_app(token, args.bundle_id)
-    vers = api("GET", f"/v1/apps/{app_id}/appStoreVersions", token, query={
-        "limit": "10", "fields[appStoreVersions]": "versionString,appStoreState,platform"})[1]
-    version = next((v for v in vers.get("data", [])
-                    if v["attributes"].get("platform") == "IOS"
-                    and v["attributes"].get("appStoreState") in EDITABLE_STATES), None)
-    if version is None:
-        fail("No editable iOS version.")
-    vid = version["id"]
-    print(f"App: {app_name} → version {version['attributes'].get('versionString')} ({vid})")
+    print(f"App: {app_name} → id {app_id}")
 
-    status, data = api("GET", f"/v1/appStoreVersions/{vid}/ageRatingDeclaration", token)
-    print(f"\nGET ageRatingDeclaration → HTTP {status}")
-    print(json.dumps(data, indent=2)[:1200])
+    # Age rating moved to app scope; the declaration hangs off the appInfo (or
+    # the app). Find whichever path returns it.
+    app_info_id = api("GET", f"/v1/apps/{app_id}/appInfos", token)[1]["data"][0]["id"]
+    decl = None
+    for path in (f"/v1/appInfos/{app_info_id}/ageRatingDeclaration",
+                 f"/v1/apps/{app_id}/ageRatingDeclaration"):
+        status, data = api("GET", path, token)
+        print(f"GET {path} → HTTP {status}")
+        if status == 200 and data.get("data"):
+            decl = data["data"]
+            break
+    if decl is None:
+        fail("Could not locate the ageRatingDeclaration to update.")
 
-    attrs = build_attrs()
-    if status == 200 and data.get("data"):
-        rid = data["data"]["id"]
-        s, r = api("PATCH", f"/v1/ageRatingDeclarations/{rid}", token, body={
-            "data": {"type": "ageRatingDeclarations", "id": rid, "attributes": attrs}})
-    else:
-        s, r = api("POST", "/v1/ageRatingDeclarations", token, body={
-            "data": {"type": "ageRatingDeclarations", "attributes": attrs,
-                     "relationships": {"appStoreVersion":
-                                       {"data": {"type": "appStoreVersions", "id": vid}}}}})
+    print("\nCurrent declaration attributes:")
+    print(json.dumps(decl.get("attributes", {}), indent=2)[:1500])
+
+    # Derive a lowest-rating patch from the declaration's own fields: string
+    # categories → NONE, booleans → False, leave nulls (e.g. kidsAgeBand) alone.
+    attrs = {}
+    for k, v in decl.get("attributes", {}).items():
+        if isinstance(v, bool):
+            attrs[k] = False
+        elif isinstance(v, str):
+            attrs[k] = "NONE"
+    rid = decl["id"]
+    s, r = api("PATCH", f"/v1/ageRatingDeclarations/{rid}", token, body={
+        "data": {"type": "ageRatingDeclarations", "id": rid, "attributes": attrs}})
     if s in (200, 201):
         print("\n✅ Age rating set to 4+ (all categories None).")
     else:
