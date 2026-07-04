@@ -1,0 +1,56 @@
+name: Submit App Review
+
+# Submit the editable App Store version for full App Review via the App
+# Store Connect API, reusing the release pipeline's key secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      contact_first:
+        description: "Review contact first name"
+        required: false
+        default: "Lonnie"
+      contact_last:
+        description: "Review contact last name"
+        required: false
+        default: "VanZandt"
+      contact_email:
+        description: "Review contact email"
+        required: false
+        default: "lonniev@gmail.com"
+      contact_phone:
+        description: "Review contact phone"
+        required: false
+        default: "720-201-1349"
+      bundle_id:
+        description: "App bundle id"
+        required: false
+        default: "com.tollbooth.dpyc.PricingStudio"
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install --quiet pyjwt cryptography
+      - name: Submit for App Review
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -eo pipefail
+          ASC_PRIVATE_KEY="$(echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode)"
+          export ASC_PRIVATE_KEY
+          python scripts/submit_app_review.py \
+            --bundle-id "${{ inputs.bundle_id }}" \
+            --contact-first "${{ inputs.contact_first }}" \
+            --contact-last "${{ inputs.contact_last }}" \
+            --contact-email "${{ inputs.contact_email }}" \
+            --contact-phone "${{ inputs.contact_phone }}"
