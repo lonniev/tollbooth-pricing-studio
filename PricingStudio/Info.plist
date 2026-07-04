@@ -29,10 +29,13 @@
 	  app to drain the relay and post local notifications while it is NOT the
 	  foreground app. iOS controls the cadence (it is not real-time); the
 	  registered BGAppRefreshTask identifier must be listed here.
+	  `remote-notification` lets the InboxSignal CloudKit push (written by the
+	  user's other device when a gift-wrap DM lands) wake the app to drain.
 	-->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>remote-notification</string>
 	</array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
