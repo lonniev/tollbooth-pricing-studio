@@ -76,6 +76,7 @@ def main() -> None:
     ap.add_argument("--contact-last", default="VanZandt")
     ap.add_argument("--contact-email", default="lonniev@gmail.com")
     ap.add_argument("--contact-phone", default="720-201-1349")
+    ap.add_argument("--copyright", default="2026 Lonnie VanZandt")
     args = ap.parse_args()
 
     token = make_token()
@@ -103,11 +104,12 @@ def main() -> None:
     # 2) review contact + notes
     get_or_create_review_detail(token, vid, args)
 
-    # 3) auto-release after approval
+    # 3) auto-release after approval + required copyright
     s, r = api("PATCH", f"/v1/appStoreVersions/{vid}", token, body={
         "data": {"type": "appStoreVersions", "id": vid,
-                 "attributes": {"releaseType": "AFTER_APPROVAL"}}})
-    print(f"{'✅' if s in (200,201) else '⚠️'} Release type → AFTER_APPROVAL"
+                 "attributes": {"releaseType": "AFTER_APPROVAL",
+                                "copyright": args.copyright}}})
+    print(f"{'✅' if s in (200,201) else '⚠️'} Release type + copyright ('{args.copyright}')"
           + ("" if s in (200, 201) else f" ({first_error_detail(r)})"))
 
     # 4) review submission → add version → submit
