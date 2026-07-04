@@ -64,8 +64,12 @@ def main() -> None:
 
     # Derive a lowest-rating patch from the declaration's own fields: string
     # categories → NONE, booleans → False, leave nulls (e.g. kidsAgeBand) alone.
+    # 'ageRatingOverride' is deprecated and conflicts with 'ageRatingOverrideV2'.
+    skip = {"ageRatingOverride"}
     attrs = {}
     for k, v in decl.get("attributes", {}).items():
+        if k in skip:
+            continue
         if isinstance(v, bool):
             attrs[k] = False
         elif isinstance(v, str):
