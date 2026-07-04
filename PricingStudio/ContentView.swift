@@ -4,6 +4,7 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(sort: \Authority.addedAt) private var authorities: [Authority]
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
     @State private var authorityVM = AuthorityCollectionViewModel()
@@ -29,6 +30,15 @@ struct ContentView: View {
     @State private var pendingActorSwitch: (() -> Void)?
     @State private var registryAdoption: AdoptionPrefill?
     @State private var registryLookupInFlight: Bool = false
+
+    /// On compact widths the Traffic Log presents as a sheet; on regular it
+    /// stays the inline resizable panel in the detail column.
+    private var compactTrafficLogBinding: Binding<Bool> {
+        Binding(
+            get: { horizontalSizeClass == .compact && showingTrafficLog },
+            set: { showingTrafficLog = $0 }
+        )
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -73,7 +83,7 @@ struct ContentView: View {
                 }
                 .frame(maxHeight: .infinity)
 
-                if showingTrafficLog {
+                if showingTrafficLog && horizontalSizeClass != .compact {
                     // Drag handle for resizing
                     HStack {
                         Spacer()
@@ -201,6 +211,16 @@ struct ContentView: View {
             }
         } message: { campaign in
             Text("Permanently delete \"\(campaign.name)\"? This campaign and its interview history cannot be recovered.")
+        }
+        .sheet(isPresented: compactTrafficLogBinding) {
+            // Compact widths (iPhone) collapse the split view to the sidebar,
+            // so the inline detail-column Traffic Log panel is unreachable —
+            // present it as a sheet from the same sidebar toggle instead.
+            NavigationStack {
+                TrafficLogView(logger: TrafficLogger.shared, filterNpub: selectedEntityNpub)
+                    .navigationTitle("Traffic Log")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
         }
         .sheet(isPresented: $authorityVM.showingAddSheet) {
             AddAuthoritySheet(viewModel: authorityVM)
