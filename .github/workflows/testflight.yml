@@ -93,6 +93,13 @@ jobs:
 
       - name: Build and archive
         run: |
+          # Sign AT ARCHIVE TIME. Entitlements (aps-environment, iCloud
+          # containers) are baked into the binary during signing — an
+          # unsigned archive has none, and exportArchive does NOT
+          # resurrect them from the profile: every build archived with
+          # CODE_SIGNING_ALLOWED=NO shipped entitlement-bare (SwiftData
+          # silently fell back to local-only; InboxSignal's CKContainer
+          # crashed at launch — how this was caught).
           xcodebuild archive \
             -scheme PricingStudio \
             -destination "generic/platform=iOS" \
@@ -100,8 +107,10 @@ jobs:
             -clonedSourcePackagesDirPath $RUNNER_TEMP/spm \
             MARKETING_VERSION=${{ steps.ver.outputs.marketing }} \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=JHPQNMW73Z \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ steps.profile.outputs.name }}"
 
       - name: Export IPA
         run: |
