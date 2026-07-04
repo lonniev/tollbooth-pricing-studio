@@ -98,9 +98,15 @@ final class InboxSignalService {
     /// Never throws into the DM path — failures log and back off.
     func publishSignal(eventId: String, npub: String) async {
         guard !publishedEventIds.contains(eventId) else { return }
-        if let until = unavailableUntil, Date() < until { return }
+        if let until = unavailableUntil, Date() < until {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "publish skipped: iCloud backoff until \(until.formatted(date: .omitted, time: .standard))", npub: npub)
+            return
+        }
 
-        guard await accountAvailable() else { return }
+        guard await accountAvailable() else {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "publish skipped: iCloud account unavailable", npub: npub)
+            return
+        }
 
         let record = CKRecord(
             recordType: Self.recordType,
@@ -132,9 +138,15 @@ final class InboxSignalService {
     /// every foreground start.
     func ensureSubscription() async {
         guard !defaults.bool(forKey: Self.subscriptionSavedKey) else { return }
-        if let until = unavailableUntil, Date() < until { return }
+        if let until = unavailableUntil, Date() < until {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "subscription deferred: iCloud backoff")
+            return
+        }
 
-        guard await accountAvailable() else { return }
+        guard await accountAvailable() else {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "subscription deferred: iCloud account unavailable")
+            return
+        }
 
         let subscription = CKQuerySubscription(
             recordType: Self.recordType,
@@ -154,7 +166,7 @@ final class InboxSignalService {
         do {
             _ = try await database.save(subscription as CKSubscription)
             defaults.set(true, forKey: Self.subscriptionSavedKey)
-            logger.info("InboxSignal subscription ensured")
+            TrafficLogger.shared.log(.inbound, label: "InboxSignal", detail: "CloudKit subscription ensured")
         } catch let error as CKError where error.code == .serverRejectedRequest {
             // A subscription with this stable ID already exists server-side.
             defaults.set(true, forKey: Self.subscriptionSavedKey)
@@ -171,13 +183,13 @@ final class InboxSignalService {
             let status = try await account.accountStatus()
             guard status == .available else {
                 unavailableUntil = Date().addingTimeInterval(15 * 60)
-                logger.notice("iCloud account unavailable (\(status.rawValue)); backing off")
+                TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "iCloud accountStatus=\(status.rawValue) (1=noAccount 2=restricted 3=noneDetermined 4=temporarilyUnavailable); backing off 15m")
                 return false
             }
             return true
         } catch {
             unavailableUntil = Date().addingTimeInterval(15 * 60)
-            logger.notice("iCloud account check failed: \(error.localizedDescription)")
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "iCloud account check failed: \(error.localizedDescription); backing off 15m")
             return false
         }
     }
