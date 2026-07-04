@@ -47,8 +47,6 @@ Top up over Lightning
 
 Pricing Studio is built for the DPYC ("Don't Pester Your Customer") ecosystem, where services are paid for with pre-funded Lightning micropayments instead of intrusive per-request payment prompts."""
 
-WHATS_NEW = "Initial public release."
-
 EDITABLE_STATES = {
     "PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
     "METADATA_REJECTED", "INVALID_BINARY",
@@ -136,12 +134,13 @@ def main() -> None:
     vlocs = api("GET", f"/v1/appStoreVersions/{vid}/appStoreVersionLocalizations", token)[1]
     for l in vlocs.get("data", []):
         lid = l["id"]
+        # NB: 'whatsNew' is rejected on a first release (no prior version to
+        # describe changes from) — only set it on updates.
         attrs = {
             "description": DESCRIPTION,
             "keywords": KEYWORDS,
             "promotionalText": PROMOTIONAL,
             "supportUrl": args.support_url,
-            "whatsNew": WHATS_NEW,
         }
         if args.marketing_url:
             attrs["marketingUrl"] = args.marketing_url
