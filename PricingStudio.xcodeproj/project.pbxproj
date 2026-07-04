@@ -52,7 +52,6 @@
 		AA00000100000000000000C9 /* PatronSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F9 /* PatronSidebarView.swift */; };
 		AA00000100000000000000CA /* AddPatronSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FA /* AddPatronSheet.swift */; };
 		AA00000100000000000000CB /* EditPatronSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FB /* EditPatronSheet.swift */; };
-		AA00000100000000000000CC /* NostrKeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FC /* NostrKeyService.swift */; };
 		AA00000100000000000000CD /* TrafficLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FD /* TrafficLogger.swift */; };
 		AA00000100000000000000CE /* TrafficLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000FE /* TrafficLogView.swift */; };
 		AA00000100000000000001B1 /* Authority.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A1 /* Authority.swift */; };
@@ -65,9 +64,7 @@
 		AA00000100000000000001B7 /* TopologyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A7 /* TopologyViewModel.swift */; };
 		AA00000100000000000001B8 /* NetworkTopologyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000001A8 /* NetworkTopologyView.swift */; };
 		ORCL000100000000000000B1 /* OracleChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORCL000100000000000000A1 /* OracleChatView.swift */; };
-		AA0000010000000000000211 /* NostrEventService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000201 /* NostrEventService.swift */; };
-		AA0000010000000000000212 /* NIP04Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000202 /* NIP04Service.swift */; };
-		AA0000010000000000000213 /* NIP44Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000203 /* NIP44Service.swift */; };
+		AA0000010000000000000211 /* NostrProfileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000201 /* NostrProfileService.swift */; };
 		AA0000010000000000000214 /* NostrRelayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000204 /* NostrRelayService.swift */; };
 		AA0000010000000000000216 /* PersistentRelayConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000206 /* PersistentRelayConnection.swift */; };
 		AA0000010000000000000217 /* RelaySubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000207 /* RelaySubscriptionManager.swift */; };
@@ -130,7 +127,7 @@
 		AA0000010000000000000C11 /* AuthorityBalanceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000C10 /* AuthorityBalanceViewModel.swift */; };
 		AA0000010000000000000D01 /* CourierPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000D02 /* CourierPayloadTests.swift */; };
 		BB0000010000000000000A01 /* NotifiedEventStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */; };
-		DD0000010000000000000F01 /* NostrCryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E01 /* NostrCryptoTests.swift */; };
+		DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */; };
 		DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E02 /* NostrRelayTests.swift */; };
 		DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E03 /* NostrDMServiceTests.swift */; };
 		EE0000010000000000000F04 /* ReconciliationUUIDTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */; };
@@ -230,7 +227,6 @@
 		AA00000100000000000000F9 /* PatronSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronSidebarView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000FA /* AddPatronSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddPatronSheet.swift; sourceTree = "<group>"; };
 		AA00000100000000000000FB /* EditPatronSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPatronSheet.swift; sourceTree = "<group>"; };
-		AA00000100000000000000FC /* NostrKeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrKeyService.swift; sourceTree = "<group>"; };
 		AA00000100000000000000FD /* TrafficLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogger.swift; sourceTree = "<group>"; };
 		AA00000100000000000000FE /* TrafficLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogView.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A1 /* Authority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Authority.swift; sourceTree = "<group>"; };
@@ -243,9 +239,7 @@
 		AA00000100000000000001A7 /* TopologyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopologyViewModel.swift; sourceTree = "<group>"; };
 		AA00000100000000000001A8 /* NetworkTopologyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTopologyView.swift; sourceTree = "<group>"; };
 		ORCL000100000000000000A1 /* OracleChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleChatView.swift; sourceTree = "<group>"; };
-		AA0000010000000000000201 /* NostrEventService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrEventService.swift; sourceTree = "<group>"; };
-		AA0000010000000000000202 /* NIP04Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP04Service.swift; sourceTree = "<group>"; };
-		AA0000010000000000000203 /* NIP44Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NIP44Service.swift; sourceTree = "<group>"; };
+		AA0000010000000000000201 /* NostrProfileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrProfileService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000204 /* NostrRelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000206 /* PersistentRelayConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentRelayConnection.swift; sourceTree = "<group>"; };
 		AA0000010000000000000207 /* RelaySubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySubscriptionManager.swift; sourceTree = "<group>"; };
@@ -309,7 +303,7 @@
 		AA0000010000000000000C02 /* ClaimAuthoritySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimAuthoritySheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000D02 /* CourierPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayloadTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifiedEventStoreTests.swift; sourceTree = "<group>"; };
-		DD0000010000000000000E01 /* NostrCryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrCryptoTests.swift; sourceTree = "<group>"; };
+		DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrProfileMetadataTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E02 /* NostrRelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E03 /* NostrDMServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrDMServiceTests.swift; sourceTree = "<group>"; };
 		EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconciliationUUIDTests.swift; sourceTree = "<group>"; };
@@ -414,7 +408,7 @@
 				AA0000010000000000000D02 /* CourierPayloadTests.swift */,
 				ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */,
 				BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */,
-				DD0000010000000000000E01 /* NostrCryptoTests.swift */,
+				DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
 				DD0000010000000000000E03 /* NostrDMServiceTests.swift */,
 				EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */,
@@ -498,7 +492,6 @@
 				AA0000010000000000000F21 /* MCPAuthBridge.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
 				AA00000100000000000000E7 /* KeychainService.swift */,
-				AA00000100000000000000FC /* NostrKeyService.swift */,
 				AA00000100000000000000FD /* TrafficLogger.swift */,
 				AA0000010000000000000412 /* AnthropicService.swift */,
 				AA0000010000000000000801 /* DMPollingService.swift */,
@@ -517,9 +510,7 @@
 		AA0000010000000000000200 /* Nostr */ = {
 			isa = PBXGroup;
 			children = (
-				AA0000010000000000000201 /* NostrEventService.swift */,
-				AA0000010000000000000202 /* NIP04Service.swift */,
-				AA0000010000000000000203 /* NIP44Service.swift */,
+				AA0000010000000000000201 /* NostrProfileService.swift */,
 				AA0000010000000000000204 /* NostrRelayService.swift */,
 				AA0000010000000000000206 /* PersistentRelayConnection.swift */,
 				AA0000010000000000000207 /* RelaySubscriptionManager.swift */,
@@ -735,7 +726,7 @@
 			name = PricingStudio;
 			packageProductDependencies = (
 				AA00000100000000000000A2 /* MCP */,
-				AA00000100000000000000A4 /* P256K */,
+				DD00000100000000AUTH0002 /* DPYCAuthKit */,
 				BB00000100000000STAR0002 /* Starscream */,
 				CC00000100000000SVGV0002 /* SVGView */,
 			);
@@ -756,6 +747,9 @@
 				AA0000010000000000000D31 /* PBXTargetDependency */,
 			);
 			name = PricingStudioTests;
+			packageProductDependencies = (
+				DD00000100000000AUTH0003 /* DPYCAuthKit */,
+			);
 			productName = PricingStudioTests;
 			productReference = AA0000010000000000000DFF /* PricingStudioTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -833,7 +827,7 @@
 			mainGroup = AA000001000000000000004A;
 			packageReferences = (
 				AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */,
-				AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */,
+				DD00000100000000AUTH0001 /* XCLocalSwiftPackageReference "LocalPackages/DPYCAuthKit" */,
 				BB00000100000000STAR0001 /* XCRemoteSwiftPackageReference "Starscream" */,
 				CC00000100000000SVGV0001 /* XCRemoteSwiftPackageReference "SVGView" */,
 			);
@@ -1005,7 +999,6 @@
 				AA00000100000000000000C9 /* PatronSidebarView.swift in Sources */,
 				AA00000100000000000000CA /* AddPatronSheet.swift in Sources */,
 				AA00000100000000000000CB /* EditPatronSheet.swift in Sources */,
-				AA00000100000000000000CC /* NostrKeyService.swift in Sources */,
 				AA00000100000000000000CD /* TrafficLogger.swift in Sources */,
 				AA00000100000000000000CE /* TrafficLogView.swift in Sources */,
 				AA00000100000000000001B1 /* Authority.swift in Sources */,
@@ -1018,9 +1011,7 @@
 				AA00000100000000000001B7 /* TopologyViewModel.swift in Sources */,
 				AA00000100000000000001B8 /* NetworkTopologyView.swift in Sources */,
 				ORCL000100000000000000B1 /* OracleChatView.swift in Sources */,
-				AA0000010000000000000211 /* NostrEventService.swift in Sources */,
-				AA0000010000000000000212 /* NIP04Service.swift in Sources */,
-				AA0000010000000000000213 /* NIP44Service.swift in Sources */,
+				AA0000010000000000000211 /* NostrProfileService.swift in Sources */,
 				AA0000010000000000000214 /* NostrRelayService.swift in Sources */,
 				AA0000010000000000000216 /* PersistentRelayConnection.swift in Sources */,
 				AA0000010000000000000217 /* RelaySubscriptionManager.swift in Sources */,
@@ -1091,7 +1082,7 @@
 				AA0000010000000000000D01 /* CourierPayloadTests.swift in Sources */,
 				ADPT000200000000000000B3 /* AdoptionRequestDecodeTests.swift in Sources */,
 				BB0000010000000000000A01 /* NotifiedEventStoreTests.swift in Sources */,
-				DD0000010000000000000F01 /* NostrCryptoTests.swift in Sources */,
+				DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
 				DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */,
 				EE0000010000000000000F04 /* ReconciliationUUIDTests.swift in Sources */,
@@ -1495,13 +1486,9 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "LocalPackages/swift-sdk";
 		};
-		AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/GigaBitcoin/secp256k1.swift.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.21.1;
-			};
+		DD00000100000000AUTH0001 /* XCLocalSwiftPackageReference "LocalPackages/DPYCAuthKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "LocalPackages/DPYCAuthKit";
 		};
 		BB00000100000000STAR0001 /* XCRemoteSwiftPackageReference "Starscream" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1527,10 +1514,15 @@
 			package = AA00000100000000000000A1 /* XCRemoteSwiftPackageReference "swift-sdk" */;
 			productName = MCP;
 		};
-		AA00000100000000000000A4 /* P256K */ = {
+		DD00000100000000AUTH0002 /* DPYCAuthKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = AA00000100000000000000A3 /* XCRemoteSwiftPackageReference "swift-secp256k1" */;
-			productName = P256K;
+			package = DD00000100000000AUTH0001 /* XCLocalSwiftPackageReference "LocalPackages/DPYCAuthKit" */;
+			productName = DPYCAuthKit;
+		};
+		DD00000100000000AUTH0003 /* DPYCAuthKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DD00000100000000AUTH0001 /* XCLocalSwiftPackageReference "LocalPackages/DPYCAuthKit" */;
+			productName = DPYCAuthKit;
 		};
 		BB00000100000000STAR0002 /* Starscream */ = {
 			isa = XCSwiftPackageProductDependency;

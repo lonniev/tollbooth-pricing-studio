@@ -1,3 +1,4 @@
+import DPYCAuthKit
 import SwiftUI
 
 /// Individual message bubble with left/right alignment and encryption badge.

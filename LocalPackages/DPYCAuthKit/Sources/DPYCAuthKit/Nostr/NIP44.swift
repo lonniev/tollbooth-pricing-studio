@@ -8,7 +8,7 @@ import P256K
 /// Conversation key: `HMAC-SHA256(salt: "nip44-v2", key: ecdh_x)`
 ///
 /// Reference: https://github.com/nostr-protocol/nips/blob/master/44.md
-enum NIP44Service {
+public enum NIP44Service {
 
     // MARK: - Constants
 
@@ -18,7 +18,7 @@ enum NIP44Service {
 
     // MARK: - Errors
 
-    enum NIP44Error: LocalizedError {
+    public enum NIP44Error: LocalizedError {
         case invalidKey
         case ecdhFailed
         case encryptionFailed
@@ -29,7 +29,7 @@ enum NIP44Service {
         case invalidPadding
         case plaintextTooLarge
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .invalidKey: return "Invalid key data"
             case .ecdhFailed: return "ECDH key agreement failed"
@@ -47,7 +47,7 @@ enum NIP44Service {
     // MARK: - Padding
 
     /// Calculate NIP-44v2 padded length using power-of-two bucket scheme.
-    static func calcPaddedLen(_ unpaddedLen: Int) -> Int {
+    public static func calcPaddedLen(_ unpaddedLen: Int) -> Int {
         if unpaddedLen <= 32 { return 32 }
         var nextPower = 1
         while nextPower < unpaddedLen { nextPower *= 2 }
@@ -57,7 +57,7 @@ enum NIP44Service {
     }
 
     /// Pad plaintext: 2-byte big-endian length prefix + zero-padding.
-    static func pad(_ plaintext: Data) throws -> Data {
+    public static func pad(_ plaintext: Data) throws -> Data {
         let len = plaintext.count
         guard len >= minPlaintextSize, len <= maxPlaintextSize else {
             throw NIP44Error.plaintextTooLarge
@@ -72,7 +72,7 @@ enum NIP44Service {
     }
 
     /// Remove NIP-44v2 padding: read 2-byte length, verify zeros.
-    static func unpad(_ padded: Data) throws -> Data {
+    public static func unpad(_ padded: Data) throws -> Data {
         guard padded.count >= 2 else { throw NIP44Error.invalidPadding }
         let len = Int(padded[0]) << 8 | Int(padded[1])
         guard len >= minPlaintextSize, len <= maxPlaintextSize else {
@@ -88,7 +88,7 @@ enum NIP44Service {
     // MARK: - Key Derivation
 
     /// Derive NIP-44v2 conversation key: HKDF-extract(salt="nip44-v2", IKM=shared_x).
-    static func conversationKey(
+    public static func conversationKey(
         privateKeyHex: String,
         publicKeyHex: String
     ) throws -> SymmetricKey {
@@ -138,7 +138,7 @@ enum NIP44Service {
     /// Encrypt plaintext per NIP-44v2.
     ///
     /// Returns base64-encoded payload: `version(1) + nonce(32) + ciphertext + hmac(32)`.
-    static func encrypt(
+    public static func encrypt(
         _ plaintext: String,
         privateKeyHex: String,
         publicKeyHex: String
@@ -177,7 +177,7 @@ enum NIP44Service {
     // MARK: - Decrypt
 
     /// Decrypt a NIP-44v2 base64 payload.
-    static func decrypt(
+    public static func decrypt(
         _ payloadBase64: String,
         privateKeyHex: String,
         publicKeyHex: String

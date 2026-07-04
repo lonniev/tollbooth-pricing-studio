@@ -12,3 +12,6 @@ PricingStudio/BuildTimestamp.txt
 # Python bytecode from CI helper scripts
 __pycache__/
 *.pyc
+
+# SPM build artifacts (local packages)
+.build/

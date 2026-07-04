@@ -1,3 +1,4 @@
+import DPYCAuthKit
 import Foundation
 
 struct TrafficLogEntry: Identifiable, Sendable {

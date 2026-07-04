@@ -36,7 +36,7 @@ final class CourierPayloadTests: XCTestCase {
         --- Credential Payload ---
           nsec = @@@PASTE_YOUR_NSEC_HERE@@@
           claim = @@@PASTE_YOUR_CLAIM_HERE@@@
-          poison = @@@7f3a2b1c@@@
+          dpop_token = @@@7f3a2b1c@@@
 
         --- Message Provenance ---
         Service: tollbooth-authority
@@ -51,7 +51,7 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertTrue(payload!.greeting.contains("Welcome to the Tollbooth"))
         XCTAssertEqual(payload!.fields.count, 2)
         XCTAssertNotNil(payload!.poison)
-        XCTAssertEqual(payload!.poison?.key, "poison")
+        XCTAssertEqual(payload!.poison?.key, "dpop_token")
         XCTAssertEqual(payload!.poison?.value, "7f3a2b1c")
         XCTAssertEqual(payload!.provenance.service, "tollbooth-authority")
         XCTAssertEqual(payload!.provenance.operatorNpub, "npub1exampleoperator123")
@@ -82,13 +82,13 @@ final class CourierPayloadTests: XCTestCase {
     // MARK: - Poison Separated
 
     func testPoisonSeparated() {
-        let text = "nsec = @@@val@@@\npoison = @@@deadbeef@@@\nclaim = @@@yes@@@"
+        let text = "nsec = @@@val@@@\ndpop_token = @@@deadbeef@@@\nclaim = @@@yes@@@"
         let payload = CourierPayload.parse(text)!
 
         XCTAssertEqual(payload.fields.count, 2, "Poison should not be in fields")
         XCTAssertNotNil(payload.poison)
         XCTAssertEqual(payload.poison?.value, "deadbeef")
-        XCTAssertTrue(payload.fields.allSatisfy { $0.key != "poison" })
+        XCTAssertTrue(payload.fields.allSatisfy { $0.key != "dpop_token" })
     }
 
     // MARK: - isComplete When All Filled
@@ -122,7 +122,7 @@ final class CourierPayloadTests: XCTestCase {
         --- Credential Payload ---
           nsec = @@@nsec1abc@@@
           claim = @@@yes@@@
-          poison = @@@deadbeef@@@
+          dpop_token = @@@deadbeef@@@
         """
 
         var payload = CourierPayload.parse(text)!
@@ -134,7 +134,7 @@ final class CourierPayloadTests: XCTestCase {
 
         XCTAssertTrue(serialized.contains("nsec = @@@nsec1edited@@@"))
         XCTAssertTrue(serialized.contains("claim = @@@yes@@@"))
-        XCTAssertTrue(serialized.contains("poison = @@@deadbeef@@@"))
+        XCTAssertTrue(serialized.contains("dpop_token = @@@deadbeef@@@"))
 
         // Re-parse the serialized output
         let reparsed = CourierPayload.parse(serialized)
@@ -173,7 +173,7 @@ final class CourierPayloadTests: XCTestCase {
 
         --- Credential Payload ---
           claim = @@@yes@@@
-          poison = @@@keen-nest-44@@@
+          dpop_token = @@@keen-nest-44@@@
 
         --- Message Provenance ---
         Service: tollbooth-authority
@@ -250,7 +250,7 @@ final class CourierPayloadTests: XCTestCase {
         let text = """
         --- Credential Payload ---
           nsec = @@@PASTE_YOUR_NSEC_HERE@@@
-          poison = @@@bold-hawk-42@@@
+          dpop_token = @@@bold-hawk-42@@@
           rendezvous_relay = @@@wss://relay.primal.net@@@
         """
 
@@ -268,7 +268,7 @@ final class CourierPayloadTests: XCTestCase {
         let text = """
         --- Credential Payload ---
           nsec = @@@PASTE_YOUR_NSEC_HERE@@@
-          poison = @@@bold-hawk-42@@@
+          dpop_token = @@@bold-hawk-42@@@
         """
 
         let payload = CourierPayload.parse(text)!
@@ -284,7 +284,7 @@ final class CourierPayloadTests: XCTestCase {
         let text = """
         --- Credential Payload ---
           nsec = @@@nsec1real@@@
-          poison = @@@bold-hawk-42@@@
+          dpop_token = @@@bold-hawk-42@@@
           rendezvous_relay = @@@wss://relay.primal.net@@@
         """
 
@@ -292,7 +292,7 @@ final class CourierPayloadTests: XCTestCase {
         let serialized = payload.serialize()
 
         XCTAssertTrue(serialized.contains("nsec = @@@nsec1real@@@"))
-        XCTAssertTrue(serialized.contains("poison = @@@bold-hawk-42@@@"))
+        XCTAssertTrue(serialized.contains("dpop_token = @@@bold-hawk-42@@@"))
         XCTAssertFalse(serialized.contains("rendezvous_relay"))
     }
 }

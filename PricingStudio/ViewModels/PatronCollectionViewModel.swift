@@ -1,3 +1,4 @@
+import DPYCAuthKit
 import Foundation
 import SwiftData
 import SwiftUI

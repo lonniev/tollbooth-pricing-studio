@@ -1,3 +1,4 @@
+import DPYCAuthKit
 import Foundation
 
 /// Signs kind-27235 Nostr events (NIP-98 style) to prove operator identity.

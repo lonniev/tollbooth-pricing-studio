@@ -1,3 +1,4 @@
+import DPYCAuthKit
 import Foundation
 
 /// Represents any entity that can participate in Nostr DM conversations.

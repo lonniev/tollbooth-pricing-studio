@@ -1,3 +1,4 @@
+import DPYCAuthKit
 import Foundation
 
 /// A conversation with a single counterparty, containing all decrypted DMs.
