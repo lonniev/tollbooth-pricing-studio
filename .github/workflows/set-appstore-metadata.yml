@@ -1,0 +1,62 @@
+name: Set App Store Metadata
+
+# Fill the App Store listing's text metadata (category, subtitle, privacy
+# URL, description, keywords, support URL, version + build) via the App
+# Store Connect API, reusing the release pipeline's key secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      category:
+        description: "Primary category id (e.g. BUSINESS)"
+        required: false
+        default: "BUSINESS"
+      version_string:
+        description: "Marketing version to set on the store version"
+        required: false
+        default: "1.10.0"
+      privacy_url:
+        description: "Privacy policy URL"
+        required: false
+        default: "https://tollbooth-dpyc.com/pricing-studio/privacy"
+      support_url:
+        description: "Support URL"
+        required: false
+        default: "https://tollbooth-dpyc.com/pricing-studio/support"
+      marketing_url:
+        description: "Marketing URL (optional)"
+        required: false
+        default: "https://tollbooth-dpyc.com/pricing-studio/"
+      bundle_id:
+        description: "App bundle id"
+        required: false
+        default: "com.tollbooth.dpyc.PricingStudio"
+
+permissions:
+  contents: read
+
+jobs:
+  set-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install --quiet pyjwt cryptography
+      - name: Set metadata
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -eo pipefail
+          ASC_PRIVATE_KEY="$(echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode)"
+          export ASC_PRIVATE_KEY
+          python scripts/set_appstore_metadata.py \
+            --bundle-id "${{ inputs.bundle_id }}" \
+            --category "${{ inputs.category }}" \
+            --version-string "${{ inputs.version_string }}" \
+            --privacy-url "${{ inputs.privacy_url }}" \
+            --support-url "${{ inputs.support_url }}" \
+            --marketing-url "${{ inputs.marketing_url }}"
