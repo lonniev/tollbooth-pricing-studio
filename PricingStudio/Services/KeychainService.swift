@@ -85,17 +85,16 @@ enum KeychainService {
         delete(service: nsecService, account: npub)
     }
 
-    /// One-time migration of pre-existing nsec items (saved under the
-    /// WhenUnlocked default) to AfterFirstUnlockThisDeviceOnly. Re-saving is
-    /// the only reliable way to change kSecAttrAccessible (SecItemUpdate
-    /// can't), and it requires the device to be unlocked — call this from
-    /// foreground startup only. The flag latches only when every item
-    /// migrated, so a partial failure retries next launch.
+    /// Verify — and repair — the accessibility class of every stored nsec.
+    /// Pre-existing items were saved under the WhenUnlocked default, which a
+    /// locked iPhone cannot read, so a watch-tap approval couldn't sign.
+    /// Re-saving is the only reliable way to change kSecAttrAccessible
+    /// (SecItemUpdate can't), and reading the value out requires the device
+    /// to be unlocked — call this from foreground startup only. Runs every
+    /// launch and logs a summary line: the read-back of each item's actual
+    /// attribute is the proof, not a once-latched flag.
     @MainActor
-    static func migrateNsecAccessibility() {
-        let migratedKey = "keychain.nsecAccessibilityMigrated.v1"
-        guard !UserDefaults.standard.bool(forKey: migratedKey) else { return }
-
+    static func ensureNsecAccessibility() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: nsecService,
@@ -105,7 +104,7 @@ enum KeychainService {
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound {
-            UserDefaults.standard.set(true, forKey: migratedKey)
+            TrafficLogger.shared.log(.inbound, label: "Keychain Migrate", detail: "no nsec items stored")
             return
         }
         guard status == errSecSuccess, let items = result as? [[String: Any]] else {
@@ -113,25 +112,32 @@ enum KeychainService {
             return
         }
 
-        var allMigrated = true
+        let target = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+        var migrated = 0
+        var failed = 0
         for item in items {
             guard let npub = item[kSecAttrAccount as String] as? String else { continue }
+            let current = (item[kSecAttrAccessible as String] as? String) ?? "?"
+            if current == target { continue }
             guard let nsec = loadNsec(forNpub: npub) else {
-                allMigrated = false
-                TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "\(npub.prefix(12))… unreadable; will retry next launch")
+                failed += 1
+                TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "\(npub.prefix(12))… \(current) unreadable; will retry next launch")
                 continue
             }
             do {
                 try saveNsec(nsec, forNpub: npub)
-                TrafficLogger.shared.log(.inbound, label: "Keychain Migrate", detail: "\(npub.prefix(12))… nsec now AfterFirstUnlockThisDeviceOnly", npub: npub)
+                migrated += 1
+                TrafficLogger.shared.log(.inbound, label: "Keychain Migrate", detail: "\(npub.prefix(12))… \(current) → AfterFirstUnlockThisDeviceOnly", npub: npub)
             } catch {
-                allMigrated = false
+                failed += 1
                 TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "\(npub.prefix(12))… re-save failed: \(error.localizedDescription)")
             }
         }
-        if allMigrated {
-            UserDefaults.standard.set(true, forKey: migratedKey)
-        }
+        TrafficLogger.shared.log(
+            failed > 0 ? .error : .inbound,
+            label: "Keychain Migrate",
+            detail: "\(items.count) nsec\(items.count == 1 ? "" : "s") checked, \(migrated) migrated, \(failed) failed"
+        )
     }
 
     // MARK: - Anthropic API Key Storage

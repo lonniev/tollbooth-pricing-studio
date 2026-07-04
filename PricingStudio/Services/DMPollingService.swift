@@ -151,7 +151,18 @@ final class DMPollingService {
     /// snapshot written by the foreground; nsecs come from the Keychain.
     func runBackgroundDrain() async {
         let entities = backgroundEntities()
-        guard entities.contains(where: { $0.hasKeys }) else { return }
+        let keyed = entities.filter(\.hasKeys).count
+        guard keyed > 0 else {
+            // The locked-iPhone drain lives or dies here: an empty roster means
+            // the foreground never snapshotted it; readable-key count 0 means
+            // the Keychain refused the nsecs (accessibility migration pending,
+            // or device not yet unlocked since restart). Say which.
+            TrafficLogger.shared.log(.error, label: "Drain",
+                                     detail: "bailing: \(entities.count) npub\(entities.count == 1 ? "" : "s") in roster, 0 with readable keys")
+            return
+        }
+        TrafficLogger.shared.log(.inbound, label: "Drain",
+                                 detail: "\(entities.count) npub\(entities.count == 1 ? "" : "s") in roster, \(keyed) with readable keys")
 
         pollCycle += 1
         let cycle = pollCycle

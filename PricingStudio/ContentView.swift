@@ -358,7 +358,7 @@ struct ContentView: View {
             // Wrist Approval prerequisite: nsecs must be readable while the
             // iPhone is locked (watch-tap approvals). Foreground-only — the
             // re-save that changes accessibility needs the device unlocked.
-            KeychainService.migrateNsecAccessibility()
+            KeychainService.ensureNsecAccessibility()
             DMPollingService.shared.startPolling(modelContext: modelContext)
         }
         .overlay {
