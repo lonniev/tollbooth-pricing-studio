@@ -1,0 +1,35 @@
+name: App Store Readiness Audit
+
+# Read-only report of what's filled vs missing on the App Store listing,
+# reusing the release pipeline's App Store Connect API-key secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: "App bundle id"
+        required: false
+        default: "com.tollbooth.dpyc.PricingStudio"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install --quiet pyjwt cryptography
+      - name: Audit
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -eo pipefail
+          ASC_PRIVATE_KEY="$(echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode)"
+          export ASC_PRIVATE_KEY
+          python scripts/appstore_audit.py --bundle-id "${{ inputs.bundle_id }}"
