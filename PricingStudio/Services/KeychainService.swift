@@ -63,8 +63,18 @@ enum KeychainService {
 
     // MARK: - nsec Storage
 
+    /// nsecs are stored AfterFirstUnlockThisDeviceOnly (not the WhenUnlocked
+    /// default): the Wrist Approval notification action must sign a reply on
+    /// the LOCKED iPhone when the user taps Approve on the mirrored watch
+    /// banner. ThisDeviceOnly keeps the key out of backups and device
+    /// transfers — a new device requires re-entering the nsec.
     static func saveNsec(_ nsec: String, forNpub npub: String) throws {
-        try save(data: Data(nsec.utf8), service: nsecService, account: npub)
+        try save(
+            data: Data(nsec.utf8),
+            service: nsecService,
+            account: npub,
+            accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        )
     }
 
     static func loadNsec(forNpub npub: String) -> String? {
@@ -73,6 +83,55 @@ enum KeychainService {
 
     static func deleteNsec(forNpub npub: String) {
         delete(service: nsecService, account: npub)
+    }
+
+    /// One-time migration of pre-existing nsec items (saved under the
+    /// WhenUnlocked default) to AfterFirstUnlockThisDeviceOnly. Re-saving is
+    /// the only reliable way to change kSecAttrAccessible (SecItemUpdate
+    /// can't), and it requires the device to be unlocked — call this from
+    /// foreground startup only. The flag latches only when every item
+    /// migrated, so a partial failure retries next launch.
+    @MainActor
+    static func migrateNsecAccessibility() {
+        let migratedKey = "keychain.nsecAccessibilityMigrated.v1"
+        guard !UserDefaults.standard.bool(forKey: migratedKey) else { return }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: nsecService,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            UserDefaults.standard.set(true, forKey: migratedKey)
+            return
+        }
+        guard status == errSecSuccess, let items = result as? [[String: Any]] else {
+            TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "nsec enumeration failed (status \(status)); will retry next launch")
+            return
+        }
+
+        var allMigrated = true
+        for item in items {
+            guard let npub = item[kSecAttrAccount as String] as? String else { continue }
+            guard let nsec = loadNsec(forNpub: npub) else {
+                allMigrated = false
+                TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "\(npub.prefix(12))… unreadable; will retry next launch")
+                continue
+            }
+            do {
+                try saveNsec(nsec, forNpub: npub)
+                TrafficLogger.shared.log(.inbound, label: "Keychain Migrate", detail: "\(npub.prefix(12))… nsec now AfterFirstUnlockThisDeviceOnly", npub: npub)
+            } catch {
+                allMigrated = false
+                TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "\(npub.prefix(12))… re-save failed: \(error.localizedDescription)")
+            }
+        }
+        if allMigrated {
+            UserDefaults.standard.set(true, forKey: migratedKey)
+        }
     }
 
     // MARK: - Anthropic API Key Storage
@@ -155,7 +214,7 @@ enum KeychainService {
 
     // MARK: - Generic Keychain Operations
 
-    private static func save(data: Data, service: String, account: String) throws {
+    private static func save(data: Data, service: String, account: String, accessible: CFString? = nil) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -164,6 +223,9 @@ enum KeychainService {
         SecItemDelete(query as CFDictionary)
         var addQuery = query
         addQuery[kSecValueData as String] = data
+        if let accessible {
+            addQuery[kSecAttrAccessible as String] = accessible
+        }
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
             throw KeychainError.saveFailed(status)

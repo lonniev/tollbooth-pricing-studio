@@ -250,10 +250,16 @@ final class DMPollingService {
                                 updated[npub] = (updated[npub] ?? 0) + 1
                                 self.unreadCounts = updated
                                 self.updateAppBadge()
-                                // Redact courier payloads — don't leak secrets in notifications or logs
-                                let isCourier = dm.content.contains("@@@")
-                                let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
-                                self.postLocalNotification(npub: npub, preview: safePreview, dm: dm)
+                                if let challenge = ProofApprovalService.classify(dm.content) {
+                                    // One-tap-approvable proof challenge → the
+                                    // actionable Wrist Approval banner.
+                                    self.postApprovalNotification(npub: npub, dm: dm, challenge: challenge)
+                                } else {
+                                    // Redact courier payloads — don't leak secrets in notifications or logs
+                                    let isCourier = dm.content.contains("@@@")
+                                    let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
+                                    self.postLocalNotification(npub: npub, preview: safePreview, dm: dm)
+                                }
                             }
                         }
                         self.lastPollAt = Date()
@@ -331,7 +337,10 @@ final class DMPollingService {
             let fresh = notifiableEventIds(npub: r.npub, eventIds: r.newEventIds)
             if !fresh.isEmpty {
                 updated[r.npub] = (updated[r.npub] ?? 0) + fresh.count
-                postLocalNotification(npub: r.npub, preview: "\(fresh.count) new message\(fresh.count == 1 ? "" : "s")")
+                let plainCount = postApprovalNotifications(npub: r.npub, freshEventIds: fresh, dms: r.newDMs)
+                if plainCount > 0 {
+                    postLocalNotification(npub: r.npub, preview: "\(plainCount) new message\(plainCount == 1 ? "" : "s")")
+                }
             }
             let lastSeen = lastSeenTimestamps[r.npub] ?? 0
             if r.latestTimestamp > lastSeen {
@@ -341,6 +350,21 @@ final class DMPollingService {
         }
         unreadCounts = updated
         updateAppBadge()
+    }
+
+    /// Post an actionable approval banner for every fresh proof challenge;
+    /// return how many fresh events remain for the generic count banner —
+    /// each event announces exactly once.
+    private func postApprovalNotifications(npub: String, freshEventIds: [String], dms: [DecryptedDM]) -> Int {
+        let freshSet = Set(freshEventIds)
+        var remaining = freshEventIds.count
+        for dm in dms where freshSet.contains(dm.rawEventId) {
+            if let challenge = ProofApprovalService.classify(dm.content) {
+                postApprovalNotification(npub: npub, dm: dm, challenge: challenge)
+                remaining -= 1
+            }
+        }
+        return remaining
     }
 
     /// Apply a background-drain result set so notifications feel like *arrivals*,
@@ -366,7 +390,10 @@ final class DMPollingService {
                 let fresh = notifiableEventIds(npub: r.npub, eventIds: r.newEventIds)
                 if !fresh.isEmpty {
                     updatedUnread[r.npub] = (updatedUnread[r.npub] ?? 0) + fresh.count
-                    postLocalNotification(npub: r.npub, preview: "\(fresh.count) new message\(fresh.count == 1 ? "" : "s")")
+                    let plainCount = postApprovalNotifications(npub: r.npub, freshEventIds: fresh, dms: r.newDMs)
+                    if plainCount > 0 {
+                        postLocalNotification(npub: r.npub, preview: "\(plainCount) new message\(plainCount == 1 ? "" : "s")")
+                    }
                 }
             }
             // Advance — or, on first sight, silently baseline — the watermark.
@@ -473,6 +500,36 @@ final class DMPollingService {
         updateAppBadge()
     }
 
+    /// Post the actionable Wrist Approval banner for a classified proof
+    /// challenge. Approve/Reject live in the category (mirrored to the
+    /// watch); everything the action handler needs travels in userInfo,
+    /// precomputed here so the handler is dumb. Dedup is the CALLER's
+    /// responsibility, same contract as postLocalNotification.
+    private func postApprovalNotification(npub: String, dm: DecryptedDM, challenge: ProofApprovalService.ProofChallenge) {
+        guard notificationMode != .off else { return }
+        let resolve = resolveDisplayName ?? { key in String(key.prefix(16)) + "…" }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Approval requested"
+        content.body = "May I act as \(resolve(dm.recipientPubkeyHex))? — from \(resolve(dm.senderPubkeyHex))"
+        content.sound = .default
+        content.categoryIdentifier = ProofApprovalService.categoryId
+        content.userInfo = ProofApprovalService.ApprovalRequest(
+            signerNpub: npub,
+            replyToHex: dm.senderPubkeyHex,
+            pinnedRelay: challenge.pinnedRelay,
+            replyContent: ProofApprovalService.buildApprovalReply(challenge),
+            eventId: dm.rawEventId
+        ).userInfo
+
+        let request = UNNotificationRequest(
+            identifier: "proof-\(dm.rawEventId)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
     /// Post a banner. Dedup is the CALLER's responsibility via
     /// `notifiableEventIds(npub:eventIds:)`; this method only honors the off mode
     /// and renders. Keeping dedup out of here lets the unread count and the
@@ -535,6 +592,10 @@ struct DMPollResult: Sendable {
     /// timestamp-encounter order. Lets the notification layer dedup per-message
     /// against the durable store rather than re-announcing by count alone.
     let newEventIds: [String]
+    /// The decrypted DMs behind `newEventIds`, same order — lets the
+    /// notification layer classify proof challenges and post actionable
+    /// approval banners from the background drain.
+    let newDMs: [DecryptedDM]
     let totalEvents: Int
     let latestTimestamp: Int
 }
@@ -628,6 +689,7 @@ private func dmPollSingleEntity(
     let lastSeen = timestamps[entity.npub] ?? 0
     var newCount = 0
     var newEventIds: [String] = []
+    var newDMs: [DecryptedDM] = []
     var latestTimestamp = lastSeen
     for (_, dms) in fetchResult {
         // `!dm.isFromMe` excludes our own sent-to-others messages; a self-notice
@@ -639,6 +701,7 @@ private func dmPollSingleEntity(
             if ts > lastSeen {
                 newCount += 1
                 newEventIds.append(dm.rawEventId)
+                newDMs.append(dm)
             }
             latestTimestamp = max(latestTimestamp, ts)
         }
@@ -649,7 +712,7 @@ private func dmPollSingleEntity(
         TrafficLogger.shared.log(.inbound, label: label, detail: "\(tag) \(totalEvents) events, \(newCount) new", npub: entity.npub)
     }
 
-    return DMPollResult(npub: entity.npub, newCount: newCount, newEventIds: newEventIds, totalEvents: totalEvents, latestTimestamp: latestTimestamp)
+    return DMPollResult(npub: entity.npub, newCount: newCount, newEventIds: newEventIds, newDMs: newDMs, totalEvents: totalEvents, latestTimestamp: latestTimestamp)
 }
 
 /// Timeout that actually works: uses a detached timeout task + continuation.

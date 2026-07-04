@@ -105,6 +105,7 @@
 		AA0000010000000000000712 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000702 /* SettingsSheet.swift */; };
 		AA0000010000000000000811 /* DMPollingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000801 /* DMPollingService.swift */; };
 		AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000INBX0001 /* InboxSignalService.swift */; };
+		AA00000100000000PRAP0011 /* ProofApprovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000PRAP0001 /* ProofApprovalService.swift */; };
 		AA0000010000000000000911 /* PricingConsultantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000901 /* PricingConsultantViewModel.swift */; };
 		AA0000010000000000000912 /* PricingConsultantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000902 /* PricingConsultantView.swift */; };
 		AA0000010000000000000921 /* Campaign.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000922 /* Campaign.swift */; };
@@ -129,6 +130,7 @@
 		AA0000010000000000000D01 /* CourierPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000D02 /* CourierPayloadTests.swift */; };
 		BB0000010000000000000A01 /* NotifiedEventStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */; };
 		BB0000010000000000000A11 /* InboxSignalServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A12 /* InboxSignalServiceTests.swift */; };
+		BB0000010000000000000A21 /* ProofApprovalServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A22 /* ProofApprovalServiceTests.swift */; };
 		DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */; };
 		DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E02 /* NostrRelayTests.swift */; };
 		DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E03 /* NostrDMServiceTests.swift */; };
@@ -282,6 +284,7 @@
 		AA0000010000000000000702 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000801 /* DMPollingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMPollingService.swift; sourceTree = "<group>"; };
 		AA00000100000000INBX0001 /* InboxSignalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxSignalService.swift; sourceTree = "<group>"; };
+		AA00000100000000PRAP0001 /* ProofApprovalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofApprovalService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000901 /* PricingConsultantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingConsultantViewModel.swift; sourceTree = "<group>"; };
 		AA0000010000000000000902 /* PricingConsultantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingConsultantView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000922 /* Campaign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Campaign.swift; sourceTree = "<group>"; };
@@ -307,6 +310,7 @@
 		AA0000010000000000000D02 /* CourierPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayloadTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifiedEventStoreTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A12 /* InboxSignalServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxSignalServiceTests.swift; sourceTree = "<group>"; };
+		BB0000010000000000000A22 /* ProofApprovalServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofApprovalServiceTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrProfileMetadataTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E02 /* NostrRelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E03 /* NostrDMServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrDMServiceTests.swift; sourceTree = "<group>"; };
@@ -413,6 +417,7 @@
 				ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */,
 				BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */,
 				BB0000010000000000000A12 /* InboxSignalServiceTests.swift */,
+				BB0000010000000000000A22 /* ProofApprovalServiceTests.swift */,
 				DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
 				DD0000010000000000000E03 /* NostrDMServiceTests.swift */,
@@ -501,6 +506,7 @@
 				AA0000010000000000000412 /* AnthropicService.swift */,
 				AA0000010000000000000801 /* DMPollingService.swift */,
 				AA00000100000000INBX0001 /* InboxSignalService.swift */,
+				AA00000100000000PRAP0001 /* ProofApprovalService.swift */,
 				AA0000010000000000000B01 /* LLMProvider.swift */,
 				AA0000010000000000000B02 /* XAIProvider.swift */,
 				AA0000010000000000000B03 /* AnthropicProvider.swift */,
@@ -1058,6 +1064,7 @@
 				AA0000010000000000000712 /* SettingsSheet.swift in Sources */,
 				AA0000010000000000000811 /* DMPollingService.swift in Sources */,
 				AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */,
+				AA00000100000000PRAP0011 /* ProofApprovalService.swift in Sources */,
 				AA0000010000000000000911 /* PricingConsultantViewModel.swift in Sources */,
 				AA0000010000000000000912 /* PricingConsultantView.swift in Sources */,
 				AA0000010000000000000921 /* Campaign.swift in Sources */,
@@ -1090,6 +1097,7 @@
 				ADPT000200000000000000B3 /* AdoptionRequestDecodeTests.swift in Sources */,
 				BB0000010000000000000A01 /* NotifiedEventStoreTests.swift in Sources */,
 				BB0000010000000000000A11 /* InboxSignalServiceTests.swift in Sources */,
+				BB0000010000000000000A21 /* ProofApprovalServiceTests.swift in Sources */,
 				DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
 				DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */,

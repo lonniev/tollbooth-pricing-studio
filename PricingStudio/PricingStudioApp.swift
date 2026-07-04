@@ -1,4 +1,5 @@
 import CloudKit
+import DPYCAuthKit
 import SwiftUI
 import SwiftData
 import UserNotifications
@@ -49,6 +50,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+
+        // Wrist Approval: Approve/Reject actions on proof-challenge banners.
+        // iOS mirrors these to the watch as a popup with the same buttons.
+        UNUserNotificationCenter.current().setNotificationCategories([
+            ProofApprovalService.makeCategory(),
+        ])
 
         // Register the background DM-refresh handler (must happen before launch
         // completes) and queue the first opportunity.
@@ -207,5 +214,131 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound])
+    }
+
+    /// Wrist Approval actions. A watch tap forwards here with the app in the
+    /// background and the iPhone typically still locked — everything needed
+    /// to reply travels in the notification's userInfo, and the nsec is
+    /// readable while locked (AfterFirstUnlockThisDeviceOnly).
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        guard let request = ProofApprovalService.ApprovalRequest(
+            userInfo: response.notification.request.content.userInfo
+        ) else {
+            completionHandler()
+            return
+        }
+
+        let action = response.actionIdentifier
+        // The ObjC completion block isn't @Sendable; it's called exactly once
+        // (latch-guarded on the approve path), so the box is sound.
+        let completion = SendableCompletion(run: completionHandler)
+        Task { @MainActor in
+            switch action {
+            case ProofApprovalService.approveActionId:
+                Self.sendApproval(request, completion: completion)
+            case ProofApprovalService.rejectActionId:
+                // No reject wire message exists — the operator's drain simply
+                // finds no reply. Log the decision and move on.
+                TrafficLogger.shared.log(.outbound, label: "Wrist Reject", detail: "challenge \(request.eventId.prefix(8)) rejected; no reply sent", npub: request.signerNpub)
+                completion.run()
+            case UNNotificationDismissActionIdentifier:
+                TrafficLogger.shared.log(.outbound, label: "Wrist Approval", detail: "challenge \(request.eventId.prefix(8)) dismissed", npub: request.signerNpub)
+                completion.run()
+            default:
+                // Plain tap — no custom routing this round.
+                completion.run()
+            }
+        }
+    }
+
+    /// Sign and publish the precomputed approval reply to the pinned
+    /// rendezvous relay. Same exactly-once completion discipline as the
+    /// BGTask/push paths: whichever of {send finished, 25s watchdog,
+    /// background-time expiry} fires first ends the background task and
+    /// calls the notification completion.
+    @MainActor
+    private static func sendApproval(
+        _ request: ProofApprovalService.ApprovalRequest,
+        completion: SendableCompletion
+    ) {
+        TrafficLogger.shared.log(.outbound, label: "Wrist Approve", detail: "challenge \(request.eventId.prefix(8)) approved; replying as \(request.signerNpub.prefix(12))…", npub: request.signerNpub)
+
+        let latch = CompletionLatch()
+        var bgTask: UIBackgroundTaskIdentifier = .invalid
+        let finish: @MainActor () -> Void = {
+            guard latch.tryComplete() else { return }
+            if bgTask != .invalid {
+                UIApplication.shared.endBackgroundTask(bgTask)
+            }
+            completion.run()
+        }
+        bgTask = UIApplication.shared.beginBackgroundTask(withName: "wrist-approve") {
+            finish()
+        }
+
+        let work = Task { @MainActor in
+            do {
+                guard let nsec = KeychainService.loadNsec(forNpub: request.signerNpub) else {
+                    throw WristApprovalError.nsecUnavailable
+                }
+                let privKeyHex = try NostrKeyService.privateKeyHexFromNsec(nsec)
+                let pubKeyHex = try NostrKeyService.publicKeyHexFromNpub(request.signerNpub)
+                try await NostrDMService().sendDM(
+                    privateKeyHex: privKeyHex,
+                    publicKeyHex: pubKeyHex,
+                    recipientPubkeyHex: request.replyToHex,
+                    message: request.replyContent,
+                    pinnedRelay: request.pinnedRelay
+                )
+                TrafficLogger.shared.log(.outbound, label: "Wrist Approve", detail: "approval delivered on \(request.pinnedRelay.absoluteString)", npub: request.signerNpub)
+            } catch {
+                TrafficLogger.shared.log(.error, label: "Wrist Approve", detail: "approval send failed: \(error.localizedDescription)", npub: request.signerNpub)
+                Self.postApprovalFailureNotification()
+            }
+            finish()
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(25))
+            work.cancel()
+            finish()
+        }
+    }
+
+    /// The approval couldn't be sent from the background — tell the user so
+    /// the request isn't silently lost (the challenge stays approvable
+    /// in-app until it expires).
+    @MainActor
+    private static func postApprovalFailureNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Approval failed"
+        content.body = "Open Pricing Studio to approve the request."
+        content.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(
+            identifier: "proof-approve-failed-\(Int(Date().timeIntervalSince1970))",
+            content: content,
+            trigger: nil
+        ))
+    }
+}
+
+/// Carries the notification-center completion block across the actor hop.
+/// UNUserNotificationCenter accepts the call from any thread; the block is
+/// invoked exactly once, so the unchecked transfer is sound.
+private struct SendableCompletion: @unchecked Sendable {
+    let run: () -> Void
+}
+
+private enum WristApprovalError: LocalizedError {
+    case nsecUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .nsecUnavailable:
+            return "signing key unavailable (device not yet unlocked since restart?)"
+        }
     }
 }
