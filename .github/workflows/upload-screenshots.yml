@@ -1,0 +1,46 @@
+name: Upload App Store Screenshots
+
+# Upload the iPad screenshots in appstore/screenshots/ipad13 to the App
+# Store listing via the App Store Connect API (reuses the key secrets).
+on:
+  workflow_dispatch:
+    inputs:
+      dir:
+        description: "Directory of PNG screenshots"
+        required: false
+        default: "appstore/screenshots/ipad13"
+      display_type:
+        description: "ASC screenshot display type"
+        required: false
+        default: "APP_IPAD_PRO_3GEN_129"
+      bundle_id:
+        description: "App bundle id"
+        required: false
+        default: "com.tollbooth.dpyc.PricingStudio"
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install --quiet pyjwt cryptography
+      - name: Upload screenshots
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -eo pipefail
+          ASC_PRIVATE_KEY="$(echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode)"
+          export ASC_PRIVATE_KEY
+          python scripts/upload_screenshots.py \
+            --bundle-id "${{ inputs.bundle_id }}" \
+            --dir "${{ inputs.dir }}" \
+            --display-type "${{ inputs.display_type }}"
