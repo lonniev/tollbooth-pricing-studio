@@ -10,6 +10,7 @@ private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", categ
 protocol InboxSignalDatabase: Sendable {
     func save(_ record: CKRecord) async throws -> CKRecord
     func save(_ subscription: CKSubscription) async throws -> CKSubscription
+    func save(_ zone: CKRecordZone) async throws -> CKRecordZone
 }
 
 extension CKDatabase: InboxSignalDatabase {}
@@ -25,21 +26,38 @@ extension CKContainer: InboxSignalAccountProvider {}
 /// The wake-up relay between the user's OWN devices, over their private
 /// CloudKit database. Whichever device has Studio foregrounded (live relay
 /// sockets) writes a tiny marker record when a kind-1059 gift wrap arrives;
-/// a CKQuerySubscription push then wakes the user's other devices (the
+/// a CloudKit subscription push then wakes the user's other devices (the
 /// pocketed iPhone), which run the existing background DM drain. No custom
 /// server, no Operator involvement — strictly personal plumbing.
 ///
 /// The marker carries only the Nostr event id and recipient npub — never
 /// message content. The record name IS the event id, so concurrent writes
 /// from two foregrounded devices dedup server-side (`serverRecordChanged`).
+///
+/// Markers live in a custom record zone so that BOTH subscription styles can
+/// see them: a CKQuerySubscription (nil zone = database-wide) and the
+/// CKDatabaseSubscription fallback (custom zones only, by CloudKit rule).
+///
+/// Two-tier subscription: Production rejects runtime CKQuerySubscription
+/// creation when the subscription type was never registered from a
+/// development-signed build ("attempting to create a subscription in a
+/// production container", FB22867235) — and this app has only ever shipped
+/// through TestFlight. So if the query subscription (alert push) is refused,
+/// fall back to a CKDatabaseSubscription: never schema-bound, runtime-created
+/// in Production by Apple's own sync stack on every device. Its push is
+/// silent, but the wake alone suffices — the drain it triggers posts the
+/// real DM notification.
 @MainActor
 final class InboxSignalService {
 
     static let shared = InboxSignalService()
 
     static let recordType = "InboxSignal"
-    static let subscriptionID = "inbox-signal-created-v1"
-    static let subscriptionSavedKey = "inboxSignal.subscriptionSaved.v1"
+    static let zoneID = CKRecordZone.ID(zoneName: "InboxSignalZone", ownerName: CKCurrentUserDefaultName)
+    static let querySubscriptionID = "inbox-signal-created-v2"
+    static let databaseSubscriptionID = "inbox-signal-db-v2"
+    static let knownSubscriptionIDs: Set<String> = [querySubscriptionID, databaseSubscriptionID]
+    static let subscriptionSavedKey = "inboxSignal.subscriptionSaved.v2"
 
     /// Live wraps arriving in the first moments of a subscription are the
     /// relay's historical backlog replay, not fresh traffic.
@@ -51,6 +69,8 @@ final class InboxSignalService {
 
     /// Per-process memo so relay replays don't hammer CloudKit.
     private var publishedEventIds: Set<String> = []
+    /// Zone saves are idempotent; once per process is plenty.
+    private var zoneEnsured = false
     /// Backoff horizon when iCloud is unavailable or rate-limits us.
     private var unavailableUntil: Date?
 
@@ -108,9 +128,14 @@ final class InboxSignalService {
             return
         }
 
+        guard await ensureZone() else {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "publish skipped: zone unavailable", npub: npub)
+            return
+        }
+
         let record = CKRecord(
             recordType: Self.recordType,
-            recordID: CKRecord.ID(recordName: eventId)
+            recordID: CKRecord.ID(recordName: eventId, zoneID: Self.zoneID)
         )
         record["npub"] = npub
         record["receivedAt"] = Date()
@@ -133,9 +158,11 @@ final class InboxSignalService {
 
     // MARK: - Subscription (RECEIVER side)
 
-    /// Ensure this device holds the CKQuerySubscription that turns another
+    /// Ensure this device holds a CloudKit subscription that turns another
     /// device's marker write into a push here. Idempotent; safe to call on
-    /// every foreground start.
+    /// every foreground start. Prefers the alert-carrying query subscription;
+    /// falls back to a silent database subscription when Production refuses
+    /// runtime query-subscription creation (see class doc).
     func ensureSubscription() async {
         guard !defaults.bool(forKey: Self.subscriptionSavedKey) else { return }
         if let until = unavailableUntil, Date() < until {
@@ -148,10 +175,29 @@ final class InboxSignalService {
             return
         }
 
+        guard await ensureZone() else {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "subscription deferred: zone unavailable")
+            return
+        }
+
+        var ensured = await saveQuerySubscription()
+        if !ensured {
+            ensured = await saveDatabaseSubscription()
+        }
+        if ensured {
+            defaults.set(true, forKey: Self.subscriptionSavedKey)
+        }
+    }
+
+    /// Tier 1: alert push with the courier-redaction banner.
+    private func saveQuerySubscription() async -> Bool {
         let subscription = CKQuerySubscription(
             recordType: Self.recordType,
-            predicate: NSPredicate(value: true),
-            subscriptionID: Self.subscriptionID,
+            // A concrete field predicate, not TRUEPREDICATE — Production has
+            // historically refused TRUEPREDICATE query subscriptions. Always
+            // true in practice; requires a Queryable index on receivedAt.
+            predicate: NSPredicate(format: "receivedAt > %@", Date.distantPast as NSDate),
+            subscriptionID: Self.querySubscriptionID,
             options: [.firesOnRecordCreation]
         )
         let info = CKSubscription.NotificationInfo()
@@ -165,18 +211,58 @@ final class InboxSignalService {
 
         do {
             _ = try await database.save(subscription as CKSubscription)
-            defaults.set(true, forKey: Self.subscriptionSavedKey)
-            TrafficLogger.shared.log(.inbound, label: "InboxSignal", detail: "CloudKit subscription ensured")
+            TrafficLogger.shared.log(.inbound, label: "InboxSignal", detail: "CloudKit query subscription ensured")
+            return true
         } catch let error as CKError where error.code == .serverRejectedRequest {
             // A subscription with this stable ID already exists server-side.
-            defaults.set(true, forKey: Self.subscriptionSavedKey)
-            logger.info("InboxSignal subscription already present")
+            logger.info("InboxSignal query subscription already present")
+            return true
         } catch {
-            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "subscription failed: \(error.localizedDescription)")
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "query subscription refused (\(error.localizedDescription)); falling back to database subscription")
+            return false
+        }
+    }
+
+    /// Tier 2: silent wake. The drain it triggers posts the real DM
+    /// notification, so the user still gets a banner — just authored locally.
+    private func saveDatabaseSubscription() async -> Bool {
+        let subscription = CKDatabaseSubscription(subscriptionID: Self.databaseSubscriptionID)
+        let info = CKSubscription.NotificationInfo()
+        info.shouldSendContentAvailable = true
+        subscription.notificationInfo = info
+
+        do {
+            _ = try await database.save(subscription as CKSubscription)
+            TrafficLogger.shared.log(.inbound, label: "InboxSignal", detail: "CloudKit database subscription ensured (silent wake)")
+            return true
+        } catch let error as CKError where error.code == .serverRejectedRequest {
+            logger.info("InboxSignal database subscription already present")
+            return true
+        } catch {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "database subscription failed: \(error.localizedDescription)")
+            return false
         }
     }
 
     // MARK: - Helpers
+
+    /// Zones are data, not schema — runtime creation is allowed in Production
+    /// and re-saving an existing zone succeeds.
+    private func ensureZone() async -> Bool {
+        guard !zoneEnsured else { return true }
+        do {
+            _ = try await database.save(CKRecordZone(zoneID: Self.zoneID))
+            zoneEnsured = true
+            return true
+        } catch let error as CKError {
+            applyBackoff(for: error)
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "zone save failed: \(error.localizedDescription)")
+            return false
+        } catch {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "zone save failed: \(error.localizedDescription)")
+            return false
+        }
+    }
 
     private func accountAvailable() async -> Bool {
         do {

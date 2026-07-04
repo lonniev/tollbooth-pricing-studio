@@ -95,23 +95,27 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
 
     /// InboxSignal push receipt: another of the user's devices saw a gift wrap
-    /// land and wrote the CloudKit marker. Record the CK banner as this
-    /// event's announcement, then drain the relays so the DM is local before
-    /// the user looks. Same ~30s budget and exactly-once completion rules as
-    /// the BGAppRefresh path.
+    /// land and wrote the CloudKit marker. A query subscription arrives as an
+    /// alert push with record details (record the CK banner as this event's
+    /// announcement); the database-subscription fallback arrives silent and
+    /// detail-free (the drain's own local notification announces the DM).
+    /// Either way, drain the relays so the DM is local before the user looks.
+    /// Same ~30s budget and exactly-once completion rules as the BGAppRefresh
+    /// path.
     func application(
         _ application: UIApplication,
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
         guard let note = CKNotification(fromRemoteNotificationDictionary: userInfo),
-              note.subscriptionID == InboxSignalService.subscriptionID,
-              let queryNote = note as? CKQueryNotification else {
+              let subscriptionID = note.subscriptionID,
+              InboxSignalService.knownSubscriptionIDs.contains(subscriptionID) else {
             completionHandler(.noData)
             return
         }
 
-        if let eventId = queryNote.recordID?.recordName,
+        if let queryNote = note as? CKQueryNotification,
+           let eventId = queryNote.recordID?.recordName,
            let npub = queryNote.recordFields?["npub"] as? String {
             DMPollingService.shared.recordRemoteAnnouncement(npub: npub, eventId: eventId)
         }
