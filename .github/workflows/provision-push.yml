@@ -1,0 +1,44 @@
+name: Provision Push Capability
+
+# One-shot: enable Push Notifications on the App ID and regenerate the
+# "PricingStudio AppStore" distribution profile via the App Store Connect
+# API. Run this once after an entitlement change (e.g. aps-environment)
+# and before the next testflight.yml build, which fetches the fresh
+# profile automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: "App bundle id"
+        required: false
+        default: "com.tollbooth.dpyc.PricingStudio"
+      profile_name:
+        description: "Distribution profile name (must match ExportOptions-appstore.plist)"
+        required: false
+        default: "PricingStudio AppStore"
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install --quiet pyjwt cryptography
+      - name: Enable capability + regenerate profile
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -eo pipefail
+          ASC_PRIVATE_KEY="$(echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode)"
+          export ASC_PRIVATE_KEY
+          python scripts/provision_push.py \
+            --bundle-id "${{ inputs.bundle_id }}" \
+            --profile-name "${{ inputs.profile_name }}"
