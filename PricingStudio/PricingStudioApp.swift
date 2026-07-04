@@ -110,9 +110,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         guard let note = CKNotification(fromRemoteNotificationDictionary: userInfo),
               let subscriptionID = note.subscriptionID,
               InboxSignalService.knownSubscriptionIDs.contains(subscriptionID) else {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "push ignored (not an InboxSignal subscription)")
             completionHandler(.noData)
             return
         }
+
+        TrafficLogger.shared.log(.inbound, label: "InboxSignal", detail: "push received (\(subscriptionID)); draining")
 
         if let queryNote = note as? CKQueryNotification,
            let eventId = queryNote.recordID?.recordName,

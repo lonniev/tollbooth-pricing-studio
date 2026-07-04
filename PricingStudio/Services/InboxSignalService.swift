@@ -11,6 +11,8 @@ protocol InboxSignalDatabase: Sendable {
     func save(_ record: CKRecord) async throws -> CKRecord
     func save(_ subscription: CKSubscription) async throws -> CKSubscription
     func save(_ zone: CKRecordZone) async throws -> CKRecordZone
+    @discardableResult
+    func deleteSubscription(withID subscriptionID: CKSubscription.ID) async throws -> CKSubscription.ID
 }
 
 extension CKDatabase: InboxSignalDatabase {}
@@ -38,15 +40,19 @@ extension CKContainer: InboxSignalAccountProvider {}
 /// see them: a CKQuerySubscription (nil zone = database-wide) and the
 /// CKDatabaseSubscription fallback (custom zones only, by CloudKit rule).
 ///
-/// Two-tier subscription: Production rejects runtime CKQuerySubscription
-/// creation when the subscription type was never registered from a
-/// development-signed build ("attempting to create a subscription in a
-/// production container", FB22867235) — and this app has only ever shipped
-/// through TestFlight. So if the query subscription (alert push) is refused,
-/// fall back to a CKDatabaseSubscription: never schema-bound, runtime-created
-/// in Production by Apple's own sync stack on every device. Its push is
-/// silent, but the wake alone suffices — the drain it triggers posts the
-/// real DM notification.
+/// Three-tier subscription ladder. Production rejects runtime
+/// CKQuerySubscription creation when the subscription type was never
+/// registered from a development-signed build ("attempting to create a
+/// subscription in a production container", FB22867235) — and this app has
+/// only ever shipped through TestFlight. And silent (content-available)
+/// pushes are throttled/deferred at iOS's whim, so an alert push matters.
+/// The ladder, best first:
+///   1. CKQuerySubscription — alert push with record details.
+///   2. CKRecordZoneSubscription on InboxSignalZone — alert push, no record
+///      details, but zone subscriptions are data-scoped, not schema-scoped,
+///      so Production allows runtime creation.
+///   3. CKDatabaseSubscription — silent wake, last resort; the drain it
+///      triggers posts the real DM notification locally.
 @MainActor
 final class InboxSignalService {
 
@@ -55,9 +61,15 @@ final class InboxSignalService {
     static let recordType = "InboxSignal"
     static let zoneID = CKRecordZone.ID(zoneName: "InboxSignalZone", ownerName: CKCurrentUserDefaultName)
     static let querySubscriptionID = "inbox-signal-created-v2"
-    static let databaseSubscriptionID = "inbox-signal-db-v2"
-    static let knownSubscriptionIDs: Set<String> = [querySubscriptionID, databaseSubscriptionID]
-    static let subscriptionSavedKey = "inboxSignal.subscriptionSaved.v2"
+    static let zoneSubscriptionID = "inbox-signal-zone-v3"
+    static let databaseSubscriptionID = "inbox-signal-db-v3"
+    static let knownSubscriptionIDs: Set<String> = [
+        querySubscriptionID, zoneSubscriptionID, databaseSubscriptionID,
+    ]
+    /// Superseded subscriptions to clean up once a current tier is ensured,
+    /// so devices don't receive double pushes.
+    static let retiredSubscriptionIDs = ["inbox-signal-db-v2"]
+    static let subscriptionSavedKey = "inboxSignal.subscriptionSaved.v3"
 
     /// Live wraps arriving in the first moments of a subscription are the
     /// relay's historical backlog replay, not fresh traffic.
@@ -182,10 +194,14 @@ final class InboxSignalService {
 
         var ensured = await saveQuerySubscription()
         if !ensured {
+            ensured = await saveZoneSubscription()
+        }
+        if !ensured {
             ensured = await saveDatabaseSubscription()
         }
         if ensured {
             defaults.set(true, forKey: Self.subscriptionSavedKey)
+            await retireSupersededSubscriptions()
         }
     }
 
@@ -223,7 +239,37 @@ final class InboxSignalService {
         }
     }
 
-    /// Tier 2: silent wake. The drain it triggers posts the real DM
+    /// Tier 2: alert push scoped to the marker zone. Zone subscriptions are
+    /// data-scoped (the zone is ours alone), so Production permits runtime
+    /// creation where it refuses query subscriptions. The push carries no
+    /// record details — the drain announces the actual DM.
+    private func saveZoneSubscription() async -> Bool {
+        let subscription = CKRecordZoneSubscription(
+            zoneID: Self.zoneID,
+            subscriptionID: Self.zoneSubscriptionID
+        )
+        let info = CKSubscription.NotificationInfo()
+        // Courier-redaction style: the push itself never carries content.
+        info.alertBody = "🔒 Secure Courier message"
+        info.shouldSendMutableContent = true    // future NSE rewrite
+        info.shouldSendContentAvailable = true  // background drain wake
+        info.soundName = "default"
+        subscription.notificationInfo = info
+
+        do {
+            _ = try await database.save(subscription as CKSubscription)
+            TrafficLogger.shared.log(.inbound, label: "InboxSignal", detail: "CloudKit zone subscription ensured (alert)")
+            return true
+        } catch let error as CKError where error.code == .serverRejectedRequest {
+            logger.info("InboxSignal zone subscription already present")
+            return true
+        } catch {
+            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "zone subscription refused (\(error.localizedDescription)); falling back to database subscription")
+            return false
+        }
+    }
+
+    /// Tier 3: silent wake. The drain it triggers posts the real DM
     /// notification, so the user still gets a banner — just authored locally.
     private func saveDatabaseSubscription() async -> Bool {
         let subscription = CKDatabaseSubscription(subscriptionID: Self.databaseSubscriptionID)
@@ -241,6 +287,19 @@ final class InboxSignalService {
         } catch {
             TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "database subscription failed: \(error.localizedDescription)")
             return false
+        }
+    }
+
+    /// Best-effort cleanup of subscriptions from earlier ladder versions so
+    /// devices don't receive double pushes. "Not found" is the happy path.
+    private func retireSupersededSubscriptions() async {
+        for id in Self.retiredSubscriptionIDs {
+            do {
+                try await database.deleteSubscription(withID: id)
+                logger.info("InboxSignal retired superseded subscription \(id)")
+            } catch {
+                // Already gone (or transient) — nothing to do.
+            }
         }
     }
 

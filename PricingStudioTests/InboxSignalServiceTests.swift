@@ -8,11 +8,13 @@ final class MockInboxSignalDatabase: InboxSignalDatabase, @unchecked Sendable {
     var savedRecords: [CKRecord] = []
     var savedSubscriptions: [CKSubscription] = []
     var savedZones: [CKRecordZone] = []
+    var deletedSubscriptionIDs: [CKSubscription.ID] = []
     var recordError: Error?
     var zoneError: Error?
-    /// Scriptable per-subscription-type errors so the query→database
+    /// Scriptable per-subscription-type errors so each ladder tier's
     /// fallback can be exercised independently.
     var querySubscriptionError: Error?
+    var zoneSubscriptionError: Error?
     var databaseSubscriptionError: Error?
 
     func save(_ record: CKRecord) async throws -> CKRecord {
@@ -25,6 +27,9 @@ final class MockInboxSignalDatabase: InboxSignalDatabase, @unchecked Sendable {
         if subscription is CKQuerySubscription, let querySubscriptionError {
             throw querySubscriptionError
         }
+        if subscription is CKRecordZoneSubscription, let zoneSubscriptionError {
+            throw zoneSubscriptionError
+        }
         if subscription is CKDatabaseSubscription, let databaseSubscriptionError {
             throw databaseSubscriptionError
         }
@@ -36,6 +41,11 @@ final class MockInboxSignalDatabase: InboxSignalDatabase, @unchecked Sendable {
         if let zoneError { throw zoneError }
         savedZones.append(zone)
         return zone
+    }
+
+    func deleteSubscription(withID subscriptionID: CKSubscription.ID) async throws -> CKSubscription.ID {
+        deletedSubscriptionIDs.append(subscriptionID)
+        return subscriptionID
     }
 }
 
@@ -155,7 +165,7 @@ final class InboxSignalServiceTests: XCTestCase {
         XCTAssertEqual(database.savedSubscriptions.count, 1)
     }
 
-    func testQueryRefusalFallsBackToSilentDatabaseSubscription() async {
+    func testQueryRefusalFallsBackToAlertZoneSubscription() async {
         // Production's "attempting to create a subscription in a production
         // container" rejection surfaces as invalidArguments.
         database.querySubscriptionError = CKError(.invalidArguments)
@@ -163,23 +173,48 @@ final class InboxSignalServiceTests: XCTestCase {
         await service.ensureSubscription()
 
         XCTAssertEqual(database.savedSubscriptions.count, 1)
-        let sub = try! XCTUnwrap(database.savedSubscriptions[0] as? CKDatabaseSubscription)
-        XCTAssertEqual(sub.subscriptionID, "inbox-signal-db-v2")
+        let sub = try! XCTUnwrap(database.savedSubscriptions[0] as? CKRecordZoneSubscription)
+        XCTAssertEqual(sub.subscriptionID, "inbox-signal-zone-v3")
+        XCTAssertEqual(sub.zoneID, InboxSignalService.zoneID)
         let info = try! XCTUnwrap(sub.notificationInfo)
+        XCTAssertEqual(info.alertBody, "🔒 Secure Courier message", "Zone tier keeps the alert push")
         XCTAssertEqual(info.shouldSendContentAvailable, true)
-        XCTAssertNil(info.alertBody, "Database-subscription pushes are silent wakes")
+        XCTAssertEqual(info.shouldSendMutableContent, true)
 
         // Fallback success also latches the flag.
         await service.ensureSubscription()
         XCTAssertEqual(database.savedSubscriptions.count, 1)
     }
 
-    func testBothTiersRefusedLeavesFlagUnsetForRetry() async {
+    func testZoneRefusalFallsBackToSilentDatabaseSubscription() async {
         database.querySubscriptionError = CKError(.invalidArguments)
+        database.zoneSubscriptionError = CKError(.invalidArguments)
+
+        await service.ensureSubscription()
+
+        XCTAssertEqual(database.savedSubscriptions.count, 1)
+        let sub = try! XCTUnwrap(database.savedSubscriptions[0] as? CKDatabaseSubscription)
+        XCTAssertEqual(sub.subscriptionID, "inbox-signal-db-v3")
+        let info = try! XCTUnwrap(sub.notificationInfo)
+        XCTAssertEqual(info.shouldSendContentAvailable, true)
+        XCTAssertNil(info.alertBody, "Database-subscription pushes are silent wakes")
+    }
+
+    func testEnsureRetiresSupersededSubscriptions() async {
+        await service.ensureSubscription()
+
+        XCTAssertEqual(database.deletedSubscriptionIDs, ["inbox-signal-db-v2"],
+                       "Earlier ladder versions are cleaned up to avoid double pushes")
+    }
+
+    func testAllTiersRefusedLeavesFlagUnsetForRetry() async {
+        database.querySubscriptionError = CKError(.invalidArguments)
+        database.zoneSubscriptionError = CKError(.invalidArguments)
         database.databaseSubscriptionError = CKError(.invalidArguments)
 
         await service.ensureSubscription()
         XCTAssertTrue(database.savedSubscriptions.isEmpty)
+        XCTAssertTrue(database.deletedSubscriptionIDs.isEmpty, "No cleanup until a tier sticks")
 
         // Next foreground start retries from the top.
         database.querySubscriptionError = nil
@@ -200,9 +235,10 @@ final class InboxSignalServiceTests: XCTestCase {
         XCTAssertTrue(database.savedSubscriptions.isEmpty)
     }
 
-    func testHandlerRecognizesBothSubscriptionIDs() {
+    func testHandlerRecognizesAllLadderSubscriptionIDs() {
         XCTAssertTrue(InboxSignalService.knownSubscriptionIDs.contains("inbox-signal-created-v2"))
-        XCTAssertTrue(InboxSignalService.knownSubscriptionIDs.contains("inbox-signal-db-v2"))
+        XCTAssertTrue(InboxSignalService.knownSubscriptionIDs.contains("inbox-signal-zone-v3"))
+        XCTAssertTrue(InboxSignalService.knownSubscriptionIDs.contains("inbox-signal-db-v3"))
         XCTAssertFalse(InboxSignalService.knownSubscriptionIDs.contains("inbox-signal-created-v1"),
                        "The v1 TRUEPREDICATE subscription never existed server-side")
     }
