@@ -1,3 +1,4 @@
+import CloudKit
 import SwiftUI
 import SwiftData
 import UserNotifications
@@ -70,7 +71,65 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             self?.handleDMRefresh(task as! BGAppRefreshTask)
         }
         scheduleDMRefresh()
+
+        // InboxSignal wake-up relay: CloudKit subscription pushes (written by
+        // the user's other device when a gift wrap lands) arrive as remote
+        // notifications. CloudKit manages the APNs token itself; we only need
+        // registration to have happened.
+        application.registerForRemoteNotifications()
         return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        TrafficLogger.shared.log(.inbound, label: "InboxSignal", detail: "APNs registered (\(deviceToken.prefix(4).map { String(format: "%02x", $0) }.joined())…)")
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "APNs registration failed: \(error.localizedDescription)")
+    }
+
+    /// InboxSignal push receipt: another of the user's devices saw a gift wrap
+    /// land and wrote the CloudKit marker. Record the CK banner as this
+    /// event's announcement, then drain the relays so the DM is local before
+    /// the user looks. Same ~30s budget and exactly-once completion rules as
+    /// the BGAppRefresh path.
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        guard let note = CKNotification(fromRemoteNotificationDictionary: userInfo),
+              note.subscriptionID == InboxSignalService.subscriptionID,
+              let queryNote = note as? CKQueryNotification else {
+            completionHandler(.noData)
+            return
+        }
+
+        if let eventId = queryNote.recordID?.recordName,
+           let npub = queryNote.recordFields?["npub"] as? String {
+            DMPollingService.shared.recordRemoteAnnouncement(npub: npub, eventId: eventId)
+        }
+
+        let latch = CompletionLatch()
+        let work = Task {
+            await DMPollingService.shared.runBackgroundDrain()
+            if latch.tryComplete() {
+                completionHandler(.newData)
+            }
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(25))
+            work.cancel()
+            if latch.tryComplete() {
+                completionHandler(.newData)
+            }
+        }
     }
 
     /// Re-arm the background refresh each time we leave the foreground.

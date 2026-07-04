@@ -74,6 +74,10 @@ final class DMPollingService {
     func startPolling(modelContext: ModelContext) {
         if pollingTask != nil { return }
         requestNotificationPermission()
+        // RECEIVER side of the InboxSignal wake-up relay: make sure this
+        // device holds the CloudKit subscription that turns another device's
+        // marker write into a push here.
+        Task { await InboxSignalService.shared.ensureSubscription() }
         startSubscriptions(modelContext: modelContext)
         TrafficLogger.shared.log(.outbound, label: "DM Poll Start", detail: "Background polling started (\(Int(pollInterval))s interval, subs=\(subscriptionsActive))")
 
@@ -175,6 +179,22 @@ final class DMPollingService {
         // Historical backfill from the `since` window is ignored.
         subManager.onNewEvent = { [weak self] npub, event in
             guard let self else { return }
+
+            // SENDER side of the InboxSignal wake-up relay: a live gift wrap
+            // for one of our npubs → marker record in the user's private
+            // CloudKit DB so their other devices get a push and drain. Only
+            // this live-subscription path publishes — the background drain
+            // goes through dmPollEntities and never reaches this closure, so
+            // the receiving device can't re-signal. Gate is on RECEIPT time
+            // (wrap created_at is fuzzed up to 48h by NIP-59).
+            if InboxSignalService.shouldSignal(
+                kind: event.kind,
+                receivedAt: Date(),
+                subscriptionsStartedAt: self.subscriptionsStartedAt,
+                alreadyNotified: self.notifiedStore.contains(npub: npub, eventId: event.id)
+            ) {
+                Task { await InboxSignalService.shared.publishSignal(eventId: event.id, npub: npub) }
+            }
 
             // Skip decryption entirely for old events — they clog the queue
             // and delay processing of genuinely new DMs
@@ -438,6 +458,19 @@ final class DMPollingService {
 
     func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+
+    /// An InboxSignal CloudKit push already showed its own banner for this
+    /// event — record it as announced so the drain that follows stays silent
+    /// for it, and keep the unread count/badge in step with that banner.
+    func recordRemoteAnnouncement(npub: String, eventId: String) {
+        guard notificationMode == .deduplicated else { return }
+        let fresh = notifiedStore.register(npub: npub, eventIds: [eventId])
+        guard !fresh.isEmpty else { return }
+        var updated = unreadCounts
+        updated[npub] = (updated[npub] ?? 0) + 1
+        unreadCounts = updated
+        updateAppBadge()
     }
 
     /// Post a banner. Dedup is the CALLER's responsibility via
