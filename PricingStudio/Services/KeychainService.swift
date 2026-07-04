@@ -69,12 +69,25 @@ enum KeychainService {
     /// banner. ThisDeviceOnly keeps the key out of backups and device
     /// transfers — a new device requires re-entering the nsec.
     static func saveNsec(_ nsec: String, forNpub npub: String) throws {
-        try save(
-            data: Data(nsec.utf8),
-            service: nsecService,
-            account: npub,
-            accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        )
+        // Every save logs its outcome: several call sites discard the thrown
+        // error (`try?`), which once let a failed paste vanish without a
+        // trace. The Traffic Log line is the flight recorder either way.
+        do {
+            try save(
+                data: Data(nsec.utf8),
+                service: nsecService,
+                account: npub,
+                accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            )
+            Task { @MainActor in
+                TrafficLogger.shared.log(.inbound, label: "Nsec Save", detail: "\(npub.prefix(12))… stored (AfterFirstUnlockThisDeviceOnly)", npub: npub)
+            }
+        } catch {
+            Task { @MainActor in
+                TrafficLogger.shared.log(.error, label: "Nsec Save", detail: "\(npub.prefix(12))… FAILED: \(error.localizedDescription)")
+            }
+            throw error
+        }
     }
 
     static func loadNsec(forNpub npub: String) -> String? {
