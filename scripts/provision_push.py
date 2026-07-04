@@ -61,13 +61,15 @@ def enable_push(token: str, bundle_resource_id: str) -> None:
 def find_distribution_cert(token: str) -> str:
     status, data = api("GET", "/v1/certificates", token, query={
         "filter[certificateType]": "DISTRIBUTION",
-        "sort": "-expirationDate",
-        "limit": "10",
+        "limit": "20",
     })
     if status != 200:
         fail(f"Could not list certificates (HTTP {status}).", data)
     now = datetime.now(timezone.utc)
-    for cert in data.get("data", []):
+    certs = sorted(data.get("data", []),
+                   key=lambda c: c["attributes"].get("expirationDate", ""),
+                   reverse=True)
+    for cert in certs:
         expires = cert["attributes"].get("expirationDate", "")
         try:
             if datetime.fromisoformat(expires.replace("Z", "+00:00")) > now:
