@@ -132,7 +132,13 @@ def main() -> None:
                  "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub_id}},
                                    "appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
     if s not in (200, 201) and "already" not in first_error_detail(r).lower():
-        print(f"⚠️ add item: {first_error_detail(r)}")
+        print(f"⚠️ add item failed (HTTP {s}). Full errors:")
+        import json as _json
+        print(_json.dumps(r.get("errors", r), indent=2)[:2500])
+        # Surface the version's own blocking issues if exposed.
+        vs, vr = api("GET", f"/v1/appStoreVersions/{vid}", token,
+                     query={"fields[appStoreVersions]": "appStoreState,appVersionState"})
+        print("version state:", _json.dumps(vr.get("data", {}).get("attributes", {})))
     else:
         print("✅ Version added to the submission.")
 
