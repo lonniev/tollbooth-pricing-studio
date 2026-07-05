@@ -9,6 +9,9 @@ struct CampaignOverviewSheet: View {
     let campaign: Campaign
     var onDismiss: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var isCompact: Bool { sizeClass == .compact }
+
     @State private var panelOffset: CGSize = .zero
     @State private var panelSize: CGSize = CGSize(width: 520, height: 640)
     @GestureState private var dragOffset: CGSize = .zero
@@ -77,32 +80,43 @@ struct CampaignOverviewSheet: View {
             }
             .background(Color(.systemGroupedBackground))
 
-            // Resize handle
-            HStack {
-                Spacer()
-                Image(systemName: "arrow.down.right.and.arrow.up.left")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(6)
-                    .gesture(
-                        DragGesture()
-                            .updating($resizeDelta) { value, state, _ in
-                                state = value.translation
-                            }
-                            .onEnded { value in
-                                panelSize.width = min(max(panelSize.width + value.translation.width, minSize.width), maxSize.width)
-                                panelSize.height = min(max(panelSize.height + value.translation.height, minSize.height), maxSize.height)
-                            }
-                    )
+            // Resize handle — pointless in a full-screen compact sheet.
+            if !isCompact {
+                HStack {
+                    Spacer()
+                    Image(systemName: "arrow.down.right.and.arrow.up.left")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(6)
+                        .gesture(
+                            DragGesture()
+                                .updating($resizeDelta) { value, state, _ in
+                                    state = value.translation
+                                }
+                                .onEnded { value in
+                                    panelSize.width = min(max(panelSize.width + value.translation.width, minSize.width), maxSize.width)
+                                    panelSize.height = min(max(panelSize.height + value.translation.height, minSize.height), maxSize.height)
+                                }
+                        )
+                }
+                .background(Color(.secondarySystemGroupedBackground))
             }
-            .background(Color(.secondarySystemGroupedBackground))
         }
-        .frame(width: currentWidth, height: currentHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+        // Compact presents inside a sheet: fill it, no floating chrome. Regular
+        // is a draggable/resizable floating panel over the detail canvas.
+        .frame(
+            width: isCompact ? nil : currentWidth,
+            height: isCompact ? nil : currentHeight
+        )
+        .frame(
+            maxWidth: isCompact ? .infinity : nil,
+            maxHeight: isCompact ? .infinity : nil
+        )
+        .clipShape(RoundedRectangle(cornerRadius: isCompact ? 0 : 12))
+        .shadow(color: .black.opacity(isCompact ? 0 : 0.3), radius: 20, x: 0, y: 10)
         .offset(
-            x: panelOffset.width + dragOffset.width,
-            y: panelOffset.height + dragOffset.height
+            x: isCompact ? 0 : panelOffset.width + dragOffset.width,
+            y: isCompact ? 0 : panelOffset.height + dragOffset.height
         )
     }
 

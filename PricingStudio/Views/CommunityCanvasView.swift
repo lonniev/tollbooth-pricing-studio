@@ -6,10 +6,12 @@ import WebKit
 /// that have no economic content (e.g., the Prime Authority / Oracle),
 /// with a roll-up of locally-known network membership above it.
 struct CommunityCanvasView: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \Authority.addedAt) private var authorities: [Authority]
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
 
     private let url = URL(string: "https://github.com/lonniev/dpyc-community")!
+    private var isCompact: Bool { sizeClass == .compact }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,7 +32,12 @@ struct CommunityCanvasView: View {
 
     private var statsBanner: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+            // Three across is fine on the wide iPad column; on a phone the
+            // cards read better stacked full-width.
+            let layout = isCompact
+                ? AnyLayout(VStackLayout(spacing: 8))
+                : AnyLayout(HStackLayout(spacing: 12))
+            layout {
                 statCard(
                     label: "Authorities",
                     value: nonPrimeAuthorities,

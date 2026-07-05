@@ -4,12 +4,15 @@ import SwiftData
 struct NetworkTopologyView: View {
     @Query(sort: \Authority.addedAt) private var authorities: [Authority]
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var topologyVM = TopologyViewModel()
     @State private var selectedNpub: String?
     @State private var showingOracleChat = false
     /// Npubs of nodes whose subtree is currently collapsed in the canvas.
     /// Empty = fully expanded.
     @State private var collapsedNpubs: Set<String> = []
+
+    private var isCompact: Bool { sizeClass == .compact }
 
     var onNodeSelected: ((String, NetworkTier) -> Void)?
     var onOraclePrompt: ((String) -> Void)?
@@ -19,6 +22,27 @@ struct NetworkTopologyView: View {
             header
             Divider()
             graphContent
+        }
+        // Compact has no room for the floating Oracle panel — present it as a
+        // sheet (opened from the header owl).
+        .sheet(isPresented: Binding(
+            get: { isCompact && showingOracleChat },
+            set: { showingOracleChat = $0 }
+        )) {
+            NavigationStack {
+                OraclePromptPanel { prompt in
+                    showingOracleChat = false
+                    onOraclePrompt?(prompt)
+                }
+                .navigationTitle("Ask the Oracle")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { showingOracleChat = false }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
         }
         .task {
             await topologyVM.buildTopology(authorities: authorities, operators: operators)
@@ -41,7 +65,18 @@ struct NetworkTopologyView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            legendView
+            // The legend explains the spatial graph; on compact (a list) it's
+            // noise, so the header carries the Oracle entry point instead.
+            if isCompact {
+                Button {
+                    showingOracleChat = true
+                } label: {
+                    Text("🦉").font(.title2)
+                }
+                .accessibilityLabel("Ask the Oracle")
+            } else {
+                legendView
+            }
         }
         .padding()
     }
@@ -72,6 +107,13 @@ struct NetworkTopologyView: View {
             loadingContent
         } else if topologyVM.roots.isEmpty {
             emptyContent
+        } else if isCompact {
+            // A phone can't usefully pan the spatial canvas; the same tree
+            // reads far better as a native collapsible outline.
+            TopologyListView(roots: topologyVM.roots) { npub, tier in
+                selectedNpub = npub
+                onNodeSelected?(npub, tier)
+            }
         } else {
             GeometryReader { geometry in
                 ScrollView([.horizontal, .vertical]) {
@@ -326,6 +368,76 @@ struct NetworkTopologyView: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
         .accessibilityLabel(isCollapsed ? "Expand subtree (\(hiddenCount) hidden)" : "Collapse subtree")
+    }
+}
+
+// MARK: - Compact Outline (phone home screen)
+
+/// The network hierarchy as a native, collapsible outline — the compact-width
+/// alternative to the spatial canvas, which needs a wide canvas to pan. Same
+/// TopologyNode tree, same tap-to-select contract.
+private struct TopologyListView: View {
+    let roots: [TopologyNode]
+    var onNodeSelected: (String, NetworkTier) -> Void
+
+    var body: some View {
+        List {
+            ForEach(roots) { root in
+                OutlineGroup(root, children: \.childrenOrNil) { node in
+                    Button {
+                        onNodeSelected(node.id, node.tier)
+                    } label: {
+                        TopologyNodeRow(node: node)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+}
+
+private struct TopologyNodeRow: View {
+    let node: TopologyNode
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(node.tier.color.opacity(0.2))
+                    .frame(width: 30, height: 30)
+                Image(systemName: node.tier.iconName)
+                    .font(.system(size: 13))
+                    .foregroundStyle(node.tier.color)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(node.displayName)
+                    .font(.body)
+                    .lineLimit(1)
+                Text(node.tier.listLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+    }
+}
+
+private extension TopologyNode {
+    /// OutlineGroup wants nil (not an empty array) to mark a leaf.
+    var childrenOrNil: [TopologyNode]? { children.isEmpty ? nil : children }
+}
+
+private extension NetworkTier {
+    var listLabel: String {
+        switch self {
+        case .oracle: return "Oracle"
+        case .primeAuthority: return "Prime Authority"
+        case .authority: return "Authority"
+        case .operator: return "Operator"
+        }
     }
 }
 
