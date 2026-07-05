@@ -177,6 +177,28 @@ final class DMPollingService {
         }.value
         applyBackgroundResults(results, priorWatermarks: timestamps)
         lastPollAt = Date()
+        // The padlock wake push has served its purpose (APNs-priority wake);
+        // leaving it in Notification Center is pure noise next to the real
+        // banner the drain just posted.
+        removeWakePushBanners()
+    }
+
+    /// Remove delivered CloudKit wake pushes (the 🔒 "Secure Courier message"
+    /// alert) from Notification Center — on this device and, via mirroring,
+    /// the watch. They exist only to win APNs priority delivery for the
+    /// background wake; the drain's own banner is the one that matters.
+    /// Remote pushes are the only push-triggered notifications this app
+    /// receives visibly, so the trigger type is a sufficient filter.
+    func removeWakePushBanners() {
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { delivered in
+            let wakeIds = delivered
+                .filter { $0.request.trigger is UNPushNotificationTrigger }
+                .map(\.request.identifier)
+            if !wakeIds.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: wakeIds)
+            }
+        }
     }
 
     // MARK: - Subscriptions
@@ -407,7 +429,14 @@ final class DMPollingService {
                     }
                 }
             }
-            // Advance — or, on first sight, silently baseline — the watermark.
+            // Advance — or, on first sight, baseline — the watermark. The
+            // baseline posts nothing by design (anti-backlog-dump), but it
+            // must SAY so: an unlogged silent branch here once masqueraded
+            // as a broken drain for a whole debugging session.
+            if !hadWatermark {
+                TrafficLogger.shared.log(.inbound, label: "Drain",
+                                         detail: "\(r.npub.prefix(12))… baselined (first sight); \(r.newCount) backlog message\(r.newCount == 1 ? "" : "s") suppressed, next arrival notifies")
+            }
             let lastSeen = lastSeenTimestamps[r.npub] ?? 0
             if r.latestTimestamp > lastSeen {
                 lastSeenTimestamps[r.npub] = r.latestTimestamp
@@ -567,8 +596,13 @@ final class DMPollingService {
         }
         content.sound = .default
 
+        // One banner per npub: a stable identifier makes each new arrival
+        // REPLACE the previous generic banner instead of piling another one
+        // into Notification Center (the unread count carries the tally).
+        // Approval banners keep per-event ids — each is independently
+        // actionable and must not clobber a sibling.
         let request = UNNotificationRequest(
-            identifier: "dm-\(npub)-\(Int(Date().timeIntervalSince1970))",
+            identifier: "dm-\(npub)",
             content: content,
             trigger: nil
         )

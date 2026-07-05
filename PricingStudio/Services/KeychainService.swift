@@ -63,11 +63,14 @@ enum KeychainService {
 
     // MARK: - nsec Storage
 
-    /// nsecs are stored AfterFirstUnlockThisDeviceOnly (not the WhenUnlocked
-    /// default): the Wrist Approval notification action must sign a reply on
-    /// the LOCKED iPhone when the user taps Approve on the mirrored watch
-    /// banner. ThisDeviceOnly keeps the key out of backups and device
-    /// transfers — a new device requires re-entering the nsec.
+    /// nsecs are stored AfterFirstUnlock + Synchronizable:
+    ///   • AfterFirstUnlock (not the WhenUnlocked default) — the Wrist
+    ///     Approval notification action must sign a reply on the LOCKED
+    ///     iPhone when the user taps Approve on the mirrored watch banner.
+    ///   • Synchronizable — iCloud Keychain carries the nsec to the owner's
+    ///     other devices (end-to-end encrypted), so a key entered on the iPad
+    ///     is usable on the iPhone without re-entry. A ThisDeviceOnly class
+    ///     would forbid syncing, which is why it is not used here.
     static func saveNsec(_ nsec: String, forNpub npub: String) throws {
         // Every save logs its outcome: several call sites discard the thrown
         // error (`try?`), which once let a failed paste vanish without a
@@ -77,10 +80,11 @@ enum KeychainService {
                 data: Data(nsec.utf8),
                 service: nsecService,
                 account: npub,
-                accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+                accessible: kSecAttrAccessibleAfterFirstUnlock,
+                synchronizable: true
             )
             Task { @MainActor in
-                TrafficLogger.shared.log(.inbound, label: "Nsec Save", detail: "\(npub.prefix(12))… stored (AfterFirstUnlockThisDeviceOnly)", npub: npub)
+                TrafficLogger.shared.log(.inbound, label: "Nsec Save", detail: "\(npub.prefix(12))… stored (AfterFirstUnlock, iCloud-synced)", npub: npub)
             }
         } catch {
             Task { @MainActor in
@@ -91,26 +95,28 @@ enum KeychainService {
     }
 
     static func loadNsec(forNpub npub: String) -> String? {
-        load(service: nsecService, account: npub)
+        load(service: nsecService, account: npub, synchronizableAny: true)
     }
 
     static func deleteNsec(forNpub npub: String) {
-        delete(service: nsecService, account: npub)
+        delete(service: nsecService, account: npub, synchronizableAny: true)
     }
 
-    /// Verify — and repair — the accessibility class of every stored nsec.
-    /// Pre-existing items were saved under the WhenUnlocked default, which a
-    /// locked iPhone cannot read, so a watch-tap approval couldn't sign.
-    /// Re-saving is the only reliable way to change kSecAttrAccessible
-    /// (SecItemUpdate can't), and reading the value out requires the device
-    /// to be unlocked — call this from foreground startup only. Runs every
-    /// launch and logs a summary line: the read-back of each item's actual
-    /// attribute is the proof, not a once-latched flag.
+    /// Verify — and repair — the storage attributes of every stored nsec.
+    /// The target is AfterFirstUnlock + Synchronizable (see saveNsec); items
+    /// from earlier builds sit under WhenUnlocked or ThisDeviceOnly classes,
+    /// which respectively break locked-phone wrist signing and iCloud
+    /// Keychain sync. Re-saving is the only reliable way to change these
+    /// attributes (SecItemUpdate can't), and reading the value out requires
+    /// the device to be unlocked — call this from foreground startup only.
+    /// Runs every launch and logs a summary line: the read-back of each
+    /// item's actual attributes is the proof, not a once-latched flag.
     @MainActor
     static func ensureNsecAccessibility() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: nsecService,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll,
         ]
@@ -125,22 +131,23 @@ enum KeychainService {
             return
         }
 
-        let target = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+        let targetAccessible = kSecAttrAccessibleAfterFirstUnlock as String
         var migrated = 0
         var failed = 0
         for item in items {
             guard let npub = item[kSecAttrAccount as String] as? String else { continue }
-            let current = (item[kSecAttrAccessible as String] as? String) ?? "?"
-            if current == target { continue }
+            let accessible = (item[kSecAttrAccessible as String] as? String) ?? "?"
+            let synced = (item[kSecAttrSynchronizable as String] as? NSNumber)?.boolValue ?? false
+            if accessible == targetAccessible && synced { continue }
             guard let nsec = loadNsec(forNpub: npub) else {
                 failed += 1
-                TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "\(npub.prefix(12))… \(current) unreadable; will retry next launch")
+                TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "\(npub.prefix(12))… \(accessible) unreadable; will retry next launch")
                 continue
             }
             do {
                 try saveNsec(nsec, forNpub: npub)
                 migrated += 1
-                TrafficLogger.shared.log(.inbound, label: "Keychain Migrate", detail: "\(npub.prefix(12))… \(current) → AfterFirstUnlockThisDeviceOnly", npub: npub)
+                TrafficLogger.shared.log(.inbound, label: "Keychain Migrate", detail: "\(npub.prefix(12))… \(accessible)\(synced ? "" : " local-only") → AfterFirstUnlock, iCloud-synced", npub: npub)
             } catch {
                 failed += 1
                 TrafficLogger.shared.log(.error, label: "Keychain Migrate", detail: "\(npub.prefix(12))… re-save failed: \(error.localizedDescription)")
@@ -233,17 +240,30 @@ enum KeychainService {
 
     // MARK: - Generic Keychain Operations
 
-    private static func save(data: Data, service: String, account: String, accessible: CFString? = nil) throws {
-        let query: [String: Any] = [
+    /// Queries match only non-synchronizable items unless told otherwise, so
+    /// the delete-then-add MUST sweep both forms (`kSecAttrSynchronizableAny`)
+    /// — otherwise migrating an item flips it back and forth between a local
+    /// and a synced copy instead of replacing it.
+    private static func save(data: Data, service: String, account: String, accessible: CFString? = nil, synchronizable: Bool = false) throws {
+        var deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
-        var addQuery = query
-        addQuery[kSecValueData as String] = data
+        deleteQuery[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        var addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: data,
+        ]
         if let accessible {
             addQuery[kSecAttrAccessible as String] = accessible
+        }
+        if synchronizable {
+            addQuery[kSecAttrSynchronizable as String] = kCFBooleanTrue as Any
         }
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
@@ -251,14 +271,17 @@ enum KeychainService {
         }
     }
 
-    private static func loadData(service: String, account: String) -> Data? {
-        let query: [String: Any] = [
+    private static func loadData(service: String, account: String, synchronizableAny: Bool = false) -> Data? {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
+        if synchronizableAny {
+            query[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
+        }
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         guard status == errSecSuccess, let data = result as? Data else {
@@ -267,17 +290,20 @@ enum KeychainService {
         return data
     }
 
-    private static func load(service: String, account: String) -> String? {
-        guard let data = loadData(service: service, account: account) else { return nil }
+    private static func load(service: String, account: String, synchronizableAny: Bool = false) -> String? {
+        guard let data = loadData(service: service, account: account, synchronizableAny: synchronizableAny) else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
-    private static func delete(service: String, account: String) {
-        let query: [String: Any] = [
+    private static func delete(service: String, account: String, synchronizableAny: Bool = false) {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
+        if synchronizableAny {
+            query[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
+        }
         SecItemDelete(query as CFDictionary)
     }
 }

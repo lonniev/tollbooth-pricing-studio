@@ -44,8 +44,11 @@ struct PricingStudioApp: App {
         .modelContainer(AppModelContainer.shared)
         .onChange(of: scenePhase) { _, phase in
             // Imports land while the app is away; fold them in on each return.
+            // Same moment, sweep any padlock wake pushes still sitting in
+            // Notification Center — the user is looking at the app now.
             if phase == .active {
                 EntityDeduplicator.dedupeAll(in: AppModelContainer.shared.mainContext)
+                DMPollingService.shared.removeWakePushBanners()
             }
         }
     }
@@ -218,19 +221,27 @@ private final class CompletionLatch: @unchecked Sendable {
 private final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = NotificationDelegate()
 
-    /// Show notification banners even when the app is in the foreground.
+    /// Foreground presentation policy — willPresent only fires while the app
+    /// is frontmost, where the in-app chat views and unread badges already
+    /// show what arrived. Banners there are noise (the padlock wake push,
+    /// "New Nostr DM" recaps), so nothing presents EXCEPT notifications the
+    /// user must act on: approval requests (the Approve/Reject buttons are
+    /// the feature) and approval-failure alerts.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound])
+        let content = notification.request.content
+        let actionable = content.categoryIdentifier == ProofApprovalService.categoryId
+            || notification.request.identifier.hasPrefix("proof-approve-failed")
+        completionHandler(actionable ? [.banner, .sound] : [])
     }
 
     /// Wrist Approval actions. A watch tap forwards here with the app in the
     /// background and the iPhone typically still locked — everything needed
     /// to reply travels in the notification's userInfo, and the nsec is
-    /// readable while locked (AfterFirstUnlockThisDeviceOnly).
+    /// readable while locked (AfterFirstUnlock).
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,

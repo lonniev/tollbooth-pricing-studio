@@ -134,6 +134,7 @@
 		BB0000010000000000000A21 /* ProofApprovalServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A22 /* ProofApprovalServiceTests.swift */; };
 		BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */; };
 		BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */; };
+		BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A52 /* KeychainServiceTests.swift */; };
 		DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */; };
 		DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E02 /* NostrRelayTests.swift */; };
 		DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000010000000000000E03 /* NostrDMServiceTests.swift */; };
@@ -317,6 +318,7 @@
 		BB0000010000000000000A22 /* ProofApprovalServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofApprovalServiceTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSchemaInitTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDeduplicatorTests.swift; sourceTree = "<group>"; };
+		BB0000010000000000000A52 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrProfileMetadataTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E02 /* NostrRelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayTests.swift; sourceTree = "<group>"; };
 		DD0000010000000000000E03 /* NostrDMServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrDMServiceTests.swift; sourceTree = "<group>"; };
@@ -426,6 +428,7 @@
 				BB0000010000000000000A22 /* ProofApprovalServiceTests.swift */,
 				BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */,
 				BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */,
+				BB0000010000000000000A52 /* KeychainServiceTests.swift */,
 				DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
 				DD0000010000000000000E03 /* NostrDMServiceTests.swift */,
@@ -1110,6 +1113,7 @@
 				BB0000010000000000000A21 /* ProofApprovalServiceTests.swift in Sources */,
 				BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */,
 				BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */,
+				BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */,
 				DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
 				DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */,
