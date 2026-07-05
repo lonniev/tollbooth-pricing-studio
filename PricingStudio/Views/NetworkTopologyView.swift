@@ -107,35 +107,36 @@ struct NetworkTopologyView: View {
             loadingContent
         } else if topologyVM.roots.isEmpty {
             emptyContent
-        } else if isCompact {
-            // A phone can't usefully pan the spatial canvas; the same tree
-            // reads far better as a native collapsible outline.
-            TopologyListView(roots: topologyVM.roots) { npub, tier in
-                selectedNpub = npub
-                onNodeSelected?(npub, tier)
-            }
         } else {
+            // The spatial connection graph, on every width. It already lives in
+            // a pannable both-axes ScrollView, so a phone scrolls it rather than
+            // needing a separate list rendering.
             GeometryReader { geometry in
                 ScrollView([.horizontal, .vertical]) {
                     topologyCanvas(size: geometry.size)
                 }
             }
             .overlay(alignment: .topTrailing) {
-                VStack(alignment: .trailing, spacing: 8) {
-                    oracleNode
+                // Regular width floats the Oracle node + panel over the canvas;
+                // compact reaches the Oracle from the header owl instead, so its
+                // canvas stays uncluttered.
+                if !isCompact {
+                    VStack(alignment: .trailing, spacing: 8) {
+                        oracleNode
 
-                    if showingOracleChat {
-                        OraclePromptPanel { prompt in
-                            onOraclePrompt?(prompt)
+                        if showingOracleChat {
+                            OraclePromptPanel { prompt in
+                                onOraclePrompt?(prompt)
+                            }
+                            .frame(width: 340, height: 420)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .shadow(radius: 12)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
-                        .frame(width: 340, height: 420)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(radius: 12)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
+                    .padding(.top, 8)
+                    .padding(.trailing, 16)
                 }
-                .padding(.top, 8)
-                .padding(.trailing, 16)
             }
         }
     }
@@ -368,76 +369,6 @@ struct NetworkTopologyView: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
         .accessibilityLabel(isCollapsed ? "Expand subtree (\(hiddenCount) hidden)" : "Collapse subtree")
-    }
-}
-
-// MARK: - Compact Outline (phone home screen)
-
-/// The network hierarchy as a native, collapsible outline — the compact-width
-/// alternative to the spatial canvas, which needs a wide canvas to pan. Same
-/// TopologyNode tree, same tap-to-select contract.
-private struct TopologyListView: View {
-    let roots: [TopologyNode]
-    var onNodeSelected: (String, NetworkTier) -> Void
-
-    var body: some View {
-        List {
-            ForEach(roots) { root in
-                OutlineGroup(root, children: \.childrenOrNil) { node in
-                    Button {
-                        onNodeSelected(node.id, node.tier)
-                    } label: {
-                        TopologyNodeRow(node: node)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-    }
-}
-
-private struct TopologyNodeRow: View {
-    let node: TopologyNode
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(node.tier.color.opacity(0.2))
-                    .frame(width: 30, height: 30)
-                Image(systemName: node.tier.iconName)
-                    .font(.system(size: 13))
-                    .foregroundStyle(node.tier.color)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(node.displayName)
-                    .font(.body)
-                    .lineLimit(1)
-                Text(node.tier.listLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(.vertical, 2)
-        .contentShape(Rectangle())
-    }
-}
-
-private extension TopologyNode {
-    /// OutlineGroup wants nil (not an empty array) to mark a leaf.
-    var childrenOrNil: [TopologyNode]? { children.isEmpty ? nil : children }
-}
-
-private extension NetworkTier {
-    var listLabel: String {
-        switch self {
-        case .oracle: return "Oracle"
-        case .primeAuthority: return "Prime Authority"
-        case .authority: return "Authority"
-        case .operator: return "Operator"
-        }
     }
 }
 
