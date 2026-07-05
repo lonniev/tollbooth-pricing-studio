@@ -3,6 +3,13 @@ name: Build, Archive, and Distribute
 on:
   push:
     branches: [main]
+    # Non-app changes (CI tooling, ASC scripts, store screenshots, docs) must
+    # not burn a TestFlight upload — only source/project/asset changes rebuild.
+    paths-ignore:
+      - ".github/**"
+      - "scripts/**"
+      - "appstore/**"
+      - "**/*.md"
   workflow_dispatch:
 
 concurrency:
