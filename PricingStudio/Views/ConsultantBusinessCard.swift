@@ -27,6 +27,20 @@ struct ConsultantBusinessCard: View {
 
     var body: some View {
         cardContent
+            // A visible ⓘ makes the bio discoverable — the long-press alone is
+            // invisible. Tapping it opens the same facts popover.
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    showingFacts = true
+                } label: {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: compact ? 13 : 15))
+                        .foregroundStyle(consultant.accentColor, .background)
+                        .padding(compact ? 3 : 5)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show \(consultant.displayName)'s bio")
+            }
             .contentShape(.rect)
             .onTapGesture { onTap?() }
             .onLongPressGesture(minimumDuration: 0.45) { showingFacts = true }

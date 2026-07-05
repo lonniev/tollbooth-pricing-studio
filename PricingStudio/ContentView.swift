@@ -5,6 +5,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Authority.addedAt) private var authorities: [Authority]
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
     @State private var authorityVM = AuthorityCollectionViewModel()
@@ -34,6 +35,13 @@ struct ContentView: View {
     /// an actor drives this to `.detail` so the tap actually navigates into the
     /// actor's canvas; the automatic back button returns it to `.sidebar`.
     @State private var preferredColumn: NavigationSplitViewColumn = .sidebar
+    /// Milo "sleep screen": shown on cold launch and re-armed when the app
+    /// returns from the background after a real idle gap. Any tap dismisses it.
+    @State private var showingMiloSplash = true
+    @State private var lastBackgroundedAt: Date?
+    /// How long the app must sit backgrounded before Milo greets again. Short
+    /// app-switches shouldn't trigger it.
+    private let miloSleepThreshold: TimeInterval = 180
 
     /// On compact widths the Traffic Log presents as a sheet; on regular it
     /// stays the inline resizable panel in the detail column.
@@ -76,6 +84,16 @@ struct ContentView: View {
                     operatorVM.selectedOperator = op
                     consultantVM.loadCampaign(campaign)
                     detailTab = .consultant
+                },
+                onShowNetwork: {
+                    // Clear every actor selection so the detail canvas falls
+                    // back to the topology. On compact the split view must be
+                    // pushed to the detail column or the topology stays hidden
+                    // behind the sidebar.
+                    authorityVM.selectedAuthority = nil
+                    operatorVM.selectedOperator = nil
+                    patronVM.selectedPatron = nil
+                    if horizontalSizeClass == .compact { preferredColumn = .detail }
                 }
             )
         } detail: {
@@ -462,6 +480,27 @@ struct ContentView: View {
                 CampaignOverviewSheet(campaign: campaign) {
                     campaignForOverview = nil
                 }
+            }
+        }
+        .fullScreenCover(isPresented: $showingMiloSplash) {
+            MiloSplashView { showingMiloSplash = false }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                lastBackgroundedAt = Date()
+            case .active:
+                // Greet with Milo again only after a genuine idle gap — not on
+                // a quick app-switch. Drop any Assistant cover first so two
+                // full-screen covers never contend.
+                if let since = lastBackgroundedAt,
+                   Date().timeIntervalSince(since) > miloSleepThreshold {
+                    assistantFullScreen = false
+                    showingMiloSplash = true
+                }
+                lastBackgroundedAt = nil
+            default:
+                break
             }
         }
     }
@@ -893,6 +932,7 @@ private struct SidebarView: View {
     @Binding var showingSettings: Bool
     @Binding var campaignForOverview: Campaign?
     var onOpenCampaign: ((Operator, Campaign) -> Void)?
+    var onShowNetwork: (() -> Void)?
     @State private var showingKeypairGenerator = false
     @State private var categoryOrder: [SidebarCategory] = [.authorities, .operators, .patrons]
     @State private var expandedCategories: Set<SidebarCategory> = Set(SidebarCategory.allCases)
@@ -937,6 +977,19 @@ private struct SidebarView: View {
 
     var body: some View {
         List {
+            // Always-available way home to the Network Topology — it's the
+            // empty-detail canvas, otherwise only reachable via a button that
+            // disables itself once nothing is selected (and is unreachable on
+            // iPhone). This row is never gated.
+            Section {
+                Button {
+                    onShowNetwork?()
+                } label: {
+                    Label("Network Topology", systemImage: "point.3.connected.trianglepath.dotted")
+                }
+                .accessibilityIdentifier("networkTopologyRow")
+            }
+
             if isReorderingCategories {
                 ForEach($categoryOrder) { $category in
                     Label(category.label, systemImage: category.icon)
@@ -1590,7 +1643,7 @@ private struct SidebarAlertsModifier: ViewModifier {
                     authorityVM.confirmDelete(context: modelContext)
                 }
             } message: { auth in
-                Text("Delete \"\(auth.displayName)\"? Any saved OAuth token for this authority will also be removed.")
+                Text("Removes \"\(auth.displayName)\" from this app only. Its on-network registration, balance, and certifications stay live — you can add it back anytime. Any OAuth token saved on this device is also cleared.")
             }
             .alert(
                 "Delete Operator",
@@ -1604,7 +1657,7 @@ private struct SidebarAlertsModifier: ViewModifier {
                     operatorVM.confirmDelete(context: modelContext)
                 }
             } message: { op in
-                Text("Delete \"\(op.displayName)\"? Any saved OAuth token and nsec for this operator will also be removed.")
+                Text("Removes \"\(op.displayName)\" from this app only. Its on-network registration, cert-sat balance, and pricing stay live — you can add it back anytime. Any OAuth token and signing key (nsec) saved on this device are also cleared.")
             }
             .alert(
                 "Delete Patron",
@@ -1618,7 +1671,7 @@ private struct SidebarAlertsModifier: ViewModifier {
                     patronVM.confirmDelete(context: modelContext)
                 }
             } message: { patron in
-                Text("Delete \"\(patron.displayName)\"? Any saved nsec for this patron will also be removed.")
+                Text("Removes \"\(patron.displayName)\" from this app only. Its on-network balance and history are unaffected — you can add it back anytime. Any signing key (nsec) saved on this device is also cleared.")
             }
             .alert(
                 "Duplicate Identity",
