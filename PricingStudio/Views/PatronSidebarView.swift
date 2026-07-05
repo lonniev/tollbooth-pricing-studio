@@ -66,6 +66,12 @@ private struct PatronRow: View {
                     .foregroundStyle(.orange)
                     .help("You have new Nostr DMs")
             }
+            if NostrNotificationPreferences.isMuted(npub: patron.npub) {
+                Image(systemName: "bell.slash.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .help("Notifications muted for this patron")
+            }
         }
         .padding(.vertical, 2)
         .listRowBackground(isSelected ? Color.accentColor.opacity(0.15) : nil)

@@ -183,6 +183,8 @@ struct EditOperatorSheet: View {
                              : "Move this operator's registration to a different Authority. Deregister-then-register runs as a single step.")
                     }
                 }
+
+                NotificationToggleSection(npub: operator_.npub)
             }
             .navigationTitle("Edit Operator")
             .navigationBarTitleDisplayMode(.inline)
