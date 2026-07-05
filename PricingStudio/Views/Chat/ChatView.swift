@@ -1,12 +1,17 @@
 import SwiftUI
 
-/// Two-column messaging layout: conversation list on left, message thread on right.
+/// Messaging layout. Regular width is two columns — conversation list beside
+/// the thread. Compact width is a single column that shows the list, then the
+/// selected thread (with a back affordance), since 280pt of list beside a
+/// thread doesn't fit a phone.
 struct ChatView: View {
     @Bindable var chatVM: ChatViewModel
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var showingCompose = false
     @State private var showingFontPicker = false
 
     private let polling = DMPollingService.shared
+    private var isCompact: Bool { sizeClass == .compact }
 
     var body: some View {
         Group {
@@ -19,55 +24,7 @@ struct ChatView: View {
                 )
 
             case .loading, .loaded:
-                HStack(spacing: 0) {
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("Conversations")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button {
-                                showingCompose = true
-                            } label: {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.title3)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-
-                        ConversationListView(
-                            conversations: chatVM.conversations,
-                            selectedId: $chatVM.selectedConversationId,
-                            currentIdentityPubHex: chatVM.currentIdentity?.publicKeyHex
-                        )
-
-                        if chatVM.isLoading {
-                            HStack(spacing: 4) {
-                                ProgressView().controlSize(.small)
-                                Text("Fetching…").font(.caption2).foregroundStyle(.secondary)
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                    .frame(width: 280)
-
-                    Divider()
-
-                    if let convo = chatVM.selectedConversation {
-                        MessageThreadView(
-                            conversation: convo,
-                            chatVM: chatVM
-                        )
-                    } else {
-                        ContentUnavailableView(
-                            "Select a Conversation",
-                            systemImage: "bubble.left.and.text.bubble.right",
-                            description: Text("Choose a conversation from the list, or start a new one.")
-                        )
-                    }
-                }
+                messageSplit(showLoading: true)
 
             case .error(let message):
                 VStack(spacing: 12) {
@@ -89,50 +46,8 @@ struct ChatView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 8)
 
-                    // Still show conversation list even in error state
-                    HStack(spacing: 0) {
-                        VStack(spacing: 0) {
-                            HStack {
-                                Text("Conversations")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button { showingCompose = true } label: {
-                                    Image(systemName: "square.and.pencil")
-                                        .font(.title3)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-
-                            ConversationListView(
-                                conversations: chatVM.conversations,
-                                selectedId: $chatVM.selectedConversationId
-                            )
-                        }
-                        .frame(width: 280)
-
-                        Divider()
-
-                        if let convo = chatVM.selectedConversation {
-                            MessageThreadView(conversation: convo, chatVM: chatVM)
-                        } else {
-                            ContentUnavailableView(
-                                "Select a Conversation",
-                                systemImage: "bubble.left.and.text.bubble.right",
-                                description: Text("Relay connection failed but cached conversations may be available.")
-                            )
-                        }
-                    }
-                }
-                // Legacy error view removed — replaced by inline warning + conversation list
-                if false { Button {
-                        Task { await chatVM.refreshConversations() }
-                    } label: {
-                        Label("Retry", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderedProminent)
+                    // Still show conversations even in the error state.
+                    messageSplit(showLoading: false)
                 }
             }
         }
@@ -217,6 +132,95 @@ struct ChatView: View {
                 Text(error)
             }
         }
+    }
+
+    // MARK: - Layout
+
+    /// The list+thread composition, rendered per format. Compact is one column
+    /// (list, or the selected thread); regular is the fixed two-column split.
+    @ViewBuilder
+    private func messageSplit(showLoading: Bool) -> some View {
+        if isCompact {
+            if let convo = chatVM.selectedConversation {
+                threadColumn(convo)
+            } else {
+                conversationColumn(showLoading: showLoading)
+            }
+        } else {
+            HStack(spacing: 0) {
+                conversationColumn(showLoading: showLoading)
+                    .frame(width: 280)
+                Divider()
+                if let convo = chatVM.selectedConversation {
+                    MessageThreadView(conversation: convo, chatVM: chatVM)
+                } else {
+                    selectPlaceholder
+                }
+            }
+        }
+    }
+
+    private func conversationColumn(showLoading: Bool) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Conversations")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    showingCompose = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            ConversationListView(
+                conversations: chatVM.conversations,
+                selectedId: $chatVM.selectedConversationId,
+                currentIdentityPubHex: chatVM.currentIdentity?.publicKeyHex
+            )
+
+            if showLoading && chatVM.isLoading {
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.small)
+                    Text("Fetching…").font(.caption2).foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    /// Compact-only: the thread with a back affordance to return to the list.
+    private func threadColumn(_ convo: DMConversation) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    chatVM.selectedConversationId = nil
+                } label: {
+                    Label("Conversations", systemImage: "chevron.left")
+                        .font(.subheadline)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            Divider()
+
+            MessageThreadView(conversation: convo, chatVM: chatVM)
+        }
+    }
+
+    private var selectPlaceholder: some View {
+        ContentUnavailableView(
+            "Select a Conversation",
+            systemImage: "bubble.left.and.text.bubble.right",
+            description: Text("Choose a conversation from the list, or start a new one.")
+        )
     }
 }
 

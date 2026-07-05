@@ -65,9 +65,13 @@ final class DMPollingService {
         updateAppBadge()
     }
 
-    /// Update the app icon badge with the total unread DM count.
+    /// Update the app icon badge with the total unread DM count. The badge is
+    /// a notification surface, so muted identities are excluded — their unread
+    /// still shows on the in-app sidebar envelope, just not on the app icon.
     private func updateAppBadge() {
-        let total = unreadCounts.values.reduce(0, +)
+        let total = unreadCounts
+            .filter { NostrNotificationPreferences.isEnabled(npub: $0.key) }
+            .values.reduce(0, +)
         UNUserNotificationCenter.current().setBadgeCount(total)
     }
 
@@ -547,6 +551,7 @@ final class DMPollingService {
     /// responsibility, same contract as postLocalNotification.
     private func postApprovalNotification(npub: String, dm: DecryptedDM, challenge: ProofApprovalService.ProofChallenge) {
         guard notificationMode != .off else { return }
+        guard NostrNotificationPreferences.isEnabled(npub: npub) else { return }
         let resolve = resolveDisplayName ?? { key in String(key.prefix(16)) + "…" }
 
         let content = UNMutableNotificationContent()
@@ -576,6 +581,7 @@ final class DMPollingService {
     /// banner be gated by the same decision.
     private func postLocalNotification(npub: String, preview: String? = nil, dm: DecryptedDM? = nil) {
         guard notificationMode != .off else { return }
+        guard NostrNotificationPreferences.isEnabled(npub: npub) else { return }
         let resolve = resolveDisplayName ?? { key in String(key.prefix(16)) + "…" }
 
         let senderName: String

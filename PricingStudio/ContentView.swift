@@ -40,6 +40,24 @@ struct ContentView: View {
         )
     }
 
+    /// On compact widths the floating Secure Courier card has no canvas to
+    /// float over, so it presents as a sheet instead.
+    private var compactCourierBinding: Binding<Bool> {
+        Binding(
+            get: { horizontalSizeClass == .compact && activeCourier != nil },
+            set: { if !$0 { activeCourier = nil } }
+        )
+    }
+
+    /// Same treatment for the campaign overview card: floating panel on
+    /// regular, full sheet on compact.
+    private var compactCampaignOverviewBinding: Binding<Bool> {
+        Binding(
+            get: { horizontalSizeClass == .compact && campaignForOverview != nil },
+            set: { if !$0 { campaignForOverview = nil } }
+        )
+    }
+
     var body: some View {
         NavigationSplitView {
             SidebarView(
@@ -108,7 +126,10 @@ struct ContentView: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                if let params = activeCourier {
+                // Regular width floats the courier card bottom-trailing over the
+                // detail canvas. On compact there's no free canvas — it presents
+                // as a sheet instead (see below).
+                if let params = activeCourier, horizontalSizeClass != .compact {
                     SecureCourierCard(
                         operatorName: params.operatorName,
                         operatorNpub: params.operatorNpub,
@@ -126,10 +147,48 @@ struct ContentView: View {
                 }
             }
             .animation(.spring(duration: 0.3), value: activeCourier != nil)
+            .sheet(isPresented: compactCourierBinding) {
+                if let params = activeCourier {
+                    NavigationStack {
+                        ScrollView {
+                            SecureCourierCard(
+                                operatorName: params.operatorName,
+                                operatorNpub: params.operatorNpub,
+                                endpointURL: params.endpointURL,
+                                credentialService: params.credentialService,
+                                missingSecrets: params.missingSecrets,
+                                greeting: params.greeting,
+                                senderNpub: params.senderNpub,
+                                onOpenMessages: params.senderNpub.isEmpty ? nil : {
+                                    activeCourier = nil
+                                    openMessagesFor(params.operatorNpub)
+                                },
+                                onDismiss: { activeCourier = nil }
+                            )
+                            .padding()
+                        }
+                        .navigationTitle("Secure Courier")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { activeCourier = nil }
+                            }
+                        }
+                    }
+                    .presentationDetents([.medium, .large])
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        withAnimation { showingAssistant.toggle() }
+                        // The inspector is a side pane — there's no room for it
+                        // on a phone, so compact width opens the Assistant as a
+                        // full-screen cover instead.
+                        if horizontalSizeClass == .compact {
+                            assistantFullScreen = true
+                        } else {
+                            withAnimation { showingAssistant.toggle() }
+                        }
                     } label: {
                         Label(
                             showingAssistant ? "Hide Assistant" : "AI Assistant",
@@ -362,7 +421,8 @@ struct ContentView: View {
             DMPollingService.shared.startPolling(modelContext: modelContext)
         }
         .overlay {
-            if let campaign = campaignForOverview {
+            // Regular: a floating, draggable card over a dimmed canvas.
+            if let campaign = campaignForOverview, horizontalSizeClass != .compact {
                 Color.black.opacity(0.2)
                     .ignoresSafeArea()
                     .onTapGesture { campaignForOverview = nil }
@@ -373,6 +433,14 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: campaignForOverview?.persistentModelID)
+        // Compact: a full sheet (the card fills it, no floating chrome).
+        .sheet(isPresented: compactCampaignOverviewBinding) {
+            if let campaign = campaignForOverview {
+                CampaignOverviewSheet(campaign: campaign) {
+                    campaignForOverview = nil
+                }
+            }
+        }
     }
 
     // MARK: - App Context for AI Assistant
@@ -443,10 +511,47 @@ struct ContentView: View {
 
     // MARK: - Graph Node Selection
 
-    private func messagesTabLabel(npub: String) -> some View {
-        let hasUnread = DMPollingService.shared.hasUnread(for: npub)
-        return Text(hasUnread ? "📨 Messages" : "💬 Messages")
-            .tag(ChatContainerTab.messages)
+    private func messagesLabel(npub: String) -> String {
+        DMPollingService.shared.hasUnread(for: npub) ? "📨 Messages" : "💬 Messages"
+    }
+
+    // Detail-tab lists, shared by the segmented (regular) and pill-strip
+    // (compact) renderings of AdaptiveTabBar. Building them as data keeps the
+    // tab set defined once per actor instead of once per format.
+    private func authorityTabs(_ auth: Authority, hasOwnEndpoint: Bool) -> [DetailTab] {
+        var tabs: [DetailTab] = [
+            DetailTab(tab: .authority, label: "🏛️ Authority"),
+            DetailTab(tab: .invoices, label: "📊 Account"),
+        ]
+        if hasOwnEndpoint {
+            tabs.append(DetailTab(tab: .invoiceHistory, label: "🧾 Invoices"))
+        }
+        tabs.append(DetailTab(tab: .pricing, label: "💰 Pricing"))
+        tabs.append(DetailTab(tab: .messages, label: messagesLabel(npub: auth.npub)))
+        return tabs
+    }
+
+    private func operatorTabs(_ op: Operator, hasAuthority: Bool) -> [DetailTab] {
+        var tabs: [DetailTab] = []
+        if hasAuthority {
+            tabs.append(DetailTab(tab: .authority, label: "🏛️ Authority"))
+        }
+        tabs.append(DetailTab(tab: .invoices, label: "📊 Account"))
+        if hasAuthority {
+            tabs.append(DetailTab(tab: .invoiceHistory, label: "🧾 Invoices"))
+        }
+        tabs.append(DetailTab(tab: .pricing, label: "💰 Pricing"))
+        tabs.append(DetailTab(tab: .consultant, label: "🧭 Advisor"))
+        tabs.append(DetailTab(tab: .messages, label: messagesLabel(npub: op.npub)))
+        return tabs
+    }
+
+    private func patronTabs(_ patron: Patron) -> [DetailTab] {
+        [
+            DetailTab(tab: .pricing, label: "📊 Account"),
+            DetailTab(tab: .invoices, label: "🧾 Invoices"),
+            DetailTab(tab: .messages, label: messagesLabel(npub: patron.npub)),
+        ]
     }
 
     private func entityHeader(name: String, npub: String, endpoint: String?, icon: String, avatar: String? = nil) -> some View {
@@ -495,18 +600,8 @@ struct ContentView: View {
         VStack(spacing: 0) {
             entityHeader(name: auth.displayName, npub: auth.npub, endpoint: auth.mcpEndpointURL, icon: "building.columns.fill")
 
-            Picker("View", selection: $detailTab) {
-                Text("🏛️ Authority").tag(ChatContainerTab.authority)
-                Text("📊 Account").tag(ChatContainerTab.invoices)
-                if hasOwnEndpoint {
-                    Text("🧾 Invoices").tag(ChatContainerTab.invoiceHistory)
-                }
-                Text("💰 Pricing").tag(ChatContainerTab.pricing)
-                messagesTabLabel(npub: auth.npub)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            AdaptiveTabBar(tabs: authorityTabs(auth, hasOwnEndpoint: hasOwnEndpoint), selection: $detailTab)
+                .padding(.vertical, 8)
 
             // Prime hosts the Oracle, not a tollbooth-authority MCP. It has no
             // economic surface — no balance, no pricing, no invoices — so every
@@ -585,21 +680,8 @@ struct ContentView: View {
         VStack(spacing: 0) {
             entityHeader(name: op.displayName, npub: op.npub, endpoint: op.mcpEndpointURL, icon: "server.rack")
 
-            Picker("View", selection: $detailTab) {
-                if hasAuthority {
-                    Text("🏛️ Authority").tag(ChatContainerTab.authority)
-                }
-                Text("📊 Account").tag(ChatContainerTab.invoices)
-                if hasAuthority {
-                    Text("🧾 Invoices").tag(ChatContainerTab.invoiceHistory)
-                }
-                Text("💰 Pricing").tag(ChatContainerTab.pricing)
-                Text("🧭 Advisor").tag(ChatContainerTab.consultant)
-                messagesTabLabel(npub: op.npub)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            AdaptiveTabBar(tabs: operatorTabs(op, hasAuthority: hasAuthority), selection: $detailTab)
+                .padding(.vertical, 8)
 
             switch detailTab {
             case .authority:
@@ -680,14 +762,8 @@ struct ContentView: View {
         VStack(spacing: 0) {
             entityHeader(name: patron.displayName, npub: patron.npub, endpoint: nil, icon: "person.badge.key.fill", avatar: patron.pictureURL)
 
-            Picker("View", selection: $detailTab) {
-                Text("📊 Account").tag(ChatContainerTab.pricing)
-                Text("🧾 Invoices").tag(ChatContainerTab.invoices)
-                messagesTabLabel(npub: patron.npub)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            AdaptiveTabBar(tabs: patronTabs(patron), selection: $detailTab)
+                .padding(.vertical, 8)
 
             switch detailTab {
             case .pricing:

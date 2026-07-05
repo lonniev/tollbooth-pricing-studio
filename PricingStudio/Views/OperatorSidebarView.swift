@@ -108,6 +108,12 @@ private struct OperatorRow: View {
                         .foregroundStyle(.orange)
                         .help("Unread Nostr DMs from this operator")
                 }
+                if NostrNotificationPreferences.isMuted(npub: op.npub) {
+                    Image(systemName: "bell.slash.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .help("Notifications muted for this operator")
+                }
             }
             Text(truncatedNpub(op.npub))
                 .font(.caption)

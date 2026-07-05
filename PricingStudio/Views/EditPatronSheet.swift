@@ -168,6 +168,8 @@ struct EditPatronSheet: View {
                 } footer: {
                     Text("Leave blank to keep the existing key. Changing the nsec will update the derived npub.")
                 }
+
+                NotificationToggleSection(npub: patron.npub)
             }
             .navigationTitle("Edit Patron")
             .navigationBarTitleDisplayMode(.inline)

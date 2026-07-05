@@ -102,6 +102,8 @@ struct EditAuthoritySheet: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                NotificationToggleSection(npub: authority.npub)
             }
             .navigationTitle("Edit Authority")
             .navigationBarTitleDisplayMode(.inline)
