@@ -30,6 +30,10 @@ struct ContentView: View {
     @State private var pendingActorSwitch: (() -> Void)?
     @State private var registryAdoption: AdoptionPrefill?
     @State private var registryLookupInFlight: Bool = false
+    /// Which column the collapsed (compact/iPhone) split view shows. Selecting
+    /// an actor drives this to `.detail` so the tap actually navigates into the
+    /// actor's canvas; the automatic back button returns it to `.sidebar`.
+    @State private var preferredColumn: NavigationSplitViewColumn = .sidebar
 
     /// On compact widths the Traffic Log presents as a sheet; on regular it
     /// stays the inline resizable panel in the detail column.
@@ -59,7 +63,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(preferredCompactColumn: $preferredColumn) {
             SidebarView(
                 authorityVM: authorityVM,
                 operatorVM: operatorVM,
@@ -277,8 +281,14 @@ struct ContentView: View {
             // present it as a sheet from the same sidebar toggle instead.
             NavigationStack {
                 TrafficLogView(logger: TrafficLogger.shared, filterNpub: selectedEntityNpub)
-                    .navigationTitle("Traffic Log")
+                    // The view's own header already titles it — no nav title,
+                    // so the words don't appear twice. Just a Done affordance.
                     .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showingTrafficLog = false }
+                        }
+                    }
             }
         }
         .sheet(isPresented: $authorityVM.showingAddSheet) {
@@ -325,6 +335,7 @@ struct ContentView: View {
         // KeypairGeneratorSheet is in SidebarView (scoping)
         .onChange(of: authorityVM.selectedAuthority) { _, newAuth in
             guard let auth = newAuth else { return }
+            if horizontalSizeClass == .compact { preferredColumn = .detail }
             let doSwitch = {
                 operatorVM.selectedOperator = nil
                 patronVM.selectedPatron = nil
@@ -340,6 +351,7 @@ struct ContentView: View {
             }
         }
         .onChange(of: operatorVM.selectedOperator) { _, newOp in
+            if newOp != nil, horizontalSizeClass == .compact { preferredColumn = .detail }
             let doSwitch = {
                 if let op = newOp {
                     authorityVM.selectedAuthority = nil
@@ -377,6 +389,7 @@ struct ContentView: View {
         }
         .onChange(of: patronVM.selectedPatron) { _, newPatron in
             if let patron = newPatron {
+                if horizontalSizeClass == .compact { preferredColumn = .detail }
                 authorityVM.selectedAuthority = nil
                 operatorVM.selectedOperator = nil
                 pricingVM.reset()
@@ -385,6 +398,16 @@ struct ContentView: View {
             } else {
                 patronAccountVM.reset()
             }
+        }
+        .onChange(of: preferredColumn) { _, col in
+            // Compact back-navigation: when the collapsed split view returns to
+            // the sidebar, clear the actor selection so re-tapping the SAME row
+            // navigates into its canvas again. An unchanged selection fires no
+            // onChange, which is what made the tap appear to do nothing.
+            guard col == .sidebar else { return }
+            authorityVM.selectedAuthority = nil
+            operatorVM.selectedOperator = nil
+            patronVM.selectedPatron = nil
         }
         .task {
             pricingVM.onAuthorityDiscovered = { npub, displayName, endpointURL in
@@ -1046,6 +1069,7 @@ private struct SidebarView: View {
                             : "antenna.radiowaves.left.and.right"
                     )
                 }
+                .accessibilityIdentifier("trafficLogToggle")
             }
         }
     }
