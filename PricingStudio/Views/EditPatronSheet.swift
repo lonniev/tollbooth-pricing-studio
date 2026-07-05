@@ -14,6 +14,9 @@ struct EditPatronSheet: View {
     @State private var showNsec = false
     @State private var hasStoredNsec = false
     @State private var keyError: String?
+    /// Set when the user flips the notification mute toggle so Save enables,
+    /// even though the preference itself already persisted immediately.
+    @State private var notifPrefChanged = false
 
     // Nostr kind-0 public-profile fields (folded in from the old standalone sheet)
     @State private var about = ""
@@ -45,7 +48,7 @@ struct EditPatronSheet: View {
         let nsecChanged = !nsec.isEmpty && keyError == nil
         let pictureChanged = picture.trimmingCharacters(in: .whitespacesAndNewlines) != (patron.pictureURL ?? "")
         let profileChanged = about != baseAbout || website != baseWebsite || lud16 != baseLud16
-        return nameChanged || nip05Changed || nsecChanged || pictureChanged || profileChanged
+        return nameChanged || nip05Changed || nsecChanged || pictureChanged || profileChanged || notifPrefChanged
     }
 
     var body: some View {
@@ -169,7 +172,7 @@ struct EditPatronSheet: View {
                     Text("Leave blank to keep the existing key. Changing the nsec will update the derived npub.")
                 }
 
-                NotificationToggleSection(npub: patron.npub)
+                NotificationToggleSection(npub: patron.npub) { notifPrefChanged = true }
             }
             .navigationTitle("Edit Patron")
             .navigationBarTitleDisplayMode(.inline)

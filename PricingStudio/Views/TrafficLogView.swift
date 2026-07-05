@@ -4,6 +4,7 @@ import SwiftUI
 struct TrafficLogView: View {
     let logger: TrafficLogger
     var filterNpub: String?
+    @Environment(\.horizontalSizeClass) private var sizeClass
     enum NpubFilter: String, CaseIterable { case include, exclude, only }
     @State private var npubFilter: NpubFilter = .include
     @State private var autoscroll = true
@@ -92,112 +93,183 @@ struct TrafficLogView: View {
 
     private var header: some View {
         VStack(spacing: 6) {
-            HStack {
-                Label("Traffic Log", systemImage: "antenna.radiowaves.left.and.right")
-                    .font(.headline)
-                pollHeartbeat
-                if let npub = filterNpub, !npub.isEmpty {
-                    Text(String(npub.prefix(12)) + "...")
-                        .font(.caption)
-                        .monospaced()
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-                        .foregroundStyle(.blue)
-                }
-                if filterNpub != nil && !filterNpub!.isEmpty {
-                    Picker("", selection: $npubFilter) {
-                        Text("Include").tag(NpubFilter.include)
-                        Text("Exclude").tag(NpubFilter.exclude)
-                        Text("Only").tag(NpubFilter.only)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 180)
-                    .fixedSize()
-                }
+            if sizeClass == .compact {
+                compactToolbar
+            } else {
+                regularToolbar
+            }
+            searchRow
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+    }
 
-                Spacer()
-
-                Text("\(displayedEntries.count)\(isPaused ? " paused" : "")")
+    /// iPad toolbar: the roomy inline layout with both segmented pickers and
+    /// labeled action buttons visible at once.
+    private var regularToolbar: some View {
+        HStack {
+            Label("Traffic Log", systemImage: "antenna.radiowaves.left.and.right")
+                .font(.headline)
+            pollHeartbeat
+            if let npub = filterNpub, !npub.isEmpty {
+                Text(String(npub.prefix(12)) + "...")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Text("Nostr").font(.caption).foregroundStyle(.secondary)
-                Picker("Nostr", selection: $nostrFilter) {
-                    Text("Include").tag(NostrFilter.include)
-                    Text("Exclude").tag(NostrFilter.exclude)
-                    Text("Only").tag(NostrFilter.only)
+                    .monospaced()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                    .foregroundStyle(.blue)
+            }
+            if filterNpub != nil && !filterNpub!.isEmpty {
+                Picker("", selection: $npubFilter) {
+                    Text("Include").tag(NpubFilter.include)
+                    Text("Exclude").tag(NpubFilter.exclude)
+                    Text("Only").tag(NpubFilter.only)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 180)
                 .fixedSize()
+            }
+
+            Spacer()
+
+            Text("\(displayedEntries.count)\(isPaused ? " paused" : "")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Text("Nostr").font(.caption).foregroundStyle(.secondary)
+            Picker("Nostr", selection: $nostrFilter) {
+                Text("Include").tag(NostrFilter.include)
+                Text("Exclude").tag(NostrFilter.exclude)
+                Text("Only").tag(NostrFilter.only)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 180)
+            .fixedSize()
+            Button {
+                scrollToEnd = true
+            } label: {
+                Label("End", systemImage: "arrow.down.to.line")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            Button {
+                togglePause()
+            } label: {
+                Label(isPaused ? "Resume" : "Pause",
+                      systemImage: isPaused ? "play.fill" : "pause.fill")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            Button {
+                logger.clear()
+            } label: {
+                Label("Clear", systemImage: "trash")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(logger.entries.isEmpty)
+        }
+    }
+
+    /// iPhone toolbar: title + live count on one row, with every filter and
+    /// action folded into a single Menu so nothing overflows a portrait width.
+    private var compactToolbar: some View {
+        HStack(spacing: 8) {
+            Label("Traffic Log", systemImage: "antenna.radiowaves.left.and.right")
+                .font(.headline)
+                .lineLimit(1)
+            pollHeartbeat
+            Spacer()
+            Text("\(displayedEntries.count)\(isPaused ? " ⏸" : "")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            Menu {
+                if let npub = filterNpub, !npub.isEmpty {
+                    Picker("This actor (\(npub.prefix(8))…)", selection: $npubFilter) {
+                        Text("Include").tag(NpubFilter.include)
+                        Text("Exclude").tag(NpubFilter.exclude)
+                        Text("Only").tag(NpubFilter.only)
+                    }
+                }
+                Picker("Nostr events", selection: $nostrFilter) {
+                    Text("Include").tag(NostrFilter.include)
+                    Text("Exclude").tag(NostrFilter.exclude)
+                    Text("Only").tag(NostrFilter.only)
+                }
+                Divider()
                 Button {
                     scrollToEnd = true
                 } label: {
-                    Label("End", systemImage: "arrow.down.to.line")
-                        .font(.caption)
+                    Label("Jump to End", systemImage: "arrow.down.to.line")
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
                 Button {
-                    isPaused.toggle()
-                    if isPaused {
-                        frozenEntries = filteredEntries
-                        autoscroll = false
-                    } else {
-                        frozenEntries = nil
-                        autoscroll = true
-                    }
+                    togglePause()
                 } label: {
                     Label(isPaused ? "Resume" : "Pause",
                           systemImage: isPaused ? "play.fill" : "pause.fill")
-                        .font(.caption)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                Button {
+                Divider()
+                Button(role: .destructive) {
                     logger.clear()
                 } label: {
-                    Label("Clear", systemImage: "trash")
-                        .font(.caption)
+                    Label("Clear Log", systemImage: "trash")
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
                 .disabled(logger.entries.isEmpty)
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.title3)
             }
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("Regex filter (label, detail, body)", text: $searchPattern)
-                    .font(.caption)
-                    .textFieldStyle(.plain)
-                    .autocorrectionDisabled()
-                if !searchPattern.isEmpty {
-                    Button {
-                        searchPattern = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    if (try? NSRegularExpression(pattern: searchPattern)) == nil {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .help("Invalid regex pattern")
-                    }
+        }
+    }
+
+    private var searchRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Regex filter (label, detail, body)", text: $searchPattern)
+                .font(.caption)
+                .textFieldStyle(.plain)
+                .autocorrectionDisabled()
+            if !searchPattern.isEmpty {
+                Button {
+                    searchPattern = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                if (try? NSRegularExpression(pattern: searchPattern)) == nil {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .help("Invalid regex pattern")
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    /// Freeze/unfreeze the displayed entries when pausing.
+    private func togglePause() {
+        isPaused.toggle()
+        if isPaused {
+            frozenEntries = filteredEntries
+            autoscroll = false
+        } else {
+            frozenEntries = nil
+            autoscroll = true
+        }
     }
 
     private var pollHeartbeat: some View {

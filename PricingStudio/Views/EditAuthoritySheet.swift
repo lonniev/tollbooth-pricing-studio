@@ -11,6 +11,9 @@ struct EditAuthoritySheet: View {
     @State private var nsec: String = ""
     @State private var showNsec = false
     @State private var hasStoredNsec = false
+    /// Set when the user flips the notification mute toggle so Save enables,
+    /// even though the preference itself already persisted immediately.
+    @State private var notifPrefChanged = false
 
     init(viewModel: AuthorityCollectionViewModel, authority: Authority) {
         self.viewModel = viewModel
@@ -24,7 +27,7 @@ struct EditAuthoritySheet: View {
             && displayName != authority.displayName
         let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (authority.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty
-        return nameChanged || nip05Changed || nsecChanged
+        return nameChanged || nip05Changed || nsecChanged || notifPrefChanged
     }
 
     var body: some View {
@@ -103,7 +106,7 @@ struct EditAuthoritySheet: View {
                     }
                 }
 
-                NotificationToggleSection(npub: authority.npub)
+                NotificationToggleSection(npub: authority.npub) { notifPrefChanged = true }
             }
             .navigationTitle("Edit Authority")
             .navigationBarTitleDisplayMode(.inline)
