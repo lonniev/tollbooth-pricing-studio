@@ -44,9 +44,12 @@ struct ConsultantBusinessCard: View {
             .contentShape(.rect)
             .onTapGesture { onTap?() }
             .onLongPressGesture(minimumDuration: 0.45) { showingFacts = true }
+            // Regular width: a light popover anchored to the card. Compact
+            // (iPhone): let it adapt to a sheet the reader can drag up from a
+            // peek to full screen — no longer trapped inside the card's span.
             .popover(isPresented: $showingFacts, arrowEdge: .top) {
                 ConsultantFactsCard(consultant: consultant)
-                    .presentationCompactAdaptation(.popover)
+                    .presentationDetents([.medium, .large])
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(consultant.displayName), \(consultant.title)")

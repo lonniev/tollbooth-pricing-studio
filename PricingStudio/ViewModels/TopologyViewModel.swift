@@ -72,13 +72,33 @@ final class TopologyViewModel {
 
         do {
             let entries = try await RegistryService.fetchRegistry()
-            roots = buildTree(authorities: authorities, operators: operators, entries: entries)
+            roots = Self.deduped(buildTree(authorities: authorities, operators: operators, entries: entries))
         } catch {
             // Fallback: build from local data only
-            roots = buildTreeFromLocalData(authorities: authorities, operators: operators)
+            roots = Self.deduped(buildTreeFromLocalData(authorities: authorities, operators: operators))
         }
 
         isLoading = false
+    }
+
+    /// Collapse any npub that appears more than once in the forest to its first
+    /// occurrence. A CloudKit import can momentarily surface duplicate entities,
+    /// and a repeated id in the rendered tree corrupts SwiftUI's diff (a
+    /// duplicate-id `ForEach`, or a `List`/`OutlineGroup` batch-update abort).
+    /// Depth-first so the shallowest placement wins.
+    private static func deduped(_ nodes: [TopologyNode], seen: inout Set<String>) -> [TopologyNode] {
+        var result: [TopologyNode] = []
+        for node in nodes {
+            guard seen.insert(node.id).inserted else { continue }
+            let kids = deduped(node.children, seen: &seen)
+            result.append(TopologyNode(id: node.id, displayName: node.displayName, tier: node.tier, children: kids))
+        }
+        return result
+    }
+
+    private static func deduped(_ nodes: [TopologyNode]) -> [TopologyNode] {
+        var seen = Set<String>()
+        return deduped(nodes, seen: &seen)
     }
 
     // MARK: - Tree Building
