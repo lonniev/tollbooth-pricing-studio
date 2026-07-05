@@ -41,6 +41,7 @@
 		AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F0 /* PipelineStepCard.swift */; };
 		AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F1 /* ConnectionStatusView.swift */; };
 		AA0000010000000000000F30 /* LoadingQuoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F31 /* LoadingQuoteView.swift */; };
+		AA0000010000000000000F40 /* MiloSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F41 /* MiloSplashView.swift */; };
 		AA00000100000000000000C2 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F2 /* EmptyStateView.swift */; };
 		AA00000100000000000000C3 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F3 /* PreviewData.swift */; };
 		AA00000100000000000000C4 /* OperatorStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000F4 /* OperatorStats.swift */; };
@@ -229,6 +230,7 @@
 		AA00000100000000000000F0 /* PipelineStepCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStepCard.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F1 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F31 /* LoadingQuoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingQuoteView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000F41 /* MiloSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiloSplashView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F3 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
 		AA00000100000000000000F4 /* OperatorStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorStats.swift; sourceTree = "<group>"; };
@@ -606,6 +608,7 @@
 				AA00000100000000000000F0 /* PipelineStepCard.swift */,
 				AA00000100000000000000F1 /* ConnectionStatusView.swift */,
 				AA0000010000000000000F31 /* LoadingQuoteView.swift */,
+				AA0000010000000000000F41 /* MiloSplashView.swift */,
 				AA00000100000000000000F2 /* EmptyStateView.swift */,
 				AA00000100000000000000F9 /* PatronSidebarView.swift */,
 				AA00000100000000000000FA /* AddPatronSheet.swift */,
@@ -1027,6 +1030,7 @@
 				AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */,
 				AA00000100000000000000C1 /* ConnectionStatusView.swift in Sources */,
 				AA0000010000000000000F30 /* LoadingQuoteView.swift in Sources */,
+				AA0000010000000000000F40 /* MiloSplashView.swift in Sources */,
 				AA00000100000000000000C2 /* EmptyStateView.swift in Sources */,
 				AA00000100000000000000C3 /* PreviewData.swift in Sources */,
 				AA00000100000000000000C4 /* OperatorStats.swift in Sources */,
