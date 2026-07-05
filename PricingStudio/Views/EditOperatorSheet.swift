@@ -19,6 +19,9 @@ struct EditOperatorSheet: View {
     @State private var hasStoredNsec = false
     @State private var mcpEndpointURL: String
     @State private var nip05: String
+    /// Set when the user flips the notification mute toggle so Save enables,
+    /// even though the preference itself already persisted immediately.
+    @State private var notifPrefChanged = false
 
     init(viewModel: OperatorCollectionViewModel, operator_: Operator, pricingVM: PricingViewModel? = nil) {
         self.viewModel = viewModel
@@ -50,7 +53,7 @@ struct EditOperatorSheet: View {
         let nameChanged = displayName != operator_.displayName
         let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (operator_.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty
-        return nameOK && urlOK && (nameChanged || nip05Changed || nsecChanged || urlChanged)
+        return nameOK && urlOK && (nameChanged || nip05Changed || nsecChanged || urlChanged || notifPrefChanged)
     }
 
     var body: some View {
@@ -184,7 +187,7 @@ struct EditOperatorSheet: View {
                     }
                 }
 
-                NotificationToggleSection(npub: operator_.npub)
+                NotificationToggleSection(npub: operator_.npub) { notifPrefChanged = true }
             }
             .navigationTitle("Edit Operator")
             .navigationBarTitleDisplayMode(.inline)
