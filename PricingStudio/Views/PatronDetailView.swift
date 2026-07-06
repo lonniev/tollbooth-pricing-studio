@@ -11,16 +11,75 @@ struct PatronDetailView: View {
     var onRequestCourier: ((CourierParams) -> Void)?
     @Query(sort: \Operator.addedAt) private var operators: [Operator]
 
+    /// Drag-to-reorder edit state for the balances section.
+    @State private var editMode: EditMode = .inactive
+    /// Operator npubs whose cards are collapsed (loaded from + saved to prefs).
+    @State private var collapsed: Set<String> = []
+    /// The patron's saved operator ordering (loaded from + saved to prefs).
+    @State private var order: [String] = []
+
+    /// Balances in the patron's saved drag order; new operators fall to the end.
+    private var orderedBalances: [PatronAccountViewModel.OperatorBalance] {
+        PatronBalancePreferences.ordered(accountVM.operatorBalances, order: order, key: \.id)
+    }
+
+    private var allCollapsed: Bool {
+        !accountVM.operatorBalances.isEmpty
+            && accountVM.operatorBalances.allSatisfy { collapsed.contains($0.id) }
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
+        List {
+            Section {
                 headerSection
-                operatorAccountsSection
+                    .frame(maxWidth: .infinity)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             }
-            .padding()
+
+            Section {
+                if accountVM.operatorBalances.isEmpty {
+                    ContentUnavailableView(
+                        "No Operator Connections",
+                        systemImage: "server.rack",
+                        description: Text("Add operators with MCP endpoints to view balances.")
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(orderedBalances) { balance in
+                        OperatorBalanceCard(
+                            balance: balance,
+                            patron: patron,
+                            operator: operators.first(where: { $0.npub == balance.id }),
+                            accountVM: accountVM,
+                            isCollapsed: collapsed.contains(balance.id),
+                            isReordering: editMode == .active,
+                            onToggleCollapse: { toggleCollapse(balance.id) },
+                            onOpenMessages: onOpenMessages,
+                            onRequestCourier: onRequestCourier,
+                            onRefreshNeeded: {
+                                Task {
+                                    await accountVM.forceRefresh(for: patron, sources: operators.map(\.asInvoiceSource))
+                                }
+                            }
+                        )
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowBackground(Color.clear)
+                    }
+                    .onMove(perform: moveBalances)
+                }
+            } header: {
+                balancesHeader
+            }
         }
+        .listStyle(.plain)
+        .environment(\.editMode, $editMode)
         .navigationTitle(patron.displayName)
         .task(id: patron.npub) {
+            collapsed = PatronBalancePreferences.collapsedSet(patronNpub: patron.npub)
+            order = PatronBalancePreferences.order(patronNpub: patron.npub)
             await accountVM.loadBalances(for: patron, sources: operators.map(\.asInvoiceSource))
         }
         .refreshable {
@@ -34,6 +93,54 @@ struct PatronDetailView: View {
                 await accountVM.forceRefresh(forNpub: patronNpub, sources: sourceList)
             }.value
         }
+    }
+
+    // MARK: - Balances section header (reorder + collapse-all)
+
+    @ViewBuilder
+    private var balancesHeader: some View {
+        HStack {
+            Text("Credit Balances").font(.headline)
+            Spacer()
+            if !accountVM.operatorBalances.isEmpty {
+                Button {
+                    withAnimation { toggleCollapseAll() }
+                } label: {
+                    Image(systemName: allCollapsed ? "chevron.down.circle" : "chevron.up.circle")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(allCollapsed ? "Expand all" : "Collapse all")
+
+                Button {
+                    withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+                } label: {
+                    Label(editMode.isEditing ? "Done" : "Reorder",
+                          systemImage: editMode.isEditing ? "checkmark" : "arrow.up.arrow.down")
+                        .font(.caption.bold())
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .textCase(nil)
+        .padding(.top, 4)
+    }
+
+    private func toggleCollapse(_ npub: String) {
+        if collapsed.contains(npub) { collapsed.remove(npub) } else { collapsed.insert(npub) }
+        PatronBalancePreferences.setCollapsedSet(collapsed, patronNpub: patron.npub)
+    }
+
+    private func toggleCollapseAll() {
+        let ids = accountVM.operatorBalances.map(\.id)
+        if allCollapsed { collapsed.subtract(ids) } else { collapsed.formUnion(ids) }
+        PatronBalancePreferences.setCollapsedSet(collapsed, patronNpub: patron.npub)
+    }
+
+    private func moveBalances(from source: IndexSet, to destination: Int) {
+        var npubs = orderedBalances.map(\.id)
+        npubs.move(fromOffsets: source, toOffset: destination)
+        order = npubs
+        PatronBalancePreferences.setOrder(npubs, patronNpub: patron.npub)
     }
 
     // MARK: - Header
@@ -72,41 +179,6 @@ struct PatronDetailView: View {
         }
     }
 
-    // MARK: - Patron Credit Balances
-
-    @ViewBuilder
-    private var operatorAccountsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Credit Balances")
-                .font(.headline)
-
-            if accountVM.operatorBalances.isEmpty {
-                ContentUnavailableView(
-                    "No Operator Connections",
-                    systemImage: "server.rack",
-                    description: Text("Add operators with MCP endpoints to view balances.")
-                )
-            } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(accountVM.operatorBalances) { balance in
-                        OperatorBalanceCard(
-                            balance: balance,
-                            patron: patron,
-                            operator: operators.first(where: { $0.npub == balance.id }),
-                            accountVM: accountVM,
-                            onOpenMessages: onOpenMessages,
-                            onRequestCourier: onRequestCourier,
-                            onRefreshNeeded: {
-                                Task {
-                                    await accountVM.forceRefresh(for: patron, sources: operators.map(\.asInvoiceSource))
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Operator Balance Card
@@ -116,6 +188,11 @@ private struct OperatorBalanceCard: View {
     let patron: Patron
     let `operator`: Operator?
     let accountVM: PatronAccountViewModel
+    var isCollapsed: Bool = false
+    /// The whole balances section is in drag-reorder mode — render every card
+    /// as its compact summary so the list is easy to rearrange.
+    var isReordering: Bool = false
+    var onToggleCollapse: (() -> Void)?
     var onOpenMessages: ((_ operatorNpub: String) -> Void)?
     var onRequestCourier: ((CourierParams) -> Void)?
     var onRefreshNeeded: (() -> Void)?
@@ -127,38 +204,48 @@ private struct OperatorBalanceCard: View {
     @State private var patronOnboarding: MCPService.PatronOnboardingStatus?
     @State private var loadingOnboarding = false
 
+    /// Collapsed cards, and every card while reordering, show only the summary.
+    private var showCompact: Bool { isCollapsed || isReordering }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Same self-similar card every actor uses: this patron's one
-            // balance, at this operator.
-            ParentAccountCard(
-                parentDisplayName: balance.operatorName,
-                balance: cardBalance,
-                feeExplanation: "spent on your tool calls at \(balance.operatorName)",
-                isReconciling: isReconciling,
-                reconcileResult: reconcileResult,
-                onTopUp: { showingTopOff = true },
-                onReconcile: {
-                    if case .loaded(let result) = balance.balanceState {
-                        Task { await reconcilePending(result) }
-                    }
-                },
-                onRefresh: { onRefreshNeeded?() }
-            )
+            collapseHeader
 
-            if case .loaded(let result) = balance.balanceState {
-                DisclosureGroup(isExpanded: $isExpanded) {
-                    detailBody(result)
-                } label: {
-                    Text("Details & secrets")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
+            if !showCompact {
+                // Same self-similar card every actor uses: this patron's one
+                // balance, at this operator.
+                ParentAccountCard(
+                    parentDisplayName: balance.operatorName,
+                    balance: cardBalance,
+                    feeExplanation: "spent on your tool calls at \(balance.operatorName)",
+                    isReconciling: isReconciling,
+                    reconcileResult: reconcileResult,
+                    onTopUp: { showingTopOff = true },
+                    onReconcile: {
+                        if case .loaded(let result) = balance.balanceState {
+                            Task { await reconcilePending(result) }
+                        }
+                    },
+                    onRefresh: { onRefreshNeeded?() }
+                )
+
+                if case .loaded(let result) = balance.balanceState {
+                    DisclosureGroup(isExpanded: $isExpanded) {
+                        detailBody(result)
+                    } label: {
+                        Text("Details & secrets")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(12)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-                .padding(12)
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
+        .padding(showCompact ? 10 : 0)
+        .background(showCompact ? Color(.secondarySystemGroupedBackground) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .sheet(isPresented: $showingTopOff) {
             PurchaseCreditsSheet(
                 cashierName: balance.operatorName,
@@ -187,6 +274,59 @@ private struct OperatorBalanceCard: View {
             if patronOnboarding == nil {
                 await loadPatronOnboardingStatus()
             }
+        }
+    }
+
+    // MARK: - Collapse header + summary
+
+    /// The always-present title row: chevron (collapse toggle), operator name,
+    /// and a compact balance so a collapsed card still shows what matters.
+    private var collapseHeader: some View {
+        Button {
+            onToggleCollapse?()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: showCompact ? "chevron.right" : "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+                Text(balance.operatorName)
+                    .font(.subheadline.bold())
+                    .lineLimit(1)
+                Spacer()
+                compactBalanceBadge
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // In reorder mode the row is a drag target; List supplies the handle.
+        .disabled(isReordering)
+    }
+
+    @ViewBuilder
+    private var compactBalanceBadge: some View {
+        switch balance.balanceState {
+        case .loading:
+            ProgressView().controlSize(.mini)
+        case .loaded(let r):
+            let unfunded = r.balanceApiSats == 0 && r.totalDeposited == 0
+            HStack(spacing: 6) {
+                Text(unfunded ? "—" : "\(r.balanceApiSats) sats")
+                    .font(.subheadline.monospacedDigit().bold())
+                    .foregroundStyle(unfunded ? Color.secondary : (r.balanceApiSats < 50 ? .red : .green))
+                if r.pendingInvoiceCount > 0 {
+                    Text("\(r.pendingInvoiceCount)")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.orange.opacity(0.2), in: Capsule())
+                        .foregroundStyle(.orange)
+                }
+            }
+        case .error:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.red)
         }
     }
 
