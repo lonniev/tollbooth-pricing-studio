@@ -109,6 +109,7 @@
 		AA00000100000000PRAP0011 /* ProofApprovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000PRAP0001 /* ProofApprovalService.swift */; };
 		AA00000100000000DEDU0011 /* EntityDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000DEDU0001 /* EntityDeduplicator.swift */; };
 		AA00000100000000NNPF0011 /* NostrNotificationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000NNPF0001 /* NostrNotificationPreferences.swift */; };
+		AA0000010000000000000F51 /* PatronBalancePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F50 /* PatronBalancePreferences.swift */; };
 		AA00000100000000NTSC0011 /* NotificationToggleSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000NTSC0001 /* NotificationToggleSection.swift */; };
 		AA00000100000000ATBR0011 /* AdaptiveTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000ATBR0001 /* AdaptiveTabBar.swift */; };
 		AA0000010000000000000911 /* PricingConsultantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000901 /* PricingConsultantViewModel.swift */; };
@@ -298,6 +299,7 @@
 		AA00000100000000PRAP0001 /* ProofApprovalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofApprovalService.swift; sourceTree = "<group>"; };
 		AA00000100000000DEDU0001 /* EntityDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDeduplicator.swift; sourceTree = "<group>"; };
 		AA00000100000000NNPF0001 /* NostrNotificationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrNotificationPreferences.swift; sourceTree = "<group>"; };
+		AA0000010000000000000F50 /* PatronBalancePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronBalancePreferences.swift; sourceTree = "<group>"; };
 		AA00000100000000NTSC0001 /* NotificationToggleSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationToggleSection.swift; sourceTree = "<group>"; };
 		AA00000100000000ATBR0001 /* AdaptiveTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveTabBar.swift; sourceTree = "<group>"; };
 		AA0000010000000000000901 /* PricingConsultantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingConsultantViewModel.swift; sourceTree = "<group>"; };
@@ -533,6 +535,7 @@
 				AA00000100000000PRAP0001 /* ProofApprovalService.swift */,
 				AA00000100000000DEDU0001 /* EntityDeduplicator.swift */,
 				AA00000100000000NNPF0001 /* NostrNotificationPreferences.swift */,
+				AA0000010000000000000F50 /* PatronBalancePreferences.swift */,
 				AA0000010000000000000B01 /* LLMProvider.swift */,
 				AA0000010000000000000B02 /* XAIProvider.swift */,
 				AA0000010000000000000B03 /* AnthropicProvider.swift */,
@@ -1098,6 +1101,7 @@
 				AA00000100000000PRAP0011 /* ProofApprovalService.swift in Sources */,
 				AA00000100000000DEDU0011 /* EntityDeduplicator.swift in Sources */,
 				AA00000100000000NNPF0011 /* NostrNotificationPreferences.swift in Sources */,
+				AA0000010000000000000F51 /* PatronBalancePreferences.swift in Sources */,
 				AA00000100000000NTSC0011 /* NotificationToggleSection.swift in Sources */,
 				AA00000100000000ATBR0011 /* AdaptiveTabBar.swift in Sources */,
 				AA0000010000000000000911 /* PricingConsultantViewModel.swift in Sources */,
