@@ -6,6 +6,14 @@ import SwiftUI
 struct MiloSplashView: View {
     var onDismiss: () -> Void
 
+    /// True once the user has tapped past Milo at least once. First-ever launch
+    /// invites them to "begin"; every idle re-arm after that is a "resume."
+    @AppStorage("milo.hasBegun") private var hasBegun = false
+
+    private var prompt: String {
+        hasBegun ? "Tap to resume DPYC Commerce" : "Tap to begin"
+    }
+
     var body: some View {
         ZStack {
             Rectangle()
@@ -23,17 +31,20 @@ struct MiloSplashView: View {
                 Text("Pricing Studio")
                     .font(.largeTitle.bold())
 
-                Text("Tap to begin")
+                Text(prompt)
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
             .padding()
         }
         .contentShape(Rectangle())
-        .onTapGesture { onDismiss() }
+        .onTapGesture {
+            hasBegun = true
+            onDismiss()
+        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Pricing Studio. Tap to begin.")
+        .accessibilityLabel("Pricing Studio. \(prompt).")
     }
 }
 

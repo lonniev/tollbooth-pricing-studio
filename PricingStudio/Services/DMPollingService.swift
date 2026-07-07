@@ -567,8 +567,15 @@ final class DMPollingService {
             eventId: dm.rawEventId
         ).userInfo
 
+        // Key on the dpop_token, not the transport event id: per the frozen
+        // wire contract approval is per-dpop_token, so the token IS the unit of
+        // approval. The courier double-encodes each challenge (NIP-04 + NIP-44)
+        // for client compatibility, arriving as two distinct signed events that
+        // both decode to the same token — keying on the token makes the second
+        // REPLACE the first instead of stacking an identical banner. Distinct
+        // approvals still carry distinct tokens, so real siblings never clobber.
         let request = UNNotificationRequest(
-            identifier: "proof-\(dm.rawEventId)",
+            identifier: "proof-\(challenge.dpopToken)",
             content: content,
             trigger: nil
         )
