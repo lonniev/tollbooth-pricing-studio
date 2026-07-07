@@ -235,7 +235,10 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
         let content = notification.request.content
         let actionable = content.categoryIdentifier == ProofApprovalService.categoryId
             || notification.request.identifier.hasPrefix("proof-approve-failed")
-        completionHandler(actionable ? [.banner, .sound] : [])
+        // .list keeps an actionable banner in Notification Center — without it,
+        // .banner alone is transient (iOS 14+) so the approval rises then
+        // "vanishes" with nowhere to act on it later. .badge marks it unread.
+        completionHandler(actionable ? [.banner, .list, .sound, .badge] : [])
     }
 
     /// Wrist Approval actions. A watch tap forwards here with the app in the
