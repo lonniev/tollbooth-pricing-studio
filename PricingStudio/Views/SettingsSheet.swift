@@ -14,7 +14,6 @@ extension Bundle {
 
 struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    var relaySettings = RelaySettings.shared
 
     // API Keys
     @State private var anthropicKey: String = ""
@@ -22,15 +21,6 @@ struct SettingsSheet: View {
     @State private var keySaveStatus: String?
     @State private var pollInterval: Double = DMPollingService.shared.pollIntervalSeconds
     @State private var notificationMode: DMPollingService.NotificationMode = DMPollingService.shared.notificationMode
-
-    private var relayFooter: String {
-        let base = "Supported relays are governed by the DPYC community registry "
-            + "and refresh automatically."
-        guard let fetchedAt = relaySettings.fetchedAt else { return base }
-        let fmt = RelativeDateTimeFormatter()
-        fmt.unitsStyle = .full
-        return base + " Last updated \(fmt.localizedString(for: fetchedAt, relativeTo: Date()))."
-    }
 
     var body: some View {
         NavigationStack {
@@ -109,32 +99,6 @@ struct SettingsSheet: View {
                         && anthropicKey.isEmpty
                         && xaiKey.isEmpty
                     )
-                }
-
-                // MARK: - Nostr Relays
-
-                Section {
-                    if relaySettings.relays.isEmpty {
-                        Text("Loading relays from the DPYC community registry…")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(relaySettings.relays, id: \.self) { relay in
-                            Text(relay)
-                                .font(.callout)
-                                .monospaced()
-                        }
-                    }
-
-                    Button {
-                        Task { await relaySettings.refresh(force: true) }
-                    } label: {
-                        Label("Refresh Relays", systemImage: "arrow.clockwise")
-                    }
-                } header: {
-                    Label("Nostr Relays", systemImage: "antenna.radiowaves.left.and.right")
-                } footer: {
-                    Text(relayFooter)
                 }
 
                 // MARK: - Nostr Polling
