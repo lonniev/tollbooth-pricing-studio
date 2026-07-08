@@ -39,6 +39,9 @@ struct PricingStudioApp: App {
                     EntityDeduplicator.dedupeAll(in: AppModelContainer.shared.mainContext)
                     Authority.ensurePrimeExists(in: AppModelContainer.shared.mainContext)
                     LoadingQuoteView.prefetch()
+                    // Warm the relay set from the DPYC community registry so
+                    // courier/proof/DM flows have relays before first use.
+                    Task { await RelaySettings.shared.refresh() }
                 }
         }
         .modelContainer(AppModelContainer.shared)

@@ -18,6 +18,7 @@
 		AA00000100000000000000B4 /* MCPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E4 /* MCPService.swift */; };
 		AA0000010000000000000F20 /* MCPAuthBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F21 /* MCPAuthBridge.swift */; };
 		AA00000100000000000000B6 /* RegistryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E6 /* RegistryService.swift */; };
+		AADD000100000000000000FA /* RelayRegistryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD000100000000000000FB /* RelayRegistryService.swift */; };
 		AA00000100000000000000B7 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E7 /* KeychainService.swift */; };
 		AA00000100000000000000B8 /* OperatorCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */; };
 		AA00000100000000000000B9 /* PricingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E9 /* PricingViewModel.swift */; };
@@ -208,6 +209,7 @@
 		AA00000100000000000000E4 /* MCPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F21 /* MCPAuthBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPAuthBridge.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E6 /* RegistryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistryService.swift; sourceTree = "<group>"; };
+		AADD000100000000000000FB /* RelayRegistryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRegistryService.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E7 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorCollectionViewModel.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E9 /* PricingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingViewModel.swift; sourceTree = "<group>"; };
@@ -527,6 +529,7 @@
 				AA00000100000000000000E4 /* MCPService.swift */,
 				AA0000010000000000000F21 /* MCPAuthBridge.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
+				AADD000100000000000000FB /* RelayRegistryService.swift */,
 				AA00000100000000000000E7 /* KeychainService.swift */,
 				AA00000100000000000000FD /* TrafficLogger.swift */,
 				AA0000010000000000000412 /* AnthropicService.swift */,
@@ -1011,6 +1014,7 @@
 				AA00000100000000000000B4 /* MCPService.swift in Sources */,
 				AA0000010000000000000F20 /* MCPAuthBridge.swift in Sources */,
 				AA00000100000000000000B6 /* RegistryService.swift in Sources */,
+				AADD000100000000000000FA /* RelayRegistryService.swift in Sources */,
 				AA00000100000000000000B7 /* KeychainService.swift in Sources */,
 				AA00000100000000000000B8 /* OperatorCollectionViewModel.swift in Sources */,
 				AA00000100000000000000B9 /* PricingViewModel.swift in Sources */,

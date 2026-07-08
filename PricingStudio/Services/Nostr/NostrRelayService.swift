@@ -8,8 +8,10 @@ import Foundation
 final class NostrRelayService: Sendable {
 
     static var defaultRelays: [URL] {
-        let strings = UserDefaults.standard.stringArray(forKey: RelaySettings.storageKey)
-            ?? RelaySettings.defaultRelayStrings
+        // The relay set is governed by the DPYC community registry and cached
+        // by RelaySettings. Empty until the first fetch lands (no hardcoded
+        // fallback) — callers observe RelaySettings.onRelaysChanged to reconnect.
+        let strings = UserDefaults.standard.stringArray(forKey: RelaySettings.storageKey) ?? []
         return strings.compactMap { URL(string: $0) }
     }
 
