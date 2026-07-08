@@ -317,19 +317,26 @@ struct TrafficLogView: View {
             }
             .listStyle(.plain)
             .onChange(of: logger.entries.count) {
+                // Live tail: while following, pin to the newest row on every
+                // append. NO animation — with a busy Nostr firehose, animating
+                // each append makes the scrolls thrash and never settle, so the
+                // view drifts off the true bottom (fine when Nostr is excluded and
+                // events are sparse, broken when included). Unanimated pins land.
                 if autoscroll, !isPaused, let last = displayedEntries.last {
-                    withAnimation {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
+                    proxy.scrollTo(last.id, anchor: .bottom)
                 }
             }
             .onChange(of: scrollToEnd) {
-                if scrollToEnd, let last = displayedEntries.last {
-                    withAnimation {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
-                    scrollToEnd = false
+                guard scrollToEnd else { return }
+                // Jump to the end AND re-engage following, so the firehose keeps us
+                // pinned rather than stranding us above rows that arrive during the
+                // jump. Unanimated so the target can't move out from under an
+                // in-flight animation.
+                autoscroll = true
+                if let last = displayedEntries.last {
+                    proxy.scrollTo(last.id, anchor: .bottom)
                 }
+                scrollToEnd = false
             }
         }
     }
