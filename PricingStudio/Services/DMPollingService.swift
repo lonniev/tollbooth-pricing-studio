@@ -513,6 +513,17 @@ final class DMPollingService {
     /// stops a replayed, already-read DM from re-banner-ing.
     private var notifiedStore = NotifiedEventStore()
 
+    /// dpop_tokens we've already raised an approval banner for this process.
+    /// The courier double-encodes each challenge (NIP-04 + NIP-44), so one
+    /// logical approval arrives as two distinct Nostr events that share a
+    /// dpop_token — the real unit of approval. The per-*event* NotifiedEventStore
+    /// can't collapse them (different event ids), and iOS won't reliably coalesce
+    /// two same-identifier `add()`s fired in the same tick. So we dedup by token
+    /// in our own state, at the single choke point every posting path funnels
+    /// through. In-memory is enough: tokens are short-lived (≈2h) and a re-notify
+    /// after a process restart is harmless (the still-live challenge just reminds).
+    private var postedApprovalTokens: Set<String> = []
+
     /// Which of `eventIds` should produce a notification now, honoring the mode.
     /// Dedup lives HERE — upstream of postLocalNotification — so the badge count
     /// and the banner stay in lock-step and a replayed event increments neither.
@@ -552,6 +563,22 @@ final class DMPollingService {
     private func postApprovalNotification(npub: String, dm: DecryptedDM, challenge: ProofApprovalService.ProofChallenge) {
         guard notificationMode != .off else { return }
         guard NostrNotificationPreferences.isEnabled(npub: npub) else { return }
+
+        // One banner per dpop_token, deduped in our own state — see
+        // postedApprovalTokens. The courier's twin encodings both land here;
+        // the second insert fails and is suppressed. Record only tokens we
+        // actually post, so a muted/off npub (returned above) never poisons the
+        // set. Log both branches (event id only, never the token) so a live test
+        // can distinguish "collapsed a twin" from "two genuinely different
+        // approvals" without leaking the approval secret.
+        guard postedApprovalTokens.insert(challenge.dpopToken).inserted else {
+            TrafficLogger.shared.log(.inbound, label: "Approval Dedup",
+                                     detail: "\(npub.prefix(12))… suppressed twin approval event=\(dm.rawEventId.prefix(8))…")
+            return
+        }
+        TrafficLogger.shared.log(.inbound, label: "Approval Post",
+                                 detail: "\(npub.prefix(12))… posted approval event=\(dm.rawEventId.prefix(8))…")
+
         let resolve = resolveDisplayName ?? { key in String(key.prefix(16)) + "…" }
 
         let content = UNMutableNotificationContent()
