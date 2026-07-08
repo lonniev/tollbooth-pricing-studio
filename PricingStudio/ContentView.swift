@@ -105,7 +105,11 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 Group {
                     if let relay = selectedRelay {
+                        // .id(relay) gives each relay its own view identity so
+                        // switching relays resets RelayView's @State (ping
+                        // result, range) instead of showing the peer's stale data.
                         RelayView(relay: relay)
+                            .id(relay)
                     } else if let auth = authorityVM.selectedAuthority {
                         authorityDetail(auth)
                     } else if let op = operatorVM.selectedOperator {
@@ -959,6 +963,7 @@ private struct SidebarView: View {
     @State private var showingKeypairGenerator = false
     @State private var categoryOrder: [SidebarCategory] = [.authorities, .operators, .patrons]
     @State private var expandedCategories: Set<SidebarCategory> = Set(SidebarCategory.allCases)
+    @State private var isRelaysExpanded = true
     @State private var isReorderingCategories = false
     /// Npubs of Authorities whose subtree is currently collapsed in the
     /// sidebar. Empty = all branches expanded. Session-local; not persisted.
@@ -1044,7 +1049,7 @@ private struct SidebarView: View {
                 }
             }
 
-            Section {
+            DisclosureGroup(isExpanded: $isRelaysExpanded) {
                 if relaySettings.relays.isEmpty {
                     Text("Loading relays…")
                         .font(.footnote)
@@ -1065,7 +1070,7 @@ private struct SidebarView: View {
                         .accessibilityIdentifier("relayRow-\(relayHost(relay))")
                     }
                 }
-            } header: {
+            } label: {
                 Label("Relays", systemImage: "antenna.radiowaves.left.and.right")
             }
 

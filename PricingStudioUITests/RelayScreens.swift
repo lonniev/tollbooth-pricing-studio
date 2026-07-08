@@ -36,7 +36,20 @@ final class RelayScreens: XCTestCase {
         // 3) Run the health check and capture the result.
         healthButton.tap()
         sleep(6)
+        XCTAssertTrue(app.staticTexts["Online"].waitForExistence(timeout: 12), "Health check should report Online")
         snap("03-relay-health-check")
+
+        // 4) Switch to a different relay — the RelayView must reset (no stale
+        //    ping result carried over from the peer relay).
+        let second = relayRow.element(boundBy: 1)
+        guard second.exists else { throw XCTSkip("Only one relay available") }
+        second.tap()
+        XCTAssertTrue(app.buttons["Run Health Check"].waitForExistence(timeout: 10))
+        XCTAssertFalse(
+            app.staticTexts["Online"].exists,
+            "Switching relays must clear the previous relay's health-check result"
+        )
+        snap("04-switched-relay-clean")
     }
 
     // MARK: - Helpers
