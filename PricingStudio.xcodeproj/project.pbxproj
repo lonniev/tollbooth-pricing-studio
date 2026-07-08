@@ -18,6 +18,8 @@
 		AA00000100000000000000B4 /* MCPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E4 /* MCPService.swift */; };
 		AA0000010000000000000F20 /* MCPAuthBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F21 /* MCPAuthBridge.swift */; };
 		AA00000100000000000000B6 /* RegistryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E6 /* RegistryService.swift */; };
+		AADD000100000000000000FC /* RelayTrafficStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD000100000000000000FD /* RelayTrafficStore.swift */; };
+		AADD000100000000000000FA /* RelayRegistryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD000100000000000000FB /* RelayRegistryService.swift */; };
 		AA00000100000000000000B7 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E7 /* KeychainService.swift */; };
 		AA00000100000000000000B8 /* OperatorCollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */; };
 		AA00000100000000000000B9 /* PricingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000000000E9 /* PricingViewModel.swift */; };
@@ -104,6 +106,7 @@
 		COUP00010000000000000005 /* CouponsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = COUP00010000000000000006 /* CouponsView.swift */; };
 		AA0000010000000000000711 /* RelaySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000701 /* RelaySettings.swift */; };
 		AA0000010000000000000712 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000702 /* SettingsSheet.swift */; };
+		AADD000100000000000000FE /* RelayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD000100000000000000FF /* RelayView.swift */; };
 		AA0000010000000000000811 /* DMPollingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000801 /* DMPollingService.swift */; };
 		AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000INBX0001 /* InboxSignalService.swift */; };
 		AA00000100000000PRAP0011 /* ProofApprovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000PRAP0001 /* ProofApprovalService.swift */; };
@@ -174,6 +177,7 @@
 		BB0000010000000000000F05 /* PlanDiffModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E05 /* PlanDiffModeTests.swift */; };
 		BB0000010000000000000F06 /* ApplyActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E06 /* ApplyActionTests.swift */; };
 		BB0000010000000000000F07 /* TrafficLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E07 /* TrafficLogTests.swift */; };
+		AADD00010000000000000A01 /* RelayScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD00010000000000000A02 /* RelayScreens.swift */; };
 /* BDD Test build files */
 		CC0000010000000000000F01 /* GherkinRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000010000000000000E01 /* GherkinRunner.swift */; };
 		CC0000010000000000000F20 /* CompactLayoutScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000010000000000000E20 /* CompactLayoutScreens.swift */; };
@@ -208,6 +212,8 @@
 		AA00000100000000000000E4 /* MCPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F21 /* MCPAuthBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPAuthBridge.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E6 /* RegistryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistryService.swift; sourceTree = "<group>"; };
+		AADD000100000000000000FD /* RelayTrafficStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTrafficStore.swift; sourceTree = "<group>"; };
+		AADD000100000000000000FB /* RelayRegistryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRegistryService.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E7 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E8 /* OperatorCollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorCollectionViewModel.swift; sourceTree = "<group>"; };
 		AA00000100000000000000E9 /* PricingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingViewModel.swift; sourceTree = "<group>"; };
@@ -294,6 +300,7 @@
 		COUP00010000000000000006 /* CouponsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CouponsView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000701 /* RelaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySettings.swift; sourceTree = "<group>"; };
 		AA0000010000000000000702 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
+		AADD000100000000000000FF /* RelayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000801 /* DMPollingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMPollingService.swift; sourceTree = "<group>"; };
 		AA00000100000000INBX0001 /* InboxSignalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxSignalService.swift; sourceTree = "<group>"; };
 		AA00000100000000PRAP0001 /* ProofApprovalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofApprovalService.swift; sourceTree = "<group>"; };
@@ -366,6 +373,7 @@
 		BB0000010000000000000E05 /* PlanDiffModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanDiffModeTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E06 /* ApplyActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplyActionTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E07 /* TrafficLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficLogTests.swift; sourceTree = "<group>"; };
+		AADD00010000000000000A02 /* RelayScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayScreens.swift; sourceTree = "<group>"; };
 		BB00000100000000000E1FF /* PricingStudioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PricingStudioUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* BDD Test file references */
 		CC0000010000000000000E01 /* GherkinRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GherkinRunner.swift; sourceTree = "<group>"; };
@@ -527,6 +535,8 @@
 				AA00000100000000000000E4 /* MCPService.swift */,
 				AA0000010000000000000F21 /* MCPAuthBridge.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
+				AADD000100000000000000FD /* RelayTrafficStore.swift */,
+				AADD000100000000000000FB /* RelayRegistryService.swift */,
 				AA00000100000000000000E7 /* KeychainService.swift */,
 				AA00000100000000000000FD /* TrafficLogger.swift */,
 				AA0000010000000000000412 /* AnthropicService.swift */,
@@ -632,6 +642,7 @@
 				AA0000010000000000000940 /* CommunityCanvasView.swift */,
 				AA0000010000000000000602 /* ConstraintParamEditor.swift */,
 				AA0000010000000000000702 /* SettingsSheet.swift */,
+				AADD000100000000000000FF /* RelayView.swift */,
 				AA0000010000000000000250 /* Chat */,
 				AA0000010000000000000902 /* PricingConsultantView.swift */,
 				DECD000100000000000009A1 /* ConsultantBusinessCard.swift */,
@@ -699,6 +710,7 @@
 				BB0000010000000000000E05 /* PlanDiffModeTests.swift */,
 				BB0000010000000000000E06 /* ApplyActionTests.swift */,
 				BB0000010000000000000E07 /* TrafficLogTests.swift */,
+				AADD00010000000000000A02 /* RelayScreens.swift */,
 			);
 			path = PricingStudioUITests;
 			sourceTree = "<group>";
@@ -1011,6 +1023,8 @@
 				AA00000100000000000000B4 /* MCPService.swift in Sources */,
 				AA0000010000000000000F20 /* MCPAuthBridge.swift in Sources */,
 				AA00000100000000000000B6 /* RegistryService.swift in Sources */,
+				AADD000100000000000000FC /* RelayTrafficStore.swift in Sources */,
+				AADD000100000000000000FA /* RelayRegistryService.swift in Sources */,
 				AA00000100000000000000B7 /* KeychainService.swift in Sources */,
 				AA00000100000000000000B8 /* OperatorCollectionViewModel.swift in Sources */,
 				AA00000100000000000000B9 /* PricingViewModel.swift in Sources */,
@@ -1096,6 +1110,7 @@
 				COUP00010000000000000005 /* CouponsView.swift in Sources */,
 				AA0000010000000000000711 /* RelaySettings.swift in Sources */,
 				AA0000010000000000000712 /* SettingsSheet.swift in Sources */,
+				AADD000100000000000000FE /* RelayView.swift in Sources */,
 				AA0000010000000000000811 /* DMPollingService.swift in Sources */,
 				AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */,
 				AA00000100000000PRAP0011 /* ProofApprovalService.swift in Sources */,
@@ -1159,6 +1174,7 @@
 				BB0000010000000000000F05 /* PlanDiffModeTests.swift in Sources */,
 				BB0000010000000000000F06 /* ApplyActionTests.swift in Sources */,
 				BB0000010000000000000F07 /* TrafficLogTests.swift in Sources */,
+				AADD00010000000000000A01 /* RelayScreens.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

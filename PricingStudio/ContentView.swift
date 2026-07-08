@@ -31,6 +31,9 @@ struct ContentView: View {
     @State private var pendingActorSwitch: (() -> Void)?
     @State private var registryAdoption: AdoptionPrefill?
     @State private var registryLookupInFlight: Bool = false
+    /// A relay selected from the sidebar's Relays section; when set, the detail
+    /// column shows its diagnostics (RelayView) instead of an actor canvas.
+    @State private var selectedRelay: String?
     /// Which column the collapsed (compact/iPhone) split view shows. Selecting
     /// an actor drives this to `.detail` so the tap actually navigates into the
     /// actor's canvas; the automatic back button returns it to `.sidebar`.
@@ -93,13 +96,17 @@ struct ContentView: View {
                     authorityVM.selectedAuthority = nil
                     operatorVM.selectedOperator = nil
                     patronVM.selectedPatron = nil
+                    selectedRelay = nil
                     if horizontalSizeClass == .compact { preferredColumn = .detail }
-                }
+                },
+                selectedRelay: $selectedRelay
             )
         } detail: {
             VStack(spacing: 0) {
                 Group {
-                    if let auth = authorityVM.selectedAuthority {
+                    if let relay = selectedRelay {
+                        RelayView(relay: relay)
+                    } else if let auth = authorityVM.selectedAuthority {
                         authorityDetail(auth)
                     } else if let op = operatorVM.selectedOperator {
                         operatorDetail(op)
@@ -357,6 +364,7 @@ struct ContentView: View {
             let doSwitch = {
                 operatorVM.selectedOperator = nil
                 patronVM.selectedPatron = nil
+                selectedRelay = nil
                 pricingVM.reset()
                 chatVM.switchIdentity(to: ChatIdentity(from: auth))
                 if auth.isPrime { detailTab = .pricing }
@@ -374,6 +382,7 @@ struct ContentView: View {
                 if let op = newOp {
                     authorityVM.selectedAuthority = nil
                     patronVM.selectedPatron = nil
+                    selectedRelay = nil
                     chatVM.switchIdentity(to: ChatIdentity(from: op))
                 }
                 pricingVM.reset()
@@ -410,12 +419,23 @@ struct ContentView: View {
                 if horizontalSizeClass == .compact { preferredColumn = .detail }
                 authorityVM.selectedAuthority = nil
                 operatorVM.selectedOperator = nil
+                selectedRelay = nil
                 pricingVM.reset()
                 patronAccountVM.reset()
                 chatVM.switchIdentity(to: ChatIdentity(from: patron))
             } else {
                 patronAccountVM.reset()
             }
+        }
+        .onChange(of: selectedRelay) { _, newRelay in
+            // Selecting a relay is mutually exclusive with an actor selection:
+            // clear actors so the RelayView canvas shows, and push to the detail
+            // column on compact so the tap navigates.
+            guard newRelay != nil else { return }
+            authorityVM.selectedAuthority = nil
+            operatorVM.selectedOperator = nil
+            patronVM.selectedPatron = nil
+            if horizontalSizeClass == .compact { preferredColumn = .detail }
         }
         .onChange(of: preferredColumn) { _, col in
             // Compact back-navigation: when the collapsed split view returns to
@@ -426,6 +446,7 @@ struct ContentView: View {
             authorityVM.selectedAuthority = nil
             operatorVM.selectedOperator = nil
             patronVM.selectedPatron = nil
+            selectedRelay = nil
         }
         .task {
             pricingVM.onAuthorityDiscovered = { npub, displayName, endpointURL in
@@ -933,6 +954,8 @@ private struct SidebarView: View {
     @Binding var campaignForOverview: Campaign?
     var onOpenCampaign: ((Operator, Campaign) -> Void)?
     var onShowNetwork: (() -> Void)?
+    @Binding var selectedRelay: String?
+    @State private var relaySettings = RelaySettings.shared
     @State private var showingKeypairGenerator = false
     @State private var categoryOrder: [SidebarCategory] = [.authorities, .operators, .patrons]
     @State private var expandedCategories: Set<SidebarCategory> = Set(SidebarCategory.allCases)
@@ -964,6 +987,11 @@ private struct SidebarView: View {
         authorityVM.selectedAuthority != nil
         || operatorVM.selectedOperator != nil
         || patronVM.selectedPatron != nil
+    }
+
+    /// Display just the host for a relay URL (drop the wss:// scheme).
+    private func relayHost(_ relay: String) -> String {
+        URL(string: relay)?.host ?? relay.replacingOccurrences(of: "wss://", with: "")
     }
 
     private func campaigns(for op: Operator) -> [Campaign] {
@@ -1014,6 +1042,31 @@ private struct SidebarView: View {
                         Label(category.label, systemImage: category.icon)
                     }
                 }
+            }
+
+            Section {
+                if relaySettings.relays.isEmpty {
+                    Text("Loading relays…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(relaySettings.relays, id: \.self) { relay in
+                        Button {
+                            selectedRelay = relay
+                        } label: {
+                            Label {
+                                Text(relayHost(relay))
+                                    .font(.callout)
+                            } icon: {
+                                Image(systemName: "antenna.radiowaves.left.and.right")
+                            }
+                            .foregroundStyle(selectedRelay == relay ? Color.accentColor : .primary)
+                        }
+                        .accessibilityIdentifier("relayRow-\(relayHost(relay))")
+                    }
+                }
+            } header: {
+                Label("Relays", systemImage: "antenna.radiowaves.left.and.right")
             }
 
             Section {
