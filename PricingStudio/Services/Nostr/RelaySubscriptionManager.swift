@@ -158,6 +158,8 @@ final class RelaySubscriptionManager {
         let task = Task { [weak self] in
             for await event in conn.events {
                 guard let self else { break }
+                // Attribute the received event to the relay it arrived on.
+                RelayTrafficStore.shared.record(relay: url.absoluteString, direction: .received)
                 self.routeEvent(event)
             }
         }

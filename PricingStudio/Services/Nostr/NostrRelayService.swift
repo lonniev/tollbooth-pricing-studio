@@ -135,7 +135,7 @@ final class NostrRelayService: Sendable {
             return targets.map { ($0, false, "serialization failed") }
         }
 
-        return await withTaskGroup(of: (URL, Bool, String).self) { group in
+        let results: [(URL, Bool, String)] = await withTaskGroup(of: (URL, Bool, String).self) { group in
             for relay in targets {
                 group.addTask {
                     await Self.publishToRelay(relay, message: message)
@@ -146,6 +146,81 @@ final class NostrRelayService: Sendable {
                 results.append(result)
             }
             return results
+        }
+
+        // Record accepted publishes as per-relay "sent" traffic.
+        for (relay, accepted, _) in results where accepted {
+            await MainActor.run {
+                RelayTrafficStore.shared.record(relay: relay.absoluteString, direction: .sent)
+            }
+        }
+        return results
+    }
+
+    // MARK: - Health / Ping
+
+    struct RelayPingResult: Sendable {
+        let online: Bool
+        let latencyMs: Int?
+        let detail: String
+    }
+
+    /// Actively probe a relay: open a WebSocket, run a minimal REQ→EOSE
+    /// round-trip (proves it's actually serving, not just accepting the socket),
+    /// and measure round-trip latency. Reuses the Cloudflare-passing connection.
+    static func ping(_ url: URL, timeout: TimeInterval = 8) async -> RelayPingResult {
+        let host = url.host ?? url.absoluteString
+        await MainActor.run {
+            TrafficLogger.shared.log(.outbound, label: "Relay Ping", detail: host)
+        }
+
+        let start = Date()
+        let conn = RelayConnection(url: url)
+        do {
+            try await conn.connect(timeout: timeout)
+
+            let subId = "ping-\(Int(start.timeIntervalSince1970))"
+            conn.send("[\"REQ\",\"\(subId)\",{\"kinds\":[1],\"limit\":1}]")
+
+            var sawResponse = false
+            let deadline = Date().addingTimeInterval(timeout)
+            while Date() < deadline {
+                guard let text = try await conn.receive(timeout: timeout) else { break }
+                if let data = text.data(using: .utf8),
+                   let arr = try? JSONSerialization.jsonObject(with: data) as? [Any],
+                   let type = arr.first as? String {
+                    // Any well-formed relay reply proves it's serving.
+                    if ["EVENT", "EOSE", "CLOSED", "NOTICE", "AUTH"].contains(type) {
+                        sawResponse = true
+                        break
+                    }
+                }
+            }
+
+            if let closeData = try? JSONSerialization.data(withJSONObject: ["CLOSE", subId]),
+               let closeString = String(data: closeData, encoding: .utf8) {
+                conn.send(closeString)
+            }
+            conn.disconnect()
+
+            let latency = Int(Date().timeIntervalSince(start) * 1000)
+            await MainActor.run {
+                TrafficLogger.shared.log(.inbound, label: "Relay Ping OK", detail: "\(host): \(latency)ms")
+            }
+            return RelayPingResult(
+                online: true,
+                latencyMs: latency,
+                detail: sawResponse
+                    ? "Healthy — replied in \(latency)ms"
+                    : "Connected, no query reply (\(latency)ms)"
+            )
+        } catch {
+            conn.disconnect()
+            let reason = Self.describeError(error)
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "Relay Ping Failed", detail: "\(host): \(reason)")
+            }
+            return RelayPingResult(online: false, latencyMs: nil, detail: reason)
         }
     }
 
