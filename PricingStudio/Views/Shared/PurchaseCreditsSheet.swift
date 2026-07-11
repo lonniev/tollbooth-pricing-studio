@@ -19,7 +19,7 @@ struct PurchaseCreditsSheet: View {
 
     /// Caller-supplied beneficiary display name; bypasses the SwiftData walk.
     var beneficiaryDisplayName: String? = nil
-    /// Actor glyphs shown on the fare pass. Defaults suit the most common
+    /// Actor glyphs shown on the tranche pass. Defaults suit the most common
     /// flow (a Patron topping up at its Operator); other call sites pass the
     /// matching pair (e.g. Operator → Authority).
     var beneficiaryBadge: ActorBadge = .patron
@@ -121,7 +121,7 @@ struct PurchaseCreditsSheet: View {
         .presentationContentInteraction(.scrolls)
     }
 
-    // MARK: - Hero fare pass
+    // MARK: - Hero tranche pass
 
     /// The printed "ticket stub" header: beneficiary + cashier rendered as a
     /// pass you're about to load, with a perforation tear line for flavor.
@@ -132,7 +132,7 @@ struct PurchaseCreditsSheet: View {
                     Image(systemName: "ticket.fill")
                         .font(.title2)
                         .foregroundStyle(Color.accentColor)
-                    Text("FARE PASS")
+                    Text("TRANCHE")
                         .font(.caption.weight(.semibold))
                         .tracking(2)
                         .foregroundStyle(.secondary)
@@ -201,7 +201,7 @@ struct PurchaseCreditsSheet: View {
         .listRowBackground(Color.clear)
     }
 
-    // MARK: - Fare-card grid
+    // MARK: - Tranche-card grid
 
     private var amountSection: some View {
         Section {
@@ -212,14 +212,14 @@ struct PurchaseCreditsSheet: View {
                     spacing: 10
                 ) {
                     ForEach(presets, id: \.self) { amount in
-                        fareTile(amount: amount)
+                        trancheTile(amount: amount)
                     }
                 }
                 customTile
             }
             .padding(.vertical, 4)
         } header: {
-            Text("Choose a fare")
+            Text("Choose a tranche")
         }
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         .listRowBackground(Color.clear)
@@ -227,7 +227,7 @@ struct PurchaseCreditsSheet: View {
 
     /// A single tappable denomination ticket. Selected → tinted fill, accent
     /// border, and a punched-ticket checkmark.
-    private func fareTile(amount: Int) -> some View {
+    private func trancheTile(amount: Int) -> some View {
         let selected = isPresetSelected(amount)
         return Button {
             selectedAmount = amount
@@ -255,7 +255,7 @@ struct PurchaseCreditsSheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .background(fareTileBackground(selected: selected))
+            .background(trancheTileBackground(selected: selected))
         }
         .buttonStyle(.plain)
     }
@@ -283,7 +283,7 @@ struct PurchaseCreditsSheet: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
-                .background(fareTileBackground(selected: selected))
+                .background(trancheTileBackground(selected: selected))
             }
             .buttonStyle(.plain)
 
@@ -301,7 +301,7 @@ struct PurchaseCreditsSheet: View {
         return "Custom amount…"
     }
 
-    private func fareTileBackground(selected: Bool) -> some View {
+    private func trancheTileBackground(selected: Bool) -> some View {
         RoundedRectangle(cornerRadius: 12)
             .fill(selected ? Color.accentColor.opacity(0.15)
                            : Color(.secondarySystemGroupedBackground))
@@ -700,7 +700,7 @@ struct PurchaseCreditsSheet: View {
 }
 
 extension PurchaseCreditsSheet {
-    /// An SF Symbol + tint identifying an actor on the fare pass. Canonical
+    /// An SF Symbol + tint identifying an actor on the tranche pass. Canonical
     /// glyphs mirror `TopologyViewModel`: Operator = server.rack (orange),
     /// Authority = building.columns (blue); Patron = person (green).
     struct ActorBadge {
