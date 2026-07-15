@@ -1,0 +1,43 @@
+# Commit-phase CI for PRs — a signing-free simulator build that gates every change.
+#
+# The existing testflight.yml `build` runs only on push to main (it signs + uploads to
+# TestFlight), so it never gated PRs. This job compiles the app on a PR with no secrets
+# (CODE_SIGNING_ALLOWED=NO), posting a `build` status check that branch protection requires.
+# It runs on pull_request ONLY, so it never collides with testflight's push-time `build`.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Select Xcode 26
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE_PATH" ]; then
+            echo "No Xcode 26.x found, trying latest available"
+            XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          fi
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -scheme PricingStudio \
+            -clonedSourcePackagesDirPath $RUNNER_TEMP/spm
+
+      - name: Build (simulator, no signing)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -scheme PricingStudio \
+            -destination 'generic/platform=iOS Simulator' \
+            -clonedSourcePackagesDirPath $RUNNER_TEMP/spm \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
