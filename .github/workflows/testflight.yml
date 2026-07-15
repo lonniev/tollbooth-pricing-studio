@@ -140,7 +140,7 @@ jobs:
         # credentials" despite the auto-provisioned GITHUB_TOKEN and
         # `contents: write` permissions. v2 has worked for 100+ builds.
         # Re-evaluate v3 before the 2026-06-02 Node 20 deprecation cutover.
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.version }}-build${{ github.run_number }}
           name: "Pricing Studio v${{ steps.version.outputs.version }} (build ${{ github.run_number }})"
