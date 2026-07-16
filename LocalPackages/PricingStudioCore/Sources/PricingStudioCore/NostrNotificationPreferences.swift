@@ -11,7 +11,7 @@ import Foundation
 /// the app-icon badge contribution. Background sync (the drain, the CloudKit
 /// wake, the in-app unread envelope) is untouched, so the conversation is still
 /// there when the user opens the app; it just doesn't interrupt them.
-enum NostrNotificationPreferences {
+public enum NostrNotificationPreferences {
     private static let mutedKey = "notifications.mutedNpubs"
 
     /// The set of npubs the user has silenced. Stored as an array (UserDefaults
@@ -26,16 +26,16 @@ enum NostrNotificationPreferences {
     }
 
     /// True when this npub should still post notifications (the default).
-    static func isEnabled(npub: String) -> Bool {
+    public static func isEnabled(npub: String) -> Bool {
         !mutedSet().contains(npub)
     }
 
-    static func isMuted(npub: String) -> Bool {
+    public static func isMuted(npub: String) -> Bool {
         mutedSet().contains(npub)
     }
 
     /// Enable (`true`) or silence (`false`) notifications for one npub.
-    static func setEnabled(_ enabled: Bool, npub: String) {
+    public static func setEnabled(_ enabled: Bool, npub: String) {
         var set = mutedSet()
         if enabled {
             set.remove(npub)

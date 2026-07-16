@@ -121,7 +121,6 @@
 		AA00000100000000ATBR0011 /* AdaptiveTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000ATBR0001 /* AdaptiveTabBar.swift */; };
 		AA00000100000000DEDU0011 /* EntityDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000DEDU0001 /* EntityDeduplicator.swift */; };
 		AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000INBX0001 /* InboxSignalService.swift */; };
-		AA00000100000000NNPF0011 /* NostrNotificationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000NNPF0001 /* NostrNotificationPreferences.swift */; };
 		AA00000100000000NTSC0011 /* NotificationToggleSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000NTSC0001 /* NotificationToggleSection.swift */; };
 		AADD000100000000000000FA /* RelayRegistryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD000100000000000000FB /* RelayRegistryService.swift */; };
 		AADD000100000000000000FC /* RelayTrafficStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD000100000000000000FD /* RelayTrafficStore.swift */; };
@@ -142,7 +141,6 @@
 		BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */; };
 		BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */; };
 		BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A52 /* KeychainServiceTests.swift */; };
-		BB0000010000000000000A61 /* NostrNotificationPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A62 /* NostrNotificationPreferencesTests.swift */; };
 		BB0000010000000000000F01 /* TestTeardown.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E01 /* TestTeardown.swift */; };
 		BB0000010000000000000F02 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E02 /* AppLaunchTests.swift */; };
 		BB0000010000000000000F03 /* PipelineEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E03 /* PipelineEditorTests.swift */; };
@@ -339,7 +337,6 @@
 		AA00000100000000ATBR0001 /* AdaptiveTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveTabBar.swift; sourceTree = "<group>"; };
 		AA00000100000000DEDU0001 /* EntityDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDeduplicator.swift; sourceTree = "<group>"; };
 		AA00000100000000INBX0001 /* InboxSignalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxSignalService.swift; sourceTree = "<group>"; };
-		AA00000100000000NNPF0001 /* NostrNotificationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrNotificationPreferences.swift; sourceTree = "<group>"; };
 		AA00000100000000NTSC0001 /* NotificationToggleSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationToggleSection.swift; sourceTree = "<group>"; };
 		AADD000100000000000000FB /* RelayRegistryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRegistryService.swift; sourceTree = "<group>"; };
 		AADD000100000000000000FD /* RelayTrafficStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTrafficStore.swift; sourceTree = "<group>"; };
@@ -356,7 +353,6 @@
 		BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSchemaInitTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDeduplicatorTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A52 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
-		BB0000010000000000000A62 /* NostrNotificationPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrNotificationPreferencesTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E01 /* TestTeardown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestTeardown.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E02 /* AppLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E03 /* PipelineEditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineEditorTests.swift; sourceTree = "<group>"; };
@@ -565,7 +561,6 @@
 				AA0000010000000000000801 /* DMPollingService.swift */,
 				AA00000100000000INBX0001 /* InboxSignalService.swift */,
 				AA00000100000000DEDU0001 /* EntityDeduplicator.swift */,
-				AA00000100000000NNPF0001 /* NostrNotificationPreferences.swift */,
 				AA0000010000000000000F50 /* PatronBalancePreferences.swift */,
 				AA0000010000000000000B01 /* LLMProvider.swift */,
 				AA0000010000000000000B02 /* XAIProvider.swift */,
@@ -730,7 +725,6 @@
 				BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */,
 				BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */,
 				BB0000010000000000000A52 /* KeychainServiceTests.swift */,
-				BB0000010000000000000A62 /* NostrNotificationPreferencesTests.swift */,
 				DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
 				DD0000010000000000000E03 /* NostrDMServiceTests.swift */,
@@ -1119,7 +1113,6 @@
 				AA0000010000000000000811 /* DMPollingService.swift in Sources */,
 				AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */,
 				AA00000100000000DEDU0011 /* EntityDeduplicator.swift in Sources */,
-				AA00000100000000NNPF0011 /* NostrNotificationPreferences.swift in Sources */,
 				AA0000010000000000000F51 /* PatronBalancePreferences.swift in Sources */,
 				AA00000100000000NTSC0011 /* NotificationToggleSection.swift in Sources */,
 				AA00000100000000ATBR0011 /* AdaptiveTabBar.swift in Sources */,
@@ -1156,7 +1149,6 @@
 				BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */,
 				BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */,
 				BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */,
-				BB0000010000000000000A61 /* NostrNotificationPreferencesTests.swift in Sources */,
 				DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
 				DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */,

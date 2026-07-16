@@ -1,4 +1,5 @@
 import SwiftUI
+import PricingStudioCore
 
 /// A Form section carrying the per-identity Nostr-notification mute toggle,
 /// shared by the Operator, Patron, and Authority edit sheets so the control

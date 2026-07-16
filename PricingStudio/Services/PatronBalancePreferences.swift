@@ -1,4 +1,5 @@
 import Foundation
+import PricingStudioCore
 
 /// Per-patron, device-local presentation prefs for the Credit Balances list:
 /// the operator ordering the user dragged into place, and which operator cards
