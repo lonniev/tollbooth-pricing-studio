@@ -1,3 +1,17 @@
+# ── Release stage: TestFlight (PRE-PRODUCTION) ───────────────────────────────
+# A merge to `main` builds, signs, and uploads to TestFlight — Apple's
+# pre-production beta channel reaching only invited testers. It does NOT publish
+# to the public App Store; a separate, human-triggered workflow (submit-app-review)
+# promotes an already-tested build to App Store review.
+#
+# Implication for the DPYC Agentic Service Desk (QA + Journeyman) and human
+# reviewers: because a merge reaches only pre-production testers, it is acceptable
+# to merge a compile-clean, QA-passed change and DEFER real-world verification to
+# the human who has the physical gear (a paired Apple Watch, a device). That
+# on-device check is the intended post-merge gate here — not a merge blocker.
+# This is also why the PR gate (ci.yml) is a signing-free COMPILE gate: the app
+# cannot boot headless as a simulator test host, so behavior is verified
+# on-device via TestFlight rather than executed in CI.
 name: Build, Archive, and Distribute
 
 on:
