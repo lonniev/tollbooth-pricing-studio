@@ -8,6 +8,16 @@ import UserNotifications
 final class DMPollingService {
     static let shared = DMPollingService()
 
+    /// Notification-group ("thread") identifier for ordinary DM banners. Kept
+    /// distinct from the per-approval threads (see
+    /// `ProofApprovalService.approvalThreadIdentifier`) so that dismissing a DM
+    /// banner on the Apple Watch never sweeps away an actionable Approval
+    /// Request sharing the app's default group (issue #83). All generic DM
+    /// banners deliberately share this one thread: they already collapse per
+    /// npub via their request identifier, and grouping them together under a
+    /// dedicated DM group is exactly the desired shelf behavior.
+    static let dmNotificationThreadIdentifier = "nostr-dm"
+
     private(set) var unreadCounts: [String: Int] = [:]
     private(set) var lastPollAt: Date?
     private(set) var pollCycle: Int = 0
@@ -581,18 +591,18 @@ final class DMPollingService {
 
         let resolve = resolveDisplayName ?? { key in String(key.prefix(16)) + "…" }
 
-        let content = UNMutableNotificationContent()
-        content.title = "Approval requested"
-        content.body = "May I act as \(resolve(dm.recipientPubkeyHex))? — from \(resolve(dm.senderPubkeyHex))"
-        content.sound = .default
-        content.categoryIdentifier = ProofApprovalService.categoryId
-        content.userInfo = ProofApprovalService.ApprovalRequest(
+        let approvalRequest = ProofApprovalService.ApprovalRequest(
             signerNpub: npub,
             replyToHex: dm.senderPubkeyHex,
             pinnedRelay: challenge.pinnedRelay,
             replyContent: ProofApprovalService.buildApprovalReply(challenge),
             eventId: dm.rawEventId
-        ).userInfo
+        )
+        let content = Self.makeApprovalNotificationContent(
+            body: "May I act as \(resolve(dm.recipientPubkeyHex))? — from \(resolve(dm.senderPubkeyHex))",
+            request: approvalRequest,
+            dpopToken: challenge.dpopToken
+        )
 
         // Key on the dpop_token, not the transport event id: per the frozen
         // wire contract approval is per-dpop_token, so the token IS the unit of
@@ -628,13 +638,11 @@ final class DMPollingService {
             receiverName = resolve(npub)
         }
 
-        let content = UNMutableNotificationContent()
-        content.title = "New Nostr DM"
-        content.body = "From \(senderName) to \(receiverName)"
-        if let preview, !preview.isEmpty {
-            content.body += "\n\(preview)"
-        }
-        content.sound = .default
+        let content = Self.makeDMNotificationContent(
+            senderName: senderName,
+            receiverName: receiverName,
+            preview: preview
+        )
 
         // One banner per npub: a stable identifier makes each new arrival
         // REPLACE the previous generic banner instead of piling another one
@@ -647,6 +655,47 @@ final class DMPollingService {
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Notification Content Builders
+
+    /// Build the actionable Approval-Request banner. Static and pure so the
+    /// Watch-critical thread isolation (issue #83) is unit-testable without a
+    /// live `UNUserNotificationCenter`. Each approval declares its own
+    /// per-dpop_token notification group so dismissing an unrelated DM banner
+    /// on the watch cannot sweep it away.
+    static func makeApprovalNotificationContent(
+        body: String,
+        request: ProofApprovalService.ApprovalRequest,
+        dpopToken: String
+    ) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = "Approval requested"
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = ProofApprovalService.categoryId
+        content.userInfo = request.userInfo
+        content.threadIdentifier = ProofApprovalService.approvalThreadIdentifier(dpopToken: dpopToken)
+        return content
+    }
+
+    /// Build the ordinary Nostr DM banner. Static and pure for the same
+    /// reason as the approval builder; groups all DM banners under the
+    /// dedicated DM thread, distinct from every approval thread (issue #83).
+    static func makeDMNotificationContent(
+        senderName: String,
+        receiverName: String,
+        preview: String?
+    ) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = "New Nostr DM"
+        content.body = "From \(senderName) to \(receiverName)"
+        if let preview, !preview.isEmpty {
+            content.body += "\n\(preview)"
+        }
+        content.sound = .default
+        content.threadIdentifier = dmNotificationThreadIdentifier
+        return content
     }
 
     // MARK: - Persistence

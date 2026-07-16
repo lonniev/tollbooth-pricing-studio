@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import UserNotifications
 
@@ -14,6 +15,26 @@ enum ProofApprovalService {
     static let approveActionId = "approve"
     static let rejectActionId = "reject"
     static let defaultDuration = "2h"
+
+    /// Notification-group ("thread") identifier that isolates each approval
+    /// banner into its own group. Apple Watch (and iOS) group every delivered
+    /// notification that shares a `threadIdentifier`, and dismissing one member
+    /// of a group purges the WHOLE group. Left unset, every banner this app
+    /// posts shares the empty default thread — so dismissing an ordinary Nostr
+    /// DM banner on the watch also swept away an actionable Approval Request
+    /// (issue #83). A per-dpop_token thread keeps each approval independently
+    /// dismissible and never collateral to a DM (or sibling-approval) dismissal.
+    ///
+    /// The token is hashed, not embedded raw: `threadIdentifier` can surface in
+    /// unified system logs / sysdiagnose and is readable in-process via
+    /// `getDeliveredNotifications`, a wider exposure than the `userInfo` payload.
+    /// A SHA-256 digest preserves per-token grouping without carrying the raw
+    /// anti-replay nonce into that channel.
+    static func approvalThreadIdentifier(dpopToken: String) -> String {
+        let hex = SHA256.hash(data: Data(dpopToken.utf8))
+            .map { String(format: "%02x", $0) }.joined().prefix(16)
+        return "\(categoryId)-\(hex)"
+    }
 
     // MARK: - Classifier
 
