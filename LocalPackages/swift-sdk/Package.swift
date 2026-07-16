@@ -29,7 +29,7 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", branch: "main"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.14.0"),
-        .package(url: "https://github.com/mattt/eventsource.git", from: "1.1.0"),
+        .package(url: "https://github.com/mattt/eventsource.git", from: "1.4.1"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.2"),
     ],
     targets: [
