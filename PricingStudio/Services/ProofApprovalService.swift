@@ -15,6 +15,18 @@ enum ProofApprovalService {
     static let rejectActionId = "reject"
     static let defaultDuration = "2h"
 
+    /// Notification-group ("thread") identifier that isolates each approval
+    /// banner into its own group. Apple Watch (and iOS) group every delivered
+    /// notification that shares a `threadIdentifier`, and dismissing one member
+    /// of a group purges the WHOLE group. Left unset, every banner this app
+    /// posts shares the empty default thread — so dismissing an ordinary Nostr
+    /// DM banner on the watch also swept away an actionable Approval Request
+    /// (issue #83). A per-dpop_token thread keeps each approval independently
+    /// dismissible and never collateral to a DM (or sibling-approval) dismissal.
+    static func approvalThreadIdentifier(dpopToken: String) -> String {
+        "\(categoryId)-\(dpopToken)"
+    }
+
     // MARK: - Classifier
 
     /// A courier DM that a single tap can safely approve.
