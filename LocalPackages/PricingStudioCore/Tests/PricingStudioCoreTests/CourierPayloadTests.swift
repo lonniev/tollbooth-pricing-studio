@@ -1,5 +1,5 @@
 import XCTest
-@testable import PricingStudio
+@testable import PricingStudioCore
 
 final class CourierPayloadTests: XCTestCase {
 

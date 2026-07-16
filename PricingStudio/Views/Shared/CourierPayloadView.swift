@@ -1,4 +1,5 @@
 import SwiftUI
+import PricingStudioCore
 
 /// Renders a parsed Secure Courier payload as an editable credential form.
 ///

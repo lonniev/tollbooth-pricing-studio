@@ -1,4 +1,5 @@
 import DPYCAuthKit
+import PricingStudioCore
 import Foundation
 import OSLog
 #if canImport(UIKit)

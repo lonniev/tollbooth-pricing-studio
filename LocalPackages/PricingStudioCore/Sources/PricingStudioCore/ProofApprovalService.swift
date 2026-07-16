@@ -7,14 +7,14 @@ import UserNotifications
 /// notification category whose Approve/Reject buttons mirror to the Apple
 /// Watch. Pure functions only — the posting and the sending live in
 /// DMPollingService and the notification delegate.
-enum ProofApprovalService {
+public enum ProofApprovalService {
 
     // MARK: - Identifiers
 
-    static let categoryId = "courier-proof-approval"
-    static let approveActionId = "approve"
-    static let rejectActionId = "reject"
-    static let defaultDuration = "2h"
+    public static let categoryId = "courier-proof-approval"
+    public static let approveActionId = "approve"
+    public static let rejectActionId = "reject"
+    public static let defaultDuration = "2h"
 
     /// Notification-group ("thread") identifier that isolates each approval
     /// banner into its own group. Apple Watch (and iOS) group every delivered
@@ -30,7 +30,7 @@ enum ProofApprovalService {
     /// `getDeliveredNotifications`, a wider exposure than the `userInfo` payload.
     /// A SHA-256 digest preserves per-token grouping without carrying the raw
     /// anti-replay nonce into that channel.
-    static func approvalThreadIdentifier(dpopToken: String) -> String {
+    public static func approvalThreadIdentifier(dpopToken: String) -> String {
         let hex = SHA256.hash(data: Data(dpopToken.utf8))
             .map { String(format: "%02x", $0) }.joined().prefix(16)
         return "\(categoryId)-\(hex)"
@@ -39,13 +39,20 @@ enum ProofApprovalService {
     // MARK: - Classifier
 
     /// A courier DM that a single tap can safely approve.
-    struct ProofChallenge {
-        let payload: CourierPayload
-        let dpopToken: String
-        let pinnedRelay: URL
+    public struct ProofChallenge: Sendable {
+        public let payload: CourierPayload
+        public let dpopToken: String
+        public let pinnedRelay: URL
         /// The confirmation placeholder's key ("confirm" et al), nil when the
         /// operator prefilled it and nothing needs input.
-        let confirmKey: String?
+        public let confirmKey: String?
+
+        public init(payload: CourierPayload, dpopToken: String, pinnedRelay: URL, confirmKey: String?) {
+            self.payload = payload
+            self.dpopToken = dpopToken
+            self.pinnedRelay = pinnedRelay
+            self.confirmKey = confirmKey
+        }
     }
 
     /// Keys whose placeholder a one-tap "approved" may legitimately fill.
@@ -67,7 +74,7 @@ enum ProofApprovalService {
     /// (api_key…) and operators whose proof field is a real passphrase
     /// (e.g. taxsort) deliberately fail — a watch tap cannot supply a
     /// meaningful secret, only an affirmation.
-    static func classify(_ content: String) -> ProofChallenge? {
+    public static func classify(_ content: String) -> ProofChallenge? {
         guard let payload = CourierPayload.parse(content) else { return nil }
 
         guard let token = payload.poison?.value, !token.isEmpty else { return nil }
@@ -101,7 +108,7 @@ enum ProofApprovalService {
     /// The reply the Approve button sends: affirmation wording plus the
     /// re-serialized form. The operator's parser matches solely on the echoed
     /// dpop_token; `cache_duration` sets how long the proof stays cached.
-    static func buildApprovalReply(_ challenge: ProofChallenge, duration: String = defaultDuration) -> String {
+    public static func buildApprovalReply(_ challenge: ProofChallenge, duration: String = defaultDuration) -> String {
         var payload = challenge.payload
         payload.fields = payload.fields.map { field in
             var field = field
@@ -124,12 +131,12 @@ enum ProofApprovalService {
     /// time so the handler never reloads conversations or re-parses DMs.
     /// The reply content embeds the one-time dpop_token; local-notification
     /// userInfo never leaves the device/watch pairing.
-    struct ApprovalRequest: Equatable {
-        let signerNpub: String
-        let replyToHex: String
-        let pinnedRelay: URL
-        let replyContent: String
-        let eventId: String
+    public struct ApprovalRequest: Equatable, Sendable {
+        public let signerNpub: String
+        public let replyToHex: String
+        public let pinnedRelay: URL
+        public let replyContent: String
+        public let eventId: String
 
         private enum Key {
             static let version = "proofApproval.v"
@@ -140,7 +147,7 @@ enum ProofApprovalService {
             static let eventId = "proofApproval.eventId"
         }
 
-        var userInfo: [String: Any] {
+        public var userInfo: [String: Any] {
             [
                 Key.version: 1,
                 Key.signerNpub: signerNpub,
@@ -151,7 +158,7 @@ enum ProofApprovalService {
             ]
         }
 
-        init(signerNpub: String, replyToHex: String, pinnedRelay: URL, replyContent: String, eventId: String) {
+        public init(signerNpub: String, replyToHex: String, pinnedRelay: URL, replyContent: String, eventId: String) {
             self.signerNpub = signerNpub
             self.replyToHex = replyToHex
             self.pinnedRelay = pinnedRelay
@@ -159,7 +166,7 @@ enum ProofApprovalService {
             self.eventId = eventId
         }
 
-        init?(userInfo: [AnyHashable: Any]) {
+        public init?(userInfo: [AnyHashable: Any]) {
             guard (userInfo[Key.version] as? Int) == 1,
                   let signerNpub = userInfo[Key.signerNpub] as? String,
                   let replyToHex = userInfo[Key.replyToHex] as? String,
@@ -181,7 +188,7 @@ enum ProofApprovalService {
     /// the background — no `.foreground` and no `.authenticationRequired`,
     /// which would force an iPhone unlock and defeat approving from the
     /// locked phone's mirrored watch notification.
-    static func makeCategory() -> UNNotificationCategory {
+    public static func makeCategory() -> UNNotificationCategory {
         let approve = UNNotificationAction(
             identifier: approveActionId,
             title: "Approve · 2 hours",

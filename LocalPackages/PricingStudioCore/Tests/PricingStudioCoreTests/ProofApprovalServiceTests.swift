@@ -1,8 +1,7 @@
 import UserNotifications
 import XCTest
-@testable import PricingStudio
+@testable import PricingStudioCore
 
-@MainActor
 final class ProofApprovalServiceTests: XCTestCase {
 
     private let token = "faint-dusk-55"
@@ -168,59 +167,24 @@ final class ProofApprovalServiceTests: XCTestCase {
         XCTAssertTrue(category.actions[1].options.contains(.destructive))
     }
 
-    // MARK: - Watch Notification Thread Isolation (issue #83)
+    // MARK: - Watch Notification Thread Isolation (issue #83 — core hashing logic)
 
-    private func approvalRequest() -> ProofApprovalService.ApprovalRequest {
-        ProofApprovalService.ApprovalRequest(
-            signerNpub: "npub1patron",
-            replyToHex: String(repeating: "a", count: 64),
-            pinnedRelay: URL(string: relay)!,
-            replyContent: "Approved.",
-            eventId: String(repeating: "e", count: 64)
-        )
-    }
+    /// Regression for #83, host-free. Banners group by `threadIdentifier`, and
+    /// on Apple Watch dismissing one member purges the whole group. Each approval
+    /// must get its OWN non-empty, category-scoped thread so dismissing a DM (or a
+    /// sibling approval) never sweeps away an actionable Approval Request. The raw
+    /// dpop_token must never appear in the identifier — it is SHA-256 digested.
+    /// (The DMPollingService integration — that its notification content wires this
+    /// in — stays a hosted test; this covers the extractable hashing directly.)
+    func testApprovalThreadIdentifierIsPerTokenNonEmptyAndHashed() {
+        let a = ProofApprovalService.approvalThreadIdentifier(dpopToken: "tok-a")
+        let b = ProofApprovalService.approvalThreadIdentifier(dpopToken: "tok-b")
 
-    /// Regression for #83. On Apple Watch, dismissing one delivered
-    /// notification purges every notification sharing its group, and banners
-    /// group by `threadIdentifier`. An unset identifier lands every banner in
-    /// the app's single default group — so dismissing a Nostr DM banner swept
-    /// away the actionable Approval Request with it. The two banner kinds must
-    /// carry DIFFERENT, non-empty thread identifiers.
-    func testApprovalAndDMBannersUseDistinctNonEmptyThreads() {
-        let approval = DMPollingService.makeApprovalNotificationContent(
-            body: "May I act as bob? — from alice",
-            request: approvalRequest(),
-            dpopToken: token
-        )
-        let dm = DMPollingService.makeDMNotificationContent(
-            senderName: "alice", receiverName: "bob", preview: "hi"
-        )
-
-        XCTAssertFalse(approval.threadIdentifier.isEmpty,
-                       "Approval banner must declare its own notification group")
-        XCTAssertFalse(dm.threadIdentifier.isEmpty,
-                       "DM banner must declare its own notification group")
-        XCTAssertNotEqual(approval.threadIdentifier, dm.threadIdentifier,
-                          "Dismissing a DM must not sweep away an Approval Request (#83)")
-    }
-
-    /// Distinct approvals stay in distinct groups, so dismissing one actionable
-    /// request never clears another sibling approval.
-    func testEachApprovalGetsItsOwnThread() {
-        let a = DMPollingService.makeApprovalNotificationContent(
-            body: "x", request: approvalRequest(), dpopToken: "tok-a")
-        let b = DMPollingService.makeApprovalNotificationContent(
-            body: "y", request: approvalRequest(), dpopToken: "tok-b")
-        XCTAssertNotEqual(a.threadIdentifier, b.threadIdentifier)
-    }
-
-    /// Isolating the thread must not strip the approval's actionable category
-    /// or its precomputed userInfo payload.
-    func testApprovalContentStaysActionable() {
-        let content = DMPollingService.makeApprovalNotificationContent(
-            body: "b", request: approvalRequest(), dpopToken: token)
-        XCTAssertEqual(content.categoryIdentifier, ProofApprovalService.categoryId)
-        XCTAssertNotNil(ProofApprovalService.ApprovalRequest(userInfo: content.userInfo),
-                        "The action handler still needs the precomputed reply payload")
+        XCTAssertFalse(a.isEmpty, "Approval banner must declare its own notification group")
+        XCTAssertNotEqual(a, b, "Distinct approvals stay in distinct groups")
+        XCTAssertTrue(a.hasPrefix(ProofApprovalService.categoryId),
+                      "Thread stays scoped to the approval category")
+        XCTAssertFalse(a.contains("tok-a"),
+                       "Raw dpop_token must not leak into threadIdentifier (SHA-256 digested)")
     }
 }

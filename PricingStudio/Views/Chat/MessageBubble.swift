@@ -1,4 +1,5 @@
 import DPYCAuthKit
+import PricingStudioCore
 import SwiftUI
 
 /// Individual message bubble with left/right alignment and encryption badge.

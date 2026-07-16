@@ -1,4 +1,5 @@
 import DPYCAuthKit
+import PricingStudioCore
 import SwiftUI
 
 struct ClaimAuthoritySheet: View {
