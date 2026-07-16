@@ -41,3 +41,25 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -clonedSourcePackagesDirPath $RUNNER_TEMP/spm \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+  # Host-free unit tests: pure logic lives in the PricingStudioCore local Swift
+  # package, so `swift test` runs it with no app host and no simulator (the app
+  # can't boot headless as a test host — that's why the hosted PricingStudioTests
+  # only compile). A logic change whose test fails is caught HERE, not merely
+  # compiled. See issue #88.
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Select Xcode 26
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          fi
+          sudo xcode-select -s "$XCODE_PATH"
+          swift --version
+
+      - name: PricingStudioCore unit tests (host-free)
+        run: swift test --package-path LocalPackages/PricingStudioCore

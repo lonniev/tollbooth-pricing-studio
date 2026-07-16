@@ -1,4 +1,5 @@
 import CloudKit
+import PricingStudioCore
 import DPYCAuthKit
 import SwiftUI
 import SwiftData

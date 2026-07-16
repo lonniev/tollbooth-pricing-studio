@@ -5,61 +5,82 @@ import Foundation
 /// Extracts the `key = @@@value@@@` credential fields, the greeting preamble,
 /// the anti-replay poison, and the provenance metadata from a raw DM string.
 /// Reusable across PricingStudio and future Patron app.
-struct CourierPayload: Sendable {
+public struct CourierPayload: Sendable {
 
     /// A single credential field extracted from the payload.
-    struct Field: Identifiable, Sendable {
-        let id = UUID()
-        let key: String
-        var value: String
+    public struct Field: Identifiable, Sendable {
+        public let id = UUID()
+        public let key: String
+        public var value: String
+
+        public init(key: String, value: String) {
+            self.key = key
+            self.value = value
+        }
 
         /// Whether the current value still looks like a placeholder or is empty.
-        var needsInput: Bool {
+        public var needsInput: Bool {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty || (trimmed.hasPrefix("PASTE_YOUR_") && trimmed.hasSuffix("_HERE"))
         }
     }
 
     /// Provenance metadata from the `--- Message Provenance ---` section.
-    struct Provenance: Sendable {
-        var service: String?
-        var operatorNpub: String?
-        var sent: String?
-        var protocolVersion: String?
+    public struct Provenance: Sendable {
+        public var service: String?
+        public var operatorNpub: String?
+        public var sent: String?
+        public var protocolVersion: String?
+
+        public init(service: String? = nil, operatorNpub: String? = nil, sent: String? = nil, protocolVersion: String? = nil) {
+            self.service = service
+            self.operatorNpub = operatorNpub
+            self.sent = sent
+            self.protocolVersion = protocolVersion
+        }
     }
 
     /// Text before the `--- Credential Payload ---` section.
-    var greeting: String
+    public var greeting: String
 
     /// The `key = @@@value@@@` fields in order of appearance.
-    var fields: [Field]
+    public var fields: [Field]
 
     /// The anti-replay poison field (if present), separated from editable fields.
-    var poison: Field?
+    public var poison: Field?
 
     /// The rendezvous relay the courier published the challenge on. The
     /// responder MUST publish their reply to this exact relay so the
     /// courier's listener finds it — sender and receiver can't disagree
     /// when the relay URL is in the wire data. Present when the wheel
     /// is v0.39.0+; absent on older challenges.
-    var rendezvousRelay: Field?
+    public var rendezvousRelay: Field?
 
     /// Metadata from the `--- Message Provenance ---` section.
-    var provenance: Provenance
+    public var provenance: Provenance
 
     /// The original raw DM text.
-    let rawText: String
+    public let rawText: String
+
+    public init(greeting: String, fields: [Field], poison: Field?, rendezvousRelay: Field?, provenance: Provenance, rawText: String) {
+        self.greeting = greeting
+        self.fields = fields
+        self.poison = poison
+        self.rendezvousRelay = rendezvousRelay
+        self.provenance = provenance
+        self.rawText = rawText
+    }
 
     /// Whether this payload contains any `@@@` credential fields.
-    var hasCredentials: Bool { !fields.isEmpty }
+    public var hasCredentials: Bool { !fields.isEmpty }
 
     /// Whether all required fields have been filled in (non-placeholder).
-    var isComplete: Bool {
+    public var isComplete: Bool {
         fields.allSatisfy { !$0.needsInput }
     }
 
     /// Fields the operator actually filled (non-placeholder, non-empty).
-    var filledFields: [Field] {
+    public var filledFields: [Field] {
         fields.filter { !$0.needsInput }
     }
 
@@ -67,7 +88,7 @@ struct CourierPayload: Sendable {
     /// deliveries are allowed — the backend merges them into the vault and
     /// leaves untouched whatever you don't send — so you can set just one
     /// new secret (e.g. an Anthropic key) without re-entering the others.
-    var canSend: Bool { !filledFields.isEmpty }
+    public var canSend: Bool { !filledFields.isEmpty }
 
     // MARK: - Parsing
 
@@ -81,7 +102,7 @@ struct CourierPayload: Sendable {
 
     /// Try to parse a raw DM string as a Secure Courier payload.
     /// Returns `nil` if no `@@@` fields are found.
-    static func parse(_ text: String) -> CourierPayload? {
+    public static func parse(_ text: String) -> CourierPayload? {
         // Extract greeting (text before "--- Credential Payload ---")
         let greeting: String
         let fieldSearchText: String  // only search for fields in the payload section
@@ -189,7 +210,7 @@ struct CourierPayload: Sendable {
     /// partial reply doesn't overwrite vaulted secrets you didn't touch (the
     /// backend merges what it receives). The rendezvous_relay is protocol-
     /// control metadata for the sender's listener — not echoed back.
-    func serialize() -> String {
+    public func serialize() -> String {
         var lines: [String] = []
         for field in filledFields {
             lines.append("  \(field.key) = @@@\(field.value)@@@")
