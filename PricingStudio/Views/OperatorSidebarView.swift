@@ -1,4 +1,5 @@
 import SwiftUI
+import PricingStudioCore
 import SwiftData
 
 struct OperatorSidebarView: View {
