@@ -253,6 +253,7 @@ final class AuthorityCollectionViewModel {
                 endpointURL: endpointURL,
                 operatorNpub: operatorToAdopt.npub,
                 operatorServiceURL: operatorToAdopt.mcpEndpointURL ?? "",
+                displayName: operatorToAdopt.displayName,
                 authorityNpub: authority.npub
             )
             operatorToAdopt.authorityNpub = authority.npub

@@ -279,6 +279,7 @@ struct RegisterOperatorSheet: View {
                 endpointURL: endpointURL,
                 operatorNpub: operatorTarget.npub,
                 operatorServiceURL: (operatorTarget as? Operator)?.mcpEndpointURL ?? "",
+                displayName: operatorTarget.displayName,
                 authorityNpub: authority.npub
             )
 
