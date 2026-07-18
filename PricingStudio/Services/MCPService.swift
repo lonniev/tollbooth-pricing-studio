@@ -1513,6 +1513,7 @@ actor MCPService {
         endpointURL: URL,
         operatorNpub: String,
         operatorServiceURL: String = "",
+        displayName: String = "",
         authorityNpub: String = ""
     ) async throws -> String {
         await traffic(.outbound, label: "Register Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
@@ -1532,11 +1533,15 @@ actor MCPService {
         // Tool needs TWO proofs: operator-side + Authority-side consent.
         // Build args explicitly so the shape of the call is visible at the
         // call site, not hidden in a utility's parameter list.
+        var extra: [String: Value] = ["service_url": .string(operatorServiceURL)]
+        // Carry the operator's chosen name so the community roster is named by it, not a
+        // truncated npub (wheel threads display_name through register_operator).
+        if !displayName.isEmpty { extra["display_name"] = .string(displayName) }
         var args = await argsWithProof(
             npub: operatorNpub,
             capability: "register_operator",
             endpointURL: endpointURL,
-            extra: ["service_url": .string(operatorServiceURL)]
+            extra: extra
         )
         if !authorityNpub.isEmpty {
             args["authority_proof"] = .string(await makeIdentityProof(
