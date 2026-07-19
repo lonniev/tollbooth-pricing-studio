@@ -10,15 +10,27 @@ import PricingStudioCore
 struct CourierPayloadView: View {
     @Binding var payload: CourierPayload
     var onSend: ((String) -> Void)?
+    /// Operator-attested trust state for a proof-request DM (green/amber/red).
+    /// Computed by the caller from the embedded provenance attestation; `nil`
+    /// for non-proof DMs, which show only the existing provenance metadata.
+    var trust: ProofProvenance.TrustAssessment?
 
     @State private var showProvenance = false
     @State private var sent = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Provenance (compact, at top — metadata, not an action)
+            // Trust banner — the human-facing verdict on who is really asking.
+            if let trust {
+                trustBanner(trust)
+            }
+
+            // Provenance (compact, at top — metadata, not an action).
+            // A red verdict SUPPRESSES the requester-asserted service label:
+            // rendering an unverified name manufactures confidence the protocol
+            // has not earned.
             HStack(spacing: 8) {
-                if let service = payload.provenance.service {
+                if let service = payload.provenance.service, trust?.level != .red {
                     Label(service, systemImage: "lock.shield")
                         .font(.caption.bold())
                         .foregroundStyle(.orange)
@@ -97,6 +109,58 @@ struct CourierPayloadView: View {
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Trust Banner
+
+    private func trustColor(_ level: ProofProvenance.TrustLevel) -> Color {
+        switch level {
+        case .green: return .green
+        case .amber: return .orange
+        case .red: return .red
+        }
+    }
+
+    private func trustIcon(_ level: ProofProvenance.TrustLevel) -> String {
+        switch level {
+        case .green: return "checkmark.seal.fill"
+        case .amber: return "exclamationmark.triangle.fill"
+        case .red: return "xmark.octagon.fill"
+        }
+    }
+
+    @ViewBuilder
+    private func trustBanner(_ trust: ProofProvenance.TrustAssessment) -> some View {
+        let color = trustColor(trust.level)
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: trustIcon(trust.level))
+                .foregroundStyle(color)
+                .font(.callout)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(trust.headline)
+                    .font(.caption.bold())
+                    .foregroundStyle(color)
+                // Only a verified identity is shown; nil on red (suppressed).
+                if let identity = trust.resolvedIdentity {
+                    Text(identity)
+                        .font(.caption2.monospaced())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Text(trust.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(color.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(color.opacity(0.4), lineWidth: 1)
+        )
     }
 
     // MARK: - Field Row

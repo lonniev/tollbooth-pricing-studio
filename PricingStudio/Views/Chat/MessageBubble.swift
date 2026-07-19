@@ -191,9 +191,45 @@ struct MessageBubble: View {
                 onSend: { serialized in
                     let replyTarget = replyTargetHex
                     onSendReply?(replyTarget, serialized)
-                }
+                },
+                trust: trustAssessment
             )
         }
+    }
+
+    /// Operator-attested trust verdict for an incoming proof-request DM.
+    ///
+    /// Uses only data already on the DM — no identity store needed. For a
+    /// genuine self-proof the attestation is signed by the operator, and the
+    /// DM's recipient *is* that same operator identity, so the signer resolving
+    /// to `dm.recipientPubkeyHex` yields green; an impostor who signs with any
+    /// other key resolves to nothing and yields red (claimed name suppressed).
+    /// Cross-operator resolution against the community registry is a follow-up.
+    private var trustAssessment: ProofProvenance.TrustAssessment? {
+        guard let payload = courierPayload, !dm.isFromMe else { return nil }
+        // Only proof-request DMs (those carrying a one-time challenge) get a
+        // verdict; credential-delivery DMs keep the plain provenance popover.
+        guard let challenge = payload.poison?.value, !challenge.isEmpty else { return nil }
+
+        let recipientHex = dm.recipientPubkeyHex
+        let subjectNpub = (try? NostrKeyService.npubFromHex(recipientHex)) ?? ""
+
+        return ProofProvenance.assess(
+            attestationJSON: payload.attestationJSON,
+            expectedSenderPubkeyHex: dm.senderPubkeyHex,
+            expectedSubjectNpub: subjectNpub,
+            expectedChallenge: challenge,
+            knownOperatorPubkeyHexes: [recipientHex],
+            priorContactPubkeyHexes: [recipientHex],
+            resolvedOperatorName: "your operator identity",
+            claimedService: payload.provenance.service,
+            signatureValidator: { event in
+                verifyEventSignature(NostrEvent(
+                    id: event.id, pubkey: event.pubkey, created_at: event.created_at,
+                    kind: event.kind, tags: event.tags, content: event.content, sig: event.sig
+                ))
+            }
+        )
     }
 
     /// Reply to the DM sender — the server scans DMs addressed to the

@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Added — a proof-request DM now shows a green/amber/red trust verdict
+
+When a Secure-Courier DM asks you to authorize your identity, the app now
+tells you — cryptographically, not on the requester's say-so — whether the
+request truly comes from your registered operator. This lands the client half
+of the SDK's Operator provenance attestation (tollbooth-dpyc #135).
+
+- **Schnorr verification** (`DPYCAuthKit.verifyEventSignature`) — verifies a
+  kind-27235 event's signature and id integrity via `P256K`. A pinned fixture
+  test proves a Python-SDK-signed attestation verifies here (cross-language).
+- **Provenance trust engine** (`PricingStudioCore.ProofProvenance`) — parses
+  the embedded attestation, checks the signature (injected, keeping Core
+  crypto-free) and that its bound facts (delivery key, subject, one-time
+  challenge) match the DM received, then decides the trust level. Fail-closed:
+  a present-but-invalid attestation or an unresolved signer is **red** and
+  suppresses any claimed name; an absent attestation is **amber**, never green.
+  `CourierPayload` now captures the attestation and the `Delivery key:` line
+  and no longer surfaces the attestation as an editable field.
+- **Trust banner** (`CourierPayloadView`) — a green/amber/red banner with the
+  verified identity (suppressed on red). For a self-proof the verdict uses only
+  data on the DM: the attestation signer resolving to the DM's own recipient
+  identity yields green; an impostor signing with any other key yields red.
+  Community-registry resolution for cross-operator requests is a follow-up.
+
 ### Changed — Top Up sheet redesigned as a ticket-kiosk fare picker
 
 The shared `PurchaseCreditsSheet` now buys credits the way you buy a
