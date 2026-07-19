@@ -295,4 +295,68 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertTrue(serialized.contains("dpop_token = @@@bold-hawk-42@@@"))
         XCTAssertFalse(serialized.contains("rendezvous_relay"))
     }
+
+    // MARK: - Operator Attestation + Delivery Key (proof provenance)
+
+    /// A self-DM request body mirroring the SDK's open_channel output: the
+    /// attestation must be captured (not treated as an editable field), the
+    /// registered operator npub and the delivery key must be read from the
+    /// provenance section.
+    func testParseAttestationAndDeliveryKey() {
+        let attestation = #"{"id":"abc","pubkey":"c812","kind":27235,"tags":[["u","npub_proof_request"]],"content":"","sig":"ff","created_at":1}"#
+        let text = """
+        Hi — verify you own this npub.
+
+        --- Credential Payload ---
+          confirm = @@@PASTE_YOUR_CONFIRM_HERE@@@
+          dpop_token = @@@bold-hawk-42@@@
+          rendezvous_relay = @@@wss://relay.test.com@@@
+
+        IMPORTANT: include the anti-replay token exactly as shown.
+
+        --- Operator Attestation ---
+        Signed by the Operator's registered npub; binds the delivery key and this exact request.
+        attestation = @@@\(attestation)@@@
+
+        --- Message Provenance ---
+        Service: Test X API credentials
+        Operator: npub1registeredoperator
+        Delivery key: npub1ephemeraldeliverykey
+          (Relays drop self-addressed DMs, so this request is delivered from a one-time key.)
+        Sent: 2026-07-19 00:00:00 UTC
+        Protocol: DPYC Secure Courier v0.65.0
+
+        If you didn't request this, simply ignore this message.
+        """
+
+        let payload = CourierPayload.parse(text)
+        XCTAssertNotNil(payload)
+        // Attestation captured, and NOT surfaced as an editable credential field.
+        XCTAssertEqual(payload?.attestationJSON, attestation)
+        XCTAssertFalse(payload?.fields.contains(where: { $0.key == "attestation" }) ?? true)
+        // Registered operator npub and delivery key parsed from provenance.
+        XCTAssertEqual(payload?.provenance.operatorNpub, "npub1registeredoperator")
+        XCTAssertEqual(payload?.provenance.deliveryKey, "npub1ephemeraldeliverykey")
+        // Control fields still handled.
+        XCTAssertEqual(payload?.poison?.value, "bold-hawk-42")
+    }
+
+    /// Legacy DM without an attestation block: attestationJSON is nil (→ amber,
+    /// never green), and nothing breaks.
+    func testParseLegacyDMHasNoAttestation() {
+        let text = """
+        Hi
+
+        --- Credential Payload ---
+          dpop_token = @@@bold-hawk-42@@@
+          rendezvous_relay = @@@wss://relay.test.com@@@
+
+        --- Message Provenance ---
+        Operator: npub1registeredoperator
+        """
+        let payload = CourierPayload.parse(text)
+        XCTAssertNotNil(payload)
+        XCTAssertNil(payload?.attestationJSON)
+        XCTAssertNil(payload?.provenance.deliveryKey)
+    }
 }

@@ -31,12 +31,17 @@ public struct CourierPayload: Sendable {
         public var operatorNpub: String?
         public var sent: String?
         public var protocolVersion: String?
+        /// The `Delivery key:` line — present only on self-addressed DMs, where
+        /// relays require the request be delivered from a distinct ephemeral
+        /// key. Its authority is proven by `attestationJSON`, not by itself.
+        public var deliveryKey: String?
 
-        public init(service: String? = nil, operatorNpub: String? = nil, sent: String? = nil, protocolVersion: String? = nil) {
+        public init(service: String? = nil, operatorNpub: String? = nil, sent: String? = nil, protocolVersion: String? = nil, deliveryKey: String? = nil) {
             self.service = service
             self.operatorNpub = operatorNpub
             self.sent = sent
             self.protocolVersion = protocolVersion
+            self.deliveryKey = deliveryKey
         }
     }
 
@@ -59,15 +64,23 @@ public struct CourierPayload: Sendable {
     /// Metadata from the `--- Message Provenance ---` section.
     public var provenance: Provenance
 
+    /// The raw JSON of the Operator provenance attestation (`--- Operator
+    /// Attestation ---`), when the wheel embeds one. A signed kind-27235 event
+    /// that binds the delivery key, subject, service, and one-time challenge to
+    /// the Operator's registered identity. `nil` on legacy (pre-attestation)
+    /// DMs — absence must render amber, never green (never trusted as green).
+    public var attestationJSON: String?
+
     /// The original raw DM text.
     public let rawText: String
 
-    public init(greeting: String, fields: [Field], poison: Field?, rendezvousRelay: Field?, provenance: Provenance, rawText: String) {
+    public init(greeting: String, fields: [Field], poison: Field?, rendezvousRelay: Field?, provenance: Provenance, attestationJSON: String? = nil, rawText: String) {
         self.greeting = greeting
         self.fields = fields
         self.poison = poison
         self.rendezvousRelay = rendezvousRelay
         self.provenance = provenance
+        self.attestationJSON = attestationJSON
         self.rawText = rawText
     }
 
@@ -146,12 +159,14 @@ public struct CourierPayload: Sendable {
             allFields.append(Field(key: key, value: value))
         }
 
-        // Separate the dpop_token and rendezvous_relay from editable fields.
-        // Both are protocol-control metadata, not user-editable values.
-        // (Wheel 0.57.0+ renamed the credential-DM control field poison → dpop_token.)
+        // Separate the dpop_token, rendezvous_relay, and attestation from
+        // editable fields. All are protocol-control metadata, not user-editable
+        // values. (Wheel 0.57.0+ renamed the credential-DM control field
+        // poison → dpop_token; the attestation arrived with proof provenance.)
         let poison = allFields.first(where: { $0.key == "dpop_token" })
         let rendezvousRelay = allFields.first(where: { $0.key == "rendezvous_relay" })
-        let controlKeys: Set<String> = ["dpop_token", "rendezvous_relay"]
+        let attestationJSON = allFields.first(where: { $0.key == "attestation" })?.value
+        let controlKeys: Set<String> = ["dpop_token", "rendezvous_relay", "attestation"]
         let fields = allFields.filter { !controlKeys.contains($0.key) }
 
         // If no header was found, derive greeting from text before first field in full text
@@ -172,6 +187,7 @@ public struct CourierPayload: Sendable {
             poison: poison,
             rendezvousRelay: rendezvousRelay,
             provenance: provenance,
+            attestationJSON: attestationJSON,
             rawText: text
         )
     }
@@ -193,6 +209,8 @@ public struct CourierPayload: Sendable {
                 prov.service = String(trimmed.dropFirst(8)).trimmingCharacters(in: .whitespaces)
             } else if trimmed.hasPrefix("Operator:") {
                 prov.operatorNpub = String(trimmed.dropFirst(9)).trimmingCharacters(in: .whitespaces)
+            } else if trimmed.hasPrefix("Delivery key:") {
+                prov.deliveryKey = String(trimmed.dropFirst(13)).trimmingCharacters(in: .whitespaces)
             } else if trimmed.hasPrefix("Sent:") {
                 prov.sent = String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespaces)
             } else if trimmed.hasPrefix("Protocol:") {

@@ -157,6 +157,47 @@ public func signEventId(_ eventIdHex: String, privateKeyHex: String) throws -> S
     return signature.dataRepresentation.hexString
 }
 
+// MARK: - Schnorr Verification
+
+/// Verify a Nostr event's Schnorr signature and id integrity.
+///
+/// Returns `true` only when the event id recomputes to the stored `id`
+/// (so tags/content/pubkey/created_at/kind were not tampered after signing)
+/// AND the Schnorr signature verifies against the event's x-only `pubkey`.
+/// Any malformed field (non-hex, wrong length, unparseable key/sig) yields
+/// `false` — never a throw — so callers can treat verification as a total,
+/// fail-closed predicate.
+public func verifyEventSignature(_ event: NostrEvent) -> Bool {
+    guard let recomputedId = try? computeEventId(
+        pubkey: event.pubkey,
+        createdAt: event.created_at,
+        kind: event.kind,
+        tags: event.tags,
+        content: event.content
+    ), recomputedId == event.id else {
+        return false
+    }
+
+    guard let pubData = Data(hexString: event.pubkey), pubData.count == 32,
+          let sigData = Data(hexString: event.sig), sigData.count == 64,
+          let idData = Data(hexString: event.id), idData.count == 32 else {
+        return false
+    }
+
+    do {
+        // Nostr pubkeys are x-only (32-byte); parity is implicit-even.
+        // Schnorr verification lives on XonlyKey (DataValidator/DigestValidator).
+        let xonly = P256K.Schnorr.XonlyKey(dataRepresentation: Array(pubData))
+        let signature = try P256K.Schnorr.SchnorrSignature(dataRepresentation: Array(sigData))
+        // The event id is already a SHA-256 digest — verify over the raw
+        // 32-byte message, mirroring signEventId's raw-message signing.
+        var message = Array(idData)
+        return xonly.isValid(signature, for: &message)
+    } catch {
+        return false
+    }
+}
+
 // MARK: - Timestamp Helpers
 
 /// NIP-17 fuzzed timestamp: 0–48 hours into the past.
