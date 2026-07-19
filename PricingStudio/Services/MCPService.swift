@@ -1991,6 +1991,254 @@ actor MCPService {
         }
     }
 
+    // MARK: - Network Books Health
+
+    /// The Authority's own certification-ledger reachability. `status` is one
+    /// of "ok" | "quota_exceeded" | "error" | "unreachable"; `detail` carries a
+    /// human-readable note (e.g. the upstream 402 text) when not "ok".
+    struct OwnBooksStatus: Decodable, Sendable {
+        let status: String
+        let detail: String
+
+        enum CodingKeys: String, CodingKey { case status, detail }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            status = try c.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+            detail = try c.decodeIfPresent(String.self, forKey: .detail) ?? ""
+        }
+
+        init(status: String, detail: String = "") {
+            self.status = status
+            self.detail = detail
+        }
+    }
+
+    /// One operator that reported a Neon 402 (quota-exceeded) to this
+    /// Authority, coalesced by npub with a first/last-seen window.
+    struct OperatorNeonAlert: Decodable, Sendable, Identifiable {
+        let operatorNpub: String
+        let detail: String
+        let seenCount: Int
+        let firstSeenAt: String
+        let lastSeenAt: String
+
+        var id: String { operatorNpub }
+
+        enum CodingKeys: String, CodingKey {
+            case operatorNpub = "operator_npub"
+            case detail
+            case seenCount = "seen_count"
+            case firstSeenAt = "first_seen_at"
+            case lastSeenAt = "last_seen_at"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            operatorNpub = try c.decodeIfPresent(String.self, forKey: .operatorNpub) ?? ""
+            detail = try c.decodeIfPresent(String.self, forKey: .detail) ?? ""
+            seenCount = try c.decodeIfPresent(Int.self, forKey: .seenCount) ?? 0
+            firstSeenAt = try c.decodeIfPresent(String.self, forKey: .firstSeenAt) ?? ""
+            lastSeenAt = try c.decodeIfPresent(String.self, forKey: .lastSeenAt) ?? ""
+        }
+
+        init(operatorNpub: String, detail: String = "", seenCount: Int = 0,
+             firstSeenAt: String = "", lastSeenAt: String = "") {
+            self.operatorNpub = operatorNpub
+            self.detail = detail
+            self.seenCount = seenCount
+            self.firstSeenAt = firstSeenAt
+            self.lastSeenAt = lastSeenAt
+        }
+    }
+
+    /// One Neon project's compute-hour usage against its monthly allowance.
+    /// `status` is "ok" | "warning" | "critical" | "exhausted" | "unknown".
+    struct NeonProjectUsage: Decodable, Sendable, Identifiable {
+        let projectId: String
+        let name: String
+        let computeHoursUsed: Double
+        let allowanceHours: Double
+        let usedPct: Double
+        let quotaResetAt: String
+        let status: String
+
+        var id: String { projectId }
+
+        enum CodingKeys: String, CodingKey {
+            case projectId = "project_id"
+            case name
+            case computeHoursUsed = "compute_hours_used"
+            case allowanceHours = "allowance_hours"
+            case usedPct = "used_pct"
+            case quotaResetAt = "quota_reset_at"
+            case status
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            projectId = try c.decodeIfPresent(String.self, forKey: .projectId) ?? ""
+            name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+            computeHoursUsed = try c.decodeIfPresent(Double.self, forKey: .computeHoursUsed) ?? 0
+            allowanceHours = try c.decodeIfPresent(Double.self, forKey: .allowanceHours) ?? 0
+            usedPct = try c.decodeIfPresent(Double.self, forKey: .usedPct) ?? 0
+            quotaResetAt = try c.decodeIfPresent(String.self, forKey: .quotaResetAt) ?? ""
+            status = try c.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+        }
+
+        init(projectId: String, name: String, computeHoursUsed: Double = 0,
+             allowanceHours: Double = 0, usedPct: Double = 0,
+             quotaResetAt: String = "", status: String = "unknown") {
+            self.projectId = projectId
+            self.name = name
+            self.computeHoursUsed = computeHoursUsed
+            self.allowanceHours = allowanceHours
+            self.usedPct = usedPct
+            self.quotaResetAt = quotaResetAt
+            self.status = status
+        }
+    }
+
+    /// The Neon control-plane read block. `configured == false` means no Neon
+    /// API key is set — proactive monitoring is simply not enabled (calm note,
+    /// not an error); `hint` explains how to turn it on. `error` is present
+    /// only when a configured poll failed.
+    struct NeonApiBlock: Decodable, Sendable {
+        let configured: Bool
+        let hint: String?
+        let error: String?
+        let projects: [NeonProjectUsage]
+
+        enum CodingKeys: String, CodingKey {
+            case configured, hint, error, projects
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            configured = try c.decodeIfPresent(Bool.self, forKey: .configured) ?? false
+            hint = try c.decodeIfPresent(String.self, forKey: .hint)
+            error = try c.decodeIfPresent(String.self, forKey: .error)
+            projects = try c.decodeIfPresent([NeonProjectUsage].self, forKey: .projects) ?? []
+        }
+
+        init(configured: Bool, hint: String? = nil, error: String? = nil,
+             projects: [NeonProjectUsage] = []) {
+            self.configured = configured
+            self.hint = hint
+            self.error = error
+            self.projects = projects
+        }
+    }
+
+    /// The `network_books_health` response — a restricted Authority read that
+    /// surfaces the health of every Neon (Postgres) database this Authority
+    /// stewards: its own certification books, the operators that reported a
+    /// 402, and the Neon control-plane compute-hour picture.
+    struct NeonBooksHealth: Decodable, Sendable {
+        let success: Bool
+        let overallStatus: String   // "ok" | "warning" | "critical" | "exhausted"
+        let ownBooks: OwnBooksStatus
+        let operatorAlerts: [OperatorNeonAlert]
+        let operatorAlertCount: Int
+        let neonApi: NeonApiBlock
+
+        enum CodingKeys: String, CodingKey {
+            case success
+            case overallStatus = "overall_status"
+            case ownBooks = "own_books"
+            case operatorAlerts = "operator_alerts"
+            case operatorAlertCount = "operator_alert_count"
+            case neonApi = "neon_api"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            success = try c.decodeIfPresent(Bool.self, forKey: .success) ?? true
+            overallStatus = try c.decodeIfPresent(String.self, forKey: .overallStatus) ?? "unknown"
+            ownBooks = try c.decodeIfPresent(OwnBooksStatus.self, forKey: .ownBooks)
+                ?? OwnBooksStatus(status: "unknown")
+            operatorAlerts = try c.decodeIfPresent([OperatorNeonAlert].self, forKey: .operatorAlerts) ?? []
+            operatorAlertCount = try c.decodeIfPresent(Int.self, forKey: .operatorAlertCount)
+                ?? operatorAlerts.count
+            neonApi = try c.decodeIfPresent(NeonApiBlock.self, forKey: .neonApi)
+                ?? NeonApiBlock(configured: false)
+        }
+
+        init(success: Bool = true, overallStatus: String, ownBooks: OwnBooksStatus,
+             operatorAlerts: [OperatorNeonAlert] = [], operatorAlertCount: Int? = nil,
+             neonApi: NeonApiBlock) {
+            self.success = success
+            self.overallStatus = overallStatus
+            self.ownBooks = ownBooks
+            self.operatorAlerts = operatorAlerts
+            self.operatorAlertCount = operatorAlertCount ?? operatorAlerts.count
+            self.neonApi = neonApi
+        }
+    }
+
+    /// Call the restricted `network_books_health` tool on an Authority's MCP
+    /// endpoint. Gated by an `authority_proof` signed by the Authority's OWN
+    /// npub — the same owner-consent idiom as `list_adoption_requests`. A
+    /// `quota_exhausted` (or any) soft error arrives as
+    /// `MCPError.structuredError` via `throwIfSoftError` for the caller to
+    /// surface; a healthy response with `overall_status == "exhausted"` is
+    /// data, not an error.
+    func callNetworkBooksHealth(
+        endpointURL: URL,
+        authorityNpub: String
+    ) async throws -> NeonBooksHealth {
+        await traffic(.outbound, label: "Books Health", detail: "SSE → \(endpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        guard let tool = allTools.first(where: { $0.name.contains("network_books_health") }) else {
+            await traffic(.error, label: "Books Health", detail: "No network_books_health tool found")
+            throw MCPError.toolCallFailed("No network_books_health tool found on this Authority")
+        }
+
+        // Restricted owner-consent tool: bind the proof to the Authority's own
+        // npub under `authority_proof`, exactly like list_adoption_requests.
+        let args: [String: Value] = [
+            "authority_proof": .string(await makeIdentityProof(
+                forNpub: authorityNpub,
+                capability: "network_books_health",
+                endpointURL: endpointURL
+            ))
+        ]
+
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            await traffic(.error, label: "Books Health Error", detail: errorText)
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        guard let text = content.compactMap({ extractText($0) }).first,
+              let data = text.data(using: .utf8) else {
+            throw MCPError.invalidResponse
+        }
+
+        await traffic(.inbound, label: "Books Health", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Books Health")
+
+        // Unwrap a {"result": {...}} envelope if present, like the other parsers.
+        let payloadData: Data
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let result = obj["result"] as? [String: Any] {
+            payloadData = try JSONSerialization.data(withJSONObject: result)
+        } else {
+            payloadData = data
+        }
+
+        return try JSONDecoder().decode(NeonBooksHealth.self, from: payloadData)
+    }
+
     func callGetOnboardingStatus(
         endpointURL: URL
     ) async throws -> OnboardingStatus {
