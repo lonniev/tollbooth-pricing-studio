@@ -19,6 +19,9 @@ struct AuthorityDetailView: View {
     @State private var adoptionsVM = PendingAdoptionsViewModel()
     @State private var rejectingRequest: MCPService.AdoptionRequest?
     @State private var rejectReason = ""
+    @State private var booksHealth: MCPService.NeonBooksHealth?
+    @State private var booksHealthError: String?
+    @State private var loadingBooksHealth = false
     @Query private var allAuthorities: [Authority]
     @Query private var allOperators: [Operator]
     @Environment(\.modelContext) private var modelContext
@@ -70,6 +73,8 @@ struct AuthorityDetailView: View {
                     operatorCredentialSection
                     Divider()
                     pendingAdoptionsSection
+                    Divider()
+                    networkBooksHealthSection
                 }
                 Divider()
                 connectedOperatorsSection
@@ -613,6 +618,228 @@ struct AuthorityDetailView: View {
 
     private func shortStamp(_ s: String) -> String {
         String(s.replacingOccurrences(of: "T", with: " ").prefix(16))
+    }
+
+    // MARK: - Network Books Health (Neon/Postgres steward view)
+
+    @ViewBuilder
+    private var networkBooksHealthSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label("Network Books Health", systemImage: "cylinder.split.1x2")
+                    .font(.headline)
+                if let health = booksHealth {
+                    Circle()
+                        .fill(healthColor(health.overallStatus))
+                        .frame(width: 10, height: 10)
+                        .accessibilityLabel("Overall status \(health.overallStatus)")
+                }
+                Spacer()
+                if loadingBooksHealth {
+                    ProgressView().controlSize(.small)
+                } else if isLinked {
+                    Button {
+                        Task { await loadBooksHealth() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                }
+            }
+
+            if !isLinked {
+                Text("Link this Authority’s identity to read database health.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let msg = booksHealthError {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(msg, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Button("Retry") { Task { await loadBooksHealth() } }
+                        .font(.caption)
+                }
+            } else if let health = booksHealth {
+                booksHealthBody(health)
+            } else if !loadingBooksHealth {
+                Text("No reading yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .task(id: authority.npub) {
+            booksHealth = nil
+            booksHealthError = nil
+            if isLinked, authority.mcpEndpointURL != nil {
+                await loadBooksHealth()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func booksHealthBody(_ health: MCPService.NeonBooksHealth) -> some View {
+        // Own books 402-locked — loud, this Authority can't certify.
+        if health.ownBooks.status == "quota_exceeded" {
+            Label("This Authority’s own books are 402-locked.", systemImage: "lock.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.red)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 6).fill(.red.opacity(0.12)))
+        } else if health.ownBooks.status != "ok" && health.ownBooks.status != "unknown" {
+            Label(
+                health.ownBooks.detail.isEmpty
+                    ? "Own books: \(health.ownBooks.status)"
+                    : health.ownBooks.detail,
+                systemImage: "exclamationmark.circle"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
+
+        // Neon control-plane block.
+        if health.neonApi.configured == false {
+            Label(
+                health.neonApi.hint ?? "Proactive Neon monitoring isn’t enabled yet.",
+                systemImage: "gauge.badge.minus"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else if let err = health.neonApi.error {
+            Label(err, systemImage: "externaldrive.badge.exclamationmark")
+                .font(.caption)
+                .foregroundStyle(.red)
+        } else if health.neonApi.projects.isEmpty {
+            Text("No Neon projects reported.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            ForEach(health.neonApi.projects) { project in
+                neonProjectRow(project)
+            }
+        }
+
+        // Operators that reported a 402.
+        if !health.operatorAlerts.isEmpty {
+            Divider().padding(.vertical, 2)
+            Text("Operators reporting 402 (\(health.operatorAlertCount))")
+                .font(.caption2.bold())
+                .foregroundStyle(.secondary)
+            ForEach(health.operatorAlerts) { alert in
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(shortNpub(alert.operatorNpub))
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                        Text("402 · last seen \(relativeStamp(alert.lastSeenAt))")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func neonProjectRow(_ project: MCPService.NeonProjectUsage) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(project.name.isEmpty ? project.projectId : project.name)
+                    .font(.caption.bold())
+                Text("\(pctText(project.usedPct))% of \(hoursText(project.allowanceHours))h · resets \(shortStamp(project.quotaResetAt))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 6)
+            Text(projectChipLabel(project.status))
+                .font(.caption2.bold())
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(healthColor(project.status).opacity(0.18)))
+                .foregroundStyle(healthColor(project.status))
+        }
+        .padding(.vertical, 2)
+    }
+
+    // MARK: - Books Health helpers
+
+    /// Green ok / amber warning / red critical|exhausted|quota_exceeded /
+    /// grey unknown — the app's existing status-color idiom.
+    private func healthColor(_ status: String) -> Color {
+        switch status {
+        case "ok": return .green
+        case "warning": return .orange
+        case "critical", "exhausted", "quota_exceeded", "error", "unreachable": return .red
+        default: return .secondary
+        }
+    }
+
+    private func projectChipLabel(_ status: String) -> String {
+        switch status {
+        case "exhausted": return "402 — quota exhausted"
+        case "critical": return "critical"
+        case "warning": return "warning"
+        case "ok": return "ok"
+        default: return status.isEmpty ? "unknown" : status
+        }
+    }
+
+    private func pctText(_ pct: Double) -> String {
+        String(format: "%.0f", pct)
+    }
+
+    private func hoursText(_ hours: Double) -> String {
+        // Whole-number allowances read cleaner without a trailing ".0".
+        hours == hours.rounded()
+            ? String(format: "%.0f", hours)
+            : String(format: "%.1f", hours)
+    }
+
+    private func shortNpub(_ npub: String) -> String {
+        npub.count > 20 ? "\(npub.prefix(16))…\(npub.suffix(4))" : npub
+    }
+
+    /// Relative "last seen" for the ISO-8601 alert timestamps (e.g. "30 min
+    /// ago"). Falls back to a trimmed stamp when the string doesn't parse.
+    private func relativeStamp(_ s: String) -> String {
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "unknown" }
+        let isoFrac = ISO8601DateFormatter()
+        isoFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        let date = isoFrac.date(from: trimmed) ?? iso.date(from: trimmed)
+        guard let date else { return shortStamp(s) }
+        let fmt = RelativeDateTimeFormatter()
+        fmt.unitsStyle = .abbreviated
+        return fmt.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func loadBooksHealth() async {
+        guard let endpoint = authority.mcpEndpointURL,
+              let url = URL(string: endpoint) else { return }
+        loadingBooksHealth = true
+        booksHealthError = nil
+        do {
+            booksHealth = try await MCPService().callNetworkBooksHealth(
+                endpointURL: url, authorityNpub: authority.npub
+            )
+        } catch let MCPError.structuredError(code, message, _) {
+            booksHealth = nil
+            booksHealthError = message.isEmpty ? code : message
+        } catch {
+            booksHealth = nil
+            booksHealthError = error.localizedDescription
+        }
+        loadingBooksHealth = false
     }
 
     // MARK: - Connected Operators
