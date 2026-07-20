@@ -2198,7 +2198,13 @@ actor MCPService {
         let allTools = try await listAllTools(client: client)
         guard let tool = allTools.first(where: { $0.name.contains("network_books_health") }) else {
             await traffic(.error, label: "Books Health", detail: "No network_books_health tool found")
-            throw MCPError.toolCallFailed("No network_books_health tool found on this Authority")
+            // Tool-discovery gap, not a health fault: an Authority's wheel that
+            // predates network_books_health simply doesn't offer the reading.
+            // Signalled distinctly so the panel stays calm instead of alarming.
+            throw MCPError.capabilityUnavailable(
+                capability: "network_books_health",
+                detail: "This Authority’s wheel doesn’t offer network books health monitoring yet."
+            )
         }
 
         // Restricted owner-consent tool: bind the proof to the Authority's own
@@ -2782,6 +2788,11 @@ enum MCPError: LocalizedError {
     case noPricingTool
     case connectionFailed(String)
     case toolCallFailed(String)
+    /// The endpoint's wheel simply doesn't expose a capability (the tool is
+    /// absent from `tools/list`) — a *discovery* gap, distinct from a tool
+    /// that ran and failed. Callers rendering health surfaces must present
+    /// this as "not offered here yet", NOT as a backend/datastore fault.
+    case capabilityUnavailable(capability: String, detail: String)
     /// Wheel returned a structured soft error: `{"success": false, "error_code": "...", "error": "..."}`.
     /// `extras` carries any additional context fields the wheel volunteered
     /// (e.g. `authority_npub` on `authority_consent_required`). Views can
@@ -2794,6 +2805,7 @@ enum MCPError: LocalizedError {
         case .noPricingTool: return "No pricing model tool found on this operator"
         case .connectionFailed(let msg): return "MCP connection failed: \(msg)"
         case .toolCallFailed(let msg): return "MCP tool call failed: \(msg)"
+        case .capabilityUnavailable(_, let detail): return detail
         case .structuredError(_, let msg, _): return msg
         }
     }

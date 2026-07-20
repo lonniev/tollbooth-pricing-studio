@@ -20,7 +20,7 @@ struct AuthorityDetailView: View {
     @State private var rejectingRequest: MCPService.AdoptionRequest?
     @State private var rejectReason = ""
     @State private var booksHealth: MCPService.NeonBooksHealth?
-    @State private var booksHealthError: String?
+    @State private var booksHealthProblem: BooksHealthProblem?
     @State private var loadingBooksHealth = false
     @Query private var allAuthorities: [Authority]
     @Query private var allOperators: [Operator]
@@ -28,6 +28,32 @@ struct AuthorityDetailView: View {
 
     private enum ForgetState {
         case idle, forgetting, done(String), error(String)
+    }
+
+    /// How a Network Books Health read resolved short of returning data.
+    /// A missing `network_books_health` tool is a *capability* gap (the
+    /// Authority's wheel predates the panel) — informational, not retryable,
+    /// and NOT a datastore fault — whereas a tool that ran and failed, a
+    /// connection drop, or a soft quota error is a genuine health problem the
+    /// steward should retry. Keeping the two apart is the whole point: the
+    /// panel must not dress up "this reading isn't offered here" as a backend
+    /// alarm with a futile Retry.
+    enum BooksHealthProblem: Equatable {
+        case unavailable(String)  // tool-discovery gap — calm, no Retry
+        case error(String)        // real backend/health failure — offer Retry
+    }
+
+    /// Maps a `loadBooksHealth` failure onto the panel's two problem states.
+    /// Pure and static so it can be unit-tested without a live MCP endpoint.
+    static func classifyBooksHealthLoad(_ error: Error) -> BooksHealthProblem {
+        switch error {
+        case MCPError.capabilityUnavailable(_, let detail):
+            return .unavailable(detail)
+        case MCPError.structuredError(let code, let message, _):
+            return .error(message.isEmpty ? code : message)
+        default:
+            return .error(error.localizedDescription)
+        }
     }
 
     private var isLinked: Bool {
@@ -368,6 +394,9 @@ struct AuthorityDetailView: View {
                 Label(msg, systemImage: "xmark.circle.fill").font(.caption2).foregroundStyle(.red)
             }
         }
+        // Fill the pane width like the sibling sections (Pending Adoptions,
+        // Network Books Health) instead of shrinking to the checklist column.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
         .padding(.vertical, 8)
         .task(id: authority.npub) {
@@ -652,13 +681,22 @@ struct AuthorityDetailView: View {
                 Text("Link this Authority’s identity to read database health.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else if let msg = booksHealthError {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label(msg, systemImage: "exclamationmark.triangle.fill")
+            } else if let problem = booksHealthProblem {
+                switch problem {
+                case .unavailable(let msg):
+                    // Capability gap, not a fault: calm and grey, no Retry —
+                    // the same idiom as an unconfigured Neon control plane.
+                    Label(msg, systemImage: "gauge.badge.minus")
                         .font(.caption)
-                        .foregroundStyle(.orange)
-                    Button("Retry") { Task { await loadBooksHealth() } }
-                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .error(let msg):
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(msg, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Button("Retry") { Task { await loadBooksHealth() } }
+                            .font(.caption)
+                    }
                 }
             } else if let health = booksHealth {
                 booksHealthBody(health)
@@ -673,7 +711,7 @@ struct AuthorityDetailView: View {
         .padding(.vertical, 8)
         .task(id: authority.npub) {
             booksHealth = nil
-            booksHealthError = nil
+            booksHealthProblem = nil
             if isLinked, authority.mcpEndpointURL != nil {
                 await loadBooksHealth()
             }
@@ -827,17 +865,14 @@ struct AuthorityDetailView: View {
         guard let endpoint = authority.mcpEndpointURL,
               let url = URL(string: endpoint) else { return }
         loadingBooksHealth = true
-        booksHealthError = nil
+        booksHealthProblem = nil
         do {
             booksHealth = try await MCPService().callNetworkBooksHealth(
                 endpointURL: url, authorityNpub: authority.npub
             )
-        } catch let MCPError.structuredError(code, message, _) {
-            booksHealth = nil
-            booksHealthError = message.isEmpty ? code : message
         } catch {
             booksHealth = nil
-            booksHealthError = error.localizedDescription
+            booksHealthProblem = Self.classifyBooksHealthLoad(error)
         }
         loadingBooksHealth = false
     }
