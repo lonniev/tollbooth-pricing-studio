@@ -149,6 +149,33 @@ final class ProofProvenanceTests: XCTestCase {
                        "the unknown-signer red case must show-and-label the claim, not hide it")
     }
 
+    func testAssessSurfacesSignedReasonOnUnknownSigner() {
+        // A validly-signed unknown-signer request that stated a purpose surfaces
+        // it alongside the claimed identity — the "why" that makes a stranger's
+        // ask judgeable (the second half of the #105 / excalibur-mcp#243 fix).
+        let purpose = "I'm drafting your weekly thread and need the Operator to post it."
+        let a = ProofProvenance.assess(
+            verification: verified(), resolution: .unresolved,
+            hasPriorHistory: false, resolvedOperatorName: "eXcalibur MCP",
+            claimedService: "eXcalibur MCP", reason: purpose)
+        XCTAssertEqual(a.level, .red)
+        XCTAssertEqual(a.reason, purpose,
+                       "a signed, validly-verified purpose must be surfaced")
+    }
+
+    func testAssessSuppressesReasonWhenSignatureInvalid() {
+        // A failed attestation carries no trustworthy purpose — a relay/impostor
+        // could have supplied it, so it must never be shown.
+        let invalid = ProofProvenance.Verification(
+            valid: false, signerPubkeyHex: nil, reason: .badSignature)
+        let a = ProofProvenance.assess(
+            verification: invalid, resolution: .unresolved,
+            hasPriorHistory: false, resolvedOperatorName: nil,
+            claimedService: "eXcalibur MCP", reason: "totally legit, trust me")
+        XCTAssertNil(a.reason,
+                     "an unverified attestation's stated purpose must not be shown")
+    }
+
     func testAssessRedInvalidSuppressesIdentity() {
         // A *failed* verification carries no cryptographically-bound claim — there
         // is nothing trustworthy to show, so both identities stay nil.
