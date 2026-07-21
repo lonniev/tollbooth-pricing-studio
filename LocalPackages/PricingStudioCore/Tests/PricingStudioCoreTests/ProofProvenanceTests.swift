@@ -139,7 +139,7 @@ final class ProofProvenanceTests: XCTestCase {
             hasPriorHistory: true, resolvedOperatorName: "Cypher-MCP",
             claimedService: "Cypher-MCP", viaDeliveryKey: true)
         XCTAssertEqual(a.level, .green, "a valid operator attestation is still green")
-        XCTAssertEqual(a.headline, "Operator-attested",
+        XCTAssertEqual(a.headline, "Operator-signed",
                        "must not read as 'Verified operator' — the sender is a one-time key")
         XCTAssertTrue(a.detail.lowercased().contains("one-time key"))
         XCTAssertTrue(a.detail.lowercased().contains("not the operator"),
@@ -203,6 +203,28 @@ final class ProofProvenanceTests: XCTestCase {
         XCTAssertEqual(a.level, .red)
         XCTAssertEqual(a.reason, purpose,
                        "a signed, validly-verified purpose must be surfaced")
+    }
+
+    func testAssessSurfacesSignedOrigin() {
+        // Operator-observed origin (signed) is surfaced — even on the red
+        // unknown-signer case, where "where did this come from" matters most.
+        let origin = "US · 203.0.113.0/24 · claude-ai/1.0"
+        let a = ProofProvenance.assess(
+            verification: verified(), resolution: .unresolved,
+            hasPriorHistory: false, resolvedOperatorName: nil,
+            claimedService: "Cypher-MCP", reason: nil, origin: origin)
+        XCTAssertEqual(a.level, .red)
+        XCTAssertEqual(a.origin, origin, "signed, verified origin must be surfaced")
+    }
+
+    func testAssessSuppressesOriginWhenSignatureInvalid() {
+        let invalid = ProofProvenance.Verification(
+            valid: false, signerPubkeyHex: nil, reason: .badSignature)
+        let a = ProofProvenance.assess(
+            verification: invalid, resolution: .unresolved,
+            hasPriorHistory: false, resolvedOperatorName: nil,
+            claimedService: "x", reason: nil, origin: "spoofed origin")
+        XCTAssertNil(a.origin, "an unverified attestation's origin must not be shown")
     }
 
     func testAssessSuppressesReasonWhenSignatureInvalid() {
