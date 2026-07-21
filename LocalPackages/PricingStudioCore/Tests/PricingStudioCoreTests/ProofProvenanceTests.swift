@@ -120,6 +120,48 @@ final class ProofProvenanceTests: XCTestCase {
         XCTAssertEqual(a.resolvedIdentity, "eXcalibur MCP")
     }
 
+    func testDirectDeliverySaysVerifiedOperator() {
+        // sender == signer (a direct operator DM): claiming the sender IS the
+        // operator is correct.
+        let a = ProofProvenance.assess(
+            verification: verified(), resolution: .registeredCertified,
+            hasPriorHistory: true, resolvedOperatorName: "Cypher-MCP",
+            claimedService: "Cypher-MCP", viaDeliveryKey: false)
+        XCTAssertEqual(a.headline, "Verified operator")
+    }
+
+    func testDeliveryKeySaysAttestedNotSent() {
+        // Self-DM: delivered from a one-time key (sender), attested by the
+        // operator (signer). The verdict must NOT claim the sender IS the
+        // operator — it must say the operator ATTESTED it, via a one-time key.
+        let a = ProofProvenance.assess(
+            verification: verified(), resolution: .registeredCertified,
+            hasPriorHistory: true, resolvedOperatorName: "Cypher-MCP",
+            claimedService: "Cypher-MCP", viaDeliveryKey: true)
+        XCTAssertEqual(a.level, .green, "a valid operator attestation is still green")
+        XCTAssertEqual(a.headline, "Operator-attested",
+                       "must not read as 'Verified operator' — the sender is a one-time key")
+        XCTAssertTrue(a.detail.lowercased().contains("one-time key"))
+        XCTAssertTrue(a.detail.lowercased().contains("not the operator"),
+                      "must state the sender npub is not the operator's own")
+    }
+
+    func testConvenienceDetectsDeliveryKeyMismatch() {
+        // The convenience overload derives viaDeliveryKey by comparing the DM's
+        // actual sender to the verified signer. A signer != sender → attested.
+        let a = ProofProvenance.assess(
+            attestationJSON: nil,                       // absent → amber, exercises the plumbing
+            expectedSenderPubkeyHex: "deadbeef",
+            expectedSubjectNpub: "npub1subject",
+            expectedChallenge: "ch",
+            knownOperatorPubkeyHexes: [], priorContactPubkeyHexes: [],
+            resolvedOperatorName: nil, claimedService: nil,
+            signatureValidator: { _ in true })
+        // absent attestation → amber "Unverified request"; the point of this
+        // test is that the convenience path compiles + wires viaDeliveryKey.
+        XCTAssertEqual(a.level, .amber)
+    }
+
     func testAssessAmberFirstContact() {
         let a = ProofProvenance.assess(
             verification: verified(), resolution: .registeredCertified,

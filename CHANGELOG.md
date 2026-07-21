@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Fixed — a one-time delivery key is no longer presented as the operator itself
+
+A self-addressed proof DM is delivered from a throwaway "delivery key" (relays
+drop self-DMs) and vouched for by the operator's signed attestation. The verdict
+collapsed that into "Verified operator", reading as *the sender is the operator*
+— but the sender npub is the temporary key, not the operator's own. When the
+verified signer differs from the DM's actual sender, the verdict now says
+**"Operator-attested"** and states plainly that it was *delivered via a one-time
+key — the sender npub is not the operator's own; its authority is the signature,
+not the sender*. A direct operator DM (sender == signer) still reads "Verified
+operator". The trust level is unchanged (a valid attestation is still trusted);
+only the claim about *who sent it* is corrected.
+
 ### Fixed — a proof/approval request no longer renders as a bare, un-actionable credential form
 
 A proof-request DM (npub-ownership) parses to a valid courier payload with **zero**
