@@ -213,13 +213,20 @@ public enum ProofProvenance {
     ///   the amber "unverified" caption, and is surfaced (labelled unverified) as
     ///   the `claimedIdentity` on the unknown-signer red case; never rendered as
     ///   a verified identity.
+    /// - Parameter viaDeliveryKey: true when the DM was *delivered* from a
+    ///   one-time key distinct from the attestation signer (the self-addressed
+    ///   case — relays drop self-DMs, so the operator delivers from a throwaway
+    ///   key and vouches for it with the attestation). The verdict must then say
+    ///   the operator *attested* the request, never that the operator *is* the
+    ///   sender — the visible sender npub is the temporary key, not the operator.
     public static func assess(
         verification: Verification,
         resolution: RegistryResolution,
         hasPriorHistory: Bool,
         resolvedOperatorName: String?,
         claimedService: String?,
-        reason: String? = nil
+        reason: String? = nil,
+        viaDeliveryKey: Bool = false
     ) -> TrustAssessment {
         // The reason is only trustworthy as "what the signer said" once the
         // signature verifies; a failed/absent attestation carries no bound
@@ -263,21 +270,27 @@ public enum ProofProvenance {
                 detail: "This request is validly signed, but the signer is not a known operator in your registry. Its claimed identity is shown below unverified — do not approve unless you can independently confirm it."
             )
         case .registeredNovel:
+            let op = resolvedOperatorName ?? "a registered operator"
             return TrustAssessment(
                 level: .amber,
                 resolvedIdentity: resolvedOperatorName,
                 reason: signedReason,
                 headline: "First contact",
-                detail: "Verified as \(resolvedOperatorName ?? "a registered operator"), but this is the first request from this key. Confirm you expected it."
+                detail: viaDeliveryKey
+                    ? "Attested by \(op) and delivered via a one-time key — the sender npub is not the operator's own; its authority is the signature, not the sender. First request from this key — confirm you expected it."
+                    : "Verified as \(op), but this is the first request from this key. Confirm you expected it."
             )
         case .registeredCertified:
+            let op = resolvedOperatorName ?? "your registered operator"
             if hasPriorHistory {
                 return TrustAssessment(
                     level: .green,
                     resolvedIdentity: resolvedOperatorName,
                     reason: signedReason,
-                    headline: "Verified operator",
-                    detail: "Verified as \(resolvedOperatorName ?? "your registered operator"), with prior session history."
+                    headline: viaDeliveryKey ? "Operator-attested" : "Verified operator",
+                    detail: viaDeliveryKey
+                        ? "Attested by \(op) and delivered via a one-time key — the sender npub is not the operator's own; its authority is the signature, not the sender."
+                        : "Verified as \(op), with prior session history."
                 )
             }
             return TrustAssessment(
@@ -285,7 +298,9 @@ public enum ProofProvenance {
                 resolvedIdentity: resolvedOperatorName,
                 reason: signedReason,
                 headline: "First contact",
-                detail: "Verified as \(resolvedOperatorName ?? "a registered operator"), but this is the first request from this key. Confirm you expected it."
+                detail: viaDeliveryKey
+                    ? "Attested by \(op) and delivered via a one-time key — the sender npub is not the operator's own; its authority is the signature, not the sender. First request from this key — confirm you expected it."
+                    : "Verified as \(op), but this is the first request from this key. Confirm you expected it."
             )
         }
     }
@@ -320,13 +335,21 @@ public enum ProofProvenance {
         // from the parsed event so it is taken from the signature-bound source,
         // not the (relay-mutable) plaintext DM body.
         let signedReason = attestationJSON.flatMap(parse)?.tag("reason")
+        // A one-time delivery key was used when the verified signer (the
+        // operator) is NOT the key that actually delivered the DM. In that case
+        // the sender the human sees is a throwaway, not the operator, and the
+        // verdict must say "attested by", never "sent by / is the operator".
+        let viaDeliveryKey = verification.valid
+            && verification.signerPubkeyHex != nil
+            && verification.signerPubkeyHex?.lowercased() != expectedSenderPubkeyHex.lowercased()
         return assess(
             verification: verification,
             resolution: resolution,
             hasPriorHistory: hasPrior,
             resolvedOperatorName: resolvedOperatorName,
             claimedService: claimedService,
-            reason: signedReason
+            reason: signedReason,
+            viaDeliveryKey: viaDeliveryKey
         )
     }
 }
