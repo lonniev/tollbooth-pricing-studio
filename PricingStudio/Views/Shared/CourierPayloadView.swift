@@ -18,6 +18,14 @@ struct CourierPayloadView: View {
     @State private var showProvenance = false
     @State private var sent = false
 
+    /// A proof / approval request carries a one-time challenge but NO editable
+    /// credential fields — the reply is a confirmation, not a filled-in form.
+    /// It must render as an approval (verdict + stated purpose + confirm/ignore),
+    /// never as an empty credential form, which reads as a raw text blob.
+    private var isApprovalRequest: Bool {
+        payload.fields.isEmpty && payload.poison != nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Trust banner — the human-facing verdict on who is really asking.
@@ -62,10 +70,13 @@ struct CourierPayloadView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Credential fields
-            VStack(spacing: 8) {
-                ForEach($payload.fields) { $field in
-                    fieldRow(field: $field)
+            // Credential fields — a proof/approval request has none, so skip
+            // the empty form (rendering it is what read as "raw").
+            if !isApprovalRequest {
+                VStack(spacing: 8) {
+                    ForEach($payload.fields) { $field in
+                        fieldRow(field: $field)
+                    }
                 }
             }
 
@@ -88,22 +99,51 @@ struct CourierPayloadView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
-            // Send button
+            // Action
             if let onSend {
-                Button {
-                    let serialized = payload.serialize()
-                    onSend(serialized)
-                    sent = true
-                } label: {
-                    Label(
-                        sent ? "Credentials Sent" : (payload.canSend ? "Send Filled Fields" : "Fill at Least One Field"),
-                        systemImage: sent ? "checkmark.circle.fill" : "paperplane.fill"
-                    )
-                    .frame(maxWidth: .infinity)
+                if isApprovalRequest {
+                    // No fields to fill — the reply is a confirmation. For an
+                    // unverified (red) request the safe default is to NOT
+                    // approve, so the affordance is de-emphasized and captioned;
+                    // ignoring the request is a first-class outcome (just leave).
+                    VStack(spacing: 4) {
+                        Button {
+                            onSend(payload.serialize())
+                            sent = true
+                        } label: {
+                            Label(
+                                sent ? "Reply sent" : (trust?.level == .red ? "Approve anyway & reply" : "Confirm & reply"),
+                                systemImage: sent ? "checkmark.circle.fill" : "paperplane.fill"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(sent ? .secondary : (trust?.level == .red ? .red : .accentColor))
+                        .disabled(sent)
+
+                        if trust?.level == .red && !sent {
+                            Text("This request is not verified. Only reply if you started it — otherwise just ignore it.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                } else {
+                    Button {
+                        let serialized = payload.serialize()
+                        onSend(serialized)
+                        sent = true
+                    } label: {
+                        Label(
+                            sent ? "Credentials Sent" : (payload.canSend ? "Send Filled Fields" : "Fill at Least One Field"),
+                            systemImage: sent ? "checkmark.circle.fill" : "paperplane.fill"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(sent ? .secondary : (payload.canSend ? .accentColor : .gray))
+                    .disabled(sent || !payload.canSend)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(sent ? .secondary : (payload.canSend ? .accentColor : .gray))
-                .disabled(sent || !payload.canSend)
             }
         }
         .padding()
