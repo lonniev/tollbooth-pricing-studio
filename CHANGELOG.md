@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added — an unknown signer's *stated purpose* is now shown alongside its claimed identity
+
+Building on show-and-label (below): a proof/credential request whose attestation
+carries a signed `reason` tag (tollbooth-dpyc ≥ 0.66.0) now renders that purpose
+in the trust banner — "Stated purpose: I'm working on your request XYZ and need
+the Operator to do ABC." `ProofProvenance.TrustAssessment` gains a `reason`,
+taken from the signature-bound tag (never the relay-mutable plaintext) and shown
+only when the attestation validly verified — so it is *what the signer said*,
+labelled, never an endorsement. For the unknown-signer red case this pairs the
+claimed identity with the "why" a human needs to judge a stranger's ask.
+
 ### Changed — an unknown signer's claimed identity is now shown-and-labelled, not hidden
 
 The red "Unknown requester" verdict for a *validly-signed* proof-request DM

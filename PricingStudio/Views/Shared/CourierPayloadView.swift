@@ -163,6 +163,30 @@ struct CourierPayloadView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                // The Operator's stated, signature-bound purpose — the "why"
+                // that makes a stranger's ask judgeable. Shown as what the
+                // signer *said*, labelled unverified, never as an endorsement.
+                if let reason = trust.reason, !reason.isEmpty {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "quote.bubble")
+                            .font(.caption2)
+                            .foregroundStyle(color)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Stated purpose")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(reason)
+                                .font(.caption2)
+                                .italic()
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(color.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.top, 2)
+                }
             }
             Spacer(minLength: 0)
         }

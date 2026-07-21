@@ -177,13 +177,23 @@ public enum ProofProvenance {
         /// claim to show (absent / failed-verification) or the identity is
         /// verified (green/amber, where `resolvedIdentity` carries it).
         public let claimedIdentity: String?
+        /// The Operator's stated, **signature-bound** purpose for the request
+        /// (the `reason` tag on the attestation) — "I'm working on your request
+        /// XYZ and need the Operator to do ABC for you." Present only on a
+        /// *validly-signed* attestation that carried one, so it is safe to show
+        /// as *what the signer said* (never as an endorsement). It is the fact
+        /// that makes a stranger's ask judgeable: the unknown-signer case shows
+        /// a claimed identity **and** why it's reaching out. Nil when the
+        /// attestation is absent/invalid or carried no reason.
+        public let reason: String?
         public let headline: String
         public let detail: String
 
-        public init(level: TrustLevel, resolvedIdentity: String?, claimedIdentity: String? = nil, headline: String, detail: String) {
+        public init(level: TrustLevel, resolvedIdentity: String?, claimedIdentity: String? = nil, reason: String? = nil, headline: String, detail: String) {
             self.level = level
             self.resolvedIdentity = resolvedIdentity
             self.claimedIdentity = claimedIdentity
+            self.reason = reason
             self.headline = headline
             self.detail = detail
         }
@@ -208,8 +218,13 @@ public enum ProofProvenance {
         resolution: RegistryResolution,
         hasPriorHistory: Bool,
         resolvedOperatorName: String?,
-        claimedService: String?
+        claimedService: String?,
+        reason: String? = nil
     ) -> TrustAssessment {
+        // The reason is only trustworthy as "what the signer said" once the
+        // signature verifies; a failed/absent attestation carries no bound
+        // purpose to show.
+        let signedReason = verification.valid ? reason : nil
         // Absent envelope → amber (legacy coexistence during rollout).
         if verification.reason == .absent {
             return TrustAssessment(
@@ -243,6 +258,7 @@ public enum ProofProvenance {
                 level: .red,
                 resolvedIdentity: nil,
                 claimedIdentity: claimedService,
+                reason: signedReason,
                 headline: "Unknown requester",
                 detail: "This request is validly signed, but the signer is not a known operator in your registry. Its claimed identity is shown below unverified — do not approve unless you can independently confirm it."
             )
@@ -250,6 +266,7 @@ public enum ProofProvenance {
             return TrustAssessment(
                 level: .amber,
                 resolvedIdentity: resolvedOperatorName,
+                reason: signedReason,
                 headline: "First contact",
                 detail: "Verified as \(resolvedOperatorName ?? "a registered operator"), but this is the first request from this key. Confirm you expected it."
             )
@@ -258,6 +275,7 @@ public enum ProofProvenance {
                 return TrustAssessment(
                     level: .green,
                     resolvedIdentity: resolvedOperatorName,
+                    reason: signedReason,
                     headline: "Verified operator",
                     detail: "Verified as \(resolvedOperatorName ?? "your registered operator"), with prior session history."
                 )
@@ -265,6 +283,7 @@ public enum ProofProvenance {
             return TrustAssessment(
                 level: .amber,
                 resolvedIdentity: resolvedOperatorName,
+                reason: signedReason,
                 headline: "First contact",
                 detail: "Verified as \(resolvedOperatorName ?? "a registered operator"), but this is the first request from this key. Confirm you expected it."
             )
@@ -297,12 +316,17 @@ public enum ProofProvenance {
             knownOperatorPubkeyHexes: knownOperatorPubkeyHexes
         )
         let hasPrior = verification.signerPubkeyHex.map(priorContactPubkeyHexes.contains) ?? false
+        // The signed purpose rides in the attestation's `reason` tag; read it
+        // from the parsed event so it is taken from the signature-bound source,
+        // not the (relay-mutable) plaintext DM body.
+        let signedReason = attestationJSON.flatMap(parse)?.tag("reason")
         return assess(
             verification: verification,
             resolution: resolution,
             hasPriorHistory: hasPrior,
             resolvedOperatorName: resolvedOperatorName,
-            claimedService: claimedService
+            claimedService: claimedService,
+            reason: signedReason
         )
     }
 }
