@@ -227,6 +227,20 @@ struct CourierPayloadView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .padding(.top, 2)
                 }
+                // Operator-observed origin of the client that triggered this
+                // request — where it came from, so an unsolicited ask is
+                // judgeable, not just signable.
+                if let origin = trust.origin, !origin.isEmpty {
+                    Label {
+                        (Text("Request origin: ").foregroundStyle(.secondary)
+                         + Text(origin))
+                            .font(.caption2)
+                            .lineLimit(2)
+                    } icon: {
+                        Image(systemName: "globe").font(.caption2).foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 1)
+                }
             }
             Spacer(minLength: 0)
         }

@@ -186,14 +186,22 @@ public enum ProofProvenance {
         /// a claimed identity **and** why it's reaching out. Nil when the
         /// attestation is absent/invalid or carried no reason.
         public let reason: String?
+        /// The operator-**observed** provenance of the client that triggered the
+        /// request — a compact "geo · coarse-ip · client" string signed into the
+        /// attestation's `origin` tag (server-side transport data, never client
+        /// self-report). Lets the human judge an *unsolicited* request by where
+        /// it came from, not only who signed it. Nil when absent/unverified or
+        /// the transport exposed nothing (best-effort).
+        public let origin: String?
         public let headline: String
         public let detail: String
 
-        public init(level: TrustLevel, resolvedIdentity: String?, claimedIdentity: String? = nil, reason: String? = nil, headline: String, detail: String) {
+        public init(level: TrustLevel, resolvedIdentity: String?, claimedIdentity: String? = nil, reason: String? = nil, origin: String? = nil, headline: String, detail: String) {
             self.level = level
             self.resolvedIdentity = resolvedIdentity
             self.claimedIdentity = claimedIdentity
             self.reason = reason
+            self.origin = origin
             self.headline = headline
             self.detail = detail
         }
@@ -226,12 +234,13 @@ public enum ProofProvenance {
         resolvedOperatorName: String?,
         claimedService: String?,
         reason: String? = nil,
+        origin: String? = nil,
         viaDeliveryKey: Bool = false
     ) -> TrustAssessment {
-        // The reason is only trustworthy as "what the signer said" once the
-        // signature verifies; a failed/absent attestation carries no bound
-        // purpose to show.
+        // The reason and origin are only trustworthy once the signature
+        // verifies; a failed/absent attestation carries no bound tags to show.
         let signedReason = verification.valid ? reason : nil
+        let signedOrigin = verification.valid ? origin : nil
         // Absent envelope → amber (legacy coexistence during rollout).
         if verification.reason == .absent {
             return TrustAssessment(
@@ -266,6 +275,7 @@ public enum ProofProvenance {
                 resolvedIdentity: nil,
                 claimedIdentity: claimedService,
                 reason: signedReason,
+                origin: signedOrigin,
                 headline: "Unknown requester",
                 detail: "This request is validly signed, but the signer is not a known operator in your registry. Its claimed identity is shown below unverified — do not approve unless you can independently confirm it."
             )
@@ -275,9 +285,10 @@ public enum ProofProvenance {
                 level: .amber,
                 resolvedIdentity: resolvedOperatorName,
                 reason: signedReason,
+                origin: signedOrigin,
                 headline: "First contact",
                 detail: viaDeliveryKey
-                    ? "Attested by \(op) and delivered via a one-time key — the sender npub is not the operator's own; its authority is the signature, not the sender. First request from this key — confirm you expected it."
+                    ? "Delivered from a one-time key, not the operator's own npub — trust rests on the signature, not the sender. First request from this key; confirm you expected it."
                     : "Verified as \(op), but this is the first request from this key. Confirm you expected it."
             )
         case .registeredCertified:
@@ -287,9 +298,10 @@ public enum ProofProvenance {
                     level: .green,
                     resolvedIdentity: resolvedOperatorName,
                     reason: signedReason,
-                    headline: viaDeliveryKey ? "Operator-attested" : "Verified operator",
+                origin: signedOrigin,
+                    headline: viaDeliveryKey ? "Operator-signed" : "Verified operator",
                     detail: viaDeliveryKey
-                        ? "Attested by \(op) and delivered via a one-time key — the sender npub is not the operator's own; its authority is the signature, not the sender."
+                        ? "Delivered from a one-time key, not the operator's own npub — trust rests on the signature, not the sender."
                         : "Verified as \(op), with prior session history."
                 )
             }
@@ -297,9 +309,10 @@ public enum ProofProvenance {
                 level: .amber,
                 resolvedIdentity: resolvedOperatorName,
                 reason: signedReason,
+                origin: signedOrigin,
                 headline: "First contact",
                 detail: viaDeliveryKey
-                    ? "Attested by \(op) and delivered via a one-time key — the sender npub is not the operator's own; its authority is the signature, not the sender. First request from this key — confirm you expected it."
+                    ? "Delivered from a one-time key, not the operator's own npub — trust rests on the signature, not the sender. First request from this key; confirm you expected it."
                     : "Verified as \(op), but this is the first request from this key. Confirm you expected it."
             )
         }
@@ -334,7 +347,9 @@ public enum ProofProvenance {
         // The signed purpose rides in the attestation's `reason` tag; read it
         // from the parsed event so it is taken from the signature-bound source,
         // not the (relay-mutable) plaintext DM body.
-        let signedReason = attestationJSON.flatMap(parse)?.tag("reason")
+        let parsed = attestationJSON.flatMap(parse)
+        let signedReason = parsed?.tag("reason")
+        let signedOrigin = parsed?.tag("origin")
         // A one-time delivery key was used when the verified signer (the
         // operator) is NOT the key that actually delivered the DM. In that case
         // the sender the human sees is a throwaway, not the operator, and the
@@ -349,6 +364,7 @@ public enum ProofProvenance {
             resolvedOperatorName: resolvedOperatorName,
             claimedService: claimedService,
             reason: signedReason,
+            origin: signedOrigin,
             viaDeliveryKey: viaDeliveryKey
         )
     }

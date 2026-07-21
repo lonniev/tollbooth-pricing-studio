@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Added — a proof request now shows the operator-observed request origin
+
+Paired with tollbooth-dpyc 0.67.0, which signs an `origin` tag (geo · coarse IP ·
+claimed client, harvested server-side from the transport) into the attestation.
+The trust banner surfaces it as **"Request origin: …"** so a human can judge an
+*unsolicited* request by *where it came from*, not only *who signed it* — the
+missing datum for the anyone-can-trigger-a-proof-DM gap. Shown only when the
+attestation validly verified (observed, tamper-evident; never client
+self-report), and omitted best-effort when the transport exposed nothing.
+
+### Changed — trimmed the delivery-key verdict wording
+
+"Operator-attested / your operator identity / Attested by your operator identity…"
+was redundant. The green self/known-via-delivery-key verdict now reads
+**"Operator-signed"** with a one-line detail: *"Delivered from a one-time key,
+not the operator's own npub — trust rests on the signature, not the sender."*
+
 ### Fixed — a one-time delivery key is no longer presented as the operator itself
 
 A self-addressed proof DM is delivered from a throwaway "delivery key" (relays
