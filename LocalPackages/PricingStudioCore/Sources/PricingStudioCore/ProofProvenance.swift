@@ -162,16 +162,28 @@ public enum ProofProvenance {
 
     public struct TrustAssessment: Sendable, Equatable {
         public let level: TrustLevel
-        /// The resolved, verified operator identity to show the human. **Nil on
-        /// red** — a red state must never render a claimed service identity,
-        /// because displaying an unverified name is the failure this closes.
+        /// The resolved, **verified** operator identity to show the human as
+        /// trustworthy. **Nil on red** — a red state must never render an
+        /// identity as verified, because displaying an unearned name as
+        /// trusted is the failure the green/amber/red verdict closes.
         public let resolvedIdentity: String?
+        /// A claim the request asserts about itself that the protocol has **not**
+        /// endorsed — surfaced only so the human can *see* it and judge, never
+        /// rendered as trusted. Populated for the unknown-signer red case (a
+        /// validly-signed attestation whose key is not in the registry): hiding
+        /// the claim there denies the classifier the one fact that exposes an
+        /// impostor claiming a name they recognize (issue #105 / origin
+        /// excalibur-mcp#243). Nil whenever there is no cryptographically-bound
+        /// claim to show (absent / failed-verification) or the identity is
+        /// verified (green/amber, where `resolvedIdentity` carries it).
+        public let claimedIdentity: String?
         public let headline: String
         public let detail: String
 
-        public init(level: TrustLevel, resolvedIdentity: String?, headline: String, detail: String) {
+        public init(level: TrustLevel, resolvedIdentity: String?, claimedIdentity: String? = nil, headline: String, detail: String) {
             self.level = level
             self.resolvedIdentity = resolvedIdentity
+            self.claimedIdentity = claimedIdentity
             self.headline = headline
             self.detail = detail
         }
@@ -179,13 +191,18 @@ public enum ProofProvenance {
 
     /// Decide the trust state from a completed verification and registry
     /// resolution. Fail-closed: an invalid-but-present attestation, or a valid
-    /// one whose signer does not resolve, is **red** and suppresses any claimed
-    /// name; an absent attestation is **amber** (legacy, never green).
+    /// one whose signer does not resolve, is **red** and never renders an
+    /// identity as *verified*; an absent attestation is **amber** (legacy,
+    /// never green). A validly-signed-but-unknown signer additionally surfaces
+    /// its `claimedService` as an explicitly-unverified `claimedIdentity` so the
+    /// human can catch an impostor — see `TrustAssessment.claimedIdentity`.
     ///
     /// - Parameter resolvedOperatorName: human-readable name for the *verified*
     ///   signer, shown only in green/amber. Never a requester-supplied value.
-    /// - Parameter claimedService: the requester-asserted service string, used
-    ///   only to phrase the amber "unverified" caption; never shown on red.
+    /// - Parameter claimedService: the requester-asserted service string. Phrases
+    ///   the amber "unverified" caption, and is surfaced (labelled unverified) as
+    ///   the `claimedIdentity` on the unknown-signer red case; never rendered as
+    ///   a verified identity.
     public static func assess(
         verification: Verification,
         resolution: RegistryResolution,
@@ -213,12 +230,21 @@ public enum ProofProvenance {
         }
         switch resolution {
         case .unresolved:
-            // Validly signed, but by a key that is not a known operator.
+            // Validly signed, but by a key that is not a known operator. The
+            // signature *did* verify, so `claimedService` is cryptographically
+            // bound to this specific key — show it, plainly labelled unverified,
+            // rather than hiding it. This is exactly the case where the human
+            // classifier needs the claim: seeing an impostor assert a name they
+            // recognise, from a key they don't, is what exposes impersonation
+            // (issue #105 / origin excalibur-mcp#243). Still red, still
+            // do-not-approve, and `resolvedIdentity` stays nil so nothing is
+            // rendered as verified.
             return TrustAssessment(
                 level: .red,
                 resolvedIdentity: nil,
+                claimedIdentity: claimedService,
                 headline: "Unknown requester",
-                detail: "This request is signed, but the signer is not a known operator in your registry. Its claimed identity is suppressed. Do not approve."
+                detail: "This request is validly signed, but the signer is not a known operator in your registry. Its claimed identity is shown below unverified — do not approve unless you can independently confirm it."
             )
         case .registeredNovel:
             return TrustAssessment(

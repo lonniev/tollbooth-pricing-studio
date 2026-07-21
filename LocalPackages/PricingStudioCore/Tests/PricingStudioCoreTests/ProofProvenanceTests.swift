@@ -135,21 +135,30 @@ final class ProofProvenanceTests: XCTestCase {
         XCTAssertEqual(a.level, .amber)
     }
 
-    func testAssessRedUnresolvedSuppressesIdentity() {
+    func testAssessRedUnresolvedShowsClaimedIdentityLabeled() {
+        // Validly signed, but the key is not a known operator. The verdict stays
+        // red and nothing is rendered as *verified* (resolvedIdentity nil), but
+        // the claimed identity is surfaced — hiding it is exactly what lets an
+        // impostor claiming a recognised name slip past (#105 / excalibur-mcp#243).
         let a = ProofProvenance.assess(
             verification: verified(), resolution: .unresolved,
-            hasPriorHistory: false, resolvedOperatorName: "eXcalibur MCP", claimedService: "x")
+            hasPriorHistory: false, resolvedOperatorName: "eXcalibur MCP", claimedService: "eXcalibur MCP")
         XCTAssertEqual(a.level, .red)
-        XCTAssertNil(a.resolvedIdentity, "red must suppress any claimed identity")
+        XCTAssertNil(a.resolvedIdentity, "red must never render an identity as verified")
+        XCTAssertEqual(a.claimedIdentity, "eXcalibur MCP",
+                       "the unknown-signer red case must show-and-label the claim, not hide it")
     }
 
     func testAssessRedInvalidSuppressesIdentity() {
+        // A *failed* verification carries no cryptographically-bound claim — there
+        // is nothing trustworthy to show, so both identities stay nil.
         let invalid = ProofProvenance.Verification(valid: false, signerPubkeyHex: nil, reason: .badSignature)
         let a = ProofProvenance.assess(
             verification: invalid, resolution: .unresolved,
             hasPriorHistory: false, resolvedOperatorName: "eXcalibur MCP", claimedService: "x")
         XCTAssertEqual(a.level, .red)
         XCTAssertNil(a.resolvedIdentity)
+        XCTAssertNil(a.claimedIdentity, "a failed verification has no bound claim to surface")
     }
 
     func testAssessAmberWhenAbsent() {
@@ -192,5 +201,7 @@ final class ProofProvenanceTests: XCTestCase {
         )
         XCTAssertEqual(a.level, .red)
         XCTAssertNil(a.resolvedIdentity)
+        XCTAssertEqual(a.claimedIdentity, "x",
+                       "an impostor's claim is shown-and-labelled, never hidden")
     }
 }

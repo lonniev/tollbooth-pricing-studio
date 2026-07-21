@@ -140,12 +140,24 @@ struct CourierPayloadView: View {
                 Text(trust.headline)
                     .font(.caption.bold())
                     .foregroundStyle(color)
-                // Only a verified identity is shown; nil on red (suppressed).
+                // A verified identity, rendered plainly as trustworthy.
                 if let identity = trust.resolvedIdentity {
                     Text(identity)
                         .font(.caption2.monospaced())
                         .lineLimit(1)
                         .truncationMode(.middle)
+                }
+                // An unverified claim (unknown-signer red): shown so the human
+                // can catch an impostor, explicitly labelled so it never reads
+                // as endorsed.
+                if let claimed = trust.claimedIdentity {
+                    (Text("Claims to be ")
+                        .foregroundStyle(.secondary)
+                     + Text(claimed).font(.caption2.monospaced())
+                     + Text(" — unverified, not in your registry")
+                        .foregroundStyle(.secondary))
+                        .font(.caption2)
+                        .lineLimit(2)
                 }
                 Text(trust.detail)
                     .font(.caption2)

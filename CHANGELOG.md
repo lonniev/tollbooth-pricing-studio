@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Changed — an unknown signer's claimed identity is now shown-and-labelled, not hidden
+
+The red "Unknown requester" verdict for a *validly-signed* proof-request DM
+whose key is not in your registry no longer suppresses the claim. Because the
+signature verified, the asserted identity is cryptographically bound to that
+specific key — hiding it is exactly wrong, since the unknown-signer case is
+when you most need the claim to catch an impostor asserting a name you
+recognise from a key you don't. `ProofProvenance.TrustAssessment` gains a
+`claimedIdentity` (distinct from the verified `resolvedIdentity`, still nil on
+red), and the trust banner renders it plainly labelled "unverified, not in your
+registry." The verdict stays red / do-not-approve, and a *failed* verification
+(bad signature / mismatch / absent) still surfaces nothing — there is no bound
+claim to trust (issue #105, escalated from lonniev/excalibur-mcp#243).
+
 ### Added — a proof-request DM now shows a green/amber/red trust verdict
 
 When a Secure-Courier DM asks you to authorize your identity, the app now
