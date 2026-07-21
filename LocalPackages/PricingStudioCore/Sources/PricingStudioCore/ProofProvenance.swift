@@ -160,6 +160,38 @@ public enum ProofProvenance {
 
     public enum TrustLevel: String, Sendable, Equatable { case green, amber, red }
 
+    /// The raw, signature-bound facts the verdict was computed from — the
+    /// "show your work" disclosure. Present on every *validly-signed*
+    /// attestation so the human can audit *how* the code decided, not just
+    /// what it decided. Nil on absent/failed verification (nothing bound to
+    /// disclose). None of these are endorsements; they are the inputs.
+    public struct DecisionFacts: Sendable, Equatable {
+        /// The key that signed the attestation (the operator's registered
+        /// identity when it verifies).
+        public let signerPubkeyHex: String?
+        /// The key that actually *delivered* the DM — a one-time delivery key
+        /// in the self-addressed case, equal to the signer otherwise.
+        public let deliverySenderPubkeyHex: String
+        /// True when delivery key ≠ signer (the DM was relayed via a throwaway
+        /// key the operator vouches for).
+        public let viaDeliveryKey: Bool
+        /// The subject whose proof the request seeks (the recipient's npub).
+        public let subjectNpub: String
+        /// The one-time challenge / dpop code bound into the signature.
+        public let challenge: String
+        /// The verification outcome (`ok`, `senderMismatch`, `absent`, …).
+        public let verificationReason: String
+
+        public init(signerPubkeyHex: String?, deliverySenderPubkeyHex: String, viaDeliveryKey: Bool, subjectNpub: String, challenge: String, verificationReason: String) {
+            self.signerPubkeyHex = signerPubkeyHex
+            self.deliverySenderPubkeyHex = deliverySenderPubkeyHex
+            self.viaDeliveryKey = viaDeliveryKey
+            self.subjectNpub = subjectNpub
+            self.challenge = challenge
+            self.verificationReason = verificationReason
+        }
+    }
+
     public struct TrustAssessment: Sendable, Equatable {
         public let level: TrustLevel
         /// The resolved, **verified** operator identity to show the human as
@@ -193,17 +225,45 @@ public enum ProofProvenance {
         /// it came from, not only who signed it. Nil when absent/unverified or
         /// the transport exposed nothing (best-effort).
         public let origin: String?
+        /// The place the requesting agent stated it *already showed this code*
+        /// to the human — the OAuth 2.0 Device Authorization Grant
+        /// `verification_uri` (RFC 8628), carried in the attestation's
+        /// `verify_at` tag. It is the human's cross-check anchor: approve only
+        /// if the code in this DM matches the code shown at this venue. It is
+        /// **self-reported, not a trust root** — its power is that an impostor
+        /// cannot make the human's *own* legitimate surface display the
+        /// attacker's code, so an unfamiliar or unreachable venue fails safe
+        /// (can't find the code → don't approve). Free-form: often a URL, but
+        /// may name a conversation or app. Nil when absent/unverified.
+        public let verifyAt: String?
+        /// The signature-bound inputs the verdict was derived from — the
+        /// auditable "how it was decided" disclosure. Nil on absent/failed
+        /// verification.
+        public let decisionFacts: DecisionFacts?
         public let headline: String
         public let detail: String
 
-        public init(level: TrustLevel, resolvedIdentity: String?, claimedIdentity: String? = nil, reason: String? = nil, origin: String? = nil, headline: String, detail: String) {
+        public init(level: TrustLevel, resolvedIdentity: String?, claimedIdentity: String? = nil, reason: String? = nil, origin: String? = nil, verifyAt: String? = nil, decisionFacts: DecisionFacts? = nil, headline: String, detail: String) {
             self.level = level
             self.resolvedIdentity = resolvedIdentity
             self.claimedIdentity = claimedIdentity
             self.reason = reason
             self.origin = origin
+            self.verifyAt = verifyAt
+            self.decisionFacts = decisionFacts
             self.headline = headline
             self.detail = detail
+        }
+
+        /// Return a copy carrying the given decision facts — used by the
+        /// convenience `assess` to attach the audit inputs after the verdict
+        /// branches have run, without threading them through every branch.
+        public func with(decisionFacts: DecisionFacts?) -> TrustAssessment {
+            TrustAssessment(
+                level: level, resolvedIdentity: resolvedIdentity, claimedIdentity: claimedIdentity,
+                reason: reason, origin: origin, verifyAt: verifyAt, decisionFacts: decisionFacts,
+                headline: headline, detail: detail
+            )
         }
     }
 
@@ -235,12 +295,15 @@ public enum ProofProvenance {
         claimedService: String?,
         reason: String? = nil,
         origin: String? = nil,
+        verifyAt: String? = nil,
         viaDeliveryKey: Bool = false
     ) -> TrustAssessment {
-        // The reason and origin are only trustworthy once the signature
-        // verifies; a failed/absent attestation carries no bound tags to show.
+        // The reason, origin, and verify_at are only trustworthy once the
+        // signature verifies; a failed/absent attestation carries no bound
+        // tags to show.
         let signedReason = verification.valid ? reason : nil
         let signedOrigin = verification.valid ? origin : nil
+        let signedVerifyAt = verification.valid ? verifyAt : nil
         // Absent envelope → amber (legacy coexistence during rollout).
         if verification.reason == .absent {
             return TrustAssessment(
@@ -276,6 +339,7 @@ public enum ProofProvenance {
                 claimedIdentity: claimedService,
                 reason: signedReason,
                 origin: signedOrigin,
+                verifyAt: signedVerifyAt,
                 headline: "Unknown requester",
                 detail: "This request is validly signed, but the signer is not a known operator in your registry. Its claimed identity is shown below unverified — do not approve unless you can independently confirm it."
             )
@@ -286,9 +350,10 @@ public enum ProofProvenance {
                 resolvedIdentity: resolvedOperatorName,
                 reason: signedReason,
                 origin: signedOrigin,
+                verifyAt: signedVerifyAt,
                 headline: "First contact",
                 detail: viaDeliveryKey
-                    ? "Delivered from a one-time key, not the operator's own npub — trust rests on the signature, not the sender. First request from this key; confirm you expected it."
+                    ? "The operator vouched for this request with its registered signature, but sent it from a one-time delivery key, not its own npub. First request from this key — confirm you expected it."
                     : "Verified as \(op), but this is the first request from this key. Confirm you expected it."
             )
         case .registeredCertified:
@@ -298,10 +363,11 @@ public enum ProofProvenance {
                     level: .green,
                     resolvedIdentity: resolvedOperatorName,
                     reason: signedReason,
-                origin: signedOrigin,
-                    headline: viaDeliveryKey ? "Operator-signed" : "Verified operator",
+                    origin: signedOrigin,
+                    verifyAt: signedVerifyAt,
+                    headline: viaDeliveryKey ? "Operator-attested" : "Verified operator",
                     detail: viaDeliveryKey
-                        ? "Delivered from a one-time key, not the operator's own npub — trust rests on the signature, not the sender."
+                        ? "The operator vouched for this request with its registered signature, but did not send it from its own npub — the visible sender is a one-time delivery key. Trust the signature, not the sender."
                         : "Verified as \(op), with prior session history."
                 )
             }
@@ -310,9 +376,10 @@ public enum ProofProvenance {
                 resolvedIdentity: resolvedOperatorName,
                 reason: signedReason,
                 origin: signedOrigin,
+                verifyAt: signedVerifyAt,
                 headline: "First contact",
                 detail: viaDeliveryKey
-                    ? "Delivered from a one-time key, not the operator's own npub — trust rests on the signature, not the sender. First request from this key; confirm you expected it."
+                    ? "The operator vouched for this request with its registered signature, but sent it from a one-time delivery key, not its own npub. First request from this key — confirm you expected it."
                     : "Verified as \(op), but this is the first request from this key. Confirm you expected it."
             )
         }
@@ -350,6 +417,10 @@ public enum ProofProvenance {
         let parsed = attestationJSON.flatMap(parse)
         let signedReason = parsed?.tag("reason")
         let signedOrigin = parsed?.tag("origin")
+        // The Device-Grant verification venue — where the agent says it already
+        // showed the human this code (RFC 8628). Read from the signature-bound
+        // tag, not the relay-mutable DM body.
+        let signedVerifyAt = parsed?.tag("verify_at")
         // A one-time delivery key was used when the verified signer (the
         // operator) is NOT the key that actually delivered the DM. In that case
         // the sender the human sees is a throwaway, not the operator, and the
@@ -357,7 +428,7 @@ public enum ProofProvenance {
         let viaDeliveryKey = verification.valid
             && verification.signerPubkeyHex != nil
             && verification.signerPubkeyHex?.lowercased() != expectedSenderPubkeyHex.lowercased()
-        return assess(
+        let assessment = assess(
             verification: verification,
             resolution: resolution,
             hasPriorHistory: hasPrior,
@@ -365,7 +436,20 @@ public enum ProofProvenance {
             claimedService: claimedService,
             reason: signedReason,
             origin: signedOrigin,
+            verifyAt: signedVerifyAt,
             viaDeliveryKey: viaDeliveryKey
         )
+        // Attach the auditable inputs on any validly-signed attestation so the
+        // human can inspect *how* the verdict was reached. Absent/failed
+        // verification binds nothing, so there is nothing honest to disclose.
+        guard verification.valid else { return assessment }
+        return assessment.with(decisionFacts: DecisionFacts(
+            signerPubkeyHex: verification.signerPubkeyHex,
+            deliverySenderPubkeyHex: expectedSenderPubkeyHex,
+            viaDeliveryKey: viaDeliveryKey,
+            subjectNpub: expectedSubjectNpub,
+            challenge: expectedChallenge,
+            verificationReason: verification.reason.rawValue
+        ))
     }
 }
