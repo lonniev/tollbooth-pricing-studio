@@ -139,11 +139,81 @@ final class ProofProvenanceTests: XCTestCase {
             hasPriorHistory: true, resolvedOperatorName: "Cypher-MCP",
             claimedService: "Cypher-MCP", viaDeliveryKey: true)
         XCTAssertEqual(a.level, .green, "a valid operator attestation is still green")
-        XCTAssertEqual(a.headline, "Operator-signed",
-                       "must not read as 'Verified operator' — the sender is a one-time key")
-        XCTAssertTrue(a.detail.lowercased().contains("one-time key"))
-        XCTAssertTrue(a.detail.lowercased().contains("not the operator"),
-                      "must state the sender npub is not the operator's own")
+        XCTAssertEqual(a.headline, "Operator-attested",
+                       "must not read as 'Operator-signed' / 'Verified operator' — the sender is a one-time key, not the operator's own npub")
+        XCTAssertTrue(a.detail.lowercased().contains("one-time delivery key"))
+        XCTAssertTrue(a.detail.lowercased().contains("its own npub"),
+                      "must state the sender is not the operator's own npub")
+    }
+
+    // A signed attestation carrying reason + verify_at + origin tags, signer ==
+    // known operator, sender != signer (the self-addressed delivery-key case).
+    private let anchoredJSON = #"""
+    {"id": "a1", "pubkey": "c812f06c4a4e8ec1b81fc4394fd3845599a5c36baf986e96da9e7c924e8073c7", "created_at": 1784481570, "kind": 27235, "tags": [["u", "npub_proof_request"], ["sender", "cab7a8a0b79b507ac0f52c5bed3705e0a646d2ca379b1adb9d8dfd2681af7f54"], ["subject", "npub1w4jmdng7hfzy85j0y9eapgtt2qe6v02f88vv8r35zf6zv7339paq26huw2"], ["service", "eXcalibur"], ["challenge", "bold-hawk-42"], ["reason", "posting your thread needs your operator proof"], ["verify_at", "https://excalibur.example"], ["origin", "US · 203.0.113.0/24 · web"], ["nonce", "5be3886aacad70767ba3d9109d0d4cf3"]], "content": "", "sig": "00"}
+    """#
+
+    func testVerifyAtSurfacedFromTagOnValidAttestation() {
+        // The Device-Grant venue rides in the signature-bound `verify_at` tag and
+        // must reach the assessment so the human sees where to cross-check.
+        let a = ProofProvenance.assess(
+            attestationJSON: anchoredJSON,
+            expectedSenderPubkeyHex: senderHex,
+            expectedSubjectNpub: subjectNpub,
+            expectedChallenge: challenge,
+            knownOperatorPubkeyHexes: [signerHex],
+            priorContactPubkeyHexes: [signerHex],
+            resolvedOperatorName: subjectNpub, claimedService: "eXcalibur",
+            signatureValidator: ok)
+        XCTAssertEqual(a.level, .green)
+        XCTAssertEqual(a.headline, "Operator-attested")
+        XCTAssertEqual(a.verifyAt, "https://excalibur.example")
+        XCTAssertEqual(a.reason, "posting your thread needs your operator proof")
+    }
+
+    func testDecisionFactsAttachedOnValidAttestation() {
+        let a = ProofProvenance.assess(
+            attestationJSON: anchoredJSON,
+            expectedSenderPubkeyHex: senderHex,
+            expectedSubjectNpub: subjectNpub,
+            expectedChallenge: challenge,
+            knownOperatorPubkeyHexes: [signerHex],
+            priorContactPubkeyHexes: [signerHex],
+            resolvedOperatorName: subjectNpub, claimedService: "eXcalibur",
+            signatureValidator: ok)
+        guard let facts = a.decisionFacts else { return XCTFail("expected decision facts") }
+        XCTAssertEqual(facts.signerPubkeyHex, signerHex)
+        XCTAssertEqual(facts.deliverySenderPubkeyHex, senderHex)
+        XCTAssertEqual(facts.viaDeliveryKey, true, "signer != sender → delivered via one-time key")
+        XCTAssertEqual(facts.challenge, challenge)
+        XCTAssertEqual(facts.verificationReason, "ok")
+    }
+
+    func testNoDecisionFactsWhenAbsent() {
+        // Absent attestation binds nothing — there is nothing honest to disclose.
+        let a = ProofProvenance.assess(
+            attestationJSON: nil,
+            expectedSenderPubkeyHex: senderHex, expectedSubjectNpub: subjectNpub,
+            expectedChallenge: challenge,
+            knownOperatorPubkeyHexes: [], priorContactPubkeyHexes: [],
+            resolvedOperatorName: nil, claimedService: nil,
+            signatureValidator: ok)
+        XCTAssertNil(a.decisionFacts)
+        XCTAssertNil(a.verifyAt)
+    }
+
+    func testVerifyAtSuppressedWhenSignatureInvalid() {
+        // A failed attestation carries no trustworthy tags — verify_at must not
+        // leak from an unverified event.
+        let a = ProofProvenance.assess(
+            attestationJSON: anchoredJSON,
+            expectedSenderPubkeyHex: senderHex, expectedSubjectNpub: subjectNpub,
+            expectedChallenge: challenge,
+            knownOperatorPubkeyHexes: [signerHex], priorContactPubkeyHexes: [signerHex],
+            resolvedOperatorName: subjectNpub, claimedService: "eXcalibur",
+            signatureValidator: bad)
+        XCTAssertEqual(a.level, .red)
+        XCTAssertNil(a.verifyAt)
+        XCTAssertNil(a.decisionFacts)
     }
 
     func testConvenienceDetectsDeliveryKeyMismatch() {

@@ -221,7 +221,11 @@ struct MessageBubble: View {
             expectedChallenge: challenge,
             knownOperatorPubkeyHexes: [recipientHex],
             priorContactPubkeyHexes: [recipientHex],
-            resolvedOperatorName: "your operator identity",
+            // The verified signer resolves to this device's own operator
+            // identity (the self-proof case). Show the actual npub, not a
+            // placeholder phrase — an unverifiable label ("your operator
+            // identity") is exactly the empty text the human cannot check.
+            resolvedOperatorName: subjectNpub.isEmpty ? nil : subjectNpub,
             claimedService: payload.provenance.service,
             signatureValidator: { event in
                 verifyEventSignature(NostrEvent(

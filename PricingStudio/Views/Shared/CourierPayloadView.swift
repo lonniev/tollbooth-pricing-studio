@@ -26,6 +26,14 @@ struct CourierPayloadView: View {
         payload.fields.isEmpty && payload.poison != nil
     }
 
+    /// True when the trust banner's Device-Grant anchor already surfaces the
+    /// dpop code as the cross-check value, making the standalone poison row
+    /// redundant.
+    private var codeShownInAnchor: Bool {
+        if let v = trust?.verifyAt, !v.isEmpty { return true }
+        return false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Trust banner — the human-facing verdict on who is really asking.
@@ -80,8 +88,11 @@ struct CourierPayloadView: View {
                 }
             }
 
-            // Poison (read-only)
-            if let poison = payload.poison {
+            // Poison (read-only). Hidden when the Device-Grant anchor already
+            // presents this same code as the human's cross-check value — showing
+            // it twice under two labels ("Code" and "Anti-replay") reads as two
+            // different codes.
+            if let poison = payload.poison, !codeShownInAnchor {
                 HStack(spacing: 8) {
                     Image(systemName: "shield.checkered")
                         .foregroundStyle(.purple)
@@ -169,6 +180,32 @@ struct CourierPayloadView: View {
         }
     }
 
+    /// One labelled row in the "How this was decided" disclosure.
+    @ViewBuilder
+    private func factRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(width: 110, alignment: .leading)
+            Text(value)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Abbreviate a 64-char hex pubkey for a scannable disclosure row.
+    private func shortHex(_ hex: String) -> String {
+        hex.count > 16 ? "\(hex.prefix(8))…\(hex.suffix(8))" : hex
+    }
+
+    /// Abbreviate a bech32 npub for a scannable disclosure row.
+    private func shortNpub(_ npub: String) -> String {
+        npub.count > 20 ? "\(npub.prefix(12))…\(npub.suffix(6))" : npub
+    }
+
     @ViewBuilder
     private func trustBanner(_ trust: ProofProvenance.TrustAssessment) -> some View {
         let color = trustColor(trust.level)
@@ -240,6 +277,70 @@ struct CourierPayloadView: View {
                         Image(systemName: "globe").font(.caption2).foregroundStyle(.secondary)
                     }
                     .padding(.top, 1)
+                }
+                // Device-Grant cross-check anchor (RFC 8628): the agent stated
+                // it already showed the human this code at `verifyAt`. The code
+                // is the same one carried in this DM. The human approves iff the
+                // two match — an impostor cannot forge the code on the human's
+                // own surface, so an unreachable venue fails safe.
+                if let verifyAt = trust.verifyAt, !verifyAt.isEmpty {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label {
+                            (Text("Also shown to you at ").foregroundStyle(.secondary)
+                             + Text(verifyAt).bold())
+                                .font(.caption2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } icon: {
+                            Image(systemName: "checkmark.shield").font(.caption2).foregroundStyle(color)
+                        }
+                        if let code = payload.poison?.value, !code.isEmpty {
+                            HStack(spacing: 6) {
+                                Text("Code")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                Text(code)
+                                    .font(.callout.monospaced().bold())
+                                    .foregroundStyle(color)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        Text("Approve only if this code matches the one shown there. If you can't find it, don't approve.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(color.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.top, 2)
+                }
+                // "How this was decided" — the auditable, signature-bound inputs
+                // behind the verdict, so the human can inspect the reasoning
+                // rather than take the coloured headline on faith.
+                if let facts = trust.decisionFacts {
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 3) {
+                            factRow("Signature", facts.verificationReason == "ok" ? "verified" : facts.verificationReason)
+                            if let signer = facts.signerPubkeyHex {
+                                factRow("Signed by", shortHex(signer))
+                            }
+                            factRow(
+                                "Delivered by",
+                                shortHex(facts.deliverySenderPubkeyHex)
+                                    + (facts.viaDeliveryKey ? "  (one-time key)" : "  (same key)")
+                            )
+                            factRow("Proof sought of", shortNpub(facts.subjectNpub))
+                            factRow("Bound code", facts.challenge)
+                        }
+                        .padding(.top, 4)
+                    } label: {
+                        Text("How this was decided")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .tint(.secondary)
+                    .padding(.top, 2)
                 }
             }
             Spacer(minLength: 0)
