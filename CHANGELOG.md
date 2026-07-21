@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed — a proof/approval request no longer renders as a bare, un-actionable credential form
+
+A proof-request DM (npub-ownership) parses to a valid courier payload with **zero**
+editable fields — so the credential-delivery card rendered an empty form with a
+disabled "Fill at Least One Field" button, which read as raw and gave the human
+nothing to act on. `CourierPayloadView` now detects the approval case
+(`fields.isEmpty` + a challenge) and renders it as an **approval**: the trust
+verdict and stated purpose lead, the empty field form is dropped, and the action
+becomes a confirm/ignore. For an unverified (red) signer the confirm is
+de-emphasized and captioned — ignoring is a first-class outcome. `CourierPayload`
+also parses the `Reason:` provenance line for display.
+
 ### Added — an unknown signer's *stated purpose* is now shown alongside its claimed identity
 
 Building on show-and-label (below): a proof/credential request whose attestation

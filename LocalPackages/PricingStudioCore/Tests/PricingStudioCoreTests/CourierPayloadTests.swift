@@ -59,6 +59,40 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertEqual(payload!.provenance.protocolVersion, "secure-courier/1.0")
     }
 
+    func testParseProofRequestHasNoEditableFields() {
+        // A proof-request DM (npub_ownership) carries only control fields —
+        // dpop_token / rendezvous_relay / attestation — and NO credential
+        // fields to fill. parse still succeeds (it's a valid courier payload),
+        // but fields.count == 0. That's why the credential-entry card renders
+        // bare and reads as "raw": there is nothing to fill in. The fix routes
+        // this to an approval presentation, not a fill-in form.
+        let text = """
+        Hi — Cypher-MCP needs to verify you own this npub. Reply with any text to confirm.
+
+        I'm resolving your architecture question and need the Operator to run the paid graph query.
+
+        --- Credential Payload ---
+
+          dpop_token = @@@eager-hawk-88@@@
+          rendezvous_relay = @@@wss://relay.primal.net@@@
+
+        --- Operator Attestation ---
+        attestation = @@@{"kind":27235,"tags":[["service","npub_ownership"],["reason","why"]],"sig":"d713"}@@@
+
+        --- Message Provenance ---
+        Service: npub ownership proof
+        Reason: I'm resolving your architecture question.
+        Operator: npub17eezx4fpe7dn2az0jw2vmwu6k35m3g4yvn85e3d5zf3sryp82x7sus4uut
+        Protocol: DPYC Secure Courier v0.66.0
+        """
+        let payload = CourierPayload.parse(text)
+        XCTAssertNotNil(payload, "a proof request is still a valid courier payload")
+        XCTAssertEqual(payload!.fields.count, 0, "a proof request has no editable credential fields")
+        XCTAssertEqual(payload!.poison?.key, "dpop_token")
+        XCTAssertNotNil(payload!.attestationJSON)
+        XCTAssertEqual(payload!.provenance.reason, "I'm resolving your architecture question.")
+    }
+
     // MARK: - Placeholder Detection
 
     func testPlaceholderDetection() {

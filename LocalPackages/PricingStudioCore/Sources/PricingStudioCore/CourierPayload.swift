@@ -35,13 +35,19 @@ public struct CourierPayload: Sendable {
         /// relays require the request be delivered from a distinct ephemeral
         /// key. Its authority is proven by `attestationJSON`, not by itself.
         public var deliveryKey: String?
+        /// The `Reason:` line — the Operator's stated human-readable purpose
+        /// ("I'm working on your request XYZ …"), wheel v0.66.0+. The plaintext
+        /// copy is convenience for display; the trustworthy value is the
+        /// signature-bound `reason` tag on the attestation (see ProofProvenance).
+        public var reason: String?
 
-        public init(service: String? = nil, operatorNpub: String? = nil, sent: String? = nil, protocolVersion: String? = nil, deliveryKey: String? = nil) {
+        public init(service: String? = nil, operatorNpub: String? = nil, sent: String? = nil, protocolVersion: String? = nil, deliveryKey: String? = nil, reason: String? = nil) {
             self.service = service
             self.operatorNpub = operatorNpub
             self.sent = sent
             self.protocolVersion = protocolVersion
             self.deliveryKey = deliveryKey
+            self.reason = reason
         }
     }
 
@@ -215,6 +221,8 @@ public struct CourierPayload: Sendable {
                 prov.sent = String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespaces)
             } else if trimmed.hasPrefix("Protocol:") {
                 prov.protocolVersion = String(trimmed.dropFirst(9)).trimmingCharacters(in: .whitespaces)
+            } else if trimmed.hasPrefix("Reason:") {
+                prov.reason = String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespaces)
             }
         }
 
