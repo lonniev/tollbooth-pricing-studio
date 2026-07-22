@@ -158,7 +158,13 @@ public enum ProofProvenance {
 
     // MARK: - Trust assessment
 
-    public enum TrustLevel: String, Sendable, Equatable { case green, amber, red }
+    /// green = verified & known; amber = verified but first-contact / no
+    /// attestation; **ephemeral** = validly signed by a one-time key that isn't
+    /// a registered operator (the expected self-DM login case — trust rests on
+    /// the Device-Grant code match, not registry membership, so it's a *caution*
+    /// (purple), not a rejection); red = the signature itself failed → do not
+    /// trust.
+    public enum TrustLevel: String, Sendable, Equatable { case green, amber, ephemeral, red }
 
     /// The raw, signature-bound facts the verdict was computed from — the
     /// "show your work" disclosure. Present on every *validly-signed*
@@ -324,24 +330,25 @@ public enum ProofProvenance {
         }
         switch resolution {
         case .unresolved:
-            // Validly signed, but by a key that is not a known operator. The
-            // signature *did* verify, so `claimedService` is cryptographically
-            // bound to this specific key — show it, plainly labelled unverified,
-            // rather than hiding it. This is exactly the case where the human
-            // classifier needs the claim: seeing an impostor assert a name they
-            // recognise, from a key they don't, is what exposes impersonation
-            // (issue #105 / origin excalibur-mcp#243). Still red, still
-            // do-not-approve, and `resolvedIdentity` stays nil so nothing is
-            // rendered as verified.
+            // Validly signed by a one-time key that is not a registered
+            // operator. This is the *expected* shape of a self-DM login (the
+            // browser has no operator key, so it delivers from an ephemeral
+            // one) — not an alarm. Trust does not come from registry membership
+            // here; it comes from the Device-Grant code match (verifyAt). So
+            // this is a caution (purple), not a rejection (red): the human
+            // confirms the code matches where they started, and if they can't,
+            // they don't approve. We do NOT surface `claimedService` as a
+            // "claimed identity" — for a proof request it is only the request
+            // type ("npub_ownership"), and dressing it as an impersonated name
+            // is the confusing noise; the signed `reason` carries the real why.
             return TrustAssessment(
-                level: .red,
+                level: .ephemeral,
                 resolvedIdentity: nil,
-                claimedIdentity: claimedService,
                 reason: signedReason,
                 origin: signedOrigin,
                 verifyAt: signedVerifyAt,
-                headline: "Unknown requester",
-                detail: "This request is validly signed, but the signer is not a known operator in your registry. Its claimed identity is shown below unverified — do not approve unless you can independently confirm it."
+                headline: "Ephemeral Identity",
+                detail: "A one-time key signed this — expected when you start a login from a browser, which has no standing identity. Confirm the code matches where you began; if you can't find it, don't approve."
             )
         case .registeredNovel:
             let op = resolvedOperatorName ?? "a registered operator"
