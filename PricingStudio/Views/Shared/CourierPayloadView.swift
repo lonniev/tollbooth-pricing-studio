@@ -46,7 +46,11 @@ struct CourierPayloadView: View {
             // rendering an unverified name manufactures confidence the protocol
             // has not earned.
             HStack(spacing: 8) {
-                if let service = payload.provenance.service, trust?.level != .red {
+                // The service capsule is meaningful for a credential DM
+                // ("schwab-operator"), but for a proof/approval request it is
+                // just the request type ("npub_ownership") — noise dressed as an
+                // identity. Show it only for credential DMs, and never on red.
+                if let service = payload.provenance.service, trust?.level != .red, !isApprovalRequest {
                     Label(service, systemImage: "lock.shield")
                         .font(.caption.bold())
                         .foregroundStyle(.orange)
@@ -71,8 +75,12 @@ struct CourierPayloadView: View {
                 }
             }
 
-            // Greeting
-            if !payload.greeting.isEmpty {
+            // Greeting. Suppressed for a proof/approval request: its greeting is
+            // generic boilerplate ("…needs to verify you own this npub…") that
+            // repeats what the trust banner and the signed reason already say —
+            // showing it too is the wordiness. Credential DMs keep their
+            // greeting (it carries real per-service instructions).
+            if !payload.greeting.isEmpty, !isApprovalRequest {
                 Text(payload.greeting)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -168,6 +176,7 @@ struct CourierPayloadView: View {
         switch level {
         case .green: return .green
         case .amber: return .orange
+        case .ephemeral: return .purple
         case .red: return .red
         }
     }
@@ -176,6 +185,7 @@ struct CourierPayloadView: View {
         switch level {
         case .green: return "checkmark.seal.fill"
         case .amber: return "exclamationmark.triangle.fill"
+        case .ephemeral: return "person.fill.questionmark"
         case .red: return "xmark.octagon.fill"
         }
     }
@@ -286,8 +296,9 @@ struct CourierPayloadView: View {
                 if let verifyAt = trust.verifyAt, !verifyAt.isEmpty {
                     VStack(alignment: .leading, spacing: 5) {
                         Label {
-                            (Text("Also shown to you at ").foregroundStyle(.secondary)
-                             + Text(verifyAt).bold())
+                            (Text("See ").foregroundStyle(.secondary)
+                             + Text(verifyAt).bold()
+                             + Text(" for the code to validate this.").foregroundStyle(.secondary))
                                 .font(.caption2)
                                 .fixedSize(horizontal: false, vertical: true)
                         } icon: {
@@ -304,7 +315,7 @@ struct CourierPayloadView: View {
                                     .textSelection(.enabled)
                             }
                         }
-                        Text("Approve only if this code matches the one shown there. If you can't find it, don't approve.")
+                        Text("Approve only if it matches. If you can't find it, don't approve.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -335,7 +346,7 @@ struct CourierPayloadView: View {
                         }
                         .padding(.top, 4)
                     } label: {
-                        Text("How this was decided")
+                        Text("Validity Parameters")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }

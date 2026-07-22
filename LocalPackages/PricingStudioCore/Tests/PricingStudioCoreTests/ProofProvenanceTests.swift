@@ -247,43 +247,45 @@ final class ProofProvenanceTests: XCTestCase {
         XCTAssertEqual(a.level, .amber)
     }
 
-    func testAssessRedUnresolvedShowsClaimedIdentityLabeled() {
-        // Validly signed, but the key is not a known operator. The verdict stays
-        // red and nothing is rendered as *verified* (resolvedIdentity nil), but
-        // the claimed identity is surfaced — hiding it is exactly what lets an
-        // impostor claiming a recognised name slip past (#105 / excalibur-mcp#243).
+    func testAssessEphemeralOnUnknownSigner() {
+        // Validly signed by a one-time key that is not a registered operator —
+        // the expected self-DM login shape, not an alarm. It is a purple caution
+        // ("Ephemeral Identity"), NOT red: trust comes from the Device-Grant
+        // code match, not registry membership. Nothing renders as verified, and
+        // the request-type ("claimedService") is NOT dressed up as a claimed
+        // identity (that was the confusing noise).
         let a = ProofProvenance.assess(
             verification: verified(), resolution: .unresolved,
-            hasPriorHistory: false, resolvedOperatorName: "eXcalibur MCP", claimedService: "eXcalibur MCP")
-        XCTAssertEqual(a.level, .red)
-        XCTAssertNil(a.resolvedIdentity, "red must never render an identity as verified")
-        XCTAssertEqual(a.claimedIdentity, "eXcalibur MCP",
-                       "the unknown-signer red case must show-and-label the claim, not hide it")
+            hasPriorHistory: false, resolvedOperatorName: "eXcalibur MCP", claimedService: "npub_ownership")
+        XCTAssertEqual(a.level, .ephemeral)
+        XCTAssertEqual(a.headline, "Ephemeral Identity")
+        XCTAssertNil(a.resolvedIdentity, "must never render an identity as verified")
+        XCTAssertNil(a.claimedIdentity, "the request type is not a claimed identity — don't surface it")
     }
 
     func testAssessSurfacesSignedReasonOnUnknownSigner() {
-        // A validly-signed unknown-signer request that stated a purpose surfaces
-        // it alongside the claimed identity — the "why" that makes a stranger's
-        // ask judgeable (the second half of the #105 / excalibur-mcp#243 fix).
-        let purpose = "I'm drafting your weekly thread and need the Operator to post it."
+        // A validly-signed ephemeral request that stated a purpose surfaces it —
+        // the "why" that makes the ask judgeable. The FE supplies this ("You
+        // requested to log in to …") so the human recognises their own action.
+        let purpose = "You requested to log in to eXcalibur (excalibur.tollbooth-dpyc.com)."
         let a = ProofProvenance.assess(
             verification: verified(), resolution: .unresolved,
             hasPriorHistory: false, resolvedOperatorName: "eXcalibur MCP",
-            claimedService: "eXcalibur MCP", reason: purpose)
-        XCTAssertEqual(a.level, .red)
+            claimedService: "npub_ownership", reason: purpose)
+        XCTAssertEqual(a.level, .ephemeral)
         XCTAssertEqual(a.reason, purpose,
                        "a signed, validly-verified purpose must be surfaced")
     }
 
     func testAssessSurfacesSignedOrigin() {
-        // Operator-observed origin (signed) is surfaced — even on the red
-        // unknown-signer case, where "where did this come from" matters most.
+        // Operator-observed origin (signed) is surfaced on the ephemeral case,
+        // where "where did this come from" still matters.
         let origin = "US · 203.0.113.0/24 · claude-ai/1.0"
         let a = ProofProvenance.assess(
             verification: verified(), resolution: .unresolved,
             hasPriorHistory: false, resolvedOperatorName: nil,
-            claimedService: "Cypher-MCP", reason: nil, origin: origin)
-        XCTAssertEqual(a.level, .red)
+            claimedService: "npub_ownership", reason: nil, origin: origin)
+        XCTAssertEqual(a.level, .ephemeral)
         XCTAssertEqual(a.origin, origin, "signed, verified origin must be surfaced")
     }
 
@@ -347,8 +349,11 @@ final class ProofProvenanceTests: XCTestCase {
         XCTAssertEqual(a.level, .green)
     }
 
-    func testEndToEndImpostorRed() {
-        // Same DM, but the signer is NOT among my known operators → red.
+    func testEndToEndEphemeralWhenSignerUnknown() {
+        // Same DM, validly signed, but the signer is NOT a known operator →
+        // ephemeral (purple caution), not red. Trust rests on the Device-Grant
+        // code match, not registry membership. Nothing renders as verified and
+        // the request type is not surfaced as a claimed identity.
         let a = ProofProvenance.assess(
             attestationJSON: fixtureJSON,
             expectedSenderPubkeyHex: senderHex,
@@ -357,12 +362,30 @@ final class ProofProvenanceTests: XCTestCase {
             knownOperatorPubkeyHexes: [],            // unknown signer
             priorContactPubkeyHexes: [],
             resolvedOperatorName: nil,
-            claimedService: "x",
+            claimedService: "npub_ownership",
             signatureValidator: ok
+        )
+        XCTAssertEqual(a.level, .ephemeral)
+        XCTAssertEqual(a.headline, "Ephemeral Identity")
+        XCTAssertNil(a.resolvedIdentity)
+        XCTAssertNil(a.claimedIdentity)
+    }
+
+    func testEndToEndRedWhenSignatureFails() {
+        // A signature that does NOT verify is the real danger → red, do not
+        // trust. (Distinguishes the genuinely-bad case from the ephemeral one.)
+        let a = ProofProvenance.assess(
+            attestationJSON: fixtureJSON,
+            expectedSenderPubkeyHex: senderHex,
+            expectedSubjectNpub: subjectNpub,
+            expectedChallenge: challenge,
+            knownOperatorPubkeyHexes: [],
+            priorContactPubkeyHexes: [],
+            resolvedOperatorName: nil,
+            claimedService: "npub_ownership",
+            signatureValidator: bad
         )
         XCTAssertEqual(a.level, .red)
         XCTAssertNil(a.resolvedIdentity)
-        XCTAssertEqual(a.claimedIdentity, "x",
-                       "an impostor's claim is shown-and-labelled, never hidden")
     }
 }
