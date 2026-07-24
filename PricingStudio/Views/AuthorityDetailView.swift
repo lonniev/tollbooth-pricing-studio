@@ -25,6 +25,7 @@ struct AuthorityDetailView: View {
     @Query private var allAuthorities: [Authority]
     @Query private var allOperators: [Operator]
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     private enum ForgetState {
         case idle, forgetting, done(String), error(String)
@@ -128,11 +129,11 @@ struct AuthorityDetailView: View {
                     Divider()
                     authorityBalanceSection
                     Divider()
-                    operatorCredentialSection
+                    // Operator Secrets and Persistence Status share the width side-by-side —
+                    // neither needs the full pane (they stack on a compact iPhone layout).
+                    sharedWidthSections
                     Divider()
                     pendingAdoptionsSection
-                    Divider()
-                    persistenceStatusSection
                 }
                 Divider()
                 connectedOperatorsSection
@@ -312,6 +313,26 @@ struct AuthorityDetailView: View {
         )
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Shared-width row (Operator Secrets + Persistence Status)
+
+    /// The two sections sit side-by-side on a regular-width layout — neither needs the full
+    /// pane — and stack on a compact (iPhone) layout. Each section already carries
+    /// `.frame(maxWidth: .infinity)`, so inside the HStack they split the row evenly.
+    @ViewBuilder
+    private var sharedWidthSections: some View {
+        if hSizeClass == .compact {
+            operatorCredentialSection
+            Divider()
+            persistenceStatusSection
+        } else {
+            HStack(alignment: .top, spacing: 0) {
+                operatorCredentialSection
+                Divider()
+                persistenceStatusSection
+            }
+        }
     }
 
     // MARK: - Operator Credential Section
