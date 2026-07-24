@@ -4,6 +4,10 @@ struct ReconciliationSheet: View {
     @Bindable var viewModel: ReconciliationViewModel
     let storedModel: PricingModelResponse
     var onApply: (([ToolPrice], MCPService.ToolMismatch) -> Void)?
+    /// Persist the staged edits directly to the operator's pricing model
+    /// (Neon). Invoked by Done so leaving Reconcile saves without a second
+    /// Apply on the Operator screen.
+    var onDone: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var applied = false
 
@@ -29,10 +33,40 @@ struct ReconciliationSheet: View {
             .navigationTitle("Reconcile Tools")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { finish() }
                 }
             }
         }
+    }
+
+    // MARK: - Finish (Done)
+
+    /// The reconciliation to stage when the user taps Done without having
+    /// tapped Apply first. `nil` once Apply has already staged (``applied``),
+    /// or when no reconciled result is on screen to stage.
+    static func pendingReconciliation(
+        applied: Bool,
+        suggested: [ToolPrice]?,
+        mismatch: MCPService.ToolMismatch?
+    ) -> (suggested: [ToolPrice], mismatch: MCPService.ToolMismatch)? {
+        guard !applied, let suggested, let mismatch else { return nil }
+        return (suggested, mismatch)
+    }
+
+    /// Stage any pending reconciliation, persist it to the operator's pricing
+    /// model, and dismiss. Both the toolbar Done and the applied-phase Done
+    /// invoke this so leaving Reconcile saves directly to Neon — no separate
+    /// Apply on the Operator screen required.
+    private func finish() {
+        if let pending = Self.pendingReconciliation(
+            applied: applied,
+            suggested: viewModel.suggestedTools,
+            mismatch: viewModel.mismatch
+        ) {
+            onApply?(pending.suggested, pending.mismatch)
+        }
+        onDone?()
+        dismiss()
     }
 
     // MARK: - Detecting
@@ -124,6 +158,16 @@ struct ReconciliationSheet: View {
     private func reviewPhase(suggested: [ToolPrice], mismatch: MCPService.ToolMismatch) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                Button {
+                    onApply?(suggested, mismatch)
+                    applied = true
+                } label: {
+                    Label("Apply", systemImage: "checkmark.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
                 let newToolNames = Set(mismatch.newIdentities.map(\.mcpName))
                 let grouped = Dictionary(grouping: suggested) { $0.category }
                 let order = ["free", "auth", "read", "write", "heavy", "restricted"]
@@ -183,19 +227,8 @@ struct ReconciliationSheet: View {
                     }
                 }
 
-                HStack {
-                    Button("Dismiss") { dismiss() }
-                        .buttonStyle(.bordered)
-
-                    Button {
-                        onApply?(suggested, mismatch)
-                        applied = true
-                    } label: {
-                        Label("Apply", systemImage: "checkmark.circle")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
+                Button("Dismiss") { dismiss() }
+                    .buttonStyle(.bordered)
             }
             .padding()
         }
@@ -210,7 +243,7 @@ struct ReconciliationSheet: View {
         } description: {
             Text("Pricing model is now aligned with the latest code and conventions.")
         } actions: {
-            Button("Done") { dismiss() }
+            Button("Done") { finish() }
                 .buttonStyle(.borderedProminent)
         }
     }
