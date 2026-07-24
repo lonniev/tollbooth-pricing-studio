@@ -193,6 +193,7 @@
 		E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9844C99A73C4999A2235C1B /* PricingDiffView.swift */; };
 		EDOP000100000000000000B1 /* EditOperatorRegistrationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDOP000100000000000000A1 /* EditOperatorRegistrationSheet.swift */; };
 		EE0000010000000000000F04 /* ReconciliationUUIDTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */; };
+		EE0000010000000000000F05 /* ReconciliationDonePersistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000010000000000000E05 /* ReconciliationDonePersistTests.swift */; };
 		KEYS000100000000000000B1 /* KeypairGeneratorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = KEYS000100000000000000A1 /* KeypairGeneratorSheet.swift */; };
 		NOTA000100000000000000B1 /* NotarizationStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTA000100000000000000A1 /* NotarizationStatusView.swift */; };
 		ONBD000100000000000000B1 /* OnboardingStatusSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */; };
@@ -410,6 +411,7 @@
 		DECD00010000000000000FA1 /* NpubNameResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NpubNameResolver.swift; sourceTree = "<group>"; };
 		EDOP000100000000000000A1 /* EditOperatorRegistrationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditOperatorRegistrationSheet.swift; sourceTree = "<group>"; };
 		EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconciliationUUIDTests.swift; sourceTree = "<group>"; };
+		EE0000010000000000000E05 /* ReconciliationDonePersistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconciliationDonePersistTests.swift; sourceTree = "<group>"; };
 		KEYS000100000000000000A1 /* KeypairGeneratorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeypairGeneratorSheet.swift; sourceTree = "<group>"; };
 		NOTA000100000000000000A1 /* NotarizationStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotarizationStatusView.swift; sourceTree = "<group>"; };
 		ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStatusSheet.swift; sourceTree = "<group>"; };
@@ -735,6 +737,7 @@
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
 				DD0000010000000000000E03 /* NostrDMServiceTests.swift */,
 				EE0000010000000000000E04 /* ReconciliationUUIDTests.swift */,
+				EE0000010000000000000E05 /* ReconciliationDonePersistTests.swift */,
 				B98DDF18C5960F33DAB2E8A7 /* ProofApprovalNotificationTests.swift */,
 			);
 			path = PricingStudioTests;
@@ -1161,6 +1164,7 @@
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
 				DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */,
 				EE0000010000000000000F04 /* ReconciliationUUIDTests.swift in Sources */,
+				EE0000010000000000000F05 /* ReconciliationDonePersistTests.swift in Sources */,
 				26B3F49DC3B8F7DC0AEA20B0 /* ProofApprovalNotificationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

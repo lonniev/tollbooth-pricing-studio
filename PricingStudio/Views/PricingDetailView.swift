@@ -189,6 +189,18 @@ struct PricingDetailView: View {
                             mismatch: mismatch,
                             storedModel: model
                         )
+                    },
+                    onDone: {
+                        // Persist the staged reconciliation straight to the
+                        // operator's pricing model (Neon) so the user needn't
+                        // return to the Operator screen to Save.
+                        Task {
+                            do {
+                                try await viewModel.savePricing(for: target)
+                            } catch {
+                                saveError = error.localizedDescription
+                            }
+                        }
                     }
                 )
             }
