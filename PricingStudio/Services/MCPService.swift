@@ -1991,7 +1991,7 @@ actor MCPService {
         }
     }
 
-    // MARK: - Network Books Health
+    // MARK: - Persistence Status (network_books_health wire model)
 
     /// The Authority's own certification-ledger reachability. `status` is one
     /// of "ok" | "quota_exceeded" | "error" | "unreachable"; `detail` carries a
