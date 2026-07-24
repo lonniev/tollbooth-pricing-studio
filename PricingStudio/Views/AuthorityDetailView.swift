@@ -56,6 +56,38 @@ struct AuthorityDetailView: View {
         }
     }
 
+    /// The user-facing section title. "Persistence Status" — plain language for
+    /// the liveness of the Neon/Postgres persistence this Authority stewards —
+    /// replacing the operator-internal jargon "Network Books Health". The
+    /// underlying tool (`network_books_health`) and wire model keep their names;
+    /// this is a display rename only.
+    static let persistenceStatusTitle = "Persistence Status"
+
+    /// The org-scoped secret whose delivery enables proactive per-project Neon
+    /// compute-quota monitoring. Named once so the Persistence Status courier
+    /// affordance and its test agree on the exact field.
+    static let neonApiKeySecret = "NEON_API_KEY"
+
+    /// Builds the Secure Courier request that delivers the missing
+    /// `NEON_API_KEY` to an Authority, reusing the same `onRequestCourier`
+    /// path Operator Secrets drives rather than a parallel flow. Pure and
+    /// static so the target secret and endpoint wiring can be unit-tested
+    /// without a live courier channel.
+    static func neonApiKeyCourierParams(
+        authorityName: String,
+        authorityNpub: String,
+        endpointURL: URL,
+        credentialService: String
+    ) -> CourierParams {
+        CourierParams(
+            operatorName: authorityName,
+            operatorNpub: authorityNpub,
+            endpointURL: endpointURL,
+            credentialService: credentialService,
+            missingSecrets: [neonApiKeySecret]
+        )
+    }
+
     private var isLinked: Bool {
         KeychainService.loadNsec(forNpub: authority.npub) != nil
     }
@@ -100,7 +132,7 @@ struct AuthorityDetailView: View {
                     Divider()
                     pendingAdoptionsSection
                     Divider()
-                    networkBooksHealthSection
+                    persistenceStatusSection
                 }
                 Divider()
                 connectedOperatorsSection
@@ -395,7 +427,7 @@ struct AuthorityDetailView: View {
             }
         }
         // Fill the pane width like the sibling sections (Pending Adoptions,
-        // Network Books Health) instead of shrinking to the checklist column.
+        // Persistence Status) instead of shrinking to the checklist column.
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -649,13 +681,13 @@ struct AuthorityDetailView: View {
         String(s.replacingOccurrences(of: "T", with: " ").prefix(16))
     }
 
-    // MARK: - Network Books Health (Neon/Postgres steward view)
+    // MARK: - Persistence Status (Neon/Postgres steward view)
 
     @ViewBuilder
-    private var networkBooksHealthSection: some View {
+    private var persistenceStatusSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Label("Network Books Health", systemImage: "cylinder.split.1x2")
+                Label(Self.persistenceStatusTitle, systemImage: "cylinder.split.1x2")
                     .font(.headline)
                 if let health = booksHealth {
                     Circle()
@@ -742,20 +774,48 @@ struct AuthorityDetailView: View {
 
         // Neon control-plane block.
         if health.neonApi.configured == false {
-            Label(
-                health.neonApi.hint ?? "Proactive Neon monitoring isn’t enabled yet.",
-                systemImage: "gauge.badge.minus"
-            )
-            .font(.caption)
-            .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 6) {
+                Label(
+                    health.neonApi.hint ?? "Proactive Neon monitoring isn’t enabled yet.",
+                    systemImage: "gauge.badge.minus"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+
+                // Turn the dead-end hint into an action: deliver the missing
+                // org-scoped NEON_API_KEY through the SAME Secure Courier path
+                // Operator Secrets uses, so the user lands in the identical
+                // courier sheet targeting NEON_API_KEY.
+                if let onRequestCourier,
+                   let endpoint = authority.mcpEndpointURL,
+                   let url = URL(string: endpoint) {
+                    Button {
+                        onRequestCourier(Self.neonApiKeyCourierParams(
+                            authorityName: authority.displayName,
+                            authorityNpub: authority.npub,
+                            endpointURL: url,
+                            credentialService: onboardingStatus?.credentialService ?? ""
+                        ))
+                    } label: {
+                        Label("Deliver NEON_API_KEY", systemImage: "lock.shield")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.orange)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else if let err = health.neonApi.error {
             Label(err, systemImage: "externaldrive.badge.exclamationmark")
                 .font(.caption)
                 .foregroundStyle(.red)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else if health.neonApi.projects.isEmpty {
             Text("No Neon projects reported.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             ForEach(health.neonApi.projects) { project in
                 neonProjectRow(project)
@@ -781,7 +841,9 @@ struct AuthorityDetailView: View {
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
