@@ -64,17 +64,18 @@ struct AuthorityDetailView: View {
     /// this is a display rename only.
     static let persistenceStatusTitle = "Persistence Status"
 
-    /// The org-scoped secret whose delivery enables proactive per-project Neon
-    /// compute-quota monitoring. Named once so the Persistence Status courier
-    /// affordance and its test agree on the exact field.
+    /// The two org-scoped secrets the proactive per-project Neon watch needs,
+    /// delivered together: the organization id (so the projects call carries
+    /// `org_id`) and the org-scoped API key. Named once so the Persistence Status
+    /// courier affordance and its test agree on the exact fields.
     static let neonApiKeySecret = "NEON_API_KEY"
+    static let neonOrgIdSecret = "NEON_ORG_ID"
 
-    /// Builds the Secure Courier request that delivers the missing
-    /// `NEON_API_KEY` to an Authority, reusing the same `onRequestCourier`
-    /// path Operator Secrets drives rather than a parallel flow. Pure and
-    /// static so the target secret and endpoint wiring can be unit-tested
-    /// without a live courier channel.
-    static func neonApiKeyCourierParams(
+    /// Builds the Secure Courier request that delivers BOTH Neon secrets, reusing
+    /// the same `onRequestCourier` path Operator Secrets drives rather than a
+    /// parallel flow. Pure and static so the target fields and endpoint wiring can
+    /// be unit-tested without a live courier channel.
+    static func neonKeysCourierParams(
         authorityName: String,
         authorityNpub: String,
         endpointURL: URL,
@@ -85,7 +86,7 @@ struct AuthorityDetailView: View {
             operatorNpub: authorityNpub,
             endpointURL: endpointURL,
             credentialService: credentialService,
-            missingSecrets: [neonApiKeySecret]
+            missingSecrets: [neonOrgIdSecret, neonApiKeySecret]
         )
     }
 
@@ -797,28 +798,28 @@ struct AuthorityDetailView: View {
         if health.neonApi.configured == false {
             VStack(alignment: .leading, spacing: 6) {
                 Label(
-                    health.neonApi.hint ?? "Proactive Neon monitoring isn’t enabled yet.",
+                    "Use Secure Courier to provide the Authority's Neon Organization ID and API key. With both, the proactive watch tops a project up before it 402s; without them, only reactive detection is available.",
                     systemImage: "gauge.badge.minus"
                 )
                 .font(.caption)
                 .foregroundStyle(.orange)
 
-                // Turn the dead-end hint into an action: deliver the missing
-                // org-scoped NEON_API_KEY through the SAME Secure Courier path
-                // Operator Secrets uses, so the user lands in the identical
-                // courier sheet targeting NEON_API_KEY.
+                // Turn the dead-end hint into an action: deliver BOTH Neon secrets
+                // (organization id + org-scoped API key) through the SAME Secure
+                // Courier path Operator Secrets uses, so the user lands in the
+                // identical courier sheet with both fields listed.
                 if let onRequestCourier,
                    let endpoint = authority.mcpEndpointURL,
                    let url = URL(string: endpoint) {
                     Button {
-                        onRequestCourier(Self.neonApiKeyCourierParams(
+                        onRequestCourier(Self.neonKeysCourierParams(
                             authorityName: authority.displayName,
                             authorityNpub: authority.npub,
                             endpointURL: url,
                             credentialService: onboardingStatus?.credentialService ?? ""
                         ))
                     } label: {
-                        Label("Deliver NEON_API_KEY", systemImage: "lock.shield")
+                        Label("Deliver Keys", systemImage: "lock.shield")
                             .font(.caption)
                     }
                     .buttonStyle(.borderedProminent)
