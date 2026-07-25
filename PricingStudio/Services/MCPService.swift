@@ -2209,10 +2209,15 @@ actor MCPService {
 
         // Restricted owner-consent tool: bind the proof to the Authority's own
         // npub under `authority_proof`, exactly like list_adoption_requests.
+        // Sign for the EXACT tool.name just resolved from tools/list — not the
+        // capability overload, whose second slug lookup can transiently miss and
+        // fall back to the bare capability, producing a `u`-tag mismatch the wheel
+        // rejects as authority_consent_required. Signing the known name removes
+        // that race.
         let args: [String: Value] = [
             "authority_proof": .string(await makeIdentityProof(
                 forNpub: authorityNpub,
-                capability: "network_persistence_health",
+                toolName: tool.name,
                 endpointURL: endpointURL
             ))
         ]
