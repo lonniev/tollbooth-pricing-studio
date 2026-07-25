@@ -2057,11 +2057,18 @@ actor MCPService {
     struct NeonProjectUsage: Decodable, Sendable, Identifiable {
         let projectId: String
         let name: String
-        let computeHoursUsed: Double
+        // Compute-hours are Scale-only to read; nil (not 0) on Free so the UI can
+        // say "unavailable" instead of a misleading "0%".
+        let computeHoursUsed: Double?
         let allowanceHours: Double
-        let usedPct: Double
+        let usedPct: Double?
         let quotaResetAt: String
         let status: String
+        // Free-readable heartbeat: liveness + storage (the Free quota signal).
+        let lastActiveAt: String?
+        let storageMb: Double?
+        let storagePct: Double?
+        let storageAllowanceMb: Double?
 
         var id: String { projectId }
 
@@ -2073,22 +2080,32 @@ actor MCPService {
             case usedPct = "used_pct"
             case quotaResetAt = "quota_reset_at"
             case status
+            case lastActiveAt = "last_active_at"
+            case storageMb = "storage_mb"
+            case storagePct = "storage_pct"
+            case storageAllowanceMb = "storage_allowance_mb"
         }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             projectId = try c.decodeIfPresent(String.self, forKey: .projectId) ?? ""
             name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-            computeHoursUsed = try c.decodeIfPresent(Double.self, forKey: .computeHoursUsed) ?? 0
+            computeHoursUsed = try c.decodeIfPresent(Double.self, forKey: .computeHoursUsed)
             allowanceHours = try c.decodeIfPresent(Double.self, forKey: .allowanceHours) ?? 0
-            usedPct = try c.decodeIfPresent(Double.self, forKey: .usedPct) ?? 0
+            usedPct = try c.decodeIfPresent(Double.self, forKey: .usedPct)
             quotaResetAt = try c.decodeIfPresent(String.self, forKey: .quotaResetAt) ?? ""
             status = try c.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+            lastActiveAt = try c.decodeIfPresent(String.self, forKey: .lastActiveAt)
+            storageMb = try c.decodeIfPresent(Double.self, forKey: .storageMb)
+            storagePct = try c.decodeIfPresent(Double.self, forKey: .storagePct)
+            storageAllowanceMb = try c.decodeIfPresent(Double.self, forKey: .storageAllowanceMb)
         }
 
-        init(projectId: String, name: String, computeHoursUsed: Double = 0,
-             allowanceHours: Double = 0, usedPct: Double = 0,
-             quotaResetAt: String = "", status: String = "unknown") {
+        init(projectId: String, name: String, computeHoursUsed: Double? = nil,
+             allowanceHours: Double = 0, usedPct: Double? = nil,
+             quotaResetAt: String = "", status: String = "unknown",
+             lastActiveAt: String? = nil, storageMb: Double? = nil,
+             storagePct: Double? = nil, storageAllowanceMb: Double? = nil) {
             self.projectId = projectId
             self.name = name
             self.computeHoursUsed = computeHoursUsed
@@ -2096,6 +2113,10 @@ actor MCPService {
             self.usedPct = usedPct
             self.quotaResetAt = quotaResetAt
             self.status = status
+            self.lastActiveAt = lastActiveAt
+            self.storageMb = storageMb
+            self.storagePct = storagePct
+            self.storageAllowanceMb = storageAllowanceMb
         }
     }
 
@@ -2107,10 +2128,14 @@ actor MCPService {
         let configured: Bool
         let hint: String?
         let error: String?
+        // Why compute-hours read 'unavailable' (e.g. consumption metrics need
+        // Neon Scale) — surfaced so the pane explains itself.
+        let usageNote: String?
         let projects: [NeonProjectUsage]
 
         enum CodingKeys: String, CodingKey {
             case configured, hint, error, projects
+            case usageNote = "usage_note"
         }
 
         init(from decoder: Decoder) throws {
@@ -2118,14 +2143,16 @@ actor MCPService {
             configured = try c.decodeIfPresent(Bool.self, forKey: .configured) ?? false
             hint = try c.decodeIfPresent(String.self, forKey: .hint)
             error = try c.decodeIfPresent(String.self, forKey: .error)
+            usageNote = try c.decodeIfPresent(String.self, forKey: .usageNote)
             projects = try c.decodeIfPresent([NeonProjectUsage].self, forKey: .projects) ?? []
         }
 
         init(configured: Bool, hint: String? = nil, error: String? = nil,
-             projects: [NeonProjectUsage] = []) {
+             usageNote: String? = nil, projects: [NeonProjectUsage] = []) {
             self.configured = configured
             self.hint = hint
             self.error = error
+            self.usageNote = usageNote
             self.projects = projects
         }
     }
