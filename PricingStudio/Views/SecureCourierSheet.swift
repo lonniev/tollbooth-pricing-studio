@@ -45,6 +45,7 @@ struct SecureCourierCard: View {
     @State private var savedOffset: CGSize = .zero
     @State private var showDismissConfirm = false
     @State private var ncredSaved = false
+    @State private var collectStatus = ""
 
     enum Phase: Equatable {
         case explain
@@ -462,6 +463,12 @@ struct SecureCourierCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            if !collectStatus.isEmpty {
+                Text(collectStatus)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+
             ZStack {
                 ForEach(0..<3, id: \.self) { i in
                     Circle()
@@ -551,6 +558,15 @@ struct SecureCourierCard: View {
                 .font(.caption)
                 .foregroundStyle(.orange)
 
+            // Surface the ACTUAL failure when it isn't a plain not-found — a
+            // connection/proof error shouldn't masquerade as "reply not found".
+            if !error.isEmpty && !error.lowercased().contains("no reply found") {
+                Text(error)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.orange.opacity(0.85))
+                    .textSelection(.enabled)
+            }
+
             Text("Make sure you replied to the DM with phrase \"\(poison)\" and all fields filled in.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -619,48 +635,83 @@ struct SecureCourierCard: View {
         }
     }
 
-    private func collectCredentials(retryCount: Int = 0) async {
-        do {
-            let result = try await MCPService().callReceiveCredentials(
-                endpointURL: endpointURL,
-                senderNpub: effectiveSender,
-                service: credentialService,
-                poison: currentPoison
-            )
-            if let data = result.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if json["success"] as? Bool == true {
-                    let msg = json["message"] as? String ?? "Credentials stored successfully."
-                    if let ncred = json["credential_card"] as? String {
-                        credentialCard = ncred
-                        // Auto-save ncred to Keychain for future re-use
-                        if !effectiveSender.isEmpty {
-                            try? KeychainService.saveNcred(
-                                ncred,
-                                forPatron: effectiveSender,
-                                service: credentialService,
-                                operator: operatorNpub
-                            )
+    private func collectCredentials() async {
+        phase = .collecting
+        // The reply travels operator → Nostr relay → wheel, and a freshly-sent DM
+        // can take a while to propagate to the pinned relay the wheel drains. So
+        // POLL patiently rather than declaring "not found" on the first miss — each
+        // attempt re-triggers the wheel's relay drain. Only a TERMINAL error (no
+        // such tool, bad proof/session phrase) stops us early; everything else
+        // (relay not yet carrying the DM, cold start, a connection blip) is worth
+        // another poll across the window.
+        let maxAttempts = 8
+        let stepNanos: UInt64 = 3_000_000_000  // ~3s between polls → ~24s window
+        var lastError = "No reply found on the relays yet."
+        for attempt in 1...maxAttempts {
+            collectStatus = "Checking relays… (\(attempt) of \(maxAttempts))"
+            do {
+                let result = try await MCPService().callReceiveCredentials(
+                    endpointURL: endpointURL,
+                    senderNpub: effectiveSender,
+                    service: credentialService,
+                    poison: currentPoison
+                )
+                if let data = result.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if json["success"] as? Bool == true {
+                        let msg = json["message"] as? String ?? "Credentials stored successfully."
+                        if let ncred = json["credential_card"] as? String {
+                            credentialCard = ncred
+                            // Auto-save ncred to Keychain for future re-use
+                            if !effectiveSender.isEmpty {
+                                try? KeychainService.saveNcred(
+                                    ncred,
+                                    forPatron: effectiveSender,
+                                    service: credentialService,
+                                    operator: operatorNpub
+                                )
+                            }
+                            ncredSaved = true
                         }
-                        ncredSaved = true
-                    }
-                    phase = .received(msg)
-                } else {
-                    let err = json["error"] as? String ?? "No reply found on relays."
-                    // Auto-retry once on first failure (often a stale token)
-                    if retryCount == 0 {
-                        try? await Task.sleep(nanoseconds: 2_000_000_000) // 2s
-                        await collectCredentials(retryCount: 1)
+                        collectStatus = ""
+                        phase = .received(msg)
                         return
                     }
-                    phase = .collectFailed(poison: currentPoison, error: err)
+                    // Soft "not found yet" — keep polling.
+                    lastError = json["error"] as? String ?? lastError
+                } else {
+                    collectStatus = ""
+                    phase = .received(result)
+                    return
                 }
-            } else {
-                phase = .received(result)
+            } catch {
+                lastError = error.localizedDescription
+                if Self.isTerminalCourierError(lastError) {
+                    collectStatus = ""
+                    phase = .collectFailed(poison: currentPoison, error: lastError)
+                    return
+                }
+                // Transient — fall through and poll again.
             }
-        } catch {
-            phase = .collectFailed(poison: currentPoison, error: error.localizedDescription)
+            if attempt < maxAttempts {
+                try? await Task.sleep(nanoseconds: stepNanos)
+            }
         }
+        collectStatus = ""
+        phase = .collectFailed(poison: currentPoison, error: lastError)
+    }
+
+    /// A courier error that will NOT resolve by waiting: the operator lacks the
+    /// tool, or the proof / session phrase is wrong. Everything else — the relay
+    /// not yet carrying the DM, a cold start, a transient connection error — is
+    /// worth another poll.
+    private static func isTerminalCourierError(_ message: String) -> Bool {
+        let m = message.lowercased()
+        return m.contains("does not support")
+            || m.contains("dpop")
+            || m.contains("proof")
+            || m.contains("session phrase")
+            || m.contains("poison")
     }
 
     private func redeemNcred() async {
