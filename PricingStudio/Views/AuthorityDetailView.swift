@@ -842,6 +842,13 @@ struct AuthorityDetailView: View {
             ForEach(health.neonApi.projects) { project in
                 neonProjectRow(project)
             }
+            if let note = health.neonApi.usageNote, !note.isEmpty {
+                Text(note)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 2)
+            }
         }
 
         // Operators that reported a 402.
@@ -876,9 +883,32 @@ struct AuthorityDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.name.isEmpty ? project.projectId : project.name)
                     .font(.caption.bold())
-                Text("\(pctText(project.usedPct))% of \(hoursText(project.allowanceHours))h · resets \(shortStamp(project.quotaResetAt))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+
+                // Storage — the Free-readable quota signal that drives status.
+                if let mb = project.storageMb {
+                    Text(storageLine(mb: mb, pct: project.storagePct,
+                                     allowanceMb: project.storageAllowanceMb))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                // Compute-hours — a real % when the plan exposes it, otherwise honest.
+                if let pct = project.usedPct {
+                    Text("\(pctText(pct))% of \(hoursText(project.allowanceHours))h compute · resets \(shortStamp(project.quotaResetAt))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("compute hours: unavailable · resets \(shortStamp(project.quotaResetAt))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+
+                // Liveness heartbeat.
+                if let active = project.lastActiveAt {
+                    Text("active \(relativeStamp(active))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
             Spacer(minLength: 6)
             Text(projectChipLabel(project.status))
@@ -889,6 +919,16 @@ struct AuthorityDetailView: View {
                 .foregroundStyle(healthColor(project.status))
         }
         .padding(.vertical, 2)
+    }
+
+    /// "36 MB of 512 MB storage (7%)" — GB above 1000 MB. Pct/cap omitted when absent.
+    private func storageLine(mb: Double, pct: Double?, allowanceMb: Double?) -> String {
+        let used = mb >= 1000 ? String(format: "%.2f GB", mb / 1000) : String(format: "%.0f MB", mb)
+        if let pct, let cap = allowanceMb {
+            let capText = cap >= 1000 ? String(format: "%.1f GB", cap / 1000) : String(format: "%.0f MB", cap)
+            return "\(used) of \(capText) storage (\(pctText(pct))%)"
+        }
+        return "\(used) storage"
     }
 
     // MARK: - Persistence Health helpers
