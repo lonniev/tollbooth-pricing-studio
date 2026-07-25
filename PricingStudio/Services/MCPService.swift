@@ -2407,10 +2407,12 @@ actor MCPService {
         if !service.isEmpty {
             args["service"] = .string(service)
         }
-        // Poison (the session phrase from request_credential_channel) is
-        // required by the wheel unless redeeming a credential card.
+        // The session phrase from request_credential_channel — sent as the wheel's
+        // `dpop_token` (renamed from "poison" in SDK 0.57.0; the wheel's pydantic
+        // arg validation rejects the old `poison` keyword). Required by the wheel
+        // unless redeeming a credential card.
         if !poison.isEmpty {
-            args["poison"] = .string(poison)
+            args["dpop_token"] = .string(poison)
         }
         if !credentialCard.isEmpty {
             args["credential_card"] = .string(credentialCard)
