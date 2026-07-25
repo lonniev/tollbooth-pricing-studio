@@ -130,8 +130,8 @@
 		ADPT000200000000000000B1 /* ProofConsentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A1 /* ProofConsentSection.swift */; };
 		ADPT000200000000000000B2 /* PendingAdoptionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */; };
 		ADPT000200000000000000B3 /* AdoptionRequestDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */; };
-		NBHT000200000000000000B3 /* NeonBooksHealthDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NBHT000200000000000000A3 /* NeonBooksHealthDecodeTests.swift */; };
-		NBHE000200000000000000B3 /* NetworkBooksHealthErrorClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NBHE000200000000000000A3 /* NetworkBooksHealthErrorClassificationTests.swift */; };
+		NBHT000200000000000000B3 /* NeonPersistenceHealthDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NBHT000200000000000000A3 /* NeonPersistenceHealthDecodeTests.swift */; };
+		NBHE000200000000000000B3 /* NetworkPersistenceHealthErrorClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NBHE000200000000000000A3 /* NetworkPersistenceHealthErrorClassificationTests.swift */; };
 		PSCT000200000000000000B3 /* PersistenceStatusCourierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSCT000200000000000000A3 /* PersistenceStatusCourierTests.swift */; };
 		ADPT000300000000000000B1 /* SeekAdoptionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000300000000000000A1 /* SeekAdoptionSheet.swift */; };
 		B545B6D030097A8800E2047A /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000100000000000000A2 /* MCP */; };
@@ -350,8 +350,8 @@
 		ADPT000200000000000000A1 /* ProofConsentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofConsentSection.swift; sourceTree = "<group>"; };
 		ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAdoptionsViewModel.swift; sourceTree = "<group>"; };
 		ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdoptionRequestDecodeTests.swift; sourceTree = "<group>"; };
-		NBHT000200000000000000A3 /* NeonBooksHealthDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeonBooksHealthDecodeTests.swift; sourceTree = "<group>"; };
-		NBHE000200000000000000A3 /* NetworkBooksHealthErrorClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkBooksHealthErrorClassificationTests.swift; sourceTree = "<group>"; };
+		NBHT000200000000000000A3 /* NeonPersistenceHealthDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeonPersistenceHealthDecodeTests.swift; sourceTree = "<group>"; };
+		NBHE000200000000000000A3 /* NetworkPersistenceHealthErrorClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPersistenceHealthErrorClassificationTests.swift; sourceTree = "<group>"; };
 		PSCT000200000000000000A3 /* PersistenceStatusCourierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceStatusCourierTests.swift; sourceTree = "<group>"; };
 		ADPT000300000000000000A1 /* SeekAdoptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeekAdoptionSheet.swift; sourceTree = "<group>"; };
 		B98DDF18C5960F33DAB2E8A7 /* ProofApprovalNotificationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PricingStudioTests/ProofApprovalNotificationTests.swift; sourceTree = SOURCE_ROOT; };
@@ -728,8 +728,8 @@
 			isa = PBXGroup;
 			children = (
 				ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */,
-				NBHT000200000000000000A3 /* NeonBooksHealthDecodeTests.swift */,
-				NBHE000200000000000000A3 /* NetworkBooksHealthErrorClassificationTests.swift */,
+				NBHT000200000000000000A3 /* NeonPersistenceHealthDecodeTests.swift */,
+				NBHE000200000000000000A3 /* NetworkPersistenceHealthErrorClassificationTests.swift */,
 				PSCT000200000000000000A3 /* PersistenceStatusCourierTests.swift */,
 				BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */,
 				BB0000010000000000000A12 /* InboxSignalServiceTests.swift */,
@@ -1156,8 +1156,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				ADPT000200000000000000B3 /* AdoptionRequestDecodeTests.swift in Sources */,
-				NBHT000200000000000000B3 /* NeonBooksHealthDecodeTests.swift in Sources */,
-				NBHE000200000000000000B3 /* NetworkBooksHealthErrorClassificationTests.swift in Sources */,
+				NBHT000200000000000000B3 /* NeonPersistenceHealthDecodeTests.swift in Sources */,
+				NBHE000200000000000000B3 /* NetworkPersistenceHealthErrorClassificationTests.swift in Sources */,
 				PSCT000200000000000000B3 /* PersistenceStatusCourierTests.swift in Sources */,
 				BB0000010000000000000A01 /* NotifiedEventStoreTests.swift in Sources */,
 				BB0000010000000000000A11 /* InboxSignalServiceTests.swift in Sources */,

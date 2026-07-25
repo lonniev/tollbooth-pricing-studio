@@ -19,9 +19,9 @@ struct AuthorityDetailView: View {
     @State private var adoptionsVM = PendingAdoptionsViewModel()
     @State private var rejectingRequest: MCPService.AdoptionRequest?
     @State private var rejectReason = ""
-    @State private var booksHealth: MCPService.NeonBooksHealth?
-    @State private var booksHealthProblem: BooksHealthProblem?
-    @State private var loadingBooksHealth = false
+    @State private var persistenceHealth: MCPService.NeonPersistenceHealth?
+    @State private var persistenceHealthProblem: PersistenceHealthProblem?
+    @State private var loadingPersistenceHealth = false
     @Query private var allAuthorities: [Authority]
     @Query private var allOperators: [Operator]
     @Environment(\.modelContext) private var modelContext
@@ -31,22 +31,22 @@ struct AuthorityDetailView: View {
         case idle, forgetting, done(String), error(String)
     }
 
-    /// How a Network Books Health read resolved short of returning data.
-    /// A missing `network_books_health` tool is a *capability* gap (the
+    /// How a Network Persistence Health read resolved short of returning data.
+    /// A missing `network_persistence_health` tool is a *capability* gap (the
     /// Authority's wheel predates the panel) — informational, not retryable,
     /// and NOT a datastore fault — whereas a tool that ran and failed, a
     /// connection drop, or a soft quota error is a genuine health problem the
     /// steward should retry. Keeping the two apart is the whole point: the
     /// panel must not dress up "this reading isn't offered here" as a backend
     /// alarm with a futile Retry.
-    enum BooksHealthProblem: Equatable {
+    enum PersistenceHealthProblem: Equatable {
         case unavailable(String)  // tool-discovery gap — calm, no Retry
         case error(String)        // real backend/health failure — offer Retry
     }
 
-    /// Maps a `loadBooksHealth` failure onto the panel's two problem states.
+    /// Maps a `loadPersistenceHealth` failure onto the panel's two problem states.
     /// Pure and static so it can be unit-tested without a live MCP endpoint.
-    static func classifyBooksHealthLoad(_ error: Error) -> BooksHealthProblem {
+    static func classifyPersistenceHealthLoad(_ error: Error) -> PersistenceHealthProblem {
         switch error {
         case MCPError.capabilityUnavailable(_, let detail):
             return .unavailable(detail)
@@ -59,8 +59,8 @@ struct AuthorityDetailView: View {
 
     /// The user-facing section title. "Persistence Status" — plain language for
     /// the liveness of the Neon/Postgres persistence this Authority stewards —
-    /// replacing the operator-internal jargon "Network Books Health". The
-    /// underlying tool (`network_books_health`) and wire model keep their names;
+    /// replacing the operator-internal jargon "Network Persistence Health". The
+    /// underlying tool (`network_persistence_health`) and wire model keep their names;
     /// this is a display rename only.
     static let persistenceStatusTitle = "Persistence Status"
 
@@ -711,18 +711,18 @@ struct AuthorityDetailView: View {
             HStack(spacing: 8) {
                 Label(Self.persistenceStatusTitle, systemImage: "cylinder.split.1x2")
                     .font(.headline)
-                if let health = booksHealth {
+                if let health = persistenceHealth {
                     Circle()
                         .fill(healthColor(health.overallStatus))
                         .frame(width: 10, height: 10)
                         .accessibilityLabel("Overall status \(health.overallStatus)")
                 }
                 Spacer()
-                if loadingBooksHealth {
+                if loadingPersistenceHealth {
                     ProgressView().controlSize(.small)
                 } else if isLinked {
                     Button {
-                        Task { await loadBooksHealth() }
+                        Task { await loadPersistenceHealth() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -735,7 +735,7 @@ struct AuthorityDetailView: View {
                 Text("Link this Authority’s identity to read database health.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else if let problem = booksHealthProblem {
+            } else if let problem = persistenceHealthProblem {
                 switch problem {
                 case .unavailable(let msg):
                     // Capability gap, not a fault: calm and grey, no Retry —
@@ -748,13 +748,13 @@ struct AuthorityDetailView: View {
                         Label(msg, systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
-                        Button("Retry") { Task { await loadBooksHealth() } }
+                        Button("Retry") { Task { await loadPersistenceHealth() } }
                             .font(.caption)
                     }
                 }
-            } else if let health = booksHealth {
-                booksHealthBody(health)
-            } else if !loadingBooksHealth {
+            } else if let health = persistenceHealth {
+                persistenceHealthBody(health)
+            } else if !loadingPersistenceHealth {
                 Text("No reading yet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -764,30 +764,30 @@ struct AuthorityDetailView: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .task(id: authority.npub) {
-            booksHealth = nil
-            booksHealthProblem = nil
+            persistenceHealth = nil
+            persistenceHealthProblem = nil
             if isLinked, authority.mcpEndpointURL != nil {
-                await loadBooksHealth()
+                await loadPersistenceHealth()
             }
         }
     }
 
     @ViewBuilder
-    private func booksHealthBody(_ health: MCPService.NeonBooksHealth) -> some View {
-        // Own books 402-locked — loud, this Authority can't certify.
-        if health.ownBooks.status == "quota_exceeded" {
-            Label("This Authority’s own books are 402-locked.", systemImage: "lock.fill")
+    private func persistenceHealthBody(_ health: MCPService.NeonPersistenceHealth) -> some View {
+        // Own store 402-locked — loud, this Authority can't certify.
+        if health.ownStore.status == "quota_exceeded" {
+            Label("This Authority’s own store is 402-locked.", systemImage: "lock.fill")
                 .font(.caption.bold())
                 .foregroundStyle(.red)
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 6).fill(.red.opacity(0.12)))
-        } else if health.ownBooks.status != "ok" && health.ownBooks.status != "unknown" {
+        } else if health.ownStore.status != "ok" && health.ownStore.status != "unknown" {
             Label(
-                health.ownBooks.detail.isEmpty
-                    ? "Own books: \(health.ownBooks.status)"
-                    : health.ownBooks.detail,
+                health.ownStore.detail.isEmpty
+                    ? "Own store: \(health.ownStore.status)"
+                    : health.ownStore.detail,
                 systemImage: "exclamationmark.circle"
             )
             .font(.caption)
@@ -891,7 +891,7 @@ struct AuthorityDetailView: View {
         .padding(.vertical, 2)
     }
 
-    // MARK: - Books Health helpers
+    // MARK: - Persistence Health helpers
 
     /// Green ok / amber warning / red critical|exhausted|quota_exceeded /
     /// grey unknown — the app's existing status-color idiom.
@@ -945,20 +945,20 @@ struct AuthorityDetailView: View {
         return fmt.localizedString(for: date, relativeTo: Date())
     }
 
-    private func loadBooksHealth() async {
+    private func loadPersistenceHealth() async {
         guard let endpoint = authority.mcpEndpointURL,
               let url = URL(string: endpoint) else { return }
-        loadingBooksHealth = true
-        booksHealthProblem = nil
+        loadingPersistenceHealth = true
+        persistenceHealthProblem = nil
         do {
-            booksHealth = try await MCPService().callNetworkBooksHealth(
+            persistenceHealth = try await MCPService().callNetworkPersistenceHealth(
                 endpointURL: url, authorityNpub: authority.npub
             )
         } catch {
-            booksHealth = nil
-            booksHealthProblem = Self.classifyBooksHealthLoad(error)
+            persistenceHealth = nil
+            persistenceHealthProblem = Self.classifyPersistenceHealthLoad(error)
         }
-        loadingBooksHealth = false
+        loadingPersistenceHealth = false
     }
 
     // MARK: - Connected Operators
