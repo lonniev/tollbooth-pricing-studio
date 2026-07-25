@@ -2,16 +2,16 @@ import XCTest
 @testable import PricingStudio
 
 /// Pins the decode contract for the restricted Authority
-/// `network_books_health` response — the wire shape the Network Books Health
+/// `network_persistence_health` response — the wire shape the Network Persistence Health
 /// panel depends on. Mirrors `AdoptionRequestDecodeTests` in intent.
-final class NeonBooksHealthDecodeTests: XCTestCase {
+final class NeonPersistenceHealthDecodeTests: XCTestCase {
 
     func testDecodesExhaustedProjectAndOverallStatus() throws {
         let json = """
         {
           "success": true,
           "overall_status": "exhausted",
-          "own_books": { "status": "ok", "detail": "" },
+          "own_store": { "status": "ok", "detail": "" },
           "operator_alerts": [
             {
               "operator_npub": "npub1operatoraaa",
@@ -39,11 +39,11 @@ final class NeonBooksHealthDecodeTests: XCTestCase {
           }
         }
         """
-        let health = try JSONDecoder().decode(MCPService.NeonBooksHealth.self, from: Data(json.utf8))
+        let health = try JSONDecoder().decode(MCPService.NeonPersistenceHealth.self, from: Data(json.utf8))
 
         XCTAssertTrue(health.success)
         XCTAssertEqual(health.overallStatus, "exhausted")
-        XCTAssertEqual(health.ownBooks.status, "ok")
+        XCTAssertEqual(health.ownStore.status, "ok")
 
         XCTAssertEqual(health.operatorAlertCount, 1)
         XCTAssertEqual(health.operatorAlerts.count, 1)
@@ -69,7 +69,7 @@ final class NeonBooksHealthDecodeTests: XCTestCase {
         {
           "success": true,
           "overall_status": "ok",
-          "own_books": { "status": "ok", "detail": "" },
+          "own_store": { "status": "ok", "detail": "" },
           "operator_alerts": [],
           "operator_alert_count": 0,
           "neon_api": {
@@ -78,7 +78,7 @@ final class NeonBooksHealthDecodeTests: XCTestCase {
           }
         }
         """
-        let health = try JSONDecoder().decode(MCPService.NeonBooksHealth.self, from: Data(json.utf8))
+        let health = try JSONDecoder().decode(MCPService.NeonPersistenceHealth.self, from: Data(json.utf8))
 
         XCTAssertEqual(health.overallStatus, "ok")
         XCTAssertFalse(health.neonApi.configured)
@@ -87,22 +87,22 @@ final class NeonBooksHealthDecodeTests: XCTestCase {
         XCTAssertTrue(health.operatorAlerts.isEmpty)
     }
 
-    /// The Authority's own books being 402-locked drives the loud red banner.
-    func testDecodesOwnBooksQuotaExceeded() throws {
+    /// The Authority's own store being 402-locked drives the loud red banner.
+    func testDecodesOwnStoreQuotaExceeded() throws {
         let json = """
         {
           "success": true,
           "overall_status": "critical",
-          "own_books": { "status": "quota_exceeded", "detail": "Neon HTTP 402" },
+          "own_store": { "status": "quota_exceeded", "detail": "Neon HTTP 402" },
           "operator_alerts": [],
           "operator_alert_count": 0,
           "neon_api": { "configured": true, "projects": [] }
         }
         """
-        let health = try JSONDecoder().decode(MCPService.NeonBooksHealth.self, from: Data(json.utf8))
+        let health = try JSONDecoder().decode(MCPService.NeonPersistenceHealth.self, from: Data(json.utf8))
 
         XCTAssertEqual(health.overallStatus, "critical")
-        XCTAssertEqual(health.ownBooks.status, "quota_exceeded")
-        XCTAssertEqual(health.ownBooks.detail, "Neon HTTP 402")
+        XCTAssertEqual(health.ownStore.status, "quota_exceeded")
+        XCTAssertEqual(health.ownStore.detail, "Neon HTTP 402")
     }
 }

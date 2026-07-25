@@ -1991,12 +1991,12 @@ actor MCPService {
         }
     }
 
-    // MARK: - Persistence Status (network_books_health wire model)
+    // MARK: - Persistence Status (network_persistence_health wire model)
 
     /// The Authority's own certification-ledger reachability. `status` is one
     /// of "ok" | "quota_exceeded" | "error" | "unreachable"; `detail` carries a
     /// human-readable note (e.g. the upstream 402 text) when not "ok".
-    struct OwnBooksStatus: Decodable, Sendable {
+    struct OwnStoreStatus: Decodable, Sendable {
         let status: String
         let detail: String
 
@@ -2130,14 +2130,14 @@ actor MCPService {
         }
     }
 
-    /// The `network_books_health` response — a restricted Authority read that
+    /// The `network_persistence_health` response — a restricted Authority read that
     /// surfaces the health of every Neon (Postgres) database this Authority
-    /// stewards: its own certification books, the operators that reported a
+    /// stewards: its own certification ledgers, the operators that reported a
     /// 402, and the Neon control-plane compute-hour picture.
-    struct NeonBooksHealth: Decodable, Sendable {
+    struct NeonPersistenceHealth: Decodable, Sendable {
         let success: Bool
         let overallStatus: String   // "ok" | "warning" | "critical" | "exhausted"
-        let ownBooks: OwnBooksStatus
+        let ownStore: OwnStoreStatus
         let operatorAlerts: [OperatorNeonAlert]
         let operatorAlertCount: Int
         let neonApi: NeonApiBlock
@@ -2145,7 +2145,7 @@ actor MCPService {
         enum CodingKeys: String, CodingKey {
             case success
             case overallStatus = "overall_status"
-            case ownBooks = "own_books"
+            case ownStore = "own_store"
             case operatorAlerts = "operator_alerts"
             case operatorAlertCount = "operator_alert_count"
             case neonApi = "neon_api"
@@ -2155,8 +2155,8 @@ actor MCPService {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             success = try c.decodeIfPresent(Bool.self, forKey: .success) ?? true
             overallStatus = try c.decodeIfPresent(String.self, forKey: .overallStatus) ?? "unknown"
-            ownBooks = try c.decodeIfPresent(OwnBooksStatus.self, forKey: .ownBooks)
-                ?? OwnBooksStatus(status: "unknown")
+            ownStore = try c.decodeIfPresent(OwnStoreStatus.self, forKey: .ownStore)
+                ?? OwnStoreStatus(status: "unknown")
             operatorAlerts = try c.decodeIfPresent([OperatorNeonAlert].self, forKey: .operatorAlerts) ?? []
             operatorAlertCount = try c.decodeIfPresent(Int.self, forKey: .operatorAlertCount)
                 ?? operatorAlerts.count
@@ -2164,30 +2164,30 @@ actor MCPService {
                 ?? NeonApiBlock(configured: false)
         }
 
-        init(success: Bool = true, overallStatus: String, ownBooks: OwnBooksStatus,
+        init(success: Bool = true, overallStatus: String, ownStore: OwnStoreStatus,
              operatorAlerts: [OperatorNeonAlert] = [], operatorAlertCount: Int? = nil,
              neonApi: NeonApiBlock) {
             self.success = success
             self.overallStatus = overallStatus
-            self.ownBooks = ownBooks
+            self.ownStore = ownStore
             self.operatorAlerts = operatorAlerts
             self.operatorAlertCount = operatorAlertCount ?? operatorAlerts.count
             self.neonApi = neonApi
         }
     }
 
-    /// Call the restricted `network_books_health` tool on an Authority's MCP
+    /// Call the restricted `network_persistence_health` tool on an Authority's MCP
     /// endpoint. Gated by an `authority_proof` signed by the Authority's OWN
     /// npub — the same owner-consent idiom as `list_adoption_requests`. A
     /// `quota_exhausted` (or any) soft error arrives as
     /// `MCPError.structuredError` via `throwIfSoftError` for the caller to
     /// surface; a healthy response with `overall_status == "exhausted"` is
     /// data, not an error.
-    func callNetworkBooksHealth(
+    func callNetworkPersistenceHealth(
         endpointURL: URL,
         authorityNpub: String
-    ) async throws -> NeonBooksHealth {
-        await traffic(.outbound, label: "Books Health", detail: "SSE → \(endpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
+    ) async throws -> NeonPersistenceHealth {
+        await traffic(.outbound, label: "Persistence Health", detail: "SSE → \(endpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
         let transport = makeTransport(endpoint: endpointURL)
@@ -2196,14 +2196,14 @@ actor MCPService {
         try await client.connect(transport: transport)
 
         let allTools = try await listAllTools(client: client)
-        guard let tool = allTools.first(where: { $0.name.contains("network_books_health") }) else {
-            await traffic(.error, label: "Books Health", detail: "No network_books_health tool found")
+        guard let tool = allTools.first(where: { $0.name.contains("network_persistence_health") }) else {
+            await traffic(.error, label: "Persistence Health", detail: "No network_persistence_health tool found")
             // Tool-discovery gap, not a health fault: an Authority's wheel that
-            // predates network_books_health simply doesn't offer the reading.
+            // predates network_persistence_health simply doesn't offer the reading.
             // Signalled distinctly so the panel stays calm instead of alarming.
             throw MCPError.capabilityUnavailable(
-                capability: "network_books_health",
-                detail: "This Authority’s wheel doesn’t offer network books health monitoring yet."
+                capability: "network_persistence_health",
+                detail: "This Authority’s wheel doesn’t offer network persistence health monitoring yet."
             )
         }
 
@@ -2212,7 +2212,7 @@ actor MCPService {
         let args: [String: Value] = [
             "authority_proof": .string(await makeIdentityProof(
                 forNpub: authorityNpub,
-                capability: "network_books_health",
+                capability: "network_persistence_health",
                 endpointURL: endpointURL
             ))
         ]
@@ -2221,7 +2221,7 @@ actor MCPService {
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "Books Health Error", detail: errorText)
+            await traffic(.error, label: "Persistence Health Error", detail: errorText)
             throw MCPError.toolCallFailed(errorText)
         }
 
@@ -2230,8 +2230,8 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Books Health", detail: String(text.prefix(4000)))
-        try await throwIfSoftError(text: text, label: "Books Health")
+        await traffic(.inbound, label: "Persistence Health", detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: "Persistence Health")
 
         // Unwrap a {"result": {...}} envelope if present, like the other parsers.
         let payloadData: Data
@@ -2242,7 +2242,7 @@ actor MCPService {
             payloadData = data
         }
 
-        return try JSONDecoder().decode(NeonBooksHealth.self, from: payloadData)
+        return try JSONDecoder().decode(NeonPersistenceHealth.self, from: payloadData)
     }
 
     func callGetOnboardingStatus(
