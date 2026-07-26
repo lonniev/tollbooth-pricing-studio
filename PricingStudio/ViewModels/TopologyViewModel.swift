@@ -117,7 +117,7 @@ final class TopologyViewModel {
 
         // While we have the registry in hand, persist each local Authority's
         // upstream certifier and backfill its tollbooth-authority MCP
-        // endpoint. The Honor Chain's parent-of-Authority relationship is
+        // endpoint. The Certification Chain's parent-of-Authority relationship is
         // discovered here, not stored separately.
         //
         // Skip Prime: Prime hosts the Oracle, not a tollbooth-authority
