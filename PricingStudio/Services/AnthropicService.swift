@@ -33,7 +33,7 @@ final class AnthropicService: @unchecked Sendable {
     nonisolated(unsafe) static let oracleTools: [[String: Any]] = [
         [
             "name": "oracle_how_to_join",
-            "description": "Get step-by-step onboarding instructions for joining the DPYC Honor Chain. Covers all five tiers: Citizen, Advocate, Operator, Authority, First Curator.",
+            "description": "Get step-by-step onboarding instructions for joining the DPYC Social Contract. Covers all five tiers: Citizen, Advocate, Operator, Authority, First Curator.",
             "input_schema": ["type": "object", "properties": [:] as [String: Any]]
         ],
         [

@@ -13,7 +13,7 @@ final class Authority: PricingTarget {
     var addedAt: Date = Date()
     var isAutoDiscovered: Bool = false
     /// Npub of the Authority that certifies this one (its parent in the
-    /// Honor Chain). When this Authority acts as an Operator paying
+    /// Certification Chain). When this Authority acts as an Operator paying
     /// `credit_sats` upstream, invoices accrue to the parent. Nil for Prime
     /// or when the parent has not yet been resolved.
     var parentAuthorityNpub: String?

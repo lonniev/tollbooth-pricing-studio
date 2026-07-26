@@ -12,7 +12,7 @@ struct InvoiceSource: Identifiable, Hashable, Sendable {
     var id: String { npub }
 }
 
-/// An entity that has upstream payment relationships in the Honor Chain.
+/// An entity that has upstream payment relationships in the Certification Chain.
 ///
 /// `invoiceSources` returns the upstream MCPs whose `account_statement`
 /// holds this actor's purchase invoices:

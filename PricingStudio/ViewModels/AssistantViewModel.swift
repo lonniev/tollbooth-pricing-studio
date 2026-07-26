@@ -112,7 +112,7 @@ final class AssistantViewModel {
         - Operators run MCP services monetized by Tollbooth fares (sat micropayments via Lightning)
         - Authorities certify Operators and collect an ad valorem certification fee on each purchase
         - Pre-funded satoshi balances eliminate per-request payment ceremonies
-        - The Honor Chain: Prime Authority → Authorities → Operators → Patrons
+        - The Certification Chain: Prime Authority → Authorities → Operators → Patrons
         - Bitcoin Notarization: Merkle tree of all balances submitted to Bitcoin via OpenTimestamps
         - Secure Courier: Nostr DM-based credential delivery (never in chat)
         - Oracle: free community governance service (🦉 Owl of Athena) — not a tollbooth operator
