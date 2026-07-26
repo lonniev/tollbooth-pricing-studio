@@ -1,7 +1,7 @@
 # Pricing Studio
 
-[![Platform](https://img.shields.io/badge/platform-iPadOS_18-black?logo=apple)](https://developer.apple.com/ipados/)
-[![Swift](https://img.shields.io/badge/Swift-6.1-orange?logo=swift)](https://www.swift.org)
+[![Platform](https://img.shields.io/badge/platform-iPadOS_17+-black?logo=apple)](https://developer.apple.com/ipados/)
+[![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://www.swift.org)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Native iPadOS workbench for [DPYC](https://github.com/lonniev/dpyc-community) Operators to inspect, design, simulate, and deploy Tollbooth pricing models. Connects to any Tollbooth MCP endpoint over SSE with automatic OAuth2 Bearer auth. Includes a built-in Nostr DM client for multi-identity encrypted messaging, a 6-phase AI pricing consultant powered by Claude, and an independent pricing review from xAI Grok.
@@ -136,7 +136,7 @@ make test-bdd-sim
 | Target | Framework | Coverage |
 |---|---|---|
 | `PricingStudioTests` | XCTest | Model/service unit tests (CourierPayload, constraint catalog, etc.) |
-| `PricingStudioUITests` | XCUITest | 6 UI automation test classes (launch, apply, pipeline, diff, traffic log) |
+| `PricingStudioUITests` | XCUITest | 7 UI automation test classes (launch, apply, pipeline, constraint param editor, diff, traffic log, relays) |
 | `PricingStudioBDDTests` | Gherkin/Cucumberish | 7 step definition files covering entity CRUD, Nostr messaging, operator registration, pipeline editing, traffic log |
 
 ## DPYC Ecosystem
