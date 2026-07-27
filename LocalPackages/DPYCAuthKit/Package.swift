@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "DPYCAuthKit", targets: ["DPYCAuthKit"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/GigaBitcoin/secp256k1.swift.git", exact: "0.21.1"),
+        .package(url: "https://github.com/GigaBitcoin/secp256k1.swift.git", exact: "0.23.2"),
     ],
     targets: [
         .target(
