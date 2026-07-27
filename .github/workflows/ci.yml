@@ -36,10 +36,19 @@ jobs:
       - name: Build (simulator, no signing)
         run: |
           set -o pipefail
+          # -skipPackagePluginValidation: SwiftPM build plugins must be explicitly
+          # trusted, and Xcode asks interactively the first time. CI has nobody to
+          # ask, so an otherwise-fine dependency that ships a plugin fails at
+          # "Validate plug-in ... in package" before a line is compiled — which is
+          # how secp256k1.swift 0.23.2 (new SharedSourcesPlugin) reddened the build.
+          # We already vet which dependencies enter Package.swift; this says we
+          # accept the plugins that come with the packages we chose, rather than
+          # pinning below every release that adds one.
           xcodebuild build \
             -scheme PricingStudio \
             -destination 'generic/platform=iOS Simulator' \
             -clonedSourcePackagesDirPath $RUNNER_TEMP/spm \
+            -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
   # Host-free unit tests: pure logic lives in the PricingStudioCore local Swift
