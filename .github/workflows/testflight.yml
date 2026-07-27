@@ -38,7 +38,7 @@ jobs:
     runs-on: macos-15
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Select Xcode 26
         run: |
@@ -121,11 +121,17 @@ jobs:
           # CODE_SIGNING_ALLOWED=NO shipped entitlement-bare (SwiftData
           # silently fell back to local-only; InboxSignal's CKContainer
           # crashed at launch — how this was caught).
+          # -skipPackagePluginValidation: same reason as ci.yml — SwiftPM build
+          # plugins need interactive trust that a runner cannot give, so a
+          # plugin-shipping dependency fails validation before compiling. The
+          # archive path needs it too, or a dependency bump that passes CI would
+          # still break the TestFlight build.
           xcodebuild archive \
             -scheme PricingStudio \
             -destination "generic/platform=iOS" \
             -archivePath $RUNNER_TEMP/PricingStudio.xcarchive \
             -clonedSourcePackagesDirPath $RUNNER_TEMP/spm \
+            -skipPackagePluginValidation \
             MARKETING_VERSION=${{ steps.ver.outputs.marketing }} \
             CURRENT_PROJECT_VERSION=${{ github.run_number }}
 
@@ -154,7 +160,7 @@ jobs:
         # credentials" despite the auto-provisioned GITHUB_TOKEN and
         # `contents: write` permissions. v2 has worked for 100+ builds.
         # Re-evaluate v3 before the 2026-06-02 Node 20 deprecation cutover.
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.version }}-build${{ github.run_number }}
           name: "Pricing Studio v${{ steps.version.outputs.version }} (build ${{ github.run_number }})"
