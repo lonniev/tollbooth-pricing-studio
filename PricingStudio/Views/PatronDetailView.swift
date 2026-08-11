@@ -226,14 +226,27 @@ private struct OperatorBalanceCard: View {
                             Task { await reconcilePending(result) }
                         }
                     },
-                    onRefresh: { onRefreshNeeded?() }
+                    onRefresh: { onRefreshNeeded?() },
+                    onStatement: {
+                        showingInfographic = true
+                        if let op = self.operator {
+                            Task { await accountVM.fetchInfographic(for: patron, operator: op) }
+                        }
+                    }
                 )
+
+                // Credentials sit ABOVE the ledger disclosure and outside it.
+                // They are configuration — whether this patron can call the
+                // service at all — not a detail of how the balance was spent,
+                // and burying them behind a disclosure made a missing key look
+                // like nothing was missing.
+                credentialSection
 
                 if case .loaded(let result) = balance.balanceState {
                     DisclosureGroup(isExpanded: $isExpanded) {
                         detailBody(result)
                     } label: {
-                        Text("Details & secrets")
+                        Text("Ledger detail")
                             .font(.caption.bold())
                             .foregroundStyle(.secondary)
                     }
@@ -381,54 +394,36 @@ private struct OperatorBalanceCard: View {
             }
         }
 
+        // Tranches are their own group, set apart by a caption and inset rather
+        // than a rule. A full-width Divider inside an iPad-wide card draws a
+        // heavy line across the whole pane and reads as a page break, not as a
+        // grouping — spacing and a label do the same job quietly.
         if !result.tranches.isEmpty {
-            Divider()
-                .padding(.vertical, 4)
+            Text("Tranches")
+                .font(.caption2.bold())
+                .foregroundStyle(.tertiary)
+                .padding(.top, 10)
 
-            ForEach(result.tranches) { tranche in
-                HStack(alignment: .firstTextBaseline) {
-                    Text("\(tranche.remainingSats) sats")
-                        .font(.caption.monospacedDigit().bold())
-                    Text("of \(tranche.amountSats)")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    trancheExpirationLabel(tranche.expiresAt)
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(result.tranches) { tranche in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("\(tranche.remainingSats) sats")
+                            .font(.caption.monospacedDigit().bold())
+                        Text("of \(tranche.amountSats)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        trancheExpirationLabel(tranche.expiresAt)
+                    }
                 }
             }
         }
-
-        Divider()
-            .padding(.vertical, 4)
-
-        // Top Up + Reconcile (and the reconcile result) live on the shared
-        // ParentAccountCard above; here we keep only the patron-specific
-        // Statement affordance.
-        Button {
-            showingInfographic = true
-            if let op = self.operator {
-                Task {
-                    await accountVM.fetchInfographic(for: patron, operator: op)
-                }
-            }
-        } label: {
-            Label("Statement", systemImage: "chart.bar.doc.horizontal")
-                .font(.caption.bold())
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-
-        // Credential status
-        credentialSection
     }
 
     // MARK: - Patron Credential Section
 
     @ViewBuilder
     private var credentialSection: some View {
-        Divider()
-            .padding(.vertical, 4)
-
         let service = patronOnboarding?.credentialService ?? ""
         let credType = patronOnboarding?.credentialType ?? ""
 
@@ -534,6 +529,13 @@ private struct OperatorBalanceCard: View {
                 .controlSize(.small)
             }
         }
+        // Its own surface, matching the balance and ledger cards, now that it
+        // stands beside them instead of trailing a rule at the foot of a
+        // disclosure.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private func fieldLabel(_ field: String) -> String {
