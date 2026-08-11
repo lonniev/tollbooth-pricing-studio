@@ -171,7 +171,11 @@ struct ContentView: View {
                         missingSecrets: params.missingSecrets,
                         greeting: params.greeting,
                         senderNpub: params.senderNpub,
-                        onOpenMessages: params.senderNpub.isEmpty ? nil : { openMessagesFor(params.operatorNpub) },
+                        senderName: params.senderName,
+                        // Always offered. It used to be suppressed when senderNpub was
+                        // empty — precisely the operator-delivering-its-own-secrets case,
+                        // which left that flow with no way to reach the reply at all.
+                        onOpenMessages: { openMessagesFor(params.mailboxNpub) },
                         onDismiss: { withAnimation { activeCourier = nil } }
                     )
                     .frame(width: 340)
@@ -192,9 +196,10 @@ struct ContentView: View {
                                 missingSecrets: params.missingSecrets,
                                 greeting: params.greeting,
                                 senderNpub: params.senderNpub,
-                                onOpenMessages: params.senderNpub.isEmpty ? nil : {
+                                senderName: params.senderName,
+                                onOpenMessages: {
                                     activeCourier = nil
-                                    openMessagesFor(params.operatorNpub)
+                                    openMessagesFor(params.mailboxNpub)
                                 },
                                 onDismiss: { activeCourier = nil }
                             )
@@ -821,7 +826,8 @@ struct ContentView: View {
                         onRequestCourier: { params in
                             withAnimation { activeCourier = params }
                         },
-                        ownEndpoint: op.mcpEndpointURL
+                        ownEndpoint: op.mcpEndpointURL,
+                        ownName: op.displayName
                     )
                 } else {
                     ContentUnavailableView {
