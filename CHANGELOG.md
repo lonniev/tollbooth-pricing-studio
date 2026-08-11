@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed — the patron account card groups by surface instead of by rules
+
+Statement moves onto the account row beside Top Up and Refresh; it is something
+you do *to* a balance, and stranded between two rules it read as its own feature.
+The full-width `Divider()`s are gone — on an iPad-wide card they draw a line
+across the whole pane and read as a page break rather than a grouping.
+
+Patron Secrets move out of the collapsed *Details & secrets* disclosure and sit
+directly under the balance as a card in their own right. They are configuration,
+not a detail of how the balance was spent — and a missing key used to render
+identically to no key being needed until the disclosure was expanded. The
+disclosure keeps only the ledger and is renamed *Ledger detail*.
+
 ### Fixed — the Secure Courier now names the mailbox that receives the DM
 
 An Operator delivering its own secrets was told the exchange was with its
