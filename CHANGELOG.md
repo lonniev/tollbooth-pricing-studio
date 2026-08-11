@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Fixed — the Secure Courier now names the mailbox that receives the DM
+
+An Operator delivering its own secrets was told the exchange was with its
+**Authority**. The Authority takes no part in a credential exchange; it holds the
+Operator's credits, which is a different relationship. `AccountStatementView`
+already drew that distinction in a comment on `ownEndpoint`, then passed the
+credit-holding service into the two fields that name the credential-management
+target. Three of five `CourierParams` fields were already right, so the flow was
+mislabelled rather than misrouted — it would have worked, while pointing the
+operator at a service with nothing to do with it.
+
+`CourierParams` now carries `mailboxNpub` / `mailboxName`: the courier addresses
+whoever *delivers* the secrets, so that is the conversation to open. The card had
+computed `effectiveSender` for auth since it was written, then displayed
+`operatorNpub` beside it.
+
+### Fixed — Open Messages is always offered
+
+The button was suppressed whenever `senderNpub` was empty — exactly the case where
+an operator delivers its own secrets — so that path gave no way to reach the reply
+at all. It is now always shown, and points at the mailbox rather than the service.
+
 ### Added — a proof request now shows the operator-observed request origin
 
 Paired with tollbooth-dpyc 0.67.0, which signs an `origin` tag (geo · coarse IP ·

@@ -509,7 +509,11 @@ private struct OperatorBalanceCard: View {
                             credentialService: patronOnboarding?.credentialService ?? "",
                             missingSecrets: (patronOnboarding?.missing ?? []).map { fieldLabel($0.field) },
                             greeting: patronOnboarding?.credentialGreeting ?? "",
-                            senderNpub: patron.npub
+                            // Here the two really are different parties: the operator
+                            // receives the secrets, the patron delivers them and holds
+                            // the mailbox the courier writes to.
+                            senderNpub: patron.npub,
+                            senderName: patron.displayName
                         ))
                     } label: {
                         Label("Deliver", systemImage: "lock.shield")
@@ -853,6 +857,11 @@ struct AccountStatementView: View {
     /// The entity's own MCP endpoint (for credential management). Distinct from
     /// serviceEndpoint which is where credits are held (e.g., the Authority).
     var ownEndpoint: String?
+    /// What to call the entity that owns `ownEndpoint`. The credential flow is
+    /// entirely between that entity and itself; the Authority holding its credits
+    /// takes no part, and naming the Authority there reads as a courier dance with
+    /// a service that is not involved.
+    var ownName: String = ""
 
     @State private var balanceState: PatronAccountViewModel.BalanceState = .loading
     @State private var showingTopOff = false
@@ -1213,14 +1222,19 @@ struct AccountStatementView: View {
                         let missing = ((onboardingStatus?.missing ?? [])
                             + (onboardingStatus?.optionalMissing ?? [])).map(\.field)
                         let svc = onboardingStatus?.credentialService ?? "operator"
+                        // The secrets go to whoever owns `ownEndpoint` — this entity
+                        // itself. `serviceName`/`serviceNpub` name the Authority that
+                        // holds its CREDITS, which has no part in a credential
+                        // exchange and must not be named as its counterparty.
                         onRequestCourier?(CourierParams(
-                            operatorName: serviceName,
-                            operatorNpub: serviceNpub,
+                            operatorName: ownName.isEmpty ? serviceName : ownName,
+                            operatorNpub: patronNpub,
                             endpointURL: url,
                             credentialService: svc,
                             missingSecrets: missing,
                             greeting: onboardingStatus?.credentialGreeting ?? "",
-                            senderNpub: patronNpub
+                            senderNpub: patronNpub,
+                            senderName: ownName
                         ))
                     } label: {
                         Label("Deliver", systemImage: "lock.shield")

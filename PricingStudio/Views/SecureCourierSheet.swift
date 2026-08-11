@@ -1,6 +1,11 @@
 import SwiftUI
 
 /// Parameters for initiating a Secure Courier flow.
+///
+/// `operatorName` / `operatorNpub` describe the service whose vault RECEIVES the
+/// secrets — the one that owns `endpointURL`. Callers must not pass some other
+/// service here: an Operator topping up at its Authority holds its credits in one
+/// place and its credentials in another, and only the second is this flow's subject.
 struct CourierParams {
     let operatorName: String
     let operatorNpub: String
@@ -9,6 +14,17 @@ struct CourierParams {
     let missingSecrets: [String]
     var greeting: String = ""
     var senderNpub: String = ""  // non-empty for patron context
+    var senderName: String = ""  // display name for senderNpub, when set
+
+    /// The mailbox the courier's DM lands in, and therefore the conversation the
+    /// human must open to reply. The courier addresses whoever is DELIVERING the
+    /// secrets — a patron in patron context, the operator itself otherwise.
+    var mailboxNpub: String { senderNpub.isEmpty ? operatorNpub : senderNpub }
+
+    /// What to call that mailbox on screen. Never the receiving service's name:
+    /// telling someone to open the wrong conversation is how a delivered DM reads
+    /// as one that never arrived.
+    var mailboxName: String { senderName.isEmpty ? operatorName : senderName }
 }
 
 /// Floating card for the Secure Courier flow — stays on screen while
@@ -24,11 +40,16 @@ struct SecureCourierCard: View {
     let missingSecrets: [String]
     var greeting: String = ""
     var senderNpub: String = ""  // defaults to operatorNpub when empty
+    var senderName: String = ""  // display name for senderNpub, when set
     var onOpenMessages: (() -> Void)?  // optional: switch to Messages tab
     var onDismiss: () -> Void
 
-    /// The npub to use for auth and as the DM sender identity.
+    /// The npub to use for auth and as the DM sender identity. Also the mailbox
+    /// the courier's DM lands in — so it is what the human must be pointed at.
     private var effectiveSender: String { senderNpub.isEmpty ? operatorNpub : senderNpub }
+
+    /// What to call that mailbox on screen.
+    private var effectiveSenderName: String { senderName.isEmpty ? operatorName : senderName }
 
     @State private var phase: Phase = .explain
     @State private var currentPoison: String = ""
@@ -377,12 +398,13 @@ struct SecureCourierCard: View {
 
     private func readyContent(poison: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Open Messages for **\(operatorName)** and reply to the secure courier form.")
+            Text("Open Messages for **\(effectiveSenderName)** and reply to the secure courier form.")
                 .font(.caption)
                 .foregroundStyle(.primary)
 
-            // Show which npub to look for
-            Text(String(operatorNpub.prefix(24)) + "...")
+            // Which conversation to open — the mailbox the DM was addressed to,
+            // which is not the service receiving the secrets when those differ.
+            Text(String(effectiveSender.prefix(24)) + "...")
                 .font(.caption2.monospaced())
                 .foregroundStyle(.tertiary)
                 .textSelection(.enabled)
