@@ -43,6 +43,10 @@ struct ParentAccountCard: View {
     var onTopUp: () -> Void = {}
     var onReconcile: () -> Void = {}
     var onRefresh: () -> Void = {}
+    /// Opens this account's statement. Sits with the other balance actions
+    /// because a statement is a thing you do TO a balance — stranded on its own
+    /// it reads as an unrelated feature. Omitted when there is no statement.
+    var onStatement: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -80,6 +84,13 @@ struct ParentAccountCard: View {
             .buttonStyle(.bordered)
             .controlSize(.mini)
             .tint(.green)
+            if let onStatement {
+                Button(action: onStatement) {
+                    Label("Statement", systemImage: "chart.bar.doc.horizontal").font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            }
             Button(action: onRefresh) {
                 Label("Refresh", systemImage: "arrow.clockwise").font(.caption)
             }
