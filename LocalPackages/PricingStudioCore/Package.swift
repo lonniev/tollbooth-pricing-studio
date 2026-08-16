@@ -2,9 +2,11 @@
 import PackageDescription
 
 // PricingStudioCore — host-free pure-logic extracted from the app so its tests
-// run in CI via `swift test` (no simulator, no app launch). First slice:
-// Secure-Courier DM parsing (CourierPayload) + npub-proof approval classification
-// (ProofApprovalService). Mirrors the DPYCAuthKit local-package pattern.
+// run in CI via `swift test` (no simulator, no app launch). Slices:
+// Secure-Courier DM parsing (CourierPayload), npub-proof approval classification
+// (ProofApprovalService), proof provenance, notification prefs, and the Courier
+// Bridge wake doctrine (CourierBridgeDoctrine). Mirrors the DPYCAuthKit
+// local-package pattern.
 let package = Package(
     name: "PricingStudioCore",
     platforms: [

@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added — Courier Bridge design guidance (wrist-approval wake path)
+
+On-device long-lived relay listeners are not a viable always-on path for
+Wrist Approval: iOS suspends background sockets, and an iPad has no
+WatchConnectivity path to a Watch. `design/courier-bridge.md` records the
+corrected shape — a patron-operated Courier Bridge that holds relay
+subscriptions and the patron's own `npub → device token` map, then sends
+**content-free** APNs wakes so the device fetches and renders the real
+payload itself. Operators never see tokens. Preferred Watch topology is an
+independent watchOS app with its own token (confirm against current Apple
+docs at implementation time). Proposed signing default: Reject may complete
+while locked; Accept requires unlock.
+
+`CourierBridgeDoctrine` in PricingStudioCore freezes the non-negotiables as
+machine-checkable predicates so a future change cannot quietly reverse them.
+
 ### Changed — the patron account card groups by surface instead of by rules
 
 Statement moves onto the account row beside Top Up and Refresh; it is something
