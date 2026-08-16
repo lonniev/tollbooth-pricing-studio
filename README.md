@@ -80,6 +80,14 @@ Visual graph of the DPYC Certification Chain hierarchy: Prime Authority &rarr; A
 
 Real-time inspector for all MCP, HTTP, and Nostr relay traffic. Nostr events hidden by default (toggle on to see DM poll/fetch/send/decrypt). Regex search across labels, URLs, and request/response bodies. Rolling buffer capped at 2,000 entries.
 
+### Wrist Approval wake path (design)
+
+Foreground relay subscriptions and the CloudKit `InboxSignal` peer-wake are
+not always-on. Sleeping devices need APNs. The corrected architecture is a
+**patron-operated Courier Bridge** plus an independent watchOS app — see
+[`design/courier-bridge.md`](design/courier-bridge.md). Operators never hold
+device tokens; wake pushes are content-free.
+
 ## Architecture
 
 | Layer | Technology |
