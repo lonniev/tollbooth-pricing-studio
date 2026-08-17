@@ -162,9 +162,19 @@ final class ProofApprovalServiceTests: XCTestCase {
         XCTAssertTrue(category.options.contains(.customDismissAction))
 
         let approve = category.actions[0]
-        XCTAssertEqual(approve.options, [],
-                       "Approve must run in the background: no .foreground, and no .authenticationRequired (a watch tap can't unlock the iPhone)")
+        XCTAssertTrue(
+            approve.options.contains(.authenticationRequired),
+            "Approve requires unlock (CourierBridgeDoctrine.acceptRequiresUnlock / #139)"
+        )
+        XCTAssertFalse(
+            approve.options.contains(.foreground),
+            "Approve still completes in background after unlock — no full app launch required"
+        )
         XCTAssertTrue(category.actions[1].options.contains(.destructive))
+        XCTAssertFalse(
+            category.actions[1].options.contains(.authenticationRequired),
+            "Reject may complete while locked (CourierBridgeDoctrine.rejectWhileLocked)"
+        )
     }
 
     // MARK: - Watch Notification Thread Isolation (issue #83 — core hashing logic)

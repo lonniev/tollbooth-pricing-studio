@@ -121,6 +121,7 @@
 		AA00000100000000ATBR0011 /* AdaptiveTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000ATBR0001 /* AdaptiveTabBar.swift */; };
 		AA00000100000000DEDU0011 /* EntityDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000DEDU0001 /* EntityDeduplicator.swift */; };
 		AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000INBX0001 /* InboxSignalService.swift */; };
+		AA00000100000000CBTK0011 /* CourierBridgeTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000CBTK0001 /* CourierBridgeTokenStore.swift */; };
 		AA00000100000000NTSC0011 /* NotificationToggleSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000100000000NTSC0001 /* NotificationToggleSection.swift */; };
 		AADD000100000000000000FA /* RelayRegistryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD000100000000000000FB /* RelayRegistryService.swift */; };
 		AADD000100000000000000FC /* RelayTrafficStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADD000100000000000000FD /* RelayTrafficStore.swift */; };
@@ -141,6 +142,7 @@
 		B545B6D430097A8800E2047A /* DPYCAuthKit in Frameworks */ = {isa = PBXBuildFile; productRef = DD00000100000000AUTH0003 /* DPYCAuthKit */; };
 		BB0000010000000000000A01 /* NotifiedEventStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */; };
 		BB0000010000000000000A11 /* InboxSignalServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A12 /* InboxSignalServiceTests.swift */; };
+		BB000001000000000000CB11 /* CourierBridgeTokenStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000001000000000000CB12 /* CourierBridgeTokenStoreTests.swift */; };
 		BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */; };
 		BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */; };
 		BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A52 /* KeychainServiceTests.swift */; };
@@ -341,6 +343,7 @@
 		AA00000100000000ATBR0001 /* AdaptiveTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveTabBar.swift; sourceTree = "<group>"; };
 		AA00000100000000DEDU0001 /* EntityDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDeduplicator.swift; sourceTree = "<group>"; };
 		AA00000100000000INBX0001 /* InboxSignalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxSignalService.swift; sourceTree = "<group>"; };
+		AA00000100000000CBTK0001 /* CourierBridgeTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierBridgeTokenStore.swift; sourceTree = "<group>"; };
 		AA00000100000000NTSC0001 /* NotificationToggleSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationToggleSection.swift; sourceTree = "<group>"; };
 		AADD000100000000000000FB /* RelayRegistryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRegistryService.swift; sourceTree = "<group>"; };
 		AADD000100000000000000FD /* RelayTrafficStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTrafficStore.swift; sourceTree = "<group>"; };
@@ -357,6 +360,7 @@
 		B98DDF18C5960F33DAB2E8A7 /* ProofApprovalNotificationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PricingStudioTests/ProofApprovalNotificationTests.swift; sourceTree = SOURCE_ROOT; };
 		BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifiedEventStoreTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A12 /* InboxSignalServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxSignalServiceTests.swift; sourceTree = "<group>"; };
+		BB000001000000000000CB12 /* CourierBridgeTokenStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierBridgeTokenStoreTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSchemaInitTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDeduplicatorTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A52 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
@@ -568,6 +572,7 @@
 				AA0000010000000000000412 /* AnthropicService.swift */,
 				AA0000010000000000000801 /* DMPollingService.swift */,
 				AA00000100000000INBX0001 /* InboxSignalService.swift */,
+				AA00000100000000CBTK0001 /* CourierBridgeTokenStore.swift */,
 				AA00000100000000DEDU0001 /* EntityDeduplicator.swift */,
 				AA0000010000000000000F50 /* PatronBalancePreferences.swift */,
 				AA0000010000000000000B01 /* LLMProvider.swift */,
@@ -733,6 +738,7 @@
 				PSCT000200000000000000A3 /* PersistenceStatusCourierTests.swift */,
 				BB0000010000000000000A02 /* NotifiedEventStoreTests.swift */,
 				BB0000010000000000000A12 /* InboxSignalServiceTests.swift */,
+				BB000001000000000000CB12 /* CourierBridgeTokenStoreTests.swift */,
 				BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */,
 				BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */,
 				BB0000010000000000000A52 /* KeychainServiceTests.swift */,
@@ -1124,6 +1130,7 @@
 				AADD000100000000000000FE /* RelayView.swift in Sources */,
 				AA0000010000000000000811 /* DMPollingService.swift in Sources */,
 				AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */,
+				AA00000100000000CBTK0011 /* CourierBridgeTokenStore.swift in Sources */,
 				AA00000100000000DEDU0011 /* EntityDeduplicator.swift in Sources */,
 				AA0000010000000000000F51 /* PatronBalancePreferences.swift in Sources */,
 				AA00000100000000NTSC0011 /* NotificationToggleSection.swift in Sources */,
@@ -1161,6 +1168,7 @@
 				PSCT000200000000000000B3 /* PersistenceStatusCourierTests.swift in Sources */,
 				BB0000010000000000000A01 /* NotifiedEventStoreTests.swift in Sources */,
 				BB0000010000000000000A11 /* InboxSignalServiceTests.swift in Sources */,
+				BB000001000000000000CB11 /* CourierBridgeTokenStoreTests.swift in Sources */,
 				BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */,
 				BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */,
 				BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */,

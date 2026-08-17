@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added — Studio-side Courier Bridge wake handling (wrist approval while locked)
+
+A proof-request DM that arrives while Pricing Studio is terminated and the
+iPhone is locked no longer depends on a foreground WebSocket or a peer device
+writing an InboxSignal CloudKit marker. The app now:
+
+- Recognizes a **content-free** Courier Bridge APNs wake
+  (`courier_bridge=wake`) and runs the same background relay drain that posts
+  the actionable Approve/Reject banner (mirrored to the Watch).
+- Retains the APNs device-token registration for the patron to hand their own
+  Bridge (Operators never see tokens).
+- Requires device unlock on **Approve**; **Reject** still completes while
+  locked (`CourierBridgeDoctrine` signing default).
+
+The Bridge process itself remains companion infrastructure (see
+`design/courier-bridge.md`); this change is the Studio receive/register half
+of that architecture (pricing-studio#139).
+
 ### Added — Courier Bridge design guidance (wrist-approval wake path)
 
 On-device long-lived relay listeners are not a viable always-on path for

@@ -2,7 +2,11 @@
 
 **Status.** Design guidance for implementers. Ratified from field report
 guidance escalated as pricing-studio#138 (origin excalibur-mcp#256, context
-excalibur-mcp#255). Not yet built.
+excalibur-mcp#255). Studio-side wake recognition + device-token retention +
+Accept-requires-unlock landed with pricing-studio#139
+(`CourierBridgeWake`, `CourierBridgeTokenStore`, `ProofApprovalService.makeCategory`).
+The patron-operated Bridge process and independent watchOS app targets remain
+to build.
 
 **Problem.** A proof-request DM that arrives while Pricing Studio is
 backgrounded or terminated does not reliably surface an Apple Watch
