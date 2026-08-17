@@ -109,33 +109,61 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
-        TrafficLogger.shared.log(.inbound, label: "InboxSignal", detail: "APNs registered (\(deviceToken.prefix(4).map { String(format: "%02x", $0) }.joined())…)")
+        // Retain the token for the patron-operated Courier Bridge. Operators
+        // never see it — the patron hands it to their own Bridge out-of-band
+        // (design/courier-bridge.md). CloudKit still manages its own token use
+        // for InboxSignal; this is the always-on path for a solo locked device.
+        let registration = CourierBridgeWake.makeRegistration(
+            deviceToken: deviceToken,
+            environment: Self.apsEnvironment,
+            bundleId: Bundle.main.bundleIdentifier ?? "com.tollbooth.dpyc.PricingStudio"
+        )
+        CourierBridgeTokenStore.save(registration)
+        let prefix = String(registration.deviceTokenHex.prefix(8))
+        TrafficLogger.shared.log(
+            .inbound,
+            label: "CourierBridge",
+            detail: "APNs registered (\(prefix)…, \(registration.environment.rawValue)); token retained for patron Bridge"
+        )
     }
 
     func application(
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "APNs registration failed: \(error.localizedDescription)")
+        TrafficLogger.shared.log(.error, label: "CourierBridge", detail: "APNs registration failed: \(error.localizedDescription)")
     }
 
-    /// InboxSignal push receipt: another of the user's devices saw a gift wrap
-    /// land and wrote the CloudKit marker. A query subscription arrives as an
-    /// alert push with record details (record the CK banner as this event's
-    /// announcement); the database-subscription fallback arrives silent and
-    /// detail-free (the drain's own local notification announces the DM).
-    /// Either way, drain the relays so the DM is local before the user looks.
-    /// Same ~30s budget and exactly-once completion rules as the BGAppRefresh
-    /// path.
+    /// Remote-notification receipt. Two lawful wake sources drain the same way:
+    ///
+    /// 1. **Courier Bridge** (pricing-studio#139) — patron-operated always-on
+    ///    process sends a content-free APNs wake when a proof-request DM lands
+    ///    while Studio is backgrounded/terminated. No peer device required.
+    /// 2. **InboxSignal** — CloudKit subscription push from another of the
+    ///    user's already-foregrounded devices (best-effort multi-device helper).
+    ///
+    /// Anything else is ignored. Same ~30s budget and exactly-once completion
+    /// rules as the BGAppRefresh path.
     func application(
         _ application: UIApplication,
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        if CourierBridgeWake.isContentFreeWake(userInfo) {
+            let reason = CourierBridgeWake.reason(in: userInfo) ?? "unspecified"
+            TrafficLogger.shared.log(
+                .inbound,
+                label: "CourierBridge",
+                detail: "content-free wake received (reason=\(reason)); draining relays"
+            )
+            Self.runWakeDrain(completionHandler: completionHandler)
+            return
+        }
+
         guard let note = CKNotification(fromRemoteNotificationDictionary: userInfo),
               let subscriptionID = note.subscriptionID,
               InboxSignalService.knownSubscriptionIDs.contains(subscriptionID) else {
-            TrafficLogger.shared.log(.error, label: "InboxSignal", detail: "push ignored (not an InboxSignal subscription)")
+            TrafficLogger.shared.log(.error, label: "Wake", detail: "push ignored (not Courier Bridge or InboxSignal)")
             completionHandler(.noData)
             return
         }
@@ -148,6 +176,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             DMPollingService.shared.recordRemoteAnnouncement(npub: npub, eventId: eventId)
         }
 
+        Self.runWakeDrain(completionHandler: completionHandler)
+    }
+
+    /// Shared drain + latch for Bridge and InboxSignal wakes.
+    private static func runWakeDrain(
+        completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
         let latch = CompletionLatch()
         let work = Task {
             await DMPollingService.shared.runBackgroundDrain()
@@ -162,6 +197,22 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 completionHandler(.newData)
             }
         }
+    }
+
+    /// APNs environment this build's token was minted under. DEBUG → sandbox;
+    /// Release defaults to production. Override with UserDefaults key
+    /// `courierBridge.apsEnvironment` (`development` / `production`) when the
+    /// checked-in entitlements still say development on a transitional build.
+    private static var apsEnvironment: CourierBridgeWake.APNsEnvironment {
+        if let override = UserDefaults.standard.string(forKey: "courierBridge.apsEnvironment"),
+           let env = CourierBridgeWake.APNsEnvironment(rawValue: override) {
+            return env
+        }
+        #if DEBUG
+        return .development
+        #else
+        return .production
+        #endif
     }
 
     /// Re-arm the background refresh each time we leave the foreground.

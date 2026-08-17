@@ -184,15 +184,21 @@ public enum ProofApprovalService {
 
     // MARK: - Notification Category
 
-    /// Approve/Reject actions on the challenge banner. Both actions run in
-    /// the background — no `.foreground` and no `.authenticationRequired`,
-    /// which would force an iPhone unlock and defeat approving from the
-    /// locked phone's mirrored watch notification.
+    /// Approve/Reject actions on the challenge banner.
+    ///
+    /// - **Reject** runs in the background with no unlock — safe direction,
+    ///   frictionless even while the phone is locked (`CourierBridgeDoctrine`
+    ///   `.rejectWhileLocked`).
+    /// - **Approve** requires device unlock (`.authenticationRequired`) so a
+    ///   wrist tap cannot silently grant while the phone is locked
+    ///   (`CourierBridgeDoctrine` `.acceptRequiresUnlock`, design/courier-bridge.md
+    ///   §5). No `.foreground` — once unlocked, the reply still sends from the
+    ///   background using the precomputed userInfo payload.
     public static func makeCategory() -> UNNotificationCategory {
         let approve = UNNotificationAction(
             identifier: approveActionId,
             title: "Approve · 2 hours",
-            options: []
+            options: [.authenticationRequired]
         )
         let reject = UNNotificationAction(
             identifier: rejectActionId,
