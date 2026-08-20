@@ -1,6 +1,20 @@
 # Changelog
 
-## [Unreleased]
+## [1.20.6] — 2026-08-19
+
+### Changed — "Adopt Me" replaces the cryptic "Claim with Parent"
+
+The upstream-claim chiclet was ambiguous — *claim what, with whom?* It is this
+Authority asking its parent to take it into the certification chain, so it now
+reads **Adopt Me** (or **Link & Adopt Me** the first time, when it also links the
+nsec), the mirror of the downstream **Adopt Operator** button.
+
+It also moves out of its stranded spot under the header and **into the "Your
+account at &lt;Parent&gt;" card**, beside Top Up and Refresh: claiming your parent
+and funding the account you hold there are one relationship. The claim lives on
+the shared `ParentAccountCard` as an optional action (like Statement), so the
+Patron and Operator surfaces are unaffected — it appears only where a claim
+handshake exists, in both the standard and self-funded (penultimate) states.
 
 ### Added — Studio-side Courier Bridge wake handling (wrist approval while locked)
 

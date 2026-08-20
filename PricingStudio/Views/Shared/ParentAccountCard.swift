@@ -48,6 +48,14 @@ struct ParentAccountCard: View {
     /// it reads as an unrelated feature. Omitted when there is no statement.
     var onStatement: (() -> Void)? = nil
 
+    /// Upstream-claim action (Authority-only): certify this actor's place with
+    /// its parent via the register→confirm→approve handshake. Lives here beside
+    /// Top Up because claiming the parent and funding the account you hold there
+    /// are one relationship. Omitted (nil) for actors that run no claim protocol.
+    var claimLabel: String? = nil
+    var claimIcon: String = "link.badge.plus"
+    var onClaim: (() -> Void)? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if selfFunded {
@@ -78,6 +86,7 @@ struct ParentAccountCard: View {
                 }
             }
             Spacer()
+            claimButton
             Button(action: onTopUp) {
                 Label(topUpLabel, systemImage: "bolt.fill").font(.caption)
             }
@@ -114,6 +123,21 @@ struct ParentAccountCard: View {
                     .foregroundStyle(.tertiary)
             }
             Spacer()
+            claimButton
+        }
+    }
+
+    // MARK: - Claim button (optional, Authority-only)
+
+    @ViewBuilder
+    private var claimButton: some View {
+        if let claimLabel, let onClaim {
+            Button(action: onClaim) {
+                Label(claimLabel, systemImage: claimIcon).font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .tint(.secondary)
         }
     }
 
