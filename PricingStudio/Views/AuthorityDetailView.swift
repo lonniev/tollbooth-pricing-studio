@@ -118,16 +118,11 @@ struct AuthorityDetailView: View {
         ScrollView {
             VStack(spacing: 0) {
                 authorityHeader
-                Divider()
-                // Show the claim button whenever there's an MCP endpoint —
-                // both for first-time nsec linking (!isLinked) and for the
-                // upstream challenge-response dance against a parent
-                // Authority (isLinked but never claimed against parent).
-                // The two operations share the same sheet but are
-                // semantically distinct.
-                claimAuthorityButton
                 if authority.mcpEndpointURL != nil {
                     Divider()
+                    // The "Adopt Me" upstream claim lives inside the balance
+                    // card — claiming your parent and funding the account you
+                    // hold there are one relationship. See authorityBalanceSection.
                     authorityBalanceSection
                     Divider()
                     // Operator Secrets and Persistence Status share the width side-by-side —
@@ -226,26 +221,6 @@ struct AuthorityDetailView: View {
         }
     }
 
-    // MARK: - Claim Authority
-
-    @ViewBuilder
-    private var claimAuthorityButton: some View {
-        if authority.mcpEndpointURL != nil, let vm = authorityVM {
-            Button {
-                vm.requestClaim(authority)
-            } label: {
-                Label(
-                    isLinked ? "Claim with Parent" : "Link & Claim",
-                    systemImage: isLinked ? "link.badge.plus" : "person.badge.key.fill"
-                )
-                .font(.caption)
-            }
-            .buttonStyle(.bordered)
-            .tint(.secondary)
-            .controlSize(.small)
-        }
-    }
-
     // MARK: - Header
 
     private var authorityHeader: some View {
@@ -310,7 +285,13 @@ struct AuthorityDetailView: View {
                         authorityNpub: authority.npub, source: certificationSource
                     )
                 }
-            }
+            },
+            // Upstream claim — "have my parent adopt me into the chain."
+            // isLinked: identity already in keychain, pure claim. Otherwise the
+            // same handshake also links the nsec first.
+            claimLabel: authorityVM == nil ? nil : (isLinked ? "Adopt Me" : "Link & Adopt Me"),
+            claimIcon: isLinked ? "link.badge.plus" : "person.badge.key.fill",
+            onClaim: authorityVM.map { vm in { vm.requestClaim(authority) } }
         )
         .padding(.horizontal)
         .padding(.vertical, 8)
