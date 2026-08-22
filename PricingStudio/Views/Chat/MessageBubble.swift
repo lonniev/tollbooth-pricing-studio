@@ -12,6 +12,10 @@ struct MessageBubble: View {
     let fontSize: CGFloat
     let isSelected: Bool
     var isPending: Bool = false
+    /// The event reached relays but not the pinned courier rendezvous, so the
+    /// courier will never drain it. Delivered to the network is not delivered
+    /// to the recipient, and the row must not imply otherwise.
+    var missedRendezvous: Bool = false
     var onSendReply: ((String, String) -> Void)?
 
     @State private var courierPayload: CourierPayload?
@@ -56,6 +60,15 @@ struct MessageBubble: View {
                             .font(.caption2)
                             .foregroundStyle(.orange)
                     }
+
+                    if missedRendezvous {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text("missed rendezvous")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
                 }
                 .foregroundStyle(.tertiary)
             }
@@ -96,12 +109,17 @@ struct MessageBubble: View {
                 VStack(alignment: .leading, spacing: 4) {
                     // Compact summary — tap to expand
                     HStack(spacing: 6) {
-                        Image(systemName: "lock.shield.fill")
-                            .foregroundStyle(.green)
+                        Image(systemName: missedRendezvous
+                              ? "exclamationmark.triangle.fill" : "lock.shield.fill")
+                            .foregroundStyle(missedRendezvous ? .orange : .green)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Secure Courier reply sent")
+                            Text(missedRendezvous
+                                 ? "Reply did not reach the courier"
+                                 : "Secure Courier reply sent")
                                 .font(.caption.bold())
-                            Text("\(courierFieldCount) credential\(courierFieldCount == 1 ? "" : "s") delivered")
+                            Text(missedRendezvous
+                                 ? "Sent to other relays, but not to the rendezvous — send again"
+                                 : "\(courierFieldCount) credential\(courierFieldCount == 1 ? "" : "s") delivered")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -125,7 +143,7 @@ struct MessageBubble: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.green.opacity(0.15))
+                .background((missedRendezvous ? Color.orange : Color.green).opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
                 Text(dm.content)

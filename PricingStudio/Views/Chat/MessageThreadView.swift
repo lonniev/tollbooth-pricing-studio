@@ -90,6 +90,7 @@ struct MessageThreadView: View {
                                 fontSize: chatVM.messageFontSize,
                                 isSelected: selectedMessageIds.contains(dm.id),
                                 isPending: chatVM.pendingMessageIds.contains(dm.id),
+                                missedRendezvous: chatVM.pinMissedEventIds.contains(dm.id),
                                 onSendReply: { recipientHex, content in
                                     Task {
                                         await chatVM.sendMessage(

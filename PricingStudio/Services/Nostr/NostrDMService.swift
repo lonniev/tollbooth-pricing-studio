@@ -73,6 +73,11 @@ actor NostrDMService {
         var nip04OK = false
         var pinnedOK = false
         var errors: [String] = []
+        // Ids of events that reached at least one relay. A pinned-relay miss
+        // is a PARTIAL success — these events are live and will echo back —
+        // so the caller needs them to mark the echo rather than mistake it
+        // for a clean delivery.
+        var publishedIds: [String] = []
 
         func pinnedAccepted(_ results: [(URL, Bool, String)]) -> Bool {
             guard let pinned = pinnedRelay else { return true }
@@ -90,6 +95,7 @@ actor NostrDMService {
             let results = await relay.publish(wrapEvent, primaryRelay: pinnedRelay)
             let accepted = results.filter { $0.1 }.count
             nip17OK = accepted > 0
+            if nip17OK { publishedIds.append(wrapEvent.id) }
             pinnedOK = pinnedOK || pinnedAccepted(results)
             if !nip17OK {
                 let details = results.filter { !$0.1 }.map { "\($0.0): \($0.2)" }.joined(separator: "; ")
@@ -110,6 +116,7 @@ actor NostrDMService {
             let results = await relay.publish(dmEvent, primaryRelay: pinnedRelay)
             let accepted = results.filter { $0.1 }.count
             nip04OK = accepted > 0
+            if nip04OK { publishedIds.append(dmEvent.id) }
             pinnedOK = pinnedOK || pinnedAccepted(results)
             if !nip04OK {
                 let details = results.filter { !$0.1 }.map { "\($0.0): \($0.2)" }.joined(separator: "; ")
@@ -133,7 +140,7 @@ actor NostrDMService {
             await MainActor.run {
                 TrafficLogger.shared.log(.error, label: "DM Pin Missed", detail: "\(pinned.absoluteString): \(detail)", npub: senderNpub)
             }
-            throw DMError.pinnedRelayFailed(pinned.absoluteString, detail)
+            throw DMError.pinnedRelayFailed(pinned.absoluteString, detail, publishedIds)
         }
 
         await MainActor.run {
@@ -183,12 +190,14 @@ actor NostrDMService {
 
 enum DMError: LocalizedError {
     case allSendsFailed(String)
-    case pinnedRelayFailed(String, String)
+    /// The event reached other relays but NOT the pinned rendezvous. A partial
+    /// success: the associated ids are live on the network and will echo back.
+    case pinnedRelayFailed(String, String, [String])
 
     var errorDescription: String? {
         switch self {
         case .allSendsFailed(let detail): return "All relay sends failed: \(detail)"
-        case .pinnedRelayFailed(let relay, let detail):
+        case .pinnedRelayFailed(let relay, let detail, _):
             return "The courier is listening on \(relay), but the reply could not be published there: \(detail). Retry — the reply must land on that exact relay to be seen."
         }
     }

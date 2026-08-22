@@ -32,6 +32,11 @@ final class ChatViewModel {
     /// IDs of optimistically-added messages not yet confirmed by relay.
     private(set) var pendingMessageIds: Set<String> = []
 
+    /// Events that reached the network but NOT the pinned courier
+    /// rendezvous. They are live and will echo back, so they are matched
+    /// by real event id as well as by the optimistic id they started with.
+    private(set) var pinMissedEventIds: Set<String> = []
+
     var isLoading: Bool {
         if case .loading = state { return true }
         return false
@@ -377,8 +382,21 @@ final class ChatViewModel {
             }
             // Signal poll watchers so UI refreshes without waiting for next cycle
             DMPollingService.shared.notifyUpdate()
+        } catch DMError.pinnedRelayFailed(let relay, let detail, let publishedIds) {
+            // A PARTIAL success, not a failure: the event reached other relays
+            // and is live on the network. Deleting the row here was wrong twice
+            // over — it erases a message that demonstrably exists, and the
+            // relay echo then re-adds it moments later as a clean delivery,
+            // rendering green "reply sent" for a reply the courier will never
+            // see. Keep it, and mark it so the UI can tell the truth.
+            pendingMessageIds.remove(optimisticId)
+            pinMissedEventIds.insert(optimisticId)
+            for id in publishedIds { pinMissedEventIds.insert(id) }
+            sendError = DMError.pinnedRelayFailed(relay, detail, publishedIds).localizedDescription
+            logger.error("Reply missed the pinned rendezvous \(relay): \(detail)")
         } catch {
-            // Send failed — remove optimistic message and show error
+            // Send failed outright — nothing reached any relay, so there is no
+            // event to echo back. Removing the optimistic row is correct here.
             pendingMessageIds.remove(optimisticId)
             if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyPubkeyHex }) {
                 conversations[idx].messages.removeAll { $0.rawEventId == optimisticId }
