@@ -118,6 +118,8 @@ final class NostrRelayService: Sendable {
     /// Short timeouts for public kind-0 profile reads (parallel fan-out).
     private static let profileConnectTimeout: TimeInterval = 6
     private static let profileReadTimeout: TimeInterval = 6
+    /// How long to wait for a relay's OK frame for the event we just sent.
+    private static let publishAckTimeout: TimeInterval = 30
 
     // MARK: - Publish
 
@@ -138,7 +140,7 @@ final class NostrRelayService: Sendable {
         let results: [(URL, Bool, String)] = await withTaskGroup(of: (URL, Bool, String).self) { group in
             for relay in targets {
                 group.addTask {
-                    await Self.publishToRelay(relay, message: message)
+                    await Self.publishToRelay(relay, message: message, eventId: event.id)
                 }
             }
             var results: [(URL, Bool, String)] = []
@@ -305,8 +307,15 @@ final class NostrRelayService: Sendable {
     }
 
     /// Publish a message to a single relay.
+    /// Publish one event to one relay and report whether that relay
+    /// actually stored it.
+    ///
+    /// Only an `["OK", <eventId>, true]` frame counts as accepted. A relay may
+    /// interleave NOTICE or unrelated frames before its OK, and silence is not
+    /// consent — the Secure Courier's pinned rendezvous depends on this
+    /// distinction, so anything short of our own OK is reported as a failure.
     private static func publishToRelay(
-        _ relay: URL, message: String
+        _ relay: URL, message: String, eventId: String
     ) async -> (URL, Bool, String) {
         let host = relay.host ?? relay.absoluteString
         await MainActor.run {
@@ -316,33 +325,54 @@ final class NostrRelayService: Sendable {
         do {
             let conn = RelayConnection(url: relay)
             try await conn.connect(timeout: 30)
+            defer { conn.disconnect() }
             conn.send(message)
 
-            guard let text = try await conn.receive(timeout: 30) else {
-                conn.disconnect()
-                return (relay, true, "no response")
-            }
-            conn.disconnect()
+            let deadline = Date().addingTimeInterval(publishAckTimeout)
+            var lastFrame = ""
 
-            guard let data = text.data(using: .utf8),
-                  let arr = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
-                await MainActor.run {
-                    TrafficLogger.shared.log(.inbound, label: "Relay Publish OK", detail: host)
+            while true {
+                let remaining = deadline.timeIntervalSinceNow
+                if remaining <= 0 { break }
+                guard let text = try await conn.receive(timeout: remaining) else { break }
+                lastFrame = text
+
+                guard let data = text.data(using: .utf8),
+                      let arr = try? JSONSerialization.jsonObject(with: data) as? [Any],
+                      let type = arr.first as? String else { continue }
+
+                if type == "NOTICE" {
+                    let notice = arr.count > 1 ? String(describing: arr[1]) : ""
+                    await MainActor.run {
+                        TrafficLogger.shared.log(.inbound, label: "Relay Notice", detail: "\(host): \(notice)")
+                    }
+                    continue
                 }
-                return (relay, true, text)
-            }
-            if let type = arr.first as? String, type == "OK",
-               arr.count >= 3, let ok = arr[2] as? Bool {
+
+                // An OK for some other event proves nothing about ours.
+                guard type == "OK", arr.count >= 3,
+                      arr[1] as? String == eventId,
+                      let ok = arr[2] as? Bool else { continue }
+
                 let detail = arr.count > 3 ? (arr[3] as? String ?? "") : ""
                 await MainActor.run {
-                    TrafficLogger.shared.log(.inbound, label: "Relay Publish \(ok ? "OK" : "Rejected")", detail: "\(host): \(detail)")
+                    TrafficLogger.shared.log(
+                        .inbound,
+                        label: "Relay Publish \(ok ? "OK" : "Rejected")",
+                        detail: "\(host): \(detail)"
+                    )
                 }
                 return (relay, ok, detail)
             }
-            await MainActor.run {
-                TrafficLogger.shared.log(.inbound, label: "Relay Publish OK", detail: host)
+
+            var detail = "no OK for \(eventId.prefix(8)) within \(Int(publishAckTimeout))s"
+            if !lastFrame.isEmpty {
+                detail += "; last frame: \(lastFrame.prefix(120))"
             }
-            return (relay, true, text)
+            await MainActor.run {
+                TrafficLogger.shared.log(.error, label: "Relay Publish Unacknowledged", detail: "\(host): \(detail)")
+            }
+            return (relay, false, detail)
         } catch {
             await MainActor.run {
                 TrafficLogger.shared.log(.error, label: "Relay Publish Failed", detail: "\(host): \(Self.describeError(error))")
@@ -425,7 +455,9 @@ private final class RelayConnection: @unchecked Sendable {
 
     /// Wait for the next text message, or nil on disconnect/timeout.
     func receive(timeout: TimeInterval) async throws -> String? {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String?, Error>) in
+        // A frame that landed while no continuation was armed is still ours.
+        if let buffered = delegate.takePending() { return buffered }
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String?, Error>) in
             let state = OneShotState()
 
             delegate.onText = { [weak delegate] text in
@@ -480,12 +512,35 @@ private final class RelayDelegate: @unchecked Sendable, WebSocketDelegate {
     var onDisconnect: ((Error?) -> Void)?
     var onError: ((Error?) -> Void)?
 
+    /// Frames that arrived while no `receive` continuation was armed. Callers
+    /// that read several frames in a row re-arm between awaits; without this
+    /// buffer whatever lands in that gap is dropped on the floor.
+    private var pending: [String] = []
+    private let pendingLock = NSLock()
+
+    /// Take the oldest buffered frame, if any.
+    func takePending() -> String? {
+        pendingLock.lock()
+        defer { pendingLock.unlock() }
+        return pending.isEmpty ? nil : pending.removeFirst()
+    }
+
+    private func deliver(_ text: String) {
+        if let handler = onText {
+            handler(text)
+            return
+        }
+        pendingLock.lock()
+        pending.append(text)
+        pendingLock.unlock()
+    }
+
     func didReceive(event: WebSocketEvent, client: any WebSocketClient) {
         switch event {
         case .connected:
             onConnect?()
         case .text(let text):
-            onText?(text)
+            deliver(text)
         case .disconnected(_, _):
             onDisconnect?(nil)
         case .error(let error):
