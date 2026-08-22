@@ -57,7 +57,7 @@ final class NeonPersistenceHealthDecodeTests: XCTestCase {
         XCTAssertEqual(project.projectId, "ancient-water-19642944")
         XCTAssertEqual(project.name, "ancient-water")
         XCTAssertEqual(project.allowanceHours, 191.9, accuracy: 0.001)
-        XCTAssertEqual(project.usedPct, 101.3, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(project.usedPct), 101.3, accuracy: 0.001)
         XCTAssertEqual(project.status, "exhausted")
         XCTAssertEqual(project.quotaResetAt, "2026-08-01T00:00:00Z")
     }
