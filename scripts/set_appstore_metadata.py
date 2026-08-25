@@ -128,8 +128,25 @@ def main() -> None:
     print(f"App: {app_name} ({args.bundle_id}) → id {app_id}\n")
 
     # ---- App Info: category + subtitle + privacy policy URL ----
-    info = api("GET", f"/v1/apps/{app_id}/appInfos", token)[1]
-    app_info = info["data"][0]
+    # A live app has TWO appInfos: the one backing the released version, which
+    # is frozen, and an editable one for the next release. Taking [0] worked
+    # only because a never-released app has exactly one. On an update it picks
+    # the frozen record about half the time, and every PATCH then comes back
+    # "can not be modified in the current state" — which reads like a
+    # permissions problem and is really the wrong record.
+    info = api("GET", f"/v1/apps/{app_id}/appInfos", token, query={
+        "fields[appInfos]": "appStoreState"})[1]
+    infos = info.get("data", [])
+    if not infos:
+        fail("App has no appInfo records.")
+    app_info = next((i for i in infos
+                     if i["attributes"].get("appStoreState") in EDITABLE_STATES),
+                    None)
+    if app_info is None:
+        states = ", ".join(str(i["attributes"].get("appStoreState")) for i in infos)
+        print(f"⚠️  No editable appInfo (states: {states}); using the first. "
+              f"Category/subtitle edits will likely be refused.")
+        app_info = infos[0]
     app_info_id = app_info["id"]
 
     status, data = api("PATCH", f"/v1/appInfos/{app_info_id}", token, body={
