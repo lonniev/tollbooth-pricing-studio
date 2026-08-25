@@ -38,6 +38,14 @@ on:
         description: "Copyright line (REQUIRED by ASC; the UI fills it silently)"
         required: false
         default: "2026 Lonnie VanZandt"
+      require_build:
+        description: "Build NUMBER (CFBundleVersion) that must be attached, e.g. 265. Blank = newest VALID, which right after an upload is usually the PREVIOUS build."
+        required: false
+        default: ""
+      wait_minutes:
+        description: "Minutes to wait for require_build to finish processing"
+        required: false
+        default: "30"
 
 permissions:
   contents: read
@@ -90,4 +98,6 @@ jobs:
             --support-url "${{ inputs.support_url }}" \
             --marketing-url "${{ inputs.marketing_url }}" \
             --copyright "$COPYRIGHT_IN" \
+            --require-build "${{ inputs.require_build }}" \
+            --wait-minutes "${{ inputs.wait_minutes }}" \
             --whats-new "$WHATS_NEW"

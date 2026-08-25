@@ -16,6 +16,7 @@ questionnaire. Store copy lives here so it's reviewable in version control.
 from __future__ import annotations
 
 import argparse
+import time
 
 from asc_common import api, fail, first_error_detail, make_token, resolve_app
 
@@ -53,17 +54,53 @@ EDITABLE_STATES = {
 }
 
 
-def latest_valid_build_id(token, app_id):
-    status, data = api("GET", "/v1/builds", token, query={
-        "filter[app]": app_id, "sort": "-uploadedDate", "limit": "10",
-        "fields[builds]": "version,processingState",
-    })
-    if status != 200:
-        fail(f"Could not list builds (HTTP {status}).", data)
-    for b in data.get("data", []):
-        if b["attributes"].get("processingState") == "VALID":
-            return b["id"], b["attributes"].get("version")
-    fail("No processed (VALID) build to attach yet — wait for processing.")
+def latest_valid_build_id(token, app_id, require_build="", wait_minutes=0):
+    """Newest VALID build, or specifically build `require_build` if given.
+
+    Naming note: a build's `version` attribute is its CFBundleVersion — the
+    build NUMBER (e.g. "265"), not the marketing version.
+
+    Pin the build number when cutting a release. Uploads are processed
+    asynchronously, so "newest VALID" right after an upload is usually the
+    PREVIOUS build — and that build carries the previous marketing version,
+    which would silently attach the wrong binary to the new version record.
+    """
+    deadline = time.monotonic() + wait_minutes * 60
+    while True:
+        status, data = api("GET", "/v1/builds", token, query={
+            "filter[app]": app_id, "sort": "-uploadedDate", "limit": "10",
+            "fields[builds]": "version,processingState",
+        })
+        if status != 200:
+            fail(f"Could not list builds (HTTP {status}).", data)
+        builds = data.get("data", [])
+
+        if require_build:
+            match = next((b for b in builds
+                          if b["attributes"].get("version") == require_build), None)
+            if match is None:
+                seen = ", ".join(f"{b['attributes'].get('version')}"
+                                 f"({b['attributes'].get('processingState')})"
+                                 for b in builds) or "none"
+                fail(f"Build {require_build} is not among the 10 most recent "
+                     f"uploads. Seen: {seen}")
+            state = match["attributes"].get("processingState")
+            if state == "VALID":
+                return match["id"], require_build
+            if state in ("INVALID", "FAILED"):
+                fail(f"Build {require_build} finished processing as {state}.")
+            if time.monotonic() >= deadline:
+                fail(f"Build {require_build} is still {state} after "
+                     f"{wait_minutes} min. Re-run once it is VALID.")
+            print(f"   build {require_build} is {state} — waiting 60s…",
+                  flush=True)
+            time.sleep(60)
+            continue
+
+        for b in builds:
+            if b["attributes"].get("processingState") == "VALID":
+                return b["id"], b["attributes"].get("version")
+        fail("No processed (VALID) build to attach yet — wait for processing.")
 
 
 def main() -> None:
@@ -75,6 +112,12 @@ def main() -> None:
     ap.add_argument("--support-url", required=True)
     ap.add_argument("--marketing-url", default="")
     ap.add_argument("--copyright", default="2026 Lonnie VanZandt")
+    ap.add_argument("--require-build", default="",
+                    help="CFBundleVersion (build number) that MUST be the one "
+                         "attached, e.g. 265. Guards against attaching the "
+                         "previous build while this one is still processing.")
+    ap.add_argument("--wait-minutes", type=int, default=0,
+                    help="How long to wait for --require-build to become VALID.")
     ap.add_argument("--whats-new", default="",
                     help="Release notes. REQUIRED on an update, REJECTED on a "
                          "first release — pass empty for the latter.")
@@ -152,7 +195,8 @@ def main() -> None:
     print(f"{'✅' if status in (200,201) else '❌'} Version string → {args.version_string}"
           + ("" if status in (200, 201) else f"  ({first_error_detail(data)})"))
 
-    build_id, build_num = latest_valid_build_id(token, app_id)
+    build_id, build_num = latest_valid_build_id(
+        token, app_id, args.require_build, args.wait_minutes)
     status, data = api("PATCH", f"/v1/appStoreVersions/{vid}/relationships/build", token,
                        body={"data": {"type": "builds", "id": build_id}})
     print(f"{'✅' if status in (200,201,204) else '❌'} Attached build {build_num}"
