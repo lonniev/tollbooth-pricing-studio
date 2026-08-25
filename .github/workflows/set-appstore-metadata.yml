@@ -30,6 +30,14 @@ on:
         description: "App bundle id"
         required: false
         default: "com.tollbooth.dpyc.PricingStudio"
+      whats_new:
+        description: "Release notes. Blank = read appstore/whats-new.md. Pass 'NONE' for a first release (whatsNew is rejected when there is no prior version)."
+        required: false
+        default: ""
+      copyright:
+        description: "Copyright line (REQUIRED by ASC; the UI fills it silently)"
+        required: false
+        default: "2026 Lonnie VanZandt"
 
 permissions:
   contents: read
@@ -49,14 +57,37 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          # Via env, not ${{ }} interpolation — release notes are free text and
+          # would otherwise be pasted straight into the shell.
+          WHATS_NEW_IN: ${{ inputs.whats_new }}
+          COPYRIGHT_IN: ${{ inputs.copyright }}
         run: |
           set -eo pipefail
           ASC_PRIVATE_KEY="$(echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode)"
           export ASC_PRIVATE_KEY
+
+          # Blank input → the version-controlled copy. 'NONE' → omit entirely,
+          # which is what a FIRST release needs (whatsNew has no prior version
+          # to describe changes from and the whole PATCH fails if it is sent).
+          if [ "$WHATS_NEW_IN" = "NONE" ]; then
+            WHATS_NEW=""
+          elif [ -n "$WHATS_NEW_IN" ]; then
+            WHATS_NEW="$WHATS_NEW_IN"
+          elif [ -f appstore/whats-new.md ]; then
+            WHATS_NEW="$(cat appstore/whats-new.md)"
+          else
+            echo "::error::No --whats-new given and appstore/whats-new.md is missing."
+            exit 1
+          fi
+          echo "What's New (${#WHATS_NEW} chars):"
+          echo "$WHATS_NEW"
+
           python scripts/set_appstore_metadata.py \
             --bundle-id "${{ inputs.bundle_id }}" \
             --category "${{ inputs.category }}" \
             --version-string "${{ inputs.version_string }}" \
             --privacy-url "${{ inputs.privacy_url }}" \
             --support-url "${{ inputs.support_url }}" \
-            --marketing-url "${{ inputs.marketing_url }}"
+            --marketing-url "${{ inputs.marketing_url }}" \
+            --copyright "$COPYRIGHT_IN" \
+            --whats-new "$WHATS_NEW"

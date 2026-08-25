@@ -74,6 +74,10 @@ def main() -> None:
     ap.add_argument("--privacy-url", required=True)
     ap.add_argument("--support-url", required=True)
     ap.add_argument("--marketing-url", default="")
+    ap.add_argument("--copyright", default="2026 Lonnie VanZandt")
+    ap.add_argument("--whats-new", default="",
+                    help="Release notes. REQUIRED on an update, REJECTED on a "
+                         "first release — pass empty for the latter.")
     args = ap.parse_args()
 
     token = make_token()
@@ -114,12 +118,36 @@ def main() -> None:
                     if v["attributes"].get("platform") == "IOS"
                     and v["attributes"].get("appStoreState") in EDITABLE_STATES), None)
     if version is None:
-        fail("No editable iOS version. Create one (state PREPARE_FOR_SUBMISSION) first.")
+        # The first release had a version record waiting in PREPARE_FOR_SUBMISSION
+        # because the UI creates one with the app. On an UPDATE there is no
+        # editable version at all — the live one is READY_FOR_SALE and immutable —
+        # so create it here instead of sending the operator back to the browser.
+        status, data = api("POST", "/v1/appStoreVersions", token, body={
+            "data": {
+                "type": "appStoreVersions",
+                "attributes": {
+                    "platform": "IOS",
+                    "versionString": args.version_string,
+                    # copyright is REQUIRED and the UI fills it silently. Omitting
+                    # it does not fail here — it surfaces much later as a 409
+                    # "cannot be reviewed" on reviewSubmissionItems, with the real
+                    # reason buried in meta.associatedErrors.
+                    "copyright": args.copyright,
+                },
+                "relationships": {"app": {"data": {"type": "apps", "id": app_id}}},
+            },
+        })
+        if status not in (200, 201):
+            fail(f"Could not create App Store version {args.version_string}.", data)
+        version = data["data"]
+        print(f"✅ Created version {args.version_string} "
+              f"(no editable version existed — this is an update)")
     vid = version["id"]
 
     status, data = api("PATCH", f"/v1/appStoreVersions/{vid}", token, body={
         "data": {"type": "appStoreVersions", "id": vid,
-                 "attributes": {"versionString": args.version_string}},
+                 "attributes": {"versionString": args.version_string,
+                                "copyright": args.copyright}},
     })
     print(f"{'✅' if status in (200,201) else '❌'} Version string → {args.version_string}"
           + ("" if status in (200, 201) else f"  ({first_error_detail(data)})"))
@@ -135,13 +163,16 @@ def main() -> None:
     for l in vlocs.get("data", []):
         lid = l["id"]
         # NB: 'whatsNew' is rejected on a first release (no prior version to
-        # describe changes from) — only set it on updates.
+        # describe changes from) and REQUIRED on an update. The caller decides
+        # by passing --whats-new or leaving it empty.
         attrs = {
             "description": DESCRIPTION,
             "keywords": KEYWORDS,
             "promotionalText": PROMOTIONAL,
             "supportUrl": args.support_url,
         }
+        if args.whats_new:
+            attrs["whatsNew"] = args.whats_new
         if args.marketing_url:
             attrs["marketingUrl"] = args.marketing_url
         status, data = api("PATCH", f"/v1/appStoreVersionLocalizations/{lid}", token, body={
@@ -153,7 +184,7 @@ def main() -> None:
 
     print("\nStill to do (not set here):")
     print("  • Pricing → set Free (one click in the UI; pricing API is fiddly)")
-    print("  • Screenshots → iPad 13\" (this is an iPad-only app)")
+    print("  • Screenshots → iPad 13\" + iPhone 6.7\" (the app is universal)")
     print("  • App Privacy label + Age Rating questionnaire (UI)")
 
 
