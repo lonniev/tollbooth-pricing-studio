@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.20.7] — 2026-08-24
+
+### Fixed — a relay that never stored your reply no longer reports it delivered
+
+`publishToRelay` read exactly one frame and returned `accepted = true` on three
+paths that prove nothing: no response at all, a non-JSON frame, and any JSON
+frame that was not an OK — a NOTICE, typically. It never checked that an OK
+carried the id of the event just sent. That made `pinnedOK` in `sendDM` a guard
+that could not fail for the real reason.
+
+Seen live: a proof reply to optionality-mcp reported the pinned rendezvous as
+OK while `relay.primal.net` never stored the event — confirmed by event id,
+present on damus.io and nos.lol, absent on primal. The courier drained an empty
+mailbox and the patron saw `courier_not_found`, an error that blames the patron
+for not replying.
+
+The publish now loops until it sees `["OK", <this event's id>, ...]`, logs and
+skips NOTICE frames, and reports failure with the last frame quoted when no OK
+arrives within 30s. `RelayDelegate` buffers frames that arrive while no
+continuation is armed, so a NOTICE followed by the OK no longer drops the OK
+between awaits.
+
+### Fixed — a missed rendezvous now reads amber, not green
+
+`DMError.pinnedRelayFailed` is a *partial* success: `sendDM` throws it after
+other relays have already accepted, so the event is live and echoes back.
+`ChatViewModel` treated it as total failure and deleted the optimistic row;
+`injectLiveDM` then re-appended the echoed event, which is not in
+`pendingMessageIds`, so it rendered at full opacity with the green "Secure
+Courier reply sent" chrome — for a reply the courier will never drain.
+
+Deleting the row was wrong twice over: it erases a message that demonstrably
+exists on relays, and the echo undoes the deletion moments later as a clean
+delivery.
+
+`sendDM` now carries the published event ids on the error, `ChatViewModel` keeps
+the message and records those ids in `pinMissedEventIds` so the echo is
+recognised, and `MessageBubble` renders amber — "Reply did not reach the courier
+/ Sent to other relays, but not to the rendezvous — send again". Delivered to
+the network is not delivered to the recipient. A send that reached *no* relay
+still removes the optimistic row: nothing was published, so nothing will echo.
+
+### Fixed — the test target compiles again
+
+`NeonPersistenceHealthDecodeTests` asserted on `project.usedPct` with an
+accuracy overload while the model declares it `Double?`, so the test target had
+not built. Unwrapped.
+
 ## [1.20.6] — 2026-08-19
 
 ### Changed — "Adopt Me" replaces the cryptic "Claim with Parent"
