@@ -79,11 +79,19 @@ def latest_valid_build_id(token, app_id, require_build="", wait_minutes=0):
             match = next((b for b in builds
                           if b["attributes"].get("version") == require_build), None)
             if match is None:
+                # Not ingested yet. An upload takes minutes to surface as a build
+                # resource at all, so absence right after a release is expected
+                # and is a reason to wait, not to fail.
                 seen = ", ".join(f"{b['attributes'].get('version')}"
                                  f"({b['attributes'].get('processingState')})"
                                  for b in builds) or "none"
-                fail(f"Build {require_build} is not among the 10 most recent "
-                     f"uploads. Seen: {seen}")
+                if time.monotonic() >= deadline:
+                    fail(f"Build {require_build} never appeared among the 10 most "
+                         f"recent uploads within {wait_minutes} min. Seen: {seen}")
+                print(f"   build {require_build} not ingested yet "
+                      f"(seen: {seen}) — waiting 60s…", flush=True)
+                time.sleep(60)
+                continue
             state = match["attributes"].get("processingState")
             if state == "VALID":
                 return match["id"], require_build
