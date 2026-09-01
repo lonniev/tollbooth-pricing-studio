@@ -1167,6 +1167,17 @@ struct PricingDetailView: View {
             onboardingStatus = try await MCPService().callGetOnboardingStatus(
                 endpointURL: endpointURL
             )
+            // The checklist and the screen state read the same server truth. If
+            // the operator became ready while this screen was open, the gate
+            // must lift too — otherwise Check greens every row under a headline
+            // that still says "needs configuration" (issue #149). Covers both
+            // the Check button and the `.task`-driven refresh.
+            if PricingViewModel.shouldLiftConfigurationGate(
+                statusReady: onboardingStatus?.ready == true,
+                screenState: viewModel.state
+            ) {
+                viewModel.retry(for: target)
+            }
         } catch {
             // Silently fail — view falls back to static checklist
             TrafficLogger.shared.log(.error, label: "Onboarding Status", detail: error.localizedDescription)
