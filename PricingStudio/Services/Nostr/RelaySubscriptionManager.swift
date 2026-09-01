@@ -138,13 +138,19 @@ final class RelaySubscriptionManager {
         }
     }
 
-    /// Disconnect everything.
+    /// Disconnect everything and forget the subscription set.
+    /// Clearing `subscribedNpubs` / keys / sub-ids is required so a later
+    /// `subscribe` (or the poll-loop reconcile after stop→start) actually
+    /// re-opens filters instead of short-circuiting on the stale set.
     func disconnectAll() {
         for (_, conn) in connections { conn.disconnect() }
         connections.removeAll()
         connectionStates.removeAll()
         for (_, task) in eventTasks { task.cancel() }
         eventTasks.removeAll()
+        subscribedNpubs.removeAll()
+        npubKeys.removeAll()
+        npubSubscriptionIds.removeAll()
     }
 
     // MARK: - Private
