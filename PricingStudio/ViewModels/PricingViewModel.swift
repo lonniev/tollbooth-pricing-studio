@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import PricingStudioCore
 import SwiftUI
 
 @MainActor
@@ -788,6 +789,27 @@ final class PricingViewModel {
     func retry(for target: any PricingTarget) {
         currentOperatorNpub = nil
         startLoading(for: target)
+    }
+
+    /// Whether a fresh onboarding status should lift the "needs configuration" gate.
+    ///
+    /// Thin wrapper over `OnboardingGateLift.shouldLift` (PricingStudioCore) so
+    /// call sites can pass `state` directly. Pure rule lives in the host-free
+    /// package so CI can exercise it without a simulator (issue #149).
+    static func shouldLiftConfigurationGate(
+        statusReady: Bool,
+        screenState: State
+    ) -> Bool {
+        let gated: Bool
+        if case .registeredNotConfigured = screenState {
+            gated = true
+        } else {
+            gated = false
+        }
+        return OnboardingGateLift.shouldLift(
+            statusReady: statusReady,
+            isRegisteredNotConfigured: gated
+        )
     }
 
     /// Check the Oracle directly for this npub's registration status.
