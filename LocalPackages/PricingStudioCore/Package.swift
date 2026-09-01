@@ -5,9 +5,10 @@ import PackageDescription
 // run in CI via `swift test` (no simulator, no app launch). Slices:
 // Secure-Courier DM parsing (CourierPayload), npub-proof approval classification
 // (ProofApprovalService), proof provenance, notification prefs, the Courier
-// Bridge wake doctrine (CourierBridgeDoctrine), and content-free wake
-// recognition + device-token registration shape (CourierBridgeWake). Mirrors
-// the DPYCAuthKit local-package pattern.
+// Bridge wake doctrine (CourierBridgeDoctrine), content-free wake recognition +
+// device-token registration shape (CourierBridgeWake), and live-subscription
+// roster reconciliation (SubscriptionRoster, issue #148). Mirrors the
+// DPYCAuthKit local-package pattern.
 let package = Package(
     name: "PricingStudioCore",
     platforms: [

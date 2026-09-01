@@ -107,6 +107,12 @@ final class DMPollingService {
 
                 TrafficLogger.shared.log(.outbound, label: "DM Poll Cycle \(cycle)", detail: "\(entities.count) entities (\(withKeys) with nsec)")
 
+                // A roster built only at launch goes stale the moment an Operator
+                // is adopted mid-session. Reconcile every cycle so a newly keyed
+                // npub gets a live subscription without requiring a restart
+                // (issue #148). subscribe()/unsubscribe() are idempotent.
+                self.reconcileSubscriptions(entities: entities)
+
                 if !entities.isEmpty {
                     // When subscriptions are active, skip relay fetches to avoid
                     // duplicate connections that cause timeouts. Subscriptions
@@ -324,19 +330,60 @@ final class DMPollingService {
             subManager?.updateRelays(newURLs)
         }
 
-        // Subscribe all entities with nsecs
+        // Subscribe all entities with nsecs present at launch. Mid-session
+        // additions are picked up by reconcileSubscriptions() in the poll loop.
         let entities = gatherEntities(modelContext: modelContext)
-        let keyed = entities.filter { $0.hasKeys }
-        if !keyed.isEmpty {
+        reconcileSubscriptions(entities: entities)
+    }
+
+    /// Diff the live roster against the subscription set and open/close
+    /// subscriptions so they match. Safe to call every poll cycle:
+    /// `RelaySubscriptionManager.subscribe` / `unsubscribe` are idempotent.
+    ///
+    /// Without this, an Operator (or Patron/Authority) adopted after launch is
+    /// returned by `gatherEntities` every cycle but never passed to
+    /// `subscribe`, and the poll-path relay fetch is skipped while
+    /// `subscriptionsActive` is true — so their DMs stay invisible until
+    /// restart (issue #148).
+    private func reconcileSubscriptions(entities: [DMPollEntity]) {
+        let subManager = RelaySubscriptionManager.shared
+        let keyed = entities.filter(\.hasKeys)
+        let roster = Set(keyed.map(\.npub))
+        let diff = SubscriptionRoster.diff(roster: roster, subscribed: subManager.subscribedNpubs)
+
+        if !diff.toSubscribe.isEmpty {
+            // Connections may not exist yet if launch had zero keyed entities.
             subManager.connectAll()
-            for entity in keyed {
+            for entity in keyed where diff.toSubscribe.contains(entity.npub) {
                 if let pubKeyHex = entity.pubKeyHex, let privKeyHex = entity.privKeyHex {
                     subManager.subscribe(npub: entity.npub, pubkeyHex: pubKeyHex, privkeyHex: privKeyHex)
                 }
             }
-            subscriptionsActive = true
-            subscriptionsStartedAt = Date()
-            TrafficLogger.shared.log(.outbound, label: "Subscriptions", detail: "Started for \(keyed.count) npubs")
+            if !subscriptionsActive {
+                subscriptionsActive = true
+                // Only stamp the start time the first time subscriptions come up
+                // so mid-session additions don't re-open the historical-backfill
+                // badge window for every already-subscribed npub.
+                if subscriptionsStartedAt == nil {
+                    subscriptionsStartedAt = Date()
+                }
+            }
+            TrafficLogger.shared.log(
+                .outbound,
+                label: "Subscriptions",
+                detail: "Reconcile +\(diff.toSubscribe.count) (now \(subManager.subscribedNpubs.count) npubs)"
+            )
+        }
+
+        for npub in diff.toUnsubscribe {
+            subManager.unsubscribe(npub: npub)
+        }
+        if !diff.toUnsubscribe.isEmpty {
+            TrafficLogger.shared.log(
+                .outbound,
+                label: "Subscriptions",
+                detail: "Reconcile -\(diff.toUnsubscribe.count) (now \(subManager.subscribedNpubs.count) npubs)"
+            )
         }
     }
 
@@ -712,6 +759,8 @@ final class DMPollingService {
 }
 
 // MARK: - Free functions & types (NO actor isolation)
+
+// SubscriptionRoster lives in PricingStudioCore (host-free, unit-tested there).
 
 struct DMPollEntity: Sendable {
     let npub: String
