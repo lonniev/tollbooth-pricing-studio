@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.21.0] — 2026-09-24
+
+### Added — Add Patron fills in a key saved to iCloud Passwords
+
+ChartRemotely's new-user setup creates a Nostr key and has Safari save it to
+iCloud Passwords from https://chartremotely.tollbooth-dpyc.com. Add Patron's nsec
+field now carries `.textContentType(.password)`, and the app declares the
+`webcredentials:chartremotely.tollbooth-dpyc.com` associated domain, so iOS
+Password AutoFill offers that saved key in one tap; the npub is derived from it
+as before. The key is still stored through `KeychainService`.
+
+### Changed — provisioning follows the entitlements
+
+`provision-push` is now `provision-capabilities`: it enables every App ID
+capability the entitlements file declares (push, associated domains) before
+regenerating the App Store profile.
+
 ## [1.20.7] — 2026-08-24
 
 ### Fixed — a relay that never stored your reply no longer reports it delivered
