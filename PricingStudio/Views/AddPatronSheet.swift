@@ -64,12 +64,17 @@ struct AddPatronSheet: View {
                     HStack {
                         if showNsec {
                             TextField("nsec1...", text: $nsec)
+                                .textContentType(.password)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .monospaced()
                                 .font(.callout)
                         } else {
+                            // .password lets iOS Password AutoFill offer a key the patron
+                            // saved to iCloud Passwords from the ChartRemotely site
+                            // (webcredentials associated domain); the npub is then derived.
                             SecureField("nsec1...", text: $nsec)
+                                .textContentType(.password)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .monospaced()
