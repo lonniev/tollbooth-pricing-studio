@@ -74,7 +74,7 @@ jobs:
 
       - name: Install provisioning profile
         # Fetched fresh from the App Store Connect API by name so a
-        # capability change (run the provision-push workflow) takes effect
+        # capability change (run the provision-capabilities workflow) takes effect
         # on the next build — no PROVISIONING_PROFILE_BASE64 secret rotation.
         id: profile
         env:

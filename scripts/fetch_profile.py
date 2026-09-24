@@ -1,7 +1,7 @@
 """Fetch the active provisioning profile from App Store Connect by name.
 
 Used by testflight.yml at build time so the pipeline always signs with the
-CURRENT profile — a capability change followed by provision_push.py takes
+CURRENT profile — a capability change followed by provision_capabilities.py takes
 effect on the next build with no secret rotation. Writes the decoded
 .mobileprovision to --out.
 """
@@ -33,7 +33,7 @@ def main() -> None:
               if p["attributes"].get("profileState") == "ACTIVE"]
     if not active:
         fail(f"No ACTIVE profile named '{args.profile_name}'. "
-             "Run the provision-push workflow to (re)create it.")
+             "Run the provision-capabilities workflow to (re)create it.")
 
     attrs = active[0]["attributes"]
     args.out.write_bytes(base64.b64decode(attrs["profileContent"]))
