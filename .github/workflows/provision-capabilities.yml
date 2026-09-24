@@ -1,4 +1,4 @@
-name: Provision Push Capability
+name: Provision App ID Capabilities
 
 # One-shot: enable Push Notifications on the App ID and regenerate the
 # "PricingStudio AppStore" distribution profile via the App Store Connect
@@ -30,7 +30,7 @@ jobs:
           python-version: "3.14"
       - name: Install dependencies
         run: pip install --quiet pyjwt cryptography
-      - name: Enable capability + regenerate profile
+      - name: Enable capabilities + regenerate profile
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -39,6 +39,6 @@ jobs:
           set -eo pipefail
           ASC_PRIVATE_KEY="$(echo "$ASC_PRIVATE_KEY_BASE64" | base64 --decode)"
           export ASC_PRIVATE_KEY
-          python scripts/provision_push.py \
+          python scripts/provision_capabilities.py \
             --bundle-id "${{ inputs.bundle_id }}" \
             --profile-name "${{ inputs.profile_name }}"
