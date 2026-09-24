@@ -107,8 +107,16 @@ jobs:
           # github.run_number giving each build a unique number. The
           # latest build is automatically the "current" installable —
           # no Previous Builds confusion.
+          # The test targets carry MARKETING_VERSION = 1.0; skip exactly that.
+          # A bare `grep -v '1.0'` is a regex whose `.` matches any character,
+          # so it also dropped 1.21.0 ("21.0") and the archive shipped with no
+          # CFBundleShortVersionString at all.
           BASE=$(grep -E '^\s+MARKETING_VERSION = [0-9]' PricingStudio.xcodeproj/project.pbxproj \
-            | grep -v '1.0' | head -1 | sed 's/.*= //' | tr -d ';[:space:]')
+            | grep -vF 'MARKETING_VERSION = 1.0;' | head -1 | sed 's/.*= //' | tr -d ';[:space:]')
+          if [ -z "$BASE" ]; then
+            echo "::error::No app MARKETING_VERSION found in project.pbxproj."
+            exit 1
+          fi
           echo "marketing=${BASE}" >> $GITHUB_OUTPUT
           echo "Marketing version: ${BASE} (build ${{ github.run_number }})"
 
