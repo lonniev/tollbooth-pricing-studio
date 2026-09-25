@@ -6,9 +6,10 @@ import PackageDescription
 // Secure-Courier DM parsing (CourierPayload), npub-proof approval classification
 // (ProofApprovalService), proof provenance, notification prefs, the Courier
 // Bridge wake doctrine (CourierBridgeDoctrine), content-free wake recognition +
-// device-token registration shape (CourierBridgeWake), and live-subscription
-// roster reconciliation (SubscriptionRoster, issue #148). Mirrors the
-// DPYCAuthKit local-package pattern.
+// device-token registration shape (CourierBridgeWake), live-subscription
+// roster reconciliation (SubscriptionRoster, issue #148), and OpenRouter
+// per-role model selection + request building (ModelRole / OpenRouterRequestBuilder,
+// issue #161). Mirrors the DPYCAuthKit local-package pattern.
 let package = Package(
     name: "PricingStudioCore",
     platforms: [

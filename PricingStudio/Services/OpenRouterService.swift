@@ -1,32 +1,18 @@
 import Foundation
 import OSLog
+import PricingStudioCore
 
-private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "Anthropic")
+private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "OpenRouter")
 
 
+/// Single LLM transport for Pricing Studio. Speaks the Anthropic Messages wire
+/// format (streaming + tool use) against OpenRouter's Anthropic-compatible
+/// endpoint so Claude and Grok share one key and one code path. Model slug is
+/// chosen per call from the role's Settings value — never a hard-coded constant.
 @preconcurrency
-final class AnthropicService: @unchecked Sendable {
+final class OpenRouterService: @unchecked Sendable {
 
-    private static let apiURL = URL(string: "https://api.anthropic.com/v1/messages")!
-    private static let model = "claude-sonnet-4-6"
     private static let maxTokens = 2048
-
-    /// Map API error responses to clear, actionable user messages.
-    private static func friendlyErrorMessage(statusCode: Int, body: String) -> String {
-        let lower = body.lowercased()
-        switch statusCode {
-        case 400 where lower.contains("credit balance"):
-            return "[AI provider credits exhausted. Add credits at console.anthropic.com before continuing.]"
-        case 401:
-            return "[AI provider API key is invalid or expired. Check your Anthropic key in Settings.]"
-        case 429:
-            return "[AI provider rate limit reached. Wait a moment and try again.]"
-        case 529, 503:
-            return "[AI provider is temporarily overloaded. Try again in a few seconds.]"
-        default:
-            return "[AI provider error (HTTP \(statusCode)). Check Settings or try again later.]"
-        }
-    }
 
     // MARK: - Oracle Tool Definitions
 
@@ -212,6 +198,8 @@ final class AnthropicService: @unchecked Sendable {
         messages: [[String: String]],
         systemPrompt: String,
         apiKey: String,
+        model: String,
+        role: ModelRole? = nil,
         maxTokens: Int = 2048,
         includeTools: Bool = true
     ) -> AsyncStream<String> {
@@ -222,6 +210,8 @@ final class AnthropicService: @unchecked Sendable {
                         messages: messages,
                         systemPrompt: systemPrompt,
                         apiKey: apiKey,
+                        model: model,
+                        role: role,
                         maxTokens: maxTokens,
                         continuation: continuation
                     )
@@ -233,6 +223,8 @@ final class AnthropicService: @unchecked Sendable {
                         messages: apiMessages,
                         systemPrompt: systemPrompt,
                         apiKey: apiKey,
+                        model: model,
+                        role: role,
                         maxTokens: maxTokens,
                         includeTools: false,
                         continuation: continuation
@@ -251,6 +243,8 @@ final class AnthropicService: @unchecked Sendable {
         messages: [[String: String]],
         systemPrompt: String,
         apiKey: String,
+        model: String,
+        role: ModelRole?,
         maxTokens: Int,
         continuation: AsyncStream<String>.Continuation
     ) async {
@@ -274,6 +268,8 @@ final class AnthropicService: @unchecked Sendable {
                 messages: snapshot,
                 systemPrompt: systemPrompt,
                 apiKey: apiKey,
+                model: model,
+                role: role,
                 maxTokens: maxTokens,
                 includeTools: true,
                 continuation: continuation
@@ -372,6 +368,8 @@ final class AnthropicService: @unchecked Sendable {
             messages: snapshot,
             systemPrompt: systemPrompt,
             apiKey: apiKey,
+            model: model,
+            role: role,
             maxTokens: maxTokens,
             includeTools: false,
             continuation: continuation
@@ -404,37 +402,34 @@ final class AnthropicService: @unchecked Sendable {
         messages: [[String: Any]],
         systemPrompt: String,
         apiKey: String,
+        model: String,
+        role: ModelRole?,
         maxTokens: Int,
         includeTools: Bool,
         continuation: AsyncStream<String>.Continuation
     ) async -> RequestResult {
-        var request = URLRequest(url: Self.apiURL)
+        let tools: [[String: Any]]? = includeTools ? Self.allTools : nil
+        let built = OpenRouterRequestBuilder.build(
+            model: model,
+            apiKey: apiKey,
+            systemPrompt: systemPrompt,
+            messages: messages,
+            maxTokens: maxTokens,
+            stream: true,
+            tools: tools
+        )
+
+        var request = URLRequest(url: built.url)
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-
-        var body: [String: Any] = [
-            "model": Self.model,
-            "max_tokens": maxTokens,
-            "stream": true,
-            "system": systemPrompt,
-            "messages": messages,
-        ]
-        if includeTools {
-            body["tools"] = Self.allTools
+        for (key, value) in built.headers {
+            request.setValue(value, forHTTPHeaderField: key)
         }
-
-        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
-            continuation.yield("[Error: Failed to serialize request]")
-            return RequestResult()
-        }
-        request.httpBody = bodyData
+        request.httpBody = built.body
 
         // Surface what we actually sent: system prompt head, last user
         // message, declared tools. The wire payload itself isn't useful;
         // what matters when debugging the advisor is "what did we ask
-        // Claude to do and what tools did we tell it about."
+        // the model to do and what tools did we tell it about."
         let systemHead = String(systemPrompt.prefix(800))
         let lastUserSnippet: String = {
             for msg in messages.reversed() where (msg["role"] as? String) == "user" {
@@ -449,8 +444,10 @@ final class AnthropicService: @unchecked Sendable {
         let toolNames: String = includeTools
             ? Self.allTools.compactMap { $0["name"] as? String }.joined(separator: ", ")
             : "(none)"
+        let roleLabel = role.map { $0.rawValue } ?? "—"
         let outBody = """
-        model=\(Self.model)
+        role=\(roleLabel)
+        model=\(model)
         messages=\(messages.count) turns
         tools=\(toolNames)
         system[head]:
@@ -460,9 +457,9 @@ final class AnthropicService: @unchecked Sendable {
         """
         await MainActor.run {
             TrafficLogger.shared.logHTTP(
-                label: "Anthropic Messages",
+                label: "OpenRouter Messages",
                 method: "POST",
-                url: Self.apiURL.absoluteString,
+                url: built.url.absoluteString,
                 requestBody: outBody
             )
         }
@@ -485,15 +482,19 @@ final class AnthropicService: @unchecked Sendable {
                 }
                 await MainActor.run {
                     TrafficLogger.shared.logHTTP(
-                        label: "Anthropic Error",
+                        label: "OpenRouter Error",
                         method: "POST",
-                        url: Self.apiURL.absoluteString,
+                        url: OpenRouterRequestBuilder.messagesURL.absoluteString,
                         statusCode: code,
                         responseBody: errorBody,
                         error: "HTTP \(code)"
                     )
                 }
-                let userMessage = Self.friendlyErrorMessage(statusCode: code, body: errorBody)
+                let userMessage = OpenRouterRequestBuilder.friendlyErrorMessage(
+                    statusCode: code,
+                    body: errorBody,
+                    role: role
+                )
                 continuation.yield(userMessage)
                 return result
             }
@@ -590,15 +591,15 @@ final class AnthropicService: @unchecked Sendable {
             """
             await MainActor.run {
                 TrafficLogger.shared.logHTTP(
-                    label: "Anthropic Stream Complete",
+                    label: "OpenRouter Stream Complete",
                     method: "POST",
-                    url: Self.apiURL.absoluteString,
+                    url: OpenRouterRequestBuilder.messagesURL.absoluteString,
                     statusCode: 200,
                     responseBody: inBody
                 )
             }
         } catch {
-            logger.error("Anthropic streaming error: \(error.localizedDescription)")
+            logger.error("OpenRouter streaming error: \(error.localizedDescription)")
             continuation.yield("[Error: \(error.localizedDescription)]")
         }
 
