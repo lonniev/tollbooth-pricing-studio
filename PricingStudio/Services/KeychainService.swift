@@ -160,38 +160,38 @@ enum KeychainService {
         )
     }
 
-    // MARK: - Anthropic API Key Storage
+    // MARK: - OpenRouter API Key Storage
 
-    private static let anthropicService = "com.tollbooth.dpyc.PricingStudio.anthropic"
-    private static let anthropicAccount = "api-key"
+    private static let openRouterService = "com.tollbooth.dpyc.PricingStudio.openrouter"
+    private static let openRouterAccount = "api-key"
 
-    static func saveAnthropicAPIKey(_ key: String) throws {
-        try save(data: Data(key.utf8), service: anthropicService, account: anthropicAccount)
+    /// Legacy Anthropic / xAI key slots — deleted on first launch after the
+    /// OpenRouter cutover (issue #161). Kept private so nothing re-reads them.
+    private static let legacyAnthropicService = "com.tollbooth.dpyc.PricingStudio.anthropic"
+    private static let legacyXAIService = "com.tollbooth.dpyc.PricingStudio.xai"
+    private static let legacyAPIKeyAccount = "api-key"
+
+    static func saveOpenRouterAPIKey(_ key: String) throws {
+        try save(data: Data(key.utf8), service: openRouterService, account: openRouterAccount)
     }
 
-    static func loadAnthropicAPIKey() -> String? {
-        load(service: anthropicService, account: anthropicAccount)
+    static func loadOpenRouterAPIKey() -> String? {
+        load(service: openRouterService, account: openRouterAccount)
     }
 
-    static func deleteAnthropicAPIKey() {
-        delete(service: anthropicService, account: anthropicAccount)
+    static func deleteOpenRouterAPIKey() {
+        delete(service: openRouterService, account: openRouterAccount)
     }
 
-    // MARK: - xAI API Key Storage
-
-    private static let xaiService = "com.tollbooth.dpyc.PricingStudio.xai"
-    private static let xaiAccount = "api-key"
-
-    static func saveXAIAPIKey(_ key: String) throws {
-        try save(data: Data(key.utf8), service: xaiService, account: xaiAccount)
-    }
-
-    static func loadXAIAPIKey() -> String? {
-        load(service: xaiService, account: xaiAccount)
-    }
-
-    static func deleteXAIAPIKey() {
-        delete(service: xaiService, account: xaiAccount)
+    /// Drop the pre-OpenRouter Anthropic and xAI keys once. Idempotent: a
+    /// UserDefaults latch keeps subsequent launches from re-deleting a key the
+    /// user might have re-entered under the old account names by accident.
+    static func migrateLegacyProviderAPIKeysIfNeeded(defaults: UserDefaults = .standard) {
+        let flag = "com.tollbooth.dpyc.PricingStudio.migratedOpenRouterAPIKey.v1"
+        guard defaults.bool(forKey: flag) == false else { return }
+        delete(service: legacyAnthropicService, account: legacyAPIKeyAccount)
+        delete(service: legacyXAIService, account: legacyAPIKeyAccount)
+        defaults.set(true, forKey: flag)
     }
 
     // MARK: - Credential Cards (ncred)

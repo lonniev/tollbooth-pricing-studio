@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import PricingStudioCore
 
 private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "StageClassifier")
 
@@ -18,7 +19,8 @@ enum StageClassifier {
     /// Returns a dict of stage number → cleaned chapter summary text.
     static func reshapeChapters(
         messages: [AssistantMessage],
-        provider: any LLMProvider
+        apiKey: String,
+        model: String
     ) async -> Result<[Int: String], ClassificationError> {
         guard !messages.isEmpty else { return .success([:]) }
 
@@ -70,10 +72,15 @@ enum StageClassifier {
         ]
 
         var response = ""
-        let stream = provider.streamCompletion(
+        let service = OpenRouterService()
+        let stream = service.sendMessage(
             messages: apiMessages,
             systemPrompt: systemPrompt,
-            maxTokens: 8192
+            apiKey: apiKey,
+            model: model,
+            role: .advisor,
+            maxTokens: 8192,
+            includeTools: false
         )
         for await token in stream {
             response += token

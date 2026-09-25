@@ -1,4 +1,5 @@
 import Foundation
+import PricingStudioCore
 import MCP
 import SwiftData
 import OSLog
@@ -11,7 +12,7 @@ private let communityPromptURL = URL(string: "https://raw.githubusercontent.com/
 /// Drives the AI Pricing Consultant conversation.
 ///
 /// Fetches the system prompt from the dpyc-community GitHub repo,
-/// allows local editing, and uses the Anthropic Messages API to
+/// allows local editing, and uses OpenRouter Anthropic-compatible Messages API to
 /// interview the operator and co-design a pricing campaign.
 @MainActor
 @Observable
@@ -96,7 +97,7 @@ final class PricingConsultantViewModel {
     /// Structured pricing proposal — per-tool prices+chains and projections.
     var proposal: PricingProposal = PricingProposal()
 
-    private let service = AnthropicService()
+    private let service = OpenRouterService()
     private var originalPrompt: String = ""
 
     // MARK: - Prompt Loading
@@ -185,7 +186,8 @@ final class PricingConsultantViewModel {
         let narrativeMessage = AssistantMessage(role: .assistant, content: narrative, stageNumber: 1)
         stageMessages[1, default: []].append(narrativeMessage)
 
-        let placeholder = AssistantMessage(role: .assistant, content: "", isStreaming: true, stageNumber: 1)
+        let model = ModelRoleSettings.slug(for: .advisor)
+        let placeholder = AssistantMessage(role: .assistant, content: "", isStreaming: true, stageNumber: 1, modelSlug: model)
         stageMessages[1, default: []].append(placeholder)
         isStreaming = true
 
@@ -194,13 +196,15 @@ final class PricingConsultantViewModel {
         ]
 
         let fullPrompt = buildStageSystemPrompt(stage: 1, context: context)
-        let apiKey = KeychainService.loadAnthropicAPIKey() ?? ""
+        let apiKey = KeychainService.loadOpenRouterAPIKey() ?? ""
 
         Task {
             let stream = service.sendMessage(
                 messages: apiMessages,
                 systemPrompt: fullPrompt,
-                apiKey: apiKey
+                apiKey: apiKey,
+                model: model,
+                role: .advisor
             )
 
             var progressApplied = false
@@ -226,17 +230,18 @@ final class PricingConsultantViewModel {
 
     func send(_ text: String, context: ConsultantContext) {
         // Ensure operator tools are configured (may be first call after loadCampaign)
-        if AnthropicService.operatorTools.isEmpty {
+        if OpenRouterService.operatorTools.isEmpty {
             configureOperatorTools(context: context)
         }
-        if AnthropicService.executeConsultantTool == nil {
+        if OpenRouterService.executeConsultantTool == nil {
             configureConsultantTools()
         }
         let targetStage = viewingStageNumber ?? interviewProgress.stageNumber
         let userMessage = AssistantMessage(role: .user, content: text, stageNumber: targetStage)
         stageMessages[targetStage, default: []].append(userMessage)
 
-        let placeholder = AssistantMessage(role: .assistant, content: "", isStreaming: true, stageNumber: targetStage)
+        let model = ModelRoleSettings.slug(for: .advisor)
+        let placeholder = AssistantMessage(role: .assistant, content: "", isStreaming: true, stageNumber: targetStage, modelSlug: model)
         stageMessages[targetStage, default: []].append(placeholder)
         isStreaming = true
 
@@ -248,13 +253,15 @@ final class PricingConsultantViewModel {
         }
 
         let fullPrompt = buildStageSystemPrompt(stage: targetStage, context: context)
-        let apiKey = KeychainService.loadAnthropicAPIKey() ?? ""
+        let apiKey = KeychainService.loadOpenRouterAPIKey() ?? ""
 
         Task {
             let stream = service.sendMessage(
                 messages: apiMessages,
                 systemPrompt: fullPrompt,
-                apiKey: apiKey
+                apiKey: apiKey,
+                model: model,
+                role: .advisor
             )
 
             var progressApplied = false
@@ -436,10 +443,10 @@ final class PricingConsultantViewModel {
     func beginMeeting(withStage stage: Int, context: ConsultantContext) {
         guard let consultant = ConsultantRoster.forStage(stage) else { return }
         viewingStageNumber = stage
-        if AnthropicService.operatorTools.isEmpty {
+        if OpenRouterService.operatorTools.isEmpty {
             configureOperatorTools(context: context)
         }
-        if AnthropicService.executeConsultantTool == nil {
+        if OpenRouterService.executeConsultantTool == nil {
             configureConsultantTools()
         }
         let opener = "Hello \(consultant.displayName). I'm ready to begin our \(consultant.title.lowercased()) conversation — please open with whichever question you'd find most useful."
@@ -621,16 +628,16 @@ final class PricingConsultantViewModel {
         pendingChapterReshape = nil
 
         Task {
-            guard let anthropicKey = KeychainService.loadAnthropicAPIKey(), !anthropicKey.isEmpty else {
-                reshapeError = "No Anthropic API key available. Add one in settings."
+            guard let apiKey = KeychainService.loadOpenRouterAPIKey(), !apiKey.isEmpty else {
+                reshapeError = "No OpenRouter API key available. Add one in Settings."
                 isReshaping = false
                 return
             }
-            let provider: any LLMProvider = AnthropicProvider(apiKey: anthropicKey)
+            let model = ModelRoleSettings.slug(for: .advisor)
 
             // Use chapter-based reshape: produces clean, self-contained summaries
             // with cross-boundary content relocated and paraphrased
-            let result = await StageClassifier.reshapeChapters(messages: messages, provider: provider)
+            let result = await StageClassifier.reshapeChapters(messages: messages, apiKey: apiKey, model: model)
             switch result {
             case .success(let chapters):
                 pendingChapterReshape = chapters
@@ -802,13 +809,13 @@ final class PricingConsultantViewModel {
 
     // MARK: - Operator Tool Access
 
-    /// Configure AnthropicService with the operator's MCP tools so the
+    /// Configure OpenRouterService with the operator's MCP tools so the
     /// AI advisor can call them during the interview to verify claims.
     private func configureOperatorTools(context: ConsultantContext) {
         guard let endpointString = context.operatorEndpointURL,
               let endpointURL = URL(string: endpointString) else {
-            AnthropicService.operatorTools = []
-            AnthropicService.executeOperatorTool = nil
+            OpenRouterService.operatorTools = []
+            OpenRouterService.executeOperatorTool = nil
             return
         }
 
@@ -820,7 +827,7 @@ final class PricingConsultantViewModel {
              ["tool_id": ["type": "string", "description": "The tool's UUID from the pricing model"]]),
         ]
 
-        AnthropicService.operatorTools = readOnlyTools.map { tool in
+        OpenRouterService.operatorTools = readOnlyTools.map { tool in
             var schema: [String: Any] = ["type": "object", "properties": tool.params]
             if !tool.params.isEmpty {
                 schema["required"] = Array(tool.params.keys)
@@ -834,7 +841,7 @@ final class PricingConsultantViewModel {
 
         // Set executor that calls the operator's MCP endpoint
         // Transport handles auth via SDK authorizer — no token resolution needed
-        AnthropicService.executeOperatorTool = { toolName, input in
+        OpenRouterService.executeOperatorTool = { toolName, input in
             let mcpService = MCPService()
             do {
                 // Route get_pricing_model through the same typed loader
@@ -880,7 +887,7 @@ final class PricingConsultantViewModel {
     /// propose deltas, flag concerns, and (for Hayek) merge the final proposal.
     /// Idempotent — safe to call from configureOperatorTools or directly.
     private func configureConsultantTools() {
-        AnthropicService.executeConsultantTool = { [weak self] toolName, input in
+        OpenRouterService.executeConsultantTool = { [weak self] toolName, input in
             guard let self = self else {
                 return ("", "{\"error\":\"Consultant view model unavailable.\"}")
             }

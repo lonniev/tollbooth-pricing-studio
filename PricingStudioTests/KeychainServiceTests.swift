@@ -110,4 +110,84 @@ final class KeychainServiceTests: XCTestCase {
                        after[kSecAttrModificationDate as String] as? Date,
                        "already-correct items must not be rewritten")
     }
+
+    // MARK: - OpenRouter key + legacy Anthropic/xAI migration (issue #161)
+
+    private let openRouterService = "com.tollbooth.dpyc.PricingStudio.openrouter"
+    private let legacyAnthropicService = "com.tollbooth.dpyc.PricingStudio.anthropic"
+    private let legacyXAIService = "com.tollbooth.dpyc.PricingStudio.xai"
+    private let apiKeyAccount = "api-key"
+    private let migrationFlag = "com.tollbooth.dpyc.PricingStudio.migratedOpenRouterAPIKey.v1"
+    private let migrationDefaultsSuite = "KeychainServiceTests.OpenRouterMigration"
+
+    private func deleteKey(service: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: apiKeyAccount,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    private func plantLegacyKey(service: String, value: String) {
+        deleteKey(service: service)
+        let add: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: apiKeyAccount,
+            kSecValueData as String: Data(value.utf8),
+        ]
+        XCTAssertEqual(SecItemAdd(add as CFDictionary, nil), errSecSuccess)
+    }
+
+    private func loadKey(service: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: apiKeyAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    func testOpenRouterAPIKeyRoundTrip() throws {
+        deleteKey(service: openRouterService)
+        defer {
+            KeychainService.deleteOpenRouterAPIKey()
+        }
+
+        try KeychainService.saveOpenRouterAPIKey("sk-or-test-key")
+        XCTAssertEqual(KeychainService.loadOpenRouterAPIKey(), "sk-or-test-key")
+        KeychainService.deleteOpenRouterAPIKey()
+        XCTAssertNil(KeychainService.loadOpenRouterAPIKey())
+    }
+
+    func testMigrateLegacyProviderAPIKeysRemovesOldSlotsOnce() {
+        let defaults = UserDefaults(suiteName: "\(migrationDefaultsSuite).\(UUID().uuidString)")!
+        defaults.removeObject(forKey: migrationFlag)
+
+        plantLegacyKey(service: legacyAnthropicService, value: "sk-ant-legacy")
+        plantLegacyKey(service: legacyXAIService, value: "xai-legacy")
+        XCTAssertEqual(loadKey(service: legacyAnthropicService), "sk-ant-legacy")
+        XCTAssertEqual(loadKey(service: legacyXAIService), "xai-legacy")
+
+        KeychainService.migrateLegacyProviderAPIKeysIfNeeded(defaults: defaults)
+
+        XCTAssertNil(loadKey(service: legacyAnthropicService), "Anthropic key deleted on migration")
+        XCTAssertNil(loadKey(service: legacyXAIService), "xAI key deleted on migration")
+        XCTAssertTrue(defaults.bool(forKey: migrationFlag))
+
+        // Re-plant and migrate again — latch must prevent a second delete cycle
+        // from being "required", but a second call is a no-op on the latch.
+        plantLegacyKey(service: legacyAnthropicService, value: "sk-ant-replanted")
+        KeychainService.migrateLegacyProviderAPIKeysIfNeeded(defaults: defaults)
+        XCTAssertEqual(loadKey(service: legacyAnthropicService), "sk-ant-replanted",
+                       "second migrate is a no-op once the latch is set")
+        deleteKey(service: legacyAnthropicService)
+        deleteKey(service: legacyXAIService)
+    }
 }

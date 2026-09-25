@@ -1,13 +1,14 @@
 import Foundation
 import OSLog
+import PricingStudioCore
 
 private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", category: "SecondOpinion")
 
 /// GitHub raw URL for the community-managed pricing reviewer system prompt.
 private let reviewerPromptURL = URL(string: "https://raw.githubusercontent.com/lonniev/dpyc-community/main/prompts/pricing-reviewer.md")!
 
-/// Drives the Second Opinion review — sends campaign context to Grok (or Claude fallback)
-/// and streams a structured critique.
+/// Drives the Second Opinion review — sends campaign context through OpenRouter
+/// using the adversary role's model slug and streams a structured critique.
 ///
 /// Uses shared `ReviewSection` and `ReviewVerdict` types from `PeerReview.swift`.
 /// Parsing is delegated to `ResponseParser.parseReviewSections(from:)`.
@@ -18,7 +19,10 @@ final class SecondOpinionViewModel {
     var reviewText: String = ""
     var isStreaming = false
     var error: String?
-    var providerName: String = "Grok"
+    /// Display label for the adversary role (slug + "adversarial" tag).
+    /// Frozen at request time so a later Settings change doesn't relabel an
+    /// in-flight or completed review.
+    var providerName: String = ModelRoleSettings.displayLabel(for: .adversary)
 
     /// Parsed sections from the review for structured display.
     var sections: [ReviewSection] = []
@@ -31,6 +35,7 @@ final class SecondOpinionViewModel {
     var peerReview: PeerReview?
 
     private var reviewerPrompt: String = ""
+    private let service = OpenRouterService()
 
     // MARK: - Campaign Summary Assembly
 
@@ -56,7 +61,7 @@ final class SecondOpinionViewModel {
 
     // MARK: - Review Request
 
-    /// Load the reviewer prompt and request a review from the best available provider.
+    /// Load the reviewer prompt and request a review via OpenRouter.
     /// Collects the full response before displaying to the user.
     func requestReview(summary: String) {
         reviewText = ""
@@ -68,48 +73,43 @@ final class SecondOpinionViewModel {
         isStreaming = true
 
         Task {
-            // Load reviewer prompt
             let prompt = await loadReviewerPrompt()
 
-            // Pick provider: Grok if key exists, else Claude fallback
-            let provider: any LLMProvider
-            if let xaiKey = KeychainService.loadXAIAPIKey(), !xaiKey.isEmpty {
-                provider = XAIProvider(apiKey: xaiKey)
-                providerName = "Grok"
-            } else if let anthropicKey = KeychainService.loadAnthropicAPIKey(), !anthropicKey.isEmpty {
-                provider = AnthropicProvider(apiKey: anthropicKey)
-                providerName = "Claude"
-            } else {
-                error = "No API key available. Add an xAI or Anthropic API key in settings."
+            guard let apiKey = KeychainService.loadOpenRouterAPIKey(), !apiKey.isEmpty else {
+                error = "No OpenRouter API key available. Add one in Settings."
                 isStreaming = false
                 return
             }
 
-            logger.info("Requesting second opinion from \(self.providerName)")
+            let model = ModelRoleSettings.slug(for: .adversary)
+            providerName = ModelRole.adversary.displayLabel(slug: model)
+
+            logger.info("Requesting second opinion via OpenRouter model \(model)")
 
             let messages: [[String: String]] = [
                 ["role": "user", "content": summary]
             ]
 
-            // Collect full response (no live streaming to UI)
             var fullResponse = ""
-            let stream = provider.streamCompletion(
+            let stream = service.sendMessage(
                 messages: messages,
                 systemPrompt: prompt,
-                maxTokens: 4096
+                apiKey: apiKey,
+                model: model,
+                role: .adversary,
+                maxTokens: 4096,
+                includeTools: false
             )
             for await token in stream {
                 fullResponse += token
             }
 
-            // Check for error in response
-            if fullResponse.hasPrefix("[Error:") {
+            if fullResponse.hasPrefix("[Error:") || fullResponse.hasPrefix("[OpenRouter") {
                 error = fullResponse
                 isStreaming = false
                 return
             }
 
-            // Post-process: parse into sections via ResponseParser
             reviewText = fullResponse
             sections = ResponseParser.parseReviewSections(from: fullResponse)
 
@@ -117,7 +117,6 @@ final class SecondOpinionViewModel {
             hasSuggestedChanges = hasSuggestions
             suggestedChangesText = suggestionsText
 
-            // Build the structured PeerReview value type
             let overallVerdict = sections.compactMap(\.verdict).last
             peerReview = PeerReview(
                 providerName: providerName,

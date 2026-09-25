@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PricingStudioCore
 
 /// Conversational AI pricing campaign designer.
 ///
@@ -240,13 +241,19 @@ struct PricingConsultantView: View {
     @ViewBuilder
     private var header: some View {
         HStack {
-            if let campaign = consultantVM.currentCampaign {
-                Text(campaign.name)
-                    .font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                if let campaign = consultantVM.currentCampaign {
+                    Text(campaign.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                } else {
+                    Label("Pricing Campaign Designer", systemImage: "wand.and.stars")
+                        .font(.headline)
+                }
+                Text(ModelRoleSettings.displayLabel(for: .advisor))
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
-            } else {
-                Label("Pricing Campaign Designer", systemImage: "wand.and.stars")
-                    .font(.headline)
             }
 
             promptSourceBadge
@@ -612,14 +619,14 @@ struct PricingConsultantView: View {
 
     @ViewBuilder
     private var emptyState: some View {
-        if KeychainService.loadAnthropicAPIKey() == nil {
+        if KeychainService.loadOpenRouterAPIKey() == nil {
             VStack(spacing: 12) {
                 Image(systemName: "key.fill")
                     .font(.system(size: 36))
                     .foregroundStyle(.secondary)
                 Text("API Key Required")
                     .font(.headline)
-                Text("Set up your Anthropic API key to start designing pricing campaigns with AI.")
+                Text("Set up your OpenRouter API key to start designing pricing campaigns with AI.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -734,6 +741,11 @@ struct PricingConsultantView: View {
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 if message.role == .assistant {
+                    if let slug = message.modelSlug {
+                        Text(slug)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.tertiary)
+                    }
                     MarkdownContentView(text: message.content.isEmpty && message.isStreaming ? "Thinking..." : message.content)
                         .textSelection(.enabled)
                         .padding(10)

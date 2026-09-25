@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.21.1] — 2026-09-25
+
+### Changed — every LLM call routes through OpenRouter; model chosen per role
+
+Pricing Studio no longer talks to Anthropic or xAI directly. One
+`OpenRouterService` speaks the Anthropic Messages wire format (streaming + tool
+use) against `https://openrouter.ai/api/v1/messages`, so Claude and Grok share a
+single key and a single code path. A `ModelRole` enum (Owl / Advisor /
+Adversary) picks the OpenRouter slug per call — defaults
+`anthropic/claude-sonnet-5`, `anthropic/claude-sonnet-5`, `x-ai/grok-4.5` —
+persisted in UserDefaults and editable under Settings → Models. Conversation
+headers show the role's slug; the second opinion is labelled *adversarial*; each
+assistant reply records the slug that produced it so a later Settings change
+never relabels old answers. Settings and the assistant key sheet keep a single
+OpenRouter API key (`KeychainService` save/load/deleteOpenRouterAPIKey); the
+legacy Anthropic and xAI key slots are deleted once on first launch after
+upgrade. Errors name OpenRouter credits and, for an unknown slug, which role's
+model to fix in Settings. `AnthropicProvider`, `XAIProvider`, and the
+`LLMProvider` protocol are gone — one transport left nothing to abstract.
+
 ## [1.21.0] — 2026-09-24
 
 ### Added — Add Patron fills in a key saved to iCloud Passwords
