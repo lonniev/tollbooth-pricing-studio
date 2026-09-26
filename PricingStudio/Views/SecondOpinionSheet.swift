@@ -14,18 +14,16 @@ struct SecondOpinionSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Provider badge
+                // Provider badge — adversary role label (slug + adversarial tag)
                 HStack {
                     Label(viewModel.providerName, systemImage: "brain.head.profile")
                         .font(.caption.bold())
-                        .foregroundStyle(viewModel.providerName == "Grok" ? .orange : .purple)
+                        .foregroundStyle(.orange)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(
-                            (viewModel.providerName == "Grok" ? Color.orange : Color.purple)
-                                .opacity(0.12)
-                        )
+                        .background(Color.orange.opacity(0.12))
                         .clipShape(Capsule())
+                        .lineLimit(1)
 
                     Spacer()
 

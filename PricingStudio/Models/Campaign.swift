@@ -244,17 +244,7 @@ final class Campaign {
     }
 
     static func encode(_ messages: [AssistantMessage]) -> Data {
-        let dicts: [[String: Any]] = messages.map { msg in
-            var dict: [String: Any] = [
-                "role": msg.role.rawValue,
-                "content": msg.content,
-                "timestamp": ISO8601DateFormatter().string(from: msg.timestamp),
-            ]
-            if let stage = msg.stageNumber {
-                dict["stage_number"] = stage
-            }
-            return dict
-        }
+        let dicts = encodeDicts(messages)
         return (try? JSONSerialization.data(withJSONObject: dicts)) ?? Data()
     }
 
@@ -273,7 +263,14 @@ final class Campaign {
                   let content = dict["content"] as? String else { return nil }
             let timestamp = (dict["timestamp"] as? String).flatMap { formatter.date(from: $0) } ?? Date()
             let stageNumber = dict["stage_number"] as? Int
-            return AssistantMessage(role: role, content: content, timestamp: timestamp, stageNumber: stageNumber)
+            let modelSlug = dict["model_slug"] as? String
+            return AssistantMessage(
+                role: role,
+                content: content,
+                timestamp: timestamp,
+                stageNumber: stageNumber,
+                modelSlug: modelSlug
+            )
         }
     }
 
@@ -286,6 +283,9 @@ final class Campaign {
             ]
             if let stage = msg.stageNumber {
                 dict["stage_number"] = stage
+            }
+            if let slug = msg.modelSlug {
+                dict["model_slug"] = slug
             }
             return dict
         }

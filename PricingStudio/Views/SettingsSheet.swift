@@ -1,4 +1,5 @@
 import SwiftUI
+import PricingStudioCore
 
 extension Bundle {
     var appName: String { infoDictionary?["CFBundleName"] as? String ?? "–" }
@@ -15,12 +16,17 @@ extension Bundle {
 struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    // API Keys
-    @State private var anthropicKey: String = ""
-    @State private var xaiKey: String = ""
+    // API Key
+    @State private var openRouterKey: String = ""
     @State private var keySaveStatus: String?
     @State private var pollInterval: Double = DMPollingService.shared.pollIntervalSeconds
     @State private var notificationMode: DMPollingService.NotificationMode = DMPollingService.shared.notificationMode
+
+    // Per-role model slugs (not secret — UserDefaults)
+    @State private var owlSlug: String = ModelRoleSettings.slug(for: .owl)
+    @State private var advisorSlug: String = ModelRoleSettings.slug(for: .advisor)
+    @State private var adversarySlug: String = ModelRoleSettings.slug(for: .adversary)
+    @State private var modelsSaveStatus: String?
 
     var body: some View {
         NavigationStack {
@@ -36,35 +42,20 @@ struct SettingsSheet: View {
                     Label("About", systemImage: "info.circle")
                 }
 
-                // MARK: - AI Agent Keys
+                // MARK: - OpenRouter API Key
 
                 Section {
-                    SecureField("sk-ant-...", text: $anthropicKey)
+                    SecureField("sk-or-...", text: $openRouterKey)
                         .textContentType(.password)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                 } header: {
-                    Label("Anthropic API Key", systemImage: "brain")
+                    Label("OpenRouter API Key", systemImage: "key.fill")
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Powers the Pricing Consultant interview (Claude).")
-                        Link("Get a key at console.anthropic.com",
-                             destination: URL(string: "https://console.anthropic.com/settings/keys")!)
-                    }
-                }
-
-                Section {
-                    SecureField("xai-...", text: $xaiKey)
-                        .textContentType(.password)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                } header: {
-                    Label("xAI API Key", systemImage: "sparkles")
-                } footer: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Powers the Second Opinion reviewer (Grok). Falls back to Claude if not set.")
-                        Link("Get a key at console.x.ai",
-                             destination: URL(string: "https://console.x.ai/")!)
+                        Text("Powers Owl, the Pricing Consultant advisors, and the adversarial second opinion through one key.")
+                        Link("Get a key at openrouter.ai/keys",
+                             destination: URL(string: "https://openrouter.ai/keys")!)
                     }
                 }
 
@@ -76,29 +67,50 @@ struct SettingsSheet: View {
                 }
 
                 Section {
-                    Button("Save API Keys") {
-                        saveAPIKeys()
+                    Button("Save API Key") {
+                        saveAPIKey()
                     }
-                    .disabled(
-                        anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        && xaiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    )
+                    .disabled(openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Button(role: .destructive) {
-                        KeychainService.deleteAnthropicAPIKey()
-                        KeychainService.deleteXAIAPIKey()
-                        anthropicKey = ""
-                        xaiKey = ""
+                        KeychainService.deleteOpenRouterAPIKey()
+                        openRouterKey = ""
                         keySaveStatus = nil
                     } label: {
-                        Label("Remove All API Keys", systemImage: "trash")
+                        Label("Remove OpenRouter Key", systemImage: "trash")
                     }
                     .disabled(
-                        KeychainService.loadAnthropicAPIKey() == nil
-                        && KeychainService.loadXAIAPIKey() == nil
-                        && anthropicKey.isEmpty
-                        && xaiKey.isEmpty
+                        KeychainService.loadOpenRouterAPIKey() == nil
+                        && openRouterKey.isEmpty
                     )
+                }
+
+                // MARK: - Models
+
+                Section {
+                    modelRow(role: .owl, slug: $owlSlug)
+                    modelRow(role: .advisor, slug: $advisorSlug)
+                    modelRow(role: .adversary, slug: $adversarySlug)
+
+                    Button("Save Models") {
+                        ModelRoleSettings.setSlug(owlSlug, for: .owl)
+                        ModelRoleSettings.setSlug(advisorSlug, for: .advisor)
+                        ModelRoleSettings.setSlug(adversarySlug, for: .adversary)
+                        // Reload trimmed values (empty → default)
+                        owlSlug = ModelRoleSettings.slug(for: .owl)
+                        advisorSlug = ModelRoleSettings.slug(for: .advisor)
+                        adversarySlug = ModelRoleSettings.slug(for: .adversary)
+                        modelsSaveStatus = "Models saved"
+                    }
+                } header: {
+                    Label("Models", systemImage: "brain")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("OpenRouter slugs chosen per role. Changing a slug affects the next reply only — earlier answers keep the model that produced them.")
+                        if let status = modelsSaveStatus {
+                            Text(status).foregroundStyle(.green)
+                        }
+                    }
                 }
 
                 // MARK: - Nostr Polling
@@ -143,14 +155,39 @@ struct SettingsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(content: settingsToolbar)
             .onAppear {
-                if let existing = KeychainService.loadAnthropicAPIKey() {
-                    anthropicKey = existing
+                if let existing = KeychainService.loadOpenRouterAPIKey() {
+                    openRouterKey = existing
                 }
-                if let existing = KeychainService.loadXAIAPIKey() {
-                    xaiKey = existing
+                owlSlug = ModelRoleSettings.slug(for: .owl)
+                advisorSlug = ModelRoleSettings.slug(for: .advisor)
+                adversarySlug = ModelRoleSettings.slug(for: .adversary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func modelRow(role: ModelRole, slug: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(role.displayLabel(slug: slug.wrappedValue.isEmpty ? role.defaultSlug : slug.wrappedValue))
+                .font(.subheadline.weight(.semibold))
+            TextField(role.defaultSlug, text: slug)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(.body, design: .monospaced))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(role.suggestedSlugs, id: \.self) { suggestion in
+                        Button(suggestion) {
+                            slug.wrappedValue = suggestion
+                        }
+                        .font(.caption2.monospaced())
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
                 }
             }
         }
+        .padding(.vertical, 4)
     }
 
     @ToolbarContentBuilder
@@ -160,19 +197,13 @@ struct SettingsSheet: View {
         }
     }
 
-    private func saveAPIKeys() {
-        let trimmedAnthropic = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedXAI = xaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        var saved: [String] = []
-        if !trimmedAnthropic.isEmpty {
-            try? KeychainService.saveAnthropicAPIKey(trimmedAnthropic)
-            saved.append("Anthropic")
+    private func saveAPIKey() {
+        let trimmed = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            keySaveStatus = nil
+            return
         }
-        if !trimmedXAI.isEmpty {
-            try? KeychainService.saveXAIAPIKey(trimmedXAI)
-            saved.append("xAI")
-        }
-        keySaveStatus = saved.isEmpty ? nil : "\(saved.joined(separator: " + ")) key\(saved.count > 1 ? "s" : "") saved"
+        try? KeychainService.saveOpenRouterAPIKey(trimmed)
+        keySaveStatus = "OpenRouter key saved"
     }
-
 }

@@ -473,7 +473,7 @@ struct ContentView: View {
             }
             // Wire Oracle tool executor for AI Assistant tool_use
             // Oracle tool executor — transport handles auth via SDK authorizer
-            AnthropicService.executeOracleTool = { toolName, input in
+            OpenRouterService.executeOracleTool = { toolName, input in
                 let mcpService = MCPService()
                 do {
                     let oracleURL = try await RegistryService.resolveOracleURL()
@@ -489,6 +489,8 @@ struct ContentView: View {
             // iPhone is locked (watch-tap approvals). Foreground-only — the
             // re-save that changes accessibility needs the device unlocked.
             KeychainService.ensureNsecAccessibility()
+            // OpenRouter cutover: drop legacy Anthropic/xAI keys once.
+            KeychainService.migrateLegacyProviderAPIKeysIfNeeded()
             DMPollingService.shared.startPolling(modelContext: modelContext)
         }
         .overlay {

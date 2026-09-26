@@ -1,4 +1,5 @@
 import Foundation
+import PricingStudioCore
 
 /// Context snapshot passed to the assistant for system prompt construction.
 struct AppContext {
@@ -20,7 +21,12 @@ final class AssistantViewModel {
     var messages: [AssistantMessage] = []
     var isStreaming = false
 
-    private let service = AnthropicService()
+    /// Role badge for the conversation header — current Owl slug.
+    var roleDisplayLabel: String {
+        ModelRoleSettings.displayLabel(for: .owl)
+    }
+
+    private let service = OpenRouterService()
 
     func sendUserMessage(_ text: String, context: AppContext) {
         // Strip [Oracle RAG] prefix for display — keep it in the API message for context
@@ -30,7 +36,13 @@ final class AssistantViewModel {
         let userMessage = AssistantMessage(role: .user, content: displayText)
         messages.append(userMessage)
 
-        let assistantMessage = AssistantMessage(role: .assistant, content: "", isStreaming: true)
+        let model = ModelRoleSettings.slug(for: .owl)
+        let assistantMessage = AssistantMessage(
+            role: .assistant,
+            content: "",
+            isStreaming: true,
+            modelSlug: model
+        )
         messages.append(assistantMessage)
         isStreaming = true
 
@@ -40,13 +52,15 @@ final class AssistantViewModel {
         }
 
         let systemPrompt = buildSystemPrompt(context: context)
-        let apiKey = KeychainService.loadAnthropicAPIKey() ?? ""
+        let apiKey = KeychainService.loadOpenRouterAPIKey() ?? ""
 
         Task {
             let stream = service.sendMessage(
                 messages: apiMessages,
                 systemPrompt: systemPrompt,
-                apiKey: apiKey
+                apiKey: apiKey,
+                model: model,
+                role: .owl
             )
 
             for await token in stream {

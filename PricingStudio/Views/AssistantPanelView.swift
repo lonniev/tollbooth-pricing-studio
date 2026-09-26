@@ -31,8 +31,14 @@ struct AssistantPanelView: View {
     @ViewBuilder
     private var header: some View {
         HStack {
-            Label("AI Assistant", systemImage: "sparkles")
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                Label("AI Assistant", systemImage: "sparkles")
+                    .font(.headline)
+                Text(assistantVM.roleDisplayLabel)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
             Spacer()
 
@@ -99,14 +105,14 @@ struct AssistantPanelView: View {
 
     @ViewBuilder
     private var emptyState: some View {
-        if KeychainService.loadAnthropicAPIKey() == nil {
+        if KeychainService.loadOpenRouterAPIKey() == nil {
             VStack(spacing: 12) {
                 Image(systemName: "key.fill")
                     .font(.system(size: 36))
                     .foregroundStyle(.secondary)
                 Text("API Key Required")
                     .font(.headline)
-                Text("An Anthropic API key is needed to use the AI assistant. You can get one from the Anthropic console.")
+                Text("An OpenRouter API key is needed to use the AI assistant. Get one at openrouter.ai/keys.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -141,6 +147,11 @@ struct AssistantPanelView: View {
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 if message.role == .assistant {
+                    if let slug = message.modelSlug {
+                        Text(slug)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.tertiary)
+                    }
                     MarkdownContentView(text: message.content.isEmpty && message.isStreaming ? "..." : message.content)
                         .textSelection(.enabled)
                         .padding(10)

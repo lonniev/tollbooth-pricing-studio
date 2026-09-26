@@ -77,7 +77,7 @@
 		AA0000010000000000000311 /* PatronAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000301 /* PatronAccountViewModel.swift */; };
 		AA0000010000000000000312 /* PatronDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000302 /* PatronDetailView.swift */; };
 		AA0000010000000000000401 /* AssistantMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000411 /* AssistantMessage.swift */; };
-		AA0000010000000000000402 /* AnthropicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000412 /* AnthropicService.swift */; };
+		AA0000010000000000000402 /* OpenRouterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000412 /* OpenRouterService.swift */; };
 		AA0000010000000000000403 /* AssistantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000413 /* AssistantViewModel.swift */; };
 		AA0000010000000000000404 /* AssistantPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000414 /* AssistantPanelView.swift */; };
 		AA0000010000000000000405 /* AssistantAPIKeySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000415 /* AssistantAPIKeySheet.swift */; };
@@ -98,9 +98,6 @@
 		AA0000010000000000000A03 /* MarkdownContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A04 /* MarkdownContentView.swift */; };
 		AA0000010000000000000A05 /* CampaignComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A06 /* CampaignComparisonView.swift */; };
 		AA0000010000000000000A09 /* CampaignOverviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000A0A /* CampaignOverviewSheet.swift */; };
-		AA0000010000000000000B11 /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B01 /* LLMProvider.swift */; };
-		AA0000010000000000000B12 /* XAIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B02 /* XAIProvider.swift */; };
-		AA0000010000000000000B13 /* AnthropicProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B03 /* AnthropicProvider.swift */; };
 		AA0000010000000000000B14 /* SecondOpinionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B04 /* SecondOpinionViewModel.swift */; };
 		AA0000010000000000000B15 /* SecondOpinionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B05 /* SecondOpinionSheet.swift */; };
 		AA0000010000000000000B17 /* CourierPayloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000B07 /* CourierPayloadView.swift */; };
@@ -298,7 +295,7 @@
 		AA0000010000000000000301 /* PatronAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronAccountViewModel.swift; sourceTree = "<group>"; };
 		AA0000010000000000000302 /* PatronDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatronDetailView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000411 /* AssistantMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantMessage.swift; sourceTree = "<group>"; };
-		AA0000010000000000000412 /* AnthropicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicService.swift; sourceTree = "<group>"; };
+		AA0000010000000000000412 /* OpenRouterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterService.swift; sourceTree = "<group>"; };
 		AA0000010000000000000413 /* AssistantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantViewModel.swift; sourceTree = "<group>"; };
 		AA0000010000000000000414 /* AssistantPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantPanelView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000415 /* AssistantAPIKeySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantAPIKeySheet.swift; sourceTree = "<group>"; };
@@ -320,9 +317,6 @@
 		AA0000010000000000000A06 /* CampaignComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignComparisonView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000A08 /* PricingStudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PricingStudio.entitlements; sourceTree = "<group>"; };
 		AA0000010000000000000A0A /* CampaignOverviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampaignOverviewSheet.swift; sourceTree = "<group>"; };
-		AA0000010000000000000B01 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
-		AA0000010000000000000B02 /* XAIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XAIProvider.swift; sourceTree = "<group>"; };
-		AA0000010000000000000B03 /* AnthropicProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicProvider.swift; sourceTree = "<group>"; };
 		AA0000010000000000000B04 /* SecondOpinionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondOpinionViewModel.swift; sourceTree = "<group>"; };
 		AA0000010000000000000B05 /* SecondOpinionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondOpinionSheet.swift; sourceTree = "<group>"; };
 		AA0000010000000000000B07 /* CourierPayloadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierPayloadView.swift; sourceTree = "<group>"; };
@@ -571,15 +565,12 @@
 				AADD000100000000000000FB /* RelayRegistryService.swift */,
 				AA00000100000000000000E7 /* KeychainService.swift */,
 				AA00000100000000000000FD /* TrafficLogger.swift */,
-				AA0000010000000000000412 /* AnthropicService.swift */,
+				AA0000010000000000000412 /* OpenRouterService.swift */,
 				AA0000010000000000000801 /* DMPollingService.swift */,
 				AA00000100000000INBX0001 /* InboxSignalService.swift */,
 				AA00000100000000CBTK0001 /* CourierBridgeTokenStore.swift */,
 				AA00000100000000DEDU0001 /* EntityDeduplicator.swift */,
 				AA0000010000000000000F50 /* PatronBalancePreferences.swift */,
-				AA0000010000000000000B01 /* LLMProvider.swift */,
-				AA0000010000000000000B02 /* XAIProvider.swift */,
-				AA0000010000000000000B03 /* AnthropicProvider.swift */,
 				DECD000100000000000004A1 /* ResponseParser.swift */,
 				DECD000100000000000005A1 /* StageClassifier.swift */,
 				DECD000100000000000006A1 /* CampaignSummaryBuilder.swift */,
@@ -1115,7 +1106,7 @@
 				AA000001000000000000F002 /* AvatarPickerView.swift in Sources */,
 				AA0000010000000000000E11 /* InvoiceListView.swift in Sources */,
 				AA0000010000000000000401 /* AssistantMessage.swift in Sources */,
-				AA0000010000000000000402 /* AnthropicService.swift in Sources */,
+				AA0000010000000000000402 /* OpenRouterService.swift in Sources */,
 				AA0000010000000000000403 /* AssistantViewModel.swift in Sources */,
 				AA0000010000000000000404 /* AssistantPanelView.swift in Sources */,
 				AA0000010000000000000405 /* AssistantAPIKeySheet.swift in Sources */,
@@ -1145,9 +1136,6 @@
 				AA0000010000000000000A03 /* MarkdownContentView.swift in Sources */,
 				AA0000010000000000000A05 /* CampaignComparisonView.swift in Sources */,
 				AA0000010000000000000A09 /* CampaignOverviewSheet.swift in Sources */,
-				AA0000010000000000000B11 /* LLMProvider.swift in Sources */,
-				AA0000010000000000000B12 /* XAIProvider.swift in Sources */,
-				AA0000010000000000000B13 /* AnthropicProvider.swift in Sources */,
 				AA0000010000000000000B14 /* SecondOpinionViewModel.swift in Sources */,
 				AA0000010000000000000B15 /* SecondOpinionSheet.swift in Sources */,
 				AA0000010000000000000B17 /* CourierPayloadView.swift in Sources */,
@@ -1381,7 +1369,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.21.0;
+				MARKETING_VERSION = 1.21.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1415,7 +1403,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.21.0;
+				MARKETING_VERSION = 1.21.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tollbooth.dpyc.PricingStudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "PricingStudio AppStore";
