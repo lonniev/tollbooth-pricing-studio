@@ -1590,7 +1590,11 @@ actor MCPService {
         try await client.connect(transport: transport)
 
         let allTools = try await listAllTools(client: client)
-        guard let updateTool = allTools.first(where: { $0.name.contains("update_operator") }) else {
+        // Exact / suffix match only — `contains("update_operator")` would also
+        // grab `update_operator_credential` (issue #153), which is a different tool.
+        guard let updateTool = allTools.first(where: {
+            $0.name == "update_operator" || $0.name.hasSuffix("_update_operator")
+        }) else {
             await traffic(.error, label: "Update Operator", detail: "No update_operator tool found")
             throw MCPError.toolCallFailed("No update_operator tool found on this Authority")
         }
@@ -2503,6 +2507,73 @@ actor MCPService {
         }
     }
 
+    /// Rotate a single vaulted operator credential in place (issue #153).
+    ///
+    /// Calls `<prefix>_update_operator_credential(field, value)`. The wheel
+    /// merges — only `field` is rewritten; every other vaulted secret is left
+    /// alone. Prefer this over Forget+re-Deliver when correcting one wrong key
+    /// on a live operator. Falls back to a capability error when the operator's
+    /// wheel predates the tool.
+    func callUpdateOperatorCredential(
+        endpointURL: URL,
+        service: String,
+        npub: String,
+        field: String,
+        value: String
+    ) async throws -> String {
+        await traffic(
+            .outbound,
+            label: "Update Operator Credential",
+            detail: "service=\(service) field=\(field) npub=\(npub.prefix(16))…"
+        )
+
+        let client = Client(name: "PricingStudio", version: "1.0.0")
+        let transport = makeTransport(endpoint: endpointURL)
+        defer { Task { await client.disconnect() } }
+
+        try await client.connect(transport: transport)
+
+        let allTools = try await listAllTools(client: client)
+        // Match the bare tool or a slug-prefixed form (brain_update_operator_credential).
+        // Do NOT match plain `update_operator` — that mutates registry metadata.
+        guard let tool = allTools.first(where: {
+            $0.name == "update_operator_credential" || $0.name.hasSuffix("_update_operator_credential")
+        }) else {
+            await traffic(.error, label: "Update Operator Credential", detail: "No update_operator_credential tool found")
+            throw MCPError.toolCallFailed("Operator does not support update_operator_credential")
+        }
+
+        var extra: [String: Value] = [
+            "field": .string(field),
+            "value": .string(value),
+        ]
+        if !service.isEmpty {
+            extra["service"] = .string(service)
+        }
+
+        let (content, isError) = try await client.callTool(
+            name: tool.name,
+            arguments: await argsWithProof(
+                npub: npub,
+                capability: "update_operator_credential",
+                endpointURL: endpointURL,
+                extra: extra
+            )
+        )
+
+        if isError == true {
+            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
+            throw MCPError.toolCallFailed(errorText)
+        }
+
+        let text = content.compactMap { extractText($0) }.first ?? ""
+        await traffic(.inbound, label: "Update Operator Credential", detail: String(text.prefix(4000)))
+        if !text.isEmpty {
+            try await throwIfSoftError(text: text, label: "Update Operator Credential")
+        }
+        return text.isEmpty ? "Updated \(field)." : text
+    }
+
     // MARK: - Pricing Synthesis
 
     /// Connects to an operator's MCP, lists all tools, and synthesizes a pricing model
@@ -2557,7 +2628,8 @@ actor MCPService {
         // Auth/session tools — free
         if name.contains("session_status") || name.contains("activate_session")
             || name.contains("register_credentials") || name.contains("receive_credentials")
-            || name.contains("request_credential") || name.contains("forget_credentials") {
+            || name.contains("request_credential") || name.contains("forget_credentials")
+            || name.contains("update_operator_credential") {
             return ("auth", 0)
         }
 

@@ -30,6 +30,9 @@ enum ToolRoleClassifier {
         "forget_credentials",
         "receive_credentials",
         "request_credential_channel",
+        // Single-field vault rewrite (issue #153). Same identity as Forget /
+        // Deliver — the operator (or steward) holding the vault.
+        "update_operator_credential",
     ]
 
     private static let ambiguousTools: Set<String> = [

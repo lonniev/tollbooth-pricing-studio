@@ -1,4 +1,5 @@
 import SwiftUI
+import PricingStudioCore
 
 /// Standalone sheet showing an operator's configuration readiness.
 /// Calls get_operator_onboarding_status on the operator's MCP and displays
@@ -11,6 +12,10 @@ struct OnboardingStatusSheet: View {
     @State private var loading = true
     @State private var error: String?
     @State private var showingCourierCard = false
+    /// Deliver vs Rotate — drives the courier card's copy so a rotation never
+    /// says "fill all fields" (issue #153).
+    @State private var courierMode: OperatorSecretRotation.Mode = .deliver
+    @State private var courierSecrets: [String] = []
 
     var body: some View {
         NavigationStack {
@@ -50,9 +55,8 @@ struct OnboardingStatusSheet: View {
                         operatorNpub: operator_.npub,
                         endpointURL: url,
                         credentialService: status.credentialService ?? "",
-                        missingSecrets: (status.missing + status.optionalMissing)
-                            .filter { $0.category == "secret" }
-                            .map { fieldLabel($0.field) },
+                        missingSecrets: courierSecrets,
+                        mode: courierMode,
                         onDismiss: { showingCourierCard = false }
                     )
                     .frame(width: 340)
@@ -123,14 +127,38 @@ struct OnboardingStatusSheet: View {
             }
 
             Section("Actions") {
-                let hasSecrets = (status.missing + status.optionalMissing).contains { $0.category == "secret" }
+                // Deliver when secrets are missing; Rotate when the operator is
+                // healthy. A ready operator used to have no courier door at all
+                // (issue #153).
+                let plan = AuthorityDetailView.secretPlan(for: status)
 
                 HStack(spacing: 10) {
-                    if hasSecrets {
+                    if plan.mode == .deliver, plan.canBegin {
                         Button {
+                            courierMode = .deliver
+                            courierSecrets = OperatorSecretRotation.courierSecretLabels(for: plan)
                             showingCourierCard = true
                         } label: {
                             Label("Deliver", systemImage: "lock.shield")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.orange)
+                    } else if plan.mode == .rotate, !plan.candidates.isEmpty {
+                        Button {
+                            // List every configured secret; CourierPayload.serialize
+                            // omits unfilled placeholders so a partial reply is surgical.
+                            let listed = OperatorSecretRotation.plan(
+                                configured: plan.candidates,
+                                missing: [],
+                                selectedKeys: Set(plan.candidates.map(\.key))
+                            )
+                            courierMode = .rotate
+                            courierSecrets = OperatorSecretRotation.courierSecretLabels(for: listed)
+                            showingCourierCard = true
+                        } label: {
+                            Label("Rotate", systemImage: "arrow.triangle.2.circlepath")
                                 .font(.caption)
                         }
                         .buttonStyle(.borderedProminent)
@@ -218,10 +246,7 @@ struct OnboardingStatusSheet: View {
     }
 
     private func fieldLabel(_ field: String) -> String {
-        field.replacingOccurrences(of: "_", with: " ")
-            .split(separator: " ")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
+        OperatorSecretRotation.fieldLabel(field)
     }
 
     private func categoryIcon(_ category: String) -> String {
