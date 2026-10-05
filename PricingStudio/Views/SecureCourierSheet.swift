@@ -1,4 +1,5 @@
 import SwiftUI
+import PricingStudioCore
 
 /// Parameters for initiating a Secure Courier flow.
 ///
@@ -11,10 +12,16 @@ struct CourierParams {
     let operatorNpub: String
     let endpointURL: URL
     let credentialService: String
+    /// Humanized field labels that will appear in the courier template.
+    /// Named `missingSecrets` for history; in rotate mode these are the
+    /// ticked configured secrets, not necessarily missing ones.
     let missingSecrets: [String]
     var greeting: String = ""
     var senderNpub: String = ""  // non-empty for patron context
     var senderName: String = ""  // display name for senderNpub, when set
+    /// Deliver (establish missing) vs Rotate (overwrite a chosen subset).
+    /// Drives courier-card copy so rotate never says "fill all fields".
+    var mode: OperatorSecretRotation.Mode = .deliver
 
     /// The mailbox the courier's DM lands in, and therefore the conversation the
     /// human must open to reply. The courier addresses whoever is DELIVERING the
@@ -41,6 +48,7 @@ struct SecureCourierCard: View {
     var greeting: String = ""
     var senderNpub: String = ""  // defaults to operatorNpub when empty
     var senderName: String = ""  // display name for senderNpub, when set
+    var mode: OperatorSecretRotation.Mode = .deliver
     var onOpenMessages: (() -> Void)?  // optional: switch to Messages tab
     var onDismiss: () -> Void
 
@@ -253,7 +261,8 @@ struct SecureCourierCard: View {
                     .font(.caption)
                     .foregroundStyle(.primary)
             } else {
-                Text("In order to come online, **\(operatorName)** needs the credentials below.")
+                // LocalizedStringKey so **operator** markdown still renders.
+                Text(LocalizedStringKey(OperatorSecretRotation.explainCopy(mode: mode, operatorName: operatorName)))
                     .font(.caption)
                     .foregroundStyle(.primary)
             }
@@ -268,7 +277,9 @@ struct SecureCourierCard: View {
                 }
             }
 
-            Text("When you tap Begin, a Secure Courier message will arrive in your Nostr DMs with these fields. Fill them in and reply to securely configure **\(operatorName)**.")
+            Text(mode == .rotate
+                 ? "When you tap Begin, a Secure Courier message will arrive in your Nostr DMs with only these fields. Fill them in and reply — omitted fields keep their current vaulted values."
+                 : "When you tap Begin, a Secure Courier message will arrive in your Nostr DMs with these fields. Fill them in and reply to securely configure **\(operatorName)**.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -447,7 +458,7 @@ struct SecureCourierCard: View {
                 .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
             }
 
-            Text("Fill in the fields and send your reply. Then tap Collect.")
+            Text(OperatorSecretRotation.readyCopy(mode: mode))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -589,7 +600,7 @@ struct SecureCourierCard: View {
                     .textSelection(.enabled)
             }
 
-            Text("Make sure you replied to the DM with phrase \"\(poison)\" and all fields filled in.")
+            Text(OperatorSecretRotation.collectFailedCopy(mode: mode, poison: poison))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 

@@ -3,6 +3,7 @@ import SwiftData
 import CoreImage
 import UIKit
 import WebKit
+import PricingStudioCore
 
 struct PatronDetailView: View {
     let patron: Patron
@@ -874,6 +875,12 @@ struct AccountStatementView: View {
     @State private var forgetState: ForgetState = .idle
     @State private var onboardingStatus: MCPService.OnboardingStatus?
     @State private var loadingOnboarding = false
+    /// Ticked configured-secret keys for bulk Rotate. Default empty so an
+    /// accidental send does nothing (issue #153).
+    @State private var rotateSelection: Set<String> = []
+    @State private var showingRotatePicker = false
+    /// Per-row Rotate target — opens `RotateCredentialSheet` for one field.
+    @State private var rotatingFieldKey: String?
 
     private enum ForgetState { case idle, forgetting, done(String), error(String) }
 
@@ -1171,6 +1178,8 @@ struct AccountStatementView: View {
             }
 
             if let status = onboardingStatus {
+                let plan = AuthorityDetailView.secretPlan(for: status, selectedKeys: rotateSelection)
+
                 ForEach(status.configured, id: \.field) { field in
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
@@ -1178,6 +1187,21 @@ struct AccountStatementView: View {
                             .foregroundStyle(.green)
                         Text(fieldLabel(field.field))
                             .font(.caption2)
+                        Spacer(minLength: 4)
+                        // Per-row Rotate on a healthy operator (issue #153).
+                        // Prefers update_operator_credential; courier is fallback.
+                        if field.category == "secret" || field.category.isEmpty,
+                           ownEndpoint != nil {
+                            Button {
+                                rotatingFieldKey = field.field
+                            } label: {
+                                Text("Rotate")
+                                    .font(.caption2.bold())
+                            }
+                            .buttonStyle(.borderless)
+                            .tint(.orange)
+                            .accessibilityIdentifier("operatorSecretRotate_\(field.field)")
+                        }
                     }
                 }
 
@@ -1202,6 +1226,38 @@ struct AccountStatementView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                if plan.mode == .rotate, showingRotatePicker, !plan.candidates.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Tick secrets to rotate. Unticked fields keep their current values.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        ForEach(plan.candidates, id: \.key) { candidate in
+                            Button {
+                                if rotateSelection.contains(candidate.key) {
+                                    rotateSelection.remove(candidate.key)
+                                } else {
+                                    rotateSelection.insert(candidate.key)
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: rotateSelection.contains(candidate.key)
+                                          ? "checkmark.square.fill" : "square")
+                                        .font(.caption)
+                                        .foregroundStyle(rotateSelection.contains(candidate.key) ? .orange : .secondary)
+                                    Text(fieldLabel(candidate.key))
+                                        .font(.caption2)
+                                        .foregroundStyle(.primary)
+                                    Spacer(minLength: 0)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("operatorSecretTick_\(candidate.key)")
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                }
             }
 
             HStack(spacing: 8) {
@@ -1216,35 +1272,60 @@ struct AccountStatementView: View {
                     .controlSize(.small)
                 }
 
-                let hasMissing = !(onboardingStatus?.missing.isEmpty ?? true)
-                    || !(onboardingStatus?.optionalMissing.isEmpty ?? true)
-                if hasMissing,
-                   let ep = ownEndpoint, let url = URL(string: ep) {
-                    Button {
-                        let missing = ((onboardingStatus?.missing ?? [])
-                            + (onboardingStatus?.optionalMissing ?? [])).map(\.field)
-                        let svc = onboardingStatus?.credentialService ?? "operator"
-                        // The secrets go to whoever owns `ownEndpoint` — this entity
-                        // itself. `serviceName`/`serviceNpub` name the Authority that
-                        // holds its CREDITS, which has no part in a credential
-                        // exchange and must not be named as its counterparty.
-                        onRequestCourier?(CourierParams(
-                            operatorName: ownName.isEmpty ? serviceName : ownName,
-                            operatorNpub: patronNpub,
-                            endpointURL: url,
-                            credentialService: svc,
-                            missingSecrets: missing,
-                            greeting: onboardingStatus?.credentialGreeting ?? "",
-                            senderNpub: patronNpub,
-                            senderName: ownName
-                        ))
-                    } label: {
-                        Label("Deliver", systemImage: "lock.shield")
-                            .font(.caption)
+                // Deliver when missing; Rotate when healthy. Forget is no longer
+                // the only door on a fully-configured operator (issue #153).
+                if let status = onboardingStatus,
+                   onRequestCourier != nil,
+                   ownEndpoint != nil {
+                    let plan = AuthorityDetailView.secretPlan(for: status, selectedKeys: rotateSelection)
+                    if plan.mode == .deliver {
+                        Button {
+                            beginCourier(for: status, selectedKeys: Set(plan.selectedKeys))
+                        } label: {
+                            Label("Deliver", systemImage: "lock.shield")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.orange)
+                        .accessibilityIdentifier("operatorSecretsDeliver")
+                    } else if !plan.candidates.isEmpty {
+                        if showingRotatePicker {
+                            Button {
+                                beginCourier(for: status, selectedKeys: rotateSelection)
+                            } label: {
+                                Label("Rotate", systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(.orange)
+                            .disabled(rotateSelection.isEmpty)
+                            .accessibilityIdentifier("operatorSecretsRotateConfirm")
+
+                            Button {
+                                showingRotatePicker = false
+                                rotateSelection = []
+                            } label: {
+                                Text("Cancel")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        } else {
+                            Button {
+                                rotateSelection = []
+                                showingRotatePicker = true
+                            } label: {
+                                Label("Rotate", systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(.orange)
+                            .accessibilityIdentifier("operatorSecretsRotate")
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(.orange)
                 }
 
                 if onboardingStatus != nil {
@@ -1282,6 +1363,50 @@ struct AccountStatementView: View {
         } message: {
             Text("This removes the vaulted credentials. Re-deliver via Secure Courier to use this service again.")
         }
+        .sheet(isPresented: Binding(
+            get: { rotatingFieldKey != nil },
+            set: { if !$0 { rotatingFieldKey = nil } }
+        )) {
+            if let key = rotatingFieldKey,
+               let ep = ownEndpoint,
+               let url = URL(string: ep) {
+                RotateCredentialSheet(
+                    fieldKey: key,
+                    operatorName: ownName.isEmpty ? serviceName : ownName,
+                    operatorNpub: patronNpub,
+                    endpointURL: url,
+                    credentialService: onboardingStatus?.credentialService ?? "operator",
+                    onRequestCourier: onRequestCourier,
+                    onFinished: {
+                        rotatingFieldKey = nil
+                        Task { await loadOnboardingStatus() }
+                    }
+                )
+            }
+        }
+    }
+
+    private func beginCourier(for status: MCPService.OnboardingStatus, selectedKeys: Set<String>) {
+        guard let ep = ownEndpoint, let url = URL(string: ep) else { return }
+        let plan = AuthorityDetailView.secretPlan(for: status, selectedKeys: selectedKeys)
+        guard plan.canBegin else { return }
+        // The secrets go to whoever owns `ownEndpoint` — this entity itself.
+        // `serviceName`/`serviceNpub` name the Authority that holds its CREDITS,
+        // which has no part in a credential exchange.
+        let name = ownName.isEmpty ? serviceName : ownName
+        onRequestCourier?(CourierParams(
+            operatorName: name,
+            operatorNpub: patronNpub,
+            endpointURL: url,
+            credentialService: status.credentialService ?? "operator",
+            missingSecrets: OperatorSecretRotation.courierSecretLabels(for: plan),
+            greeting: status.credentialGreeting ?? "",
+            senderNpub: patronNpub,
+            senderName: ownName,
+            mode: plan.mode
+        ))
+        showingRotatePicker = false
+        rotateSelection = []
     }
 
     private func loadOnboardingStatus() async {
@@ -1312,9 +1437,6 @@ struct AccountStatementView: View {
     }
 
     private func fieldLabel(_ field: String) -> String {
-        field.replacingOccurrences(of: "_", with: " ")
-            .split(separator: " ")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
+        OperatorSecretRotation.fieldLabel(field)
     }
 }

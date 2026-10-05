@@ -172,6 +172,7 @@ struct ContentView: View {
                         greeting: params.greeting,
                         senderNpub: params.senderNpub,
                         senderName: params.senderName,
+                        mode: params.mode,
                         // Always offered. It used to be suppressed when senderNpub was
                         // empty — precisely the operator-delivering-its-own-secrets case,
                         // which left that flow with no way to reach the reply at all.
@@ -197,6 +198,7 @@ struct ContentView: View {
                                 greeting: params.greeting,
                                 senderNpub: params.senderNpub,
                                 senderName: params.senderName,
+                                mode: params.mode,
                                 onOpenMessages: {
                                     activeCourier = nil
                                     openMessagesFor(params.mailboxNpub)

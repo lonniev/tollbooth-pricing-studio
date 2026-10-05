@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PricingStudioCore
 
 struct AuthorityDetailView: View {
     let authority: Authority
@@ -16,6 +17,12 @@ struct AuthorityDetailView: View {
     @State private var showingForgetConfirm = false
     @State private var showingProfile = false
     @State private var forgetState: ForgetState = .idle
+    /// Ticked configured-secret keys for bulk Rotate. Default empty so an
+    /// accidental send does nothing (issue #153).
+    @State private var rotateSelection: Set<String> = []
+    @State private var showingRotatePicker = false
+    /// Per-row Rotate target — opens `RotateCredentialSheet` for one field.
+    @State private var rotatingFieldKey: String?
     @State private var adoptionsVM = PendingAdoptionsViewModel()
     @State private var rejectingRequest: MCPService.AdoptionRequest?
     @State private var rejectReason = ""
@@ -334,6 +341,8 @@ struct AuthorityDetailView: View {
             }
 
             if let status = onboardingStatus {
+                let plan = Self.secretPlan(for: status, selectedKeys: rotateSelection)
+
                 ForEach(status.configured, id: \.field) { field in
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
@@ -341,6 +350,22 @@ struct AuthorityDetailView: View {
                             .foregroundStyle(.green)
                         Text(fieldLabel(field.field))
                             .font(.caption2)
+                        Spacer(minLength: 4)
+                        // Per-row Rotate: a healthy operator can correct one
+                        // wrong secret without wiping the rest (issue #153).
+                        // Prefers update_operator_credential; courier is fallback.
+                        if field.category == "secret" || field.category.isEmpty,
+                           authority.mcpEndpointURL != nil {
+                            Button {
+                                rotatingFieldKey = field.field
+                            } label: {
+                                Text("Rotate")
+                                    .font(.caption2.bold())
+                            }
+                            .buttonStyle(.borderless)
+                            .tint(.orange)
+                            .accessibilityIdentifier("operatorSecretRotate_\(field.field)")
+                        }
                     }
                 }
 
@@ -365,6 +390,40 @@ struct AuthorityDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                // Bulk Rotate picker — tick which configured secrets to send.
+                // Default none ticked so an accidental Begin does nothing.
+                if plan.mode == .rotate, showingRotatePicker, !plan.candidates.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Tick secrets to rotate. Unticked fields keep their current values.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        ForEach(plan.candidates, id: \.key) { candidate in
+                            Button {
+                                if rotateSelection.contains(candidate.key) {
+                                    rotateSelection.remove(candidate.key)
+                                } else {
+                                    rotateSelection.insert(candidate.key)
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: rotateSelection.contains(candidate.key)
+                                          ? "checkmark.square.fill" : "square")
+                                        .font(.caption)
+                                        .foregroundStyle(rotateSelection.contains(candidate.key) ? .orange : .secondary)
+                                    Text(fieldLabel(candidate.key))
+                                        .font(.caption2)
+                                        .foregroundStyle(.primary)
+                                    Spacer(minLength: 0)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("operatorSecretTick_\(candidate.key)")
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                }
             }
 
             HStack(spacing: 8) {
@@ -379,29 +438,61 @@ struct AuthorityDetailView: View {
                     .controlSize(.small)
                 }
 
-                let hasMissing = !(onboardingStatus?.missing.isEmpty ?? true)
-                    || !(onboardingStatus?.optionalMissing.isEmpty ?? true)
-                if hasMissing, let onRequestCourier,
-                   let endpoint = authority.mcpEndpointURL,
-                   let url = URL(string: endpoint),
-                   let status = onboardingStatus {
-                    Button {
-                        onRequestCourier(CourierParams(
-                            operatorName: authority.displayName,
-                            operatorNpub: authority.npub,
-                            endpointURL: url,
-                            credentialService: status.credentialService ?? "",
-                            missingSecrets: (status.missing + status.optionalMissing)
-                                .filter { $0.category == "secret" }
-                                .map { fieldLabel($0.field) }
-                        ))
-                    } label: {
-                        Label("Deliver", systemImage: "lock.shield")
-                            .font(.caption)
+                // Courier control whenever status is known — Deliver if anything
+                // is missing, Rotate (with tick UI) when the operator is healthy.
+                // Forget is no longer the only door (issue #153).
+                if let status = onboardingStatus,
+                   onRequestCourier != nil,
+                   authority.mcpEndpointURL != nil {
+                    let plan = Self.secretPlan(for: status, selectedKeys: rotateSelection)
+                    if plan.mode == .deliver {
+                        Button {
+                            beginCourier(for: status, selectedKeys: Set(plan.selectedKeys))
+                        } label: {
+                            Label("Deliver", systemImage: "lock.shield")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.orange)
+                        .accessibilityIdentifier("operatorSecretsDeliver")
+                    } else if !plan.candidates.isEmpty {
+                        if showingRotatePicker {
+                            Button {
+                                beginCourier(for: status, selectedKeys: rotateSelection)
+                            } label: {
+                                Label("Rotate", systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(.orange)
+                            .disabled(rotateSelection.isEmpty)
+                            .accessibilityIdentifier("operatorSecretsRotateConfirm")
+
+                            Button {
+                                showingRotatePicker = false
+                                rotateSelection = []
+                            } label: {
+                                Text("Cancel")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        } else {
+                            Button {
+                                rotateSelection = []
+                                showingRotatePicker = true
+                            } label: {
+                                Label("Rotate", systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(.orange)
+                            .accessibilityIdentifier("operatorSecretsRotate")
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(.orange)
                 }
 
                 if onboardingStatus != nil {
@@ -438,6 +529,8 @@ struct AuthorityDetailView: View {
             onboardingStatus = nil
             balanceVM = AuthorityBalanceViewModel()
             forgetState = .idle
+            rotateSelection = []
+            showingRotatePicker = false
             await loadAuthorityOnboardingStatus()
         }
         .confirmationDialog("Forget Credentials", isPresented: $showingForgetConfirm, titleVisibility: .visible) {
@@ -447,9 +540,98 @@ struct AuthorityDetailView: View {
         } message: {
             Text("This removes the vaulted credentials. Re-deliver via Secure Courier to restore.")
         }
+        .sheet(isPresented: Binding(
+            get: { rotatingFieldKey != nil },
+            set: { if !$0 { rotatingFieldKey = nil } }
+        )) {
+            if let key = rotatingFieldKey,
+               let endpoint = authority.mcpEndpointURL,
+               let url = URL(string: endpoint) {
+                RotateCredentialSheet(
+                    fieldKey: key,
+                    operatorName: authority.displayName,
+                    operatorNpub: authority.npub,
+                    endpointURL: url,
+                    credentialService: onboardingStatus?.credentialService ?? "",
+                    onRequestCourier: onRequestCourier,
+                    onFinished: {
+                        rotatingFieldKey = nil
+                        Task { await loadAuthorityOnboardingStatus() }
+                    }
+                )
+            }
+        }
     }
 
     // MARK: - Credential Helpers
+
+    /// Map onboarding status + steward ticks onto a courier plan. Pure/static so
+    /// the Deliver-vs-Rotate gate and default-empty rotate selection can be
+    /// unit-tested without a live MCP endpoint (mirrors neonKeysCourierParams).
+    static func secretPlan(
+        for status: MCPService.OnboardingStatus,
+        selectedKeys: Set<String> = []
+    ) -> OperatorSecretRotation.Plan {
+        // Membership in configured / missing / optionalMissing is the source of
+        // truth for isConfigured — the wire `status` string is free-form.
+        OperatorSecretRotation.plan(
+            configured: status.configured.map { rotationField($0, isConfigured: true) },
+            missing: status.missing.map { rotationField($0, isConfigured: false) },
+            optionalMissing: status.optionalMissing.map { rotationField($0, isConfigured: false) },
+            selectedKeys: selectedKeys
+        )
+    }
+
+    /// Build the Secure Courier request for a secret plan. Pure/static so the
+    /// mode, labels, and endpoint wiring can be unit-tested.
+    static func secretsCourierParams(
+        authorityName: String,
+        authorityNpub: String,
+        endpointURL: URL,
+        credentialService: String,
+        plan: OperatorSecretRotation.Plan,
+        greeting: String = ""
+    ) -> CourierParams {
+        CourierParams(
+            operatorName: authorityName,
+            operatorNpub: authorityNpub,
+            endpointURL: endpointURL,
+            credentialService: credentialService,
+            missingSecrets: OperatorSecretRotation.courierSecretLabels(for: plan),
+            greeting: greeting,
+            mode: plan.mode
+        )
+    }
+
+    private static func rotationField(
+        _ field: MCPService.OnboardingField,
+        isConfigured: Bool
+    ) -> OperatorSecretRotation.Field {
+        OperatorSecretRotation.Field(
+            key: field.field,
+            category: field.category,
+            isConfigured: isConfigured,
+            lifecycle: field.lifecycle
+        )
+    }
+
+    private func beginCourier(for status: MCPService.OnboardingStatus, selectedKeys: Set<String>) {
+        guard let onRequestCourier,
+              let endpoint = authority.mcpEndpointURL,
+              let url = URL(string: endpoint) else { return }
+        let plan = Self.secretPlan(for: status, selectedKeys: selectedKeys)
+        guard plan.canBegin else { return }
+        onRequestCourier(Self.secretsCourierParams(
+            authorityName: authority.displayName,
+            authorityNpub: authority.npub,
+            endpointURL: url,
+            credentialService: status.credentialService ?? "",
+            plan: plan,
+            greeting: status.credentialGreeting ?? ""
+        ))
+        showingRotatePicker = false
+        rotateSelection = []
+    }
 
     private func loadAuthorityOnboardingStatus() async {
         guard let endpoint = authority.mcpEndpointURL,
@@ -484,10 +666,7 @@ struct AuthorityDetailView: View {
     }
 
     private func fieldLabel(_ field: String) -> String {
-        field.replacingOccurrences(of: "_", with: " ")
-            .split(separator: " ")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
+        OperatorSecretRotation.fieldLabel(field)
     }
 
     // MARK: - Pending Adoptions (deferred-courtship owner queue)

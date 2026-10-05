@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PricingStudioCore
 
 struct PricingDetailView: View {
     let target: any PricingTarget
@@ -1039,10 +1040,14 @@ struct PricingDetailView: View {
 
             Divider()
 
-            // Action chiclets — always visible
+            // Action chiclets — always visible. Courier is Deliver when secrets
+            // are missing and Rotate when the operator is healthy (issue #153);
+            // a single missing-secret gate left a ready operator with no way to
+            // correct one bad credential short of wiping everything.
             HStack(spacing: 10) {
                 Spacer()
-                if status.missing.contains(where: { $0.category == "secret" }) {
+                let plan = AuthorityDetailView.secretPlan(for: status)
+                if plan.mode == .deliver, plan.canBegin {
                     Button {
                         if let endpoint = target.mcpEndpointURL,
                            let url = URL(string: endpoint) {
@@ -1051,10 +1056,9 @@ struct PricingDetailView: View {
                                 operatorNpub: target.npub,
                                 endpointURL: url,
                                 credentialService: onboardingStatus?.credentialService ?? "",
-                                missingSecrets: status.missing
-                                    .filter { $0.category == "secret" }
-                                    .map { fieldLabel($0.field) },
-                                greeting: onboardingStatus?.credentialGreeting ?? ""
+                                missingSecrets: OperatorSecretRotation.courierSecretLabels(for: plan),
+                                greeting: onboardingStatus?.credentialGreeting ?? "",
+                                mode: .deliver
                             ))
                         }
                     } label: {
@@ -1064,6 +1068,42 @@ struct PricingDetailView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(.orange)
+                    .accessibilityIdentifier("operatorSecretsDeliver")
+                } else if plan.mode == .rotate, !plan.candidates.isEmpty {
+                    // One-tap bulk entry into the shared courier card with every
+                    // configured secret listed; the steward fills only what they
+                    // mean to rotate. CourierPayload.serialize already omits
+                    // unfilled placeholders so untouched vault entries survive.
+                    Button {
+                        if let endpoint = target.mcpEndpointURL,
+                           let url = URL(string: endpoint) {
+                            // Pre-select nothing at the planner level — the card
+                            // lists candidates via missingSecrets labels built
+                            // from configured secrets so the human sees what can
+                            // be rotated; they fill only the ones they change.
+                            let rotatePlan = OperatorSecretRotation.plan(
+                                configured: plan.candidates,
+                                missing: [],
+                                selectedKeys: Set(plan.candidates.map(\.key))
+                            )
+                            onRequestCourier?(CourierParams(
+                                operatorName: target.displayName,
+                                operatorNpub: target.npub,
+                                endpointURL: url,
+                                credentialService: onboardingStatus?.credentialService ?? "",
+                                missingSecrets: OperatorSecretRotation.courierSecretLabels(for: rotatePlan),
+                                greeting: onboardingStatus?.credentialGreeting ?? "",
+                                mode: .rotate
+                            ))
+                        }
+                    } label: {
+                        Label("Rotate", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.orange)
+                    .accessibilityIdentifier("operatorSecretsRotate")
                 }
 
                 Button {
