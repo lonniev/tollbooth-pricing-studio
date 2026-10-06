@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.21.2] — 2026-10-05
+
+### Added — rotate one Operator Secret without forgetting all of them (#153, #163)
+
+The Operator Secrets card now offers Rotate per row. It calls the wheel's
+`update_operator_credential(field, value, dpop_token)`, which merges one field
+into the vault and leaves the others alone; Secure Courier re-delivery is the
+fallback for a wheel that predates the tool.
+
+### Fixed — the first live Rotate failed with two pydantic errors
+
+The call also sent `service` and `npub`, which the tool does not take — the
+operator identity and credential service are the runtime's. Both are dropped.
+
 ## [1.21.1] — 2026-09-25
 
 ### Changed — every LLM call routes through OpenRouter; model chosen per role

@@ -2516,7 +2516,6 @@ actor MCPService {
     /// wheel predates the tool.
     func callUpdateOperatorCredential(
         endpointURL: URL,
-        service: String,
         npub: String,
         field: String,
         value: String
@@ -2524,7 +2523,7 @@ actor MCPService {
         await traffic(
             .outbound,
             label: "Update Operator Credential",
-            detail: "service=\(service) field=\(field) npub=\(npub.prefix(16))…"
+            detail: "field=\(field) npub=\(npub.prefix(16))…"
         )
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
@@ -2543,22 +2542,22 @@ actor MCPService {
             throw MCPError.toolCallFailed("Operator does not support update_operator_credential")
         }
 
-        var extra: [String: Value] = [
+        // The wheel's signature is exactly (field, value, dpop_token): the
+        // operator identity and credential service come from the runtime, and
+        // FastMCP rejects any extra keyword — so no `npub`, no `service`.
+        let arguments: [String: Value] = [
             "field": .string(field),
             "value": .string(value),
+            "dpop_token": .string(await makeIdentityProof(
+                forNpub: npub,
+                capability: "update_operator_credential",
+                endpointURL: endpointURL
+            )),
         ]
-        if !service.isEmpty {
-            extra["service"] = .string(service)
-        }
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: await argsWithProof(
-                npub: npub,
-                capability: "update_operator_credential",
-                endpointURL: endpointURL,
-                extra: extra
-            )
+            arguments: arguments
         )
 
         if isError == true {

@@ -105,7 +105,6 @@ struct RotateCredentialSheet: View {
         do {
             let msg = try await MCPService().callUpdateOperatorCredential(
                 endpointURL: endpointURL,
-                service: credentialService,
                 npub: operatorNpub,
                 field: fieldKey,
                 value: trimmed
