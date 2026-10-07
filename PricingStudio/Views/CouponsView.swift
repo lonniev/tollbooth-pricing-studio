@@ -4,10 +4,13 @@ import SwiftUI
 ///
 /// Reached from the Pricing detail view.  Lists this operator's
 /// coupons with a progress chip per row, lets the operator mint new
-/// ones, edit caps + window, and delete (cascades to redemptions).
+/// ones, edit caps + window + the tools it applies to, and delete
+/// (cascades to redemptions).
 struct CouponsView: View {
     let endpointURL: URL
     let operatorNpub: String
+    /// The priced tools of the live model — what a coupon may apply to.
+    let tools: [ToolPrice]
 
     @Bindable var viewModel: CouponViewModel
 
@@ -59,6 +62,7 @@ struct CouponsView: View {
                 endpointURL: endpointURL,
                 operatorNpub: operatorNpub,
                 viewModel: viewModel,
+                tools: tools,
             )
         }
         .sheet(item: $editingCoupon) { coupon in
@@ -67,6 +71,7 @@ struct CouponsView: View {
                 operatorNpub: operatorNpub,
                 viewModel: viewModel,
                 coupon: coupon,
+                tools: tools,
             )
         }
         .confirmationDialog(
@@ -170,6 +175,10 @@ private struct CouponRow: View {
                 }
             }
 
+            Label(coupon.appliesToLabel, systemImage: "wrench.and.screwdriver")
+                .font(.caption)
+                .foregroundStyle(coupon.toolIds.isEmpty ? .orange : .secondary)
+
             HStack(spacing: 8) {
                 Text(coupon.progressLabel)
                     .font(.caption.monospacedDigit())
@@ -208,9 +217,11 @@ private struct MintCouponSheet: View {
     let endpointURL: URL
     let operatorNpub: String
     @Bindable var viewModel: CouponViewModel
+    let tools: [ToolPrice]
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""
+    @State private var binding = ToolBinding.everyPaidTool
     @State private var discountPercent: Double = 25
     @State private var validFrom: Date = .now
     @State private var validUntil: Date = Calendar.current.date(byAdding: .day, value: 30, to: .now)!
@@ -262,6 +273,8 @@ private struct MintCouponSheet: View {
                     }
                 }
 
+                AppliesToSection(binding: $binding, tools: tools)
+
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
@@ -296,6 +309,7 @@ private struct MintCouponSheet: View {
                     validUntil: validUntil,
                     usesPerPatron: unlimitedPerPatron ? nil : usesPerPatron,
                     totalUses: unlimitedTotal ? nil : totalUses,
+                    toolIds: binding.toolIds,
                 )
                 dismiss()
             } catch {
@@ -313,9 +327,11 @@ private struct EditCouponSheet: View {
     let operatorNpub: String
     @Bindable var viewModel: CouponViewModel
     let coupon: Coupon
+    let tools: [ToolPrice]
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String
+    @State private var binding: ToolBinding
     @State private var discountPercent: Double
     @State private var validFrom: Date
     @State private var validUntil: Date
@@ -328,13 +344,15 @@ private struct EditCouponSheet: View {
 
     init(
         endpointURL: URL, operatorNpub: String,
-        viewModel: CouponViewModel, coupon: Coupon,
+        viewModel: CouponViewModel, coupon: Coupon, tools: [ToolPrice],
     ) {
         self.endpointURL = endpointURL
         self.operatorNpub = operatorNpub
         self.viewModel = viewModel
         self.coupon = coupon
+        self.tools = tools
         _name = State(initialValue: coupon.name)
+        _binding = State(initialValue: ToolBinding(toolIds: coupon.toolIds))
         _discountPercent = State(initialValue: coupon.discountPercent)
         _validFrom = State(initialValue: coupon.validFrom)
         _validUntil = State(initialValue: coupon.validUntil)
@@ -380,6 +398,14 @@ private struct EditCouponSheet: View {
                         }
                     }
                 }
+                AppliesToSection(binding: $binding, tools: tools)
+                if chainStepCount > 0 {
+                    Section {
+                        Text("\(chainStepCount) tool chain\(chainStepCount == 1 ? " still carries" : "s still carry") a coupon step for this code — the older binding. It keeps working, and the tools named above are the one a price push cannot drop.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Section("Redemptions") {
                     LabeledContent("Times redeemed", value: "\(coupon.timesRedeemed)")
                 }
@@ -402,6 +428,13 @@ private struct EditCouponSheet: View {
         }
     }
 
+    /// Chains that still reference this coupon by an authored step.
+    private var chainStepCount: Int {
+        tools.filter { tool in
+            tool.chain.contains { $0.displayType == .coupon && $0.params["coupon_id"]?.description == coupon.id }
+        }.count
+    }
+
     private func submit() {
         submitting = true
         errorMessage = nil
@@ -419,11 +452,113 @@ private struct EditCouponSheet: View {
                     totalUses: unlimitedTotal ? nil : totalUses,
                     clearUsesPerPatron: unlimitedPerPatron && coupon.usesPerPatron != nil,
                     clearTotalUses: unlimitedTotal && coupon.totalUses != nil,
+                    toolIds: binding.toolIds == coupon.toolIds ? nil : binding.toolIds,
                 )
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
                 submitting = false
+            }
+        }
+    }
+}
+
+// MARK: - Applies to
+
+/// Which tools a coupon discounts: every paid tool, or a chosen set.
+/// Mirrors `Coupon.toolIds` — `["*"]` or a list of tool ids.
+struct ToolBinding: Equatable {
+    var everyPaidTool: Bool
+    var chosen: Set<String>
+
+    static let everyPaidTool = ToolBinding(everyPaidTool: true, chosen: [])
+
+    init(everyPaidTool: Bool, chosen: Set<String>) {
+        self.everyPaidTool = everyPaidTool
+        self.chosen = chosen
+    }
+
+    init(toolIds: [String]) {
+        everyPaidTool = toolIds.contains(Coupon.everyPaidTool)
+        chosen = everyPaidTool ? [] : Set(toolIds)
+    }
+
+    /// The wire shape for `mint_coupon` / `update_coupon`.
+    var toolIds: [String] {
+        everyPaidTool ? [Coupon.everyPaidTool] : chosen.sorted()
+    }
+}
+
+private struct AppliesToSection: View {
+    @Binding var binding: ToolBinding
+    let tools: [ToolPrice]
+
+    var body: some View {
+        Section {
+            Toggle("Every paid tool", isOn: $binding.everyPaidTool)
+            if !binding.everyPaidTool {
+                NavigationLink {
+                    ToolPickerList(chosen: $binding.chosen, tools: tools)
+                } label: {
+                    LabeledContent("Tools", value: chosenLabel)
+                }
+                .accessibilityIdentifier("couponToolsPicker")
+            }
+        } header: {
+            Text("Applies to")
+        } footer: {
+            if !binding.everyPaidTool && binding.chosen.isEmpty {
+                Text("A coupon bound to no tool discounts nothing.")
+            }
+        }
+    }
+
+    private var chosenLabel: String {
+        switch binding.chosen.count {
+        case 0: "None"
+        case 1: tools.first { binding.chosen.contains($0.toolId) }?.toolName ?? "1 tool"
+        default: "\(binding.chosen.count) tools"
+        }
+    }
+}
+
+private struct ToolPickerList: View {
+    @Binding var chosen: Set<String>
+    let tools: [ToolPrice]
+
+    var body: some View {
+        List {
+            ForEach(tools) { tool in
+                Button {
+                    if chosen.contains(tool.toolId) {
+                        chosen.remove(tool.toolId)
+                    } else {
+                        chosen.insert(tool.toolId)
+                    }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tool.toolName)
+                            Text("\(tool.priceSats) sats")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if chosen.contains(tool.toolId) {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                }
+                .foregroundStyle(.primary)
+            }
+        }
+        .navigationTitle("Tools")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(chosen.count == tools.count ? "Clear" : "All") {
+                    chosen = chosen.count == tools.count ? [] : Set(tools.map(\.toolId))
+                }
             }
         }
     }

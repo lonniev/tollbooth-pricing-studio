@@ -1152,8 +1152,9 @@ final class PricingConsultantViewModel {
                 "{\"type\": \"patron_proof\", \"params\": {\"window_seconds\": 120}}.\n\n" +
                 "WHERE CONSTRAINTS LIVE: as of tollbooth-dpyc 0.40.0 every constraint is owned by one " +
                 "tool — they live in that tool's `chain` array inside CAMPAIGN_JSON.tools[i].chain. " +
-                "There is no operator-wide pipeline. If the same coupon should apply to five tools, " +
-                "author it on each of their chains separately.",
+                "There is no operator-wide pipeline. Coupons are NOT chain steps: a coupon names the " +
+                "tools it applies to on its own row (Coupons → Applies to), so never author a " +
+                "`coupon` step — recommend the coupon and the tools it should cover in prose.",
             6: "You are in the RECOMMENDATION phase. Synthesize all prior findings and present a complete pricing campaign draft with BLUF, revenue projections, and A/B/C variants.",
         ]
 

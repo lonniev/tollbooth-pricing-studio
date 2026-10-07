@@ -3,9 +3,13 @@ import Foundation
 /// Operator-owned discount coupon — one row in the wheel's `coupons` table.
 ///
 /// Mirrors `tollbooth.coupons.models.Coupon.to_dict()` shape.  The
-/// `name` field is the catchy code patrons type to redeem; UUID `id`
-/// is what per-tool constraint chains reference.
+/// `name` field is the catchy code patrons type to redeem; `toolIds`
+/// names the tools it discounts — the coupon owns that binding, so a
+/// price push never touches it (tollbooth-dpyc 0.98.0).
 struct Coupon: Codable, Identifiable, Sendable, Hashable {
+    /// The one binding that means *every tool priced above zero*.
+    static let everyPaidTool = "*"
+
     let id: String
     let `operator`: String
     var name: String
@@ -15,6 +19,7 @@ struct Coupon: Codable, Identifiable, Sendable, Hashable {
     var usesPerPatron: Int?    // nil = unlimited within window
     var totalUses: Int?        // nil = unlimited
     var timesRedeemed: Int
+    var toolIds: [String]      // tool ids, or ["*"]; empty = discounts nothing
     let createdAt: Date?
     let updatedAt: Date?
 
@@ -28,6 +33,7 @@ struct Coupon: Codable, Identifiable, Sendable, Hashable {
         case usesPerPatron = "uses_per_patron"
         case totalUses = "total_uses"
         case timesRedeemed = "times_redeemed"
+        case toolIds = "tool_ids"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -42,6 +48,7 @@ struct Coupon: Codable, Identifiable, Sendable, Hashable {
         usesPerPatron: Int?,
         totalUses: Int?,
         timesRedeemed: Int = 0,
+        toolIds: [String] = [],
         createdAt: Date? = nil,
         updatedAt: Date? = nil
     ) {
@@ -54,6 +61,7 @@ struct Coupon: Codable, Identifiable, Sendable, Hashable {
         self.usesPerPatron = usesPerPatron
         self.totalUses = totalUses
         self.timesRedeemed = timesRedeemed
+        self.toolIds = toolIds
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -69,6 +77,7 @@ struct Coupon: Codable, Identifiable, Sendable, Hashable {
         usesPerPatron = try c.decodeIfPresent(Int.self, forKey: .usesPerPatron)
         totalUses = try c.decodeIfPresent(Int.self, forKey: .totalUses)
         timesRedeemed = try c.decodeIfPresent(Int.self, forKey: .timesRedeemed) ?? 0
+        toolIds = try c.decodeIfPresent([String].self, forKey: .toolIds) ?? []
         createdAt = try? Coupon.decodeIso8601(c, key: .createdAt)
         updatedAt = try? Coupon.decodeIso8601(c, key: .updatedAt)
     }
@@ -87,6 +96,22 @@ struct Coupon: Codable, Identifiable, Sendable, Hashable {
     }
 
     // MARK: - View helpers
+
+    /// `true` when the binding is the wildcard — every tool priced above zero.
+    var appliesToEveryPaidTool: Bool {
+        toolIds.contains(Self.everyPaidTool)
+    }
+
+    /// What this coupon discounts, for the row: "Every paid tool",
+    /// "3 tools", or "No tool yet" when nothing is bound.
+    var appliesToLabel: String {
+        if appliesToEveryPaidTool { return "Every paid tool" }
+        switch toolIds.count {
+        case 0: return "No tool yet"
+        case 1: return "1 tool"
+        default: return "\(toolIds.count) tools"
+        }
+    }
 
     /// `"3 / 100"` or `"3 / ∞"` for the progress chip.
     var progressLabel: String {
