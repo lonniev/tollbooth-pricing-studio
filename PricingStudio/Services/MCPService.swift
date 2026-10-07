@@ -2989,7 +2989,8 @@ extension MCPService {
         validFrom: Date,
         validUntil: Date,
         usesPerPatron: Int?,
-        totalUses: Int?
+        totalUses: Int?,
+        toolIds: [String]
     ) async throws -> Coupon {
         await traffic(.outbound, label: "Mint Coupon", detail: "\(name) — \(discountPercent)% off")
 
@@ -3014,6 +3015,7 @@ extension MCPService {
         ]
         if let upp = usesPerPatron { args["uses_per_patron"] = .int(upp) }
         if let tu = totalUses { args["total_uses"] = .int(tu) }
+        args["tool_ids"] = .array(toolIds.map { .string($0) })
 
         let json = try await callJSONTool(client: client, name: tool.name, arguments: args, label: "Mint Coupon")
         return try decodeCoupon(from: json, key: "coupon", label: "Mint Coupon")
@@ -3052,7 +3054,8 @@ extension MCPService {
 
     /// Patch a coupon's editable fields.  Pass only the fields you
     /// want to change.  Use ``clearUsesPerPatron`` / ``clearTotalUses``
-    /// to set the cap to NULL (unlimited).
+    /// to set the cap to NULL (unlimited).  ``toolIds`` replaces the
+    /// binding outright: `["*"]` is every paid tool, `[]` unbinds.
     func callUpdateCoupon(
         endpointURL: URL,
         operatorNpub: String,
@@ -3064,7 +3067,8 @@ extension MCPService {
         usesPerPatron: Int? = nil,
         totalUses: Int? = nil,
         clearUsesPerPatron: Bool = false,
-        clearTotalUses: Bool = false
+        clearTotalUses: Bool = false,
+        toolIds: [String]? = nil
     ) async throws -> Coupon {
         await traffic(.outbound, label: "Update Coupon", detail: couponId.prefix(8) + "…")
 
@@ -3092,6 +3096,7 @@ extension MCPService {
         if let tu = totalUses { args["total_uses"] = .int(tu) }
         if clearUsesPerPatron { args["clear_uses_per_patron"] = .bool(true) }
         if clearTotalUses { args["clear_total_uses"] = .bool(true) }
+        if let ids = toolIds { args["tool_ids"] = .array(ids.map { .string($0) }) }
 
         let json = try await callJSONTool(client: client, name: tool.name, arguments: args, label: "Update Coupon")
         return try decodeCoupon(from: json, key: "coupon", label: "Update Coupon")

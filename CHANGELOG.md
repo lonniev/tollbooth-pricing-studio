@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.22.0] — 2026-10-07
+
+### Changed — a coupon names the tools it applies to; a price push cannot drop it
+
+A coupon used to reach its tools through a `coupon` step authored into each
+tool's chain, and every pricing push replaces the whole model — so any push
+built without the chains silently unbound every coupon, and patrons on a
+100 % code paid list price with nothing to say so. tollbooth-dpyc 0.98.0
+moves the binding onto the coupon itself (`tool_ids`), and the wheel derives
+the step at debit time.
+
+- Mint and Edit sheets gain **Applies to**: *Every paid tool* (the default
+  on mint), or a chosen set from the model's priced tools, with All / Clear.
+  Saving sends `tool_ids`; `[]` is a coupon that discounts nothing, and the
+  row says so in orange.
+- The chain editor no longer offers the **Coupon** step; one already in a
+  chain still renders and edits, and the Edit sheet counts how many chains
+  still carry the older binding for that code.
+- The pricing advisor is told coupons are not chain steps.
+
+A wheel older than 0.98.0 ignores `tool_ids` and sends none; the row then
+reads *No tool yet* — the binding is in the chains, where it was.
+
 ## [1.21.2] — 2026-10-05
 
 ### Added — rotate one Operator Secret without forgetting all of them (#153, #163)

@@ -53,6 +53,10 @@ struct ConstraintSpec {
     let category: String          // "Pricing", "Access", "Dynamic"
     let description: String
     let params: [ParamSpec]
+    /// `false` for a step the wheel still evaluates but no longer offers
+    /// for authoring (`list_constraint_types` leaves it out): an existing
+    /// step renders and edits, the add sheet and the advisor skip it.
+    var authorable: Bool = true
 }
 
 // MARK: - Catalog
@@ -83,16 +87,17 @@ struct ConstraintCatalog {
         ConstraintSpec(
             type: .coupon,
             category: "Pricing",
-            description: "Apply a redeemed coupon's discount. The coupon is owned by the operator (mint via Coupons) — this chain step just references it by id.",
+            description: "An older binding: a chain step naming a coupon by id. A coupon now names the tools it applies to itself (Coupons → Applies to), so this step is no longer offered; one already in a chain keeps working.",
             params: [
                 ParamSpec(
                     name: "coupon_id",
                     type: .couponPicker,
                     required: true,
                     defaultValue: nil,
-                    description: "Pick an operator-owned coupon. The discount % and window live on the coupon row, not on this chain step."
+                    description: "The operator-owned coupon this step applies."
                 ),
-            ]
+            ],
+            authorable: false
         ),
 
         ConstraintSpec(
@@ -405,8 +410,9 @@ struct ConstraintCatalog {
         return ["Pricing", "Access", "Identity", "Dynamic"].filter { cats.contains($0) }
     }
 
+    /// The specs an operator may add in a category — never a retired one.
     static func specs(in category: String) -> [ConstraintSpec] {
-        all.filter { $0.category == category }
+        all.filter { $0.category == category && $0.authorable }
     }
 
     /// Generate a prompt-friendly constraint reference for the LLM advisor.

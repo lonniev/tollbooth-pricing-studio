@@ -146,7 +146,7 @@ struct PricingDetailView: View {
 
                         trancheLifetimeSection(model: model)
 
-                        couponsSection
+                        couponsSection(tools: allTools)
 
                         // Constraint chains now live on each tool (0.40.0+);
                         // drill into a row from the list below to edit its
@@ -496,7 +496,7 @@ struct PricingDetailView: View {
     }
 
     @ViewBuilder
-    private var couponsSection: some View {
+    private func couponsSection(tools: [ToolPrice]) -> some View {
         if let raw = target.mcpEndpointURL, let endpoint = URL(string: raw) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -515,7 +515,7 @@ struct PricingDetailView: View {
                     }
                     .accessibilityIdentifier("manageCouponsButton")
                 }
-                Text("Mint and edit discount codes that patrons redeem once. The chain editor's coupon constraint references coupons by id.")
+                Text("Mint and edit discount codes that patrons redeem once. Each coupon names the tools it discounts — a price push never touches that.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -536,6 +536,7 @@ struct PricingDetailView: View {
                     CouponsView(
                         endpointURL: endpoint,
                         operatorNpub: target.npub,
+                        tools: tools.filter(\.priced).sorted { $0.toolName < $1.toolName },
                         viewModel: couponVM,
                     )
                     .toolbar {

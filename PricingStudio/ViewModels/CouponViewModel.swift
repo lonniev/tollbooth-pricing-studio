@@ -66,6 +66,7 @@ final class CouponViewModel {
         validUntil: Date,
         usesPerPatron: Int?,
         totalUses: Int?,
+        toolIds: [String],
     ) async throws -> Coupon {
         let coupon = try await mcpService.callMintCoupon(
             endpointURL: endpointURL,
@@ -76,6 +77,7 @@ final class CouponViewModel {
             validUntil: validUntil,
             usesPerPatron: usesPerPatron,
             totalUses: totalUses,
+            toolIds: toolIds,
         )
         coupons.append(coupon)
         coupons.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -95,6 +97,7 @@ final class CouponViewModel {
         totalUses: Int? = nil,
         clearUsesPerPatron: Bool = false,
         clearTotalUses: Bool = false,
+        toolIds: [String]? = nil,
     ) async throws -> Coupon {
         let updated = try await mcpService.callUpdateCoupon(
             endpointURL: endpointURL,
@@ -108,6 +111,7 @@ final class CouponViewModel {
             totalUses: totalUses,
             clearUsesPerPatron: clearUsesPerPatron,
             clearTotalUses: clearTotalUses,
+            toolIds: toolIds,
         )
         if let idx = coupons.firstIndex(where: { $0.id == couponId }) {
             coupons[idx] = updated
