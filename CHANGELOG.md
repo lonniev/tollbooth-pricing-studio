@@ -1,5 +1,7 @@
 # Changelog
 
+Changes not yet released live in `changelog.d/`, one file per change — see the README there for why, and `scripts/changelog.py` for what folds them in at release time.
+
 ## [1.22.0] — 2026-10-07
 
 ### Changed — a coupon names the tools it applies to; a price push cannot drop it
