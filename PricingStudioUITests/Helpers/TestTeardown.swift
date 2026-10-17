@@ -39,6 +39,8 @@ enum TestTeardown {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Operators with holder bearer on refuse a request with no bearer.
+        request.setValue("Bearer anonymous", forHTTPHeaderField: "Authorization")
         request.httpBody = body
         request.timeoutInterval = 30
 

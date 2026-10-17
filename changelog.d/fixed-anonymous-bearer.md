@@ -1,0 +1,1 @@
+- Every MCP request carries `Authorization: Bearer anonymous` unless the authorizer holds a token for that host, so operators with tollbooth-dpyc holder bearer on answer Studio directly instead of with a 401 that opened a login sheet. Studio still proves itself with its own signed proofs.

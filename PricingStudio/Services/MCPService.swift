@@ -3,16 +3,30 @@ import MCP
 
 actor MCPService {
 
-    /// Create a transport with the SDK's built-in OAuth authorizer.
-        /// Create a transport with SDK-native OAuth. The authorizer handles 401
-    /// challenges automatically — no bearer token parameter needed.
+    /// Create a transport that always carries a bearer.
+    ///
+    /// An operator with holder bearer on refuses a request with no
+    /// `Authorization` header. Studio proves itself in the arguments (an
+    /// inline kind-27235 signed with the nsec it holds), so at the connection
+    /// it is an anonymous caller: `Bearer anonymous`, unless the authorizer
+    /// already set a token it holds for this host.
     private func makeTransport(endpoint: URL) -> HTTPClientTransport {
         HTTPClientTransport(
             endpoint: endpoint,
             streaming: true,
             sseInitializationTimeout: 30,
-            authorizer: MCPAuthFactory.makeAuthorizer(for: endpoint)
+            authorizer: MCPAuthFactory.makeAuthorizer(for: endpoint),
+            requestModifier: Self.withAnonymousBearer
         )
+    }
+
+    static let anonymousBearer = "Bearer anonymous"
+
+    static func withAnonymousBearer(_ request: URLRequest) -> URLRequest {
+        guard request.value(forHTTPHeaderField: "Authorization") == nil else { return request }
+        var request = request
+        request.setValue(anonymousBearer, forHTTPHeaderField: "Authorization")
+        return request
     }
 
     // MARK: - Proof Tactics
