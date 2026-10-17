@@ -644,9 +644,8 @@ struct PurchaseCreditsSheet: View {
         }
     }
 
-    /// Single-click proof completion — App holds the purchaser's nsec. With
-    /// wheel v0.23+ the gate accepts an inline Schnorr proof on the first call
-    /// (argsWithProof signs it), so this only needs to retry the purchase.
+    /// Single-click proof completion — App holds the purchaser's nsec and signs
+    /// the request with it, so this only needs to retry the purchase.
     private func autoCompleteProof() {
         guard KeychainService.loadNsec(forNpub: purchaserNpub) != nil else {
             proofState = .failed("Purchaser nsec is no longer in Keychain — falling back to manual exchange.")

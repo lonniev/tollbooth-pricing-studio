@@ -1176,17 +1176,11 @@ struct PricingDetailView: View {
                   let endpointURL = URL(string: endpoint) else { return }
             do {
                 _ = try await viewModel.resolveEndpoint(for: target)
-                let service = MCPService()
-                let proof = try await service.signRuntimeProof(
-                    capability: "reset_pricing_model",
-                    endpointURL: endpointURL,
-                    operatorNpub: target.npub
-                )
                 // Single call: erase + restore default
-                _ = try await service.callToolGeneric(
+                _ = try await MCPService().callToolGeneric(
                     endpointURL: endpointURL,
                     toolName: "reset_pricing_model",
-                    arguments: ["dpop_token": .string(proof)]
+                    as: .npub(target.npub)
                 )
                 viewModel.forceRefresh(for: target)
             } catch {
@@ -1365,8 +1359,8 @@ struct PricingDetailView: View {
     }
 
     /// Retry deregister after the user opts to sign with Keychain.
-    /// argsWithProof picks up the nsec automatically; the cached proof_token
-    /// fallback also kicks in if a DM dance was completed elsewhere.
+    /// The call signs with the Keychain nsec, or rides the holder connection
+    /// if a DM proved the npub into it.
     private func retryDeregisterWithProof(_ remedy: DeregisterProofRemedy) async {
         guard let op = target as? Operator else { return }
         deregisterProofRemedy = nil

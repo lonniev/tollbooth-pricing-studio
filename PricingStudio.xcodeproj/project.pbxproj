@@ -108,7 +108,7 @@
 		AA0000010000000000000E11 /* InvoiceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000E01 /* InvoiceListView.swift */; };
 		AA0000010000000000000F02 /* OperatorAuthorityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F01 /* OperatorAuthorityView.swift */; };
 		AA0000010000000000000F12 /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F11 /* QRCodeView.swift */; };
-		AA0000010000000000000F20 /* MCPAuthBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F21 /* MCPAuthBridge.swift */; };
+		AA0000010000000000000F20 /* HolderConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F21 /* HolderConnection.swift */; };
 		AA0000010000000000000F30 /* LoadingQuoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F31 /* LoadingQuoteView.swift */; };
 		AA0000010000000000000F34 /* ParentAccountCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F33 /* ParentAccountCard.swift */; };
 		AA0000010000000000000F36 /* PurchaseCreditsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F35 /* PurchaseCreditsSheet.swift */; };
@@ -146,7 +146,7 @@
 		BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */; };
 		BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */; };
 		BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A52 /* KeychainServiceTests.swift */; };
-		BB0000010000000000000B51 /* AnonymousBearerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000B52 /* AnonymousBearerTests.swift */; };
+		BB0000010000000000000B51 /* ConnectionIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000B52 /* ConnectionIdentityTests.swift */; };
 		BB0000010000000000000F01 /* TestTeardown.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E01 /* TestTeardown.swift */; };
 		BB0000010000000000000F02 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E02 /* AppLaunchTests.swift */; };
 		BB0000010000000000000F03 /* PipelineEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E03 /* PipelineEditorTests.swift */; };
@@ -332,7 +332,7 @@
 		AA0000010000000000000E01 /* InvoiceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceListView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F01 /* OperatorAuthorityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorAuthorityView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F11 /* QRCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeView.swift; sourceTree = "<group>"; };
-		AA0000010000000000000F21 /* MCPAuthBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPAuthBridge.swift; sourceTree = "<group>"; };
+		AA0000010000000000000F21 /* HolderConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolderConnection.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F31 /* LoadingQuoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingQuoteView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F33 /* ParentAccountCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentAccountCard.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F35 /* PurchaseCreditsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseCreditsSheet.swift; sourceTree = "<group>"; };
@@ -366,7 +366,7 @@
 		BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSchemaInitTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDeduplicatorTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A52 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
-		BB0000010000000000000B52 /* AnonymousBearerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnonymousBearerTests.swift; sourceTree = "<group>"; };
+		BB0000010000000000000B52 /* ConnectionIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionIdentityTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E01 /* TestTeardown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestTeardown.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E02 /* AppLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E03 /* PipelineEditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineEditorTests.swift; sourceTree = "<group>"; };
@@ -567,7 +567,7 @@
 			children = (
 				1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */,
 				AA00000100000000000000E4 /* MCPService.swift */,
-				AA0000010000000000000F21 /* MCPAuthBridge.swift */,
+				AA0000010000000000000F21 /* HolderConnection.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
 				AADD000100000000000000FD /* RelayTrafficStore.swift */,
 				AADD000100000000000000FB /* RelayRegistryService.swift */,
@@ -747,7 +747,7 @@
 				BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */,
 				BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */,
 				BB0000010000000000000A52 /* KeychainServiceTests.swift */,
-				BB0000010000000000000B52 /* AnonymousBearerTests.swift */,
+				BB0000010000000000000B52 /* ConnectionIdentityTests.swift */,
 				DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
 				DD0000010000000000000E03 /* NostrDMServiceTests.swift */,
@@ -1044,7 +1044,7 @@
 				AA00000100000000000000B2 /* PricingModel.swift in Sources */,
 				AA00000100000000000000B3 /* MemberRecord.swift in Sources */,
 				AA00000100000000000000B4 /* MCPService.swift in Sources */,
-				AA0000010000000000000F20 /* MCPAuthBridge.swift in Sources */,
+				AA0000010000000000000F20 /* HolderConnection.swift in Sources */,
 				AA00000100000000000000B6 /* RegistryService.swift in Sources */,
 				AADD000100000000000000FC /* RelayTrafficStore.swift in Sources */,
 				AADD000100000000000000FA /* RelayRegistryService.swift in Sources */,
@@ -1179,7 +1179,7 @@
 				BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */,
 				BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */,
 				BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */,
-				BB0000010000000000000B51 /* AnonymousBearerTests.swift in Sources */,
+				BB0000010000000000000B51 /* ConnectionIdentityTests.swift in Sources */,
 				DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
 				DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */,

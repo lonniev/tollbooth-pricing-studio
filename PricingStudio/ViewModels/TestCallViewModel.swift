@@ -78,16 +78,10 @@ final class TestCallViewModel {
         }
     }
 
-    /// Which tactic produced the auto-filled proof for the current selection.
-    /// Surfaced to the View so the user knows whether they need to do a
-    /// Secure Courier round-trip or whether the App signed locally.
-    enum ProofTactic: Sendable {
-        case schnorrFromKeychain   // Signed inline from nsec — no DM needed
-        case cachedPoisonToken     // Cached proof_token from prior receive_npub_proof
-        case noneAvailable         // User must run request/receive npub_proof
-    }
-
-    private(set) var proofTactic: ProofTactic = .noneAvailable
+    /// True when Studio holds the selected npub's nsec and signs each request
+    /// with it; otherwise the call rides this host's holder connection, which
+    /// holds the npub once a request/receive npub_proof DM proved it.
+    private(set) var signsLocally = false
 
     var selectedPatronNpub: String? {
         didSet {
@@ -95,38 +89,8 @@ final class TestCallViewModel {
             if toolParams.contains(where: { $0.name == "npub" }) {
                 paramValues["npub"] = npub
             }
-            guard toolParams.contains(where: { $0.name == "dpop_token" }),
-                  let toolName = selectedTool?.toolName, !toolName.isEmpty else {
-                proofTactic = .noneAvailable
-                return
-            }
-            // Single canonical tactic-selection — mirrors MCPService.argsWithProof.
-            // Wheel v0.24.0 require_proof checks the runtime tool name (mcp_name),
-            // which is exactly what the pricing model lists. Sign that name
-            // directly — no slug-strip, no capability lookup.
-            if let proof = try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub) {
-                paramValues["dpop_token"] = proof
-                proofTactic = .schnorrFromKeychain
-                return
-            }
-            let host = selectedOperator?.mcpEndpointURL
-                .flatMap { URL(string: $0)?.host } ?? ""
-            if let token = KeychainService.loadProofToken(forPatron: npub, operator: host), !token.isEmpty {
-                paramValues["dpop_token"] = token
-                proofTactic = .cachedPoisonToken
-                return
-            }
-            paramValues["dpop_token"] = ""
-            proofTactic = .noneAvailable
+            signsLocally = OperatorProofService.holdsKey(for: npub)
         }
-    }
-
-    /// Whether the currently-selected tool has a ``patron_proof`` constraint
-    /// in its chain.  Each tool walks its own chain at debit time, so this
-    /// is a per-tool check, not an operator-wide one (0.40.0+).
-    var toolRequiresPatronProof: Bool {
-        guard let selected = selectedTool else { return false }
-        return selected.chain.contains { $0.type == "patron_proof" }
     }
 
     private let mcpService = MCPService()
@@ -261,7 +225,7 @@ final class TestCallViewModel {
     /// Build the tool call arguments from paramValues, filtering empty optionals.
     private func buildArguments() -> [String: Value] {
         var args: [String: Value] = [:]
-        for param in toolParams {
+        for param in toolParams where param.name != "dpop_token" {
             let value = paramValues[param.name, default: ""]
             if value.isEmpty && !param.required { continue }
             if value.isEmpty { continue }
@@ -349,32 +313,12 @@ final class TestCallViewModel {
         state = .executing
 
         do {
-            var args = buildArguments()
-
-            // If the tool requires patron_proof (from pipeline), sign it.
-            // Use the short capability name to match what verify_proof checks.
-            if toolRequiresPatronProof, let patronNpub = selectedPatronNpub {
-                let proof = try OperatorProofService.createProof(
-                    toolName: selectedTool!.toolName,  // runtime name from pricing model
-                    operatorNpub: patronNpub  // works for any npub with nsec in Keychain
-                )
-                args["patron_proof"] = .string(proof)
-            }
-
             let response = try await mcpService.callToolGeneric(
                 endpointURL: endpoint,
                 toolName: selectedTool!.toolName,
-                arguments: args
+                arguments: buildArguments(),
+                as: .npub(selectedPatronNpub ?? "")
             )
-
-            // When the user runs receive_npub_proof via Execute Tool,
-            // capture the returned proof_token to Keychain so subsequent
-            // paid calls (e.g. account_statement_infographic) can find it
-            // via argsWithProof without further user action.
-            if selectedTool!.toolName.hasSuffix("receive_npub_proof"),
-               let patronNpub = selectedPatronNpub {
-                persistProofToken(from: response, endpoint: endpoint, patronNpub: patronNpub)
-            }
 
             // Detect OAuth dance: begin_oauth returns authorize_url
             if let authorizeURL = extractAuthorizeURL(from: response) {
@@ -388,22 +332,6 @@ final class TestCallViewModel {
         } catch {
             state = .error("Tool call failed: \(error.localizedDescription)")
         }
-    }
-
-    // MARK: - Proof Token Persistence
-
-    /// Extract `proof_token` from a successful receive_npub_proof response
-    /// and cache it in Keychain for the (patron, operatorHost) pair, so
-    /// subsequent paid tool calls can find it via argsWithProof.
-    private func persistProofToken(from response: String, endpoint: URL, patronNpub: String) {
-        guard let data = response.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              json["success"] as? Bool == true,
-              let token = json["dpop_token"] as? String else {
-            return
-        }
-        let host = endpoint.host ?? endpoint.absoluteString
-        try? KeychainService.saveProofToken(token, forPatron: patronNpub, operator: host)
     }
 
     // MARK: - OAuth Dance
