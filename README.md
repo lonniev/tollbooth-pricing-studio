@@ -54,7 +54,7 @@ A full encrypted DM client built on NIP-04, NIP-44v2, and NIP-17 gift wrap. Swit
 
 - **Identity switching** — each sidebar entity has its own Nostr keypair and conversation history
 - **Background DM polling** — parallel relay fetching across all identities with unread indicators
-- **Secure Courier** — interactive credential forms rendered inline from `@@@field@@@` payloads with anti-replay poison and provenance metadata
+- **Secure Courier** — interactive credential forms rendered inline from `@@@field@@@` payloads with the channel's anti-replay `nonce` and provenance metadata
 - **Authority claim protocol** — 4-phase guided flow (Form, Challenge, Verifying, Result) for claiming Authority control via Nostr DM challenge-response
 - **NIP-09 deletion** — delete messages from relays after receipt
 - **Duplicate deduplication** — prefers NIP-44 over NIP-04 when both versions exist
