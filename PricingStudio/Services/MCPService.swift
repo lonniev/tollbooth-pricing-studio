@@ -1860,8 +1860,8 @@ actor MCPService {
     }
 
     /// Call the restricted `network_persistence_health` tool on an Authority's MCP
-    /// endpoint. Gated by an `authority_proof` signed by the Authority's OWN
-    /// npub — the same owner-consent idiom as `list_adoption_requests`. A
+    /// endpoint. The connection must prove the Authority's own npub — the
+    /// same owner gate as `list_operator_requests`. A
     /// `quota_exhausted` (or any) soft error arrives as
     /// `MCPError.structuredError` via `throwIfSoftError` for the caller to
     /// surface; a healthy response with `overall_status == "exhausted"` is
