@@ -22,7 +22,7 @@ public enum ProofApprovalService {
     /// of a group purges the WHOLE group. Left unset, every banner this app
     /// posts shares the empty default thread — so dismissing an ordinary Nostr
     /// DM banner on the watch also swept away an actionable Approval Request
-    /// (issue #83). A per-dpop_token thread keeps each approval independently
+    /// (issue #83). A per-nonce thread keeps each approval independently
     /// dismissible and never collateral to a DM (or sibling-approval) dismissal.
     ///
     /// The token is hashed, not embedded raw: `threadIdentifier` can surface in
@@ -30,8 +30,8 @@ public enum ProofApprovalService {
     /// `getDeliveredNotifications`, a wider exposure than the `userInfo` payload.
     /// A SHA-256 digest preserves per-token grouping without carrying the raw
     /// anti-replay nonce into that channel.
-    public static func approvalThreadIdentifier(dpopToken: String) -> String {
-        let hex = SHA256.hash(data: Data(dpopToken.utf8))
+    public static func approvalThreadIdentifier(nonce: String) -> String {
+        let hex = SHA256.hash(data: Data(nonce.utf8))
             .map { String(format: "%02x", $0) }.joined().prefix(16)
         return "\(categoryId)-\(hex)"
     }
@@ -41,15 +41,15 @@ public enum ProofApprovalService {
     /// A courier DM that a single tap can safely approve.
     public struct ProofChallenge: Sendable {
         public let payload: CourierPayload
-        public let dpopToken: String
+        public let nonce: String
         public let pinnedRelay: URL
         /// The confirmation placeholder's key ("confirm" et al), nil when the
         /// operator prefilled it and nothing needs input.
         public let confirmKey: String?
 
-        public init(payload: CourierPayload, dpopToken: String, pinnedRelay: URL, confirmKey: String?) {
+        public init(payload: CourierPayload, nonce: String, pinnedRelay: URL, confirmKey: String?) {
             self.payload = payload
-            self.dpopToken = dpopToken
+            self.nonce = nonce
             self.pinnedRelay = pinnedRelay
             self.confirmKey = confirmKey
         }
@@ -69,7 +69,7 @@ public enum ProofApprovalService {
     /// Decide whether a DM is a one-tap-approvable npub-proof challenge.
     ///
     /// Requirements (all): parses as a courier payload; carries a non-empty
-    /// dpop_token and a ws/wss rendezvous relay; and its unfilled fields are
+    /// nonce and a ws/wss rendezvous relay; and its unfilled fields are
     /// at most one confirmation-style placeholder. Credential-channel DMs
     /// (api_key…) and operators whose proof field is a real passphrase
     /// (e.g. taxsort) deliberately fail — a watch tap cannot supply a
@@ -77,7 +77,7 @@ public enum ProofApprovalService {
     public static func classify(_ content: String) -> ProofChallenge? {
         guard let payload = CourierPayload.parse(content) else { return nil }
 
-        guard let token = payload.poison?.value, !token.isEmpty else { return nil }
+        guard let token = payload.nonce?.value, !token.isEmpty else { return nil }
 
         guard let relayText = payload.rendezvousRelay?.value,
               let relay = URL(string: relayText),
@@ -97,7 +97,7 @@ public enum ProofApprovalService {
 
         return ProofChallenge(
             payload: payload,
-            dpopToken: token,
+            nonce: token,
             pinnedRelay: relay,
             confirmKey: inputFields.first?.key
         )
@@ -107,7 +107,7 @@ public enum ProofApprovalService {
 
     /// The reply the Approve button sends: affirmation wording plus the
     /// re-serialized form. The operator's parser matches solely on the echoed
-    /// dpop_token; `cache_duration` sets how long the proof stays cached.
+    /// nonce; `cache_duration` sets how long the proof stays cached.
     public static func buildApprovalReply(_ challenge: ProofChallenge, duration: String = defaultDuration) -> String {
         var payload = challenge.payload
         payload.fields = payload.fields.map { field in
@@ -129,7 +129,7 @@ public enum ProofApprovalService {
 
     /// Everything the notification-action handler needs, captured at post
     /// time so the handler never reloads conversations or re-parses DMs.
-    /// The reply content embeds the one-time dpop_token; local-notification
+    /// The reply content embeds the one-time nonce; local-notification
     /// userInfo never leaves the device/watch pairing.
     public struct ApprovalRequest: Equatable, Sendable {
         public let signerNpub: String

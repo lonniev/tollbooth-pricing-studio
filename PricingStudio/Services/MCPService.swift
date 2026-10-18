@@ -48,79 +48,6 @@ actor MCPService {
         }
     }
 
-    // MARK: - Two-party consent
-
-    /// Per-host slug fallback. The slug is the operator's namespace prefix
-    /// ("schwab", "brain", "fermyon", …), derived from the universal
-    /// `<slug>_service_status` standard tool. This is NOT a "resolve once"
-    /// cache — `resolveSlug` re-derives from the live `tools/list` on every
-    /// call so a renamed operator (or a reused host, e.g. a repointed
-    /// Tailscale funnel) can't leave us binding proofs to a stale slug. This
-    /// dictionary is consulted only when a `tools/list` fetch transiently
-    /// fails, so a cold-start blip degrades gracefully instead of throwing.
-    private var slugCache: [String: String] = [:]
-
-    /// Join the operator's slug with a capability to produce the runtime
-    /// tool name — the one identifier that crosses every server boundary
-    /// (MCP wire, pricing model `tool_name`, proof u-tag, audit logs).
-    /// Falls back to the bare capability if the slug can't be resolved.
-    private func runtimeName(for capability: String, endpointURL: URL) async -> String {
-        let slug = await resolveSlug(endpointURL: endpointURL)
-        return slug.isEmpty ? capability : "\(slug)_\(capability)"
-    }
-
-    /// Resolve the operator's slug. Strategy: every Tollbooth operator
-    /// exposes `<slug>_service_status` (a wheel-provided standard tool —
-    /// universal and free). Find that tool in `tools/list` and take
-    /// everything before `_service_status` as the slug. Robust against
-    /// operators that mount multiple namespaces in one server (e.g.
-    /// `<slug>_oracle_*` for delegated oracle tools).
-    private func resolveSlug(endpointURL: URL) async -> String {
-        let host = endpointURL.host ?? endpointURL.absoluteString
-        // Always derive from the CURRENT tools/list. The proof's `u`-tag and the
-        // invoked tool name must agree, and the invocation name comes straight
-        // from `tools/list`; re-deriving here keeps the two in lockstep even
-        // after an operator renames its slug. Fall back to the last-known slug
-        // only if the live fetch fails.
-        guard let tools = try? await fetchToolList(endpointURL: endpointURL) else {
-            return slugCache[host] ?? ""
-        }
-        let marker = "_service_status"
-        if let tool = tools.first(where: { $0.name.hasSuffix(marker) && $0.name.count > marker.count }) {
-            let slug = String(tool.name.dropLast(marker.count))
-            slugCache[host] = slug
-            return slug
-        }
-        return slugCache[host] ?? ""
-    }
-
-    /// The second party's consent on the two-party Authority tools
-    /// (`register_operator`, `update_operator`, `deregister_operator`): a
-    /// kind-27235 event bound to the runtime tool name, signed with `npub`'s
-    /// Keychain nsec; "" when Studio does not hold it, and the call then rides
-    /// the holder connection, whose wallet may hold `npub` by DM.
-    private func consentProof(forNpub npub: String, capability: String, endpointURL: URL) async -> String {
-        guard !npub.isEmpty, OperatorProofService.holdsKey(for: npub) else { return "" }
-        let name = await runtimeName(for: capability, endpointURL: endpointURL)
-        return (try? OperatorProofService.createProof(toolName: name, operatorNpub: npub)) ?? ""
-    }
-
-    /// Arguments for a two-party Authority tool. The call rides the holder
-    /// connection; each party whose nsec Studio holds also signs inline (the
-    /// operator as `dpop_token`, the Authority as `authority_proof`), and a
-    /// party it does not hold must already be in the holder's wallet by DM.
-    private func twoPartyArgs(
-        operatorNpub: String, authorityNpub: String,
-        capability: String, endpointURL: URL, extra: [String: Value] = [:]
-    ) async -> [String: Value] {
-        var args = npubArgs(operatorNpub, extra)
-        let operatorProof = await consentProof(forNpub: operatorNpub, capability: capability, endpointURL: endpointURL)
-        if !operatorProof.isEmpty { args["dpop_token"] = .string(operatorProof) }
-        let authorityProof = await consentProof(forNpub: authorityNpub, capability: capability, endpointURL: endpointURL)
-        if !authorityProof.isEmpty { args["authority_proof"] = .string(authorityProof) }
-        return args
-    }
-
     /// `extra` with the acting npub under `key`, omitted when empty.
     private func npubArgs(_ npub: String, key: String = "npub", _ extra: [String: Value] = [:]) -> [String: Value] {
         var args = extra
@@ -175,7 +102,7 @@ actor MCPService {
     /// relay so the courier's listener finds it. Empty when the wheel
     /// predates v0.39.0 (pre-pinning protocol).
     struct NpubProofChallenge: Sendable {
-        let proofToken: String
+        let nonce: String
         let rendezvousRelay: String
     }
 
@@ -189,27 +116,27 @@ actor MCPService {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               json["success"] as? Bool == true,
-              let proofToken = json["dpop_token"] as? String else {
+              let nonce = json["nonce"] as? String else {
             throw MCPError.toolCallFailed("request_npub_proof failed: \(result)")
         }
         let rendezvousRelay = json["rendezvous_relay"] as? String ?? ""
-        return NpubProofChallenge(proofToken: proofToken, rendezvousRelay: rendezvousRelay)
+        return NpubProofChallenge(nonce: nonce, rendezvousRelay: rendezvousRelay)
     }
 
     /// Drain the human's reply to ``callRequestNpubProof`` into this host's
     /// holder connection, so later calls naming `patronNpub` ride it with no
     /// proof argument.
     ///
-    /// - Parameter poison: the session phrase ``callRequestNpubProof`` returned;
+    /// - Parameter nonce: the session phrase ``callRequestNpubProof`` returned;
     ///   the operator uses it to find this exact challenge's reply.
     @discardableResult
-    func callReceiveNpubProof(endpointURL: URL, patronNpub: String, poison: String) async throws -> Bool {
+    func callReceiveNpubProof(endpointURL: URL, patronNpub: String, nonce: String) async throws -> Bool {
         let result = try await callToolGeneric(
             endpointURL: endpointURL,
             toolName: "receive_npub_proof",
             arguments: [
                 "patron_npub": .string(patronNpub),
-                "dpop_token": .string(poison),
+                "nonce": .string(nonce),
             ],
             as: .holder
         )
@@ -1411,108 +1338,38 @@ actor MCPService {
         return text
     }
 
-    // MARK: - Register Operator (Adopt)
+    // MARK: - Operator lifecycle
 
-    /// Call `register_operator` on an Authority's MCP endpoint to adopt an operator.
-    /// Returns the text response from the tool.
-    ///
-    /// `authorityNpub` is the Authority's own npub, whose consent the tool
-    /// requires alongside the operator's (see ``twoPartyArgs``). Pass an empty
-    /// string when the Authority registers its own npub against itself.
-    func callRegisterOperator(
+    /// One round trip to an Authority tool whose wire name ends in `suffix`,
+    /// on a connection that proves `caller`. Returns the tool's text.
+    private func callAuthorityTool(
         endpointURL: URL,
-        operatorNpub: String,
-        operatorServiceURL: String = "",
-        displayName: String = "",
-        authorityNpub: String = ""
+        suffix: String,
+        arguments: [String: Value],
+        as caller: Caller,
+        label: String
     ) async throws -> String {
-        await traffic(.outbound, label: "Register Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
+        await traffic(.outbound, label: label, detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = await makeTransport(endpoint: endpointURL, as: .holder)
-        defer { Task { await client.disconnect() } }
-
-        try await client.connect(transport: transport)
-
-        let allTools = try await listAllTools(client: client)
-        guard let registerTool = allTools.first(where: { $0.name.contains("register_operator") }) else {
-            await traffic(.error, label: "Register Operator", detail: "No register_operator tool found")
-            throw MCPError.toolCallFailed("No register_operator tool found on this Authority")
-        }
-
-        var extra: [String: Value] = ["service_url": .string(operatorServiceURL)]
-        // Carry the operator's chosen name so the community roster is named by it, not a
-        // truncated npub (wheel threads display_name through register_operator).
-        if !displayName.isEmpty { extra["display_name"] = .string(displayName) }
-        let args = await twoPartyArgs(
-            operatorNpub: operatorNpub, authorityNpub: authorityNpub,
-            capability: "register_operator", endpointURL: endpointURL, extra: extra
-        )
-
-        let (content, isError) = try await client.callTool(
-            name: registerTool.name,
-            arguments: args
-        )
-
-        if isError == true {
-            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "Register Operator Error", detail: errorText)
-            throw MCPError.toolCallFailed(errorText)
-        }
-
-        guard let text = content.compactMap({ extractText($0) }).first else {
-            throw MCPError.invalidResponse
-        }
-
-        await traffic(.inbound, label: "Register Operator", detail: String(text.prefix(4000)))
-        try await throwIfSoftError(text: text, label: "Register Operator")
-        return text
-    }
-
-    /// Call `update_operator` on an Authority's MCP endpoint.
-    /// See `callRegisterOperator` for `authorityNpub` semantics — required
-    /// by wheel 0.26.0+ to witness the Authority's consent to the mutation.
-    func callUpdateOperator(
-        endpointURL: URL,
-        operatorNpub: String,
-        serviceURL: String = "",
-        displayName: String = "",
-        authorityNpub: String = ""
-    ) async throws -> String {
-        await traffic(.outbound, label: "Update Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
-
-        let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = await makeTransport(endpoint: endpointURL, as: .holder)
+        let transport = await makeTransport(endpoint: endpointURL, as: caller)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
 
         let allTools = try await listAllTools(client: client)
         // Exact / suffix match only — `contains("update_operator")` would also
-        // grab `update_operator_credential` (issue #153), which is a different tool.
-        guard let updateTool = allTools.first(where: {
-            $0.name == "update_operator" || $0.name.hasSuffix("_update_operator")
-        }) else {
-            await traffic(.error, label: "Update Operator", detail: "No update_operator tool found")
-            throw MCPError.toolCallFailed("No update_operator tool found on this Authority")
+        // grab `update_operator_credential` (issue #153).
+        guard let tool = allTools.first(where: { $0.name == suffix || $0.name.hasSuffix("_\(suffix)") }) else {
+            await traffic(.error, label: label, detail: "No \(suffix) tool found")
+            throw MCPError.toolCallFailed("No \(suffix) tool found on this Authority")
         }
 
-        var extra: [String: Value] = [:]
-        if !serviceURL.isEmpty { extra["service_url"] = .string(serviceURL) }
-        if !displayName.isEmpty { extra["display_name"] = .string(displayName) }
-        let args = await twoPartyArgs(
-            operatorNpub: operatorNpub, authorityNpub: authorityNpub,
-            capability: "update_operator", endpointURL: endpointURL, extra: extra
-        )
-
-        let (content, isError) = try await client.callTool(
-            name: updateTool.name,
-            arguments: args
-        )
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: arguments)
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "Update Operator Error", detail: errorText)
+            await traffic(.error, label: "\(label) Error", detail: errorText)
             throw MCPError.toolCallFailed(errorText)
         }
 
@@ -1520,76 +1377,69 @@ actor MCPService {
             throw MCPError.invalidResponse
         }
 
-        await traffic(.inbound, label: "Update Operator", detail: String(text.prefix(4000)))
-        try await throwIfSoftError(text: text, label: "Update Operator")
+        await traffic(.inbound, label: label, detail: String(text.prefix(4000)))
+        try await throwIfSoftError(text: text, label: label)
         return text
     }
 
-    /// Call `deregister_operator` on an Authority's MCP endpoint.
-    /// See `callRegisterOperator` for `authorityNpub` semantics — required
-    /// by wheel 0.26.0+ to witness the Authority's consent to the removal.
+    /// Ask the Authority to change this operator's registry entry. The
+    /// operator acts; the change waits for the Authority owner's approval.
+    func callUpdateOperator(
+        endpointURL: URL,
+        operatorNpub: String,
+        serviceURL: String = "",
+        displayName: String = ""
+    ) async throws -> String {
+        var args = npubArgs(operatorNpub)
+        if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
+        if !displayName.isEmpty { args["display_name"] = .string(displayName) }
+        return try await callAuthorityTool(
+            endpointURL: endpointURL, suffix: "update_operator", arguments: args,
+            as: .npub(operatorNpub), label: "Update Operator"
+        )
+    }
+
+    /// Remove an operator from the registry. Either party acts alone: the
+    /// operator leaving (`actingNpub` = the operator) or the Authority
+    /// disowning it (`actingNpub` = the Authority).
     func callDeregisterOperator(
         endpointURL: URL,
         operatorNpub: String,
-        authorityNpub: String = ""
+        actingNpub: String
     ) async throws -> String {
-        await traffic(.outbound, label: "Deregister Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
-
-        let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = await makeTransport(endpoint: endpointURL, as: .holder)
-        defer { Task { await client.disconnect() } }
-
-        try await client.connect(transport: transport)
-
-        let allTools = try await listAllTools(client: client)
-        guard let tool = allTools.first(where: { $0.name.contains("deregister_operator") }) else {
-            await traffic(.error, label: "Deregister Operator", detail: "No deregister_operator tool found")
-            throw MCPError.toolCallFailed("No deregister_operator tool found on this Authority")
-        }
-
-        let args = await twoPartyArgs(
-            operatorNpub: operatorNpub, authorityNpub: authorityNpub,
-            capability: "deregister_operator", endpointURL: endpointURL
+        try await callAuthorityTool(
+            endpointURL: endpointURL, suffix: "deregister_operator", arguments: npubArgs(operatorNpub),
+            as: .npub(actingNpub), label: "Deregister Operator"
         )
-
-        let (content, isError) = try await client.callTool(
-            name: tool.name,
-            arguments: args
-        )
-
-        if isError == true {
-            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "Deregister Operator Error", detail: errorText)
-            throw MCPError.toolCallFailed(errorText)
-        }
-
-        guard let text = content.compactMap({ extractText($0) }).first else {
-            throw MCPError.invalidResponse
-        }
-
-        await traffic(.inbound, label: "Deregister Operator", detail: String(text.prefix(4000)))
-        try await throwIfSoftError(text: text, label: "Deregister Operator")
-        return text
     }
 
-    // MARK: - Deferred Operator Adoption (owner queue)
+    // MARK: - Operator requests (owner queue)
 
-    /// One pending operator-adoption request, as returned by the Authority's
-    /// `list_adoption_requests`. The owner reviews these and decides via
-    /// `approve_adoption` / `reject_adoption`. All fields default to empty
-    /// when the wheel omits them so a sparse row still decodes.
-    struct AdoptionRequest: Decodable, Identifiable, Equatable {
+    /// One pending operator request, as the Authority's
+    /// `list_operator_requests` returns it: an adoption, or an update to the
+    /// operator's registry entry. The owner decides via
+    /// `approve_operator_request` / `reject_operator_request`. All fields
+    /// default to empty when the wheel omits them so a sparse row still decodes.
+    struct OperatorRequest: Decodable, Identifiable, Equatable {
+        static let adoption = "adoption"
+        static let update = "update"
+
         let operatorNpub: String
+        let kind: String
         let serviceURL: String
+        let displayName: String
         let note: String
         let requestedAt: String
         let expiresAt: String
 
-        var id: String { operatorNpub }
+        var id: String { "\(kind):\(operatorNpub)" }
+        var isUpdate: Bool { kind == Self.update }
 
         enum CodingKeys: String, CodingKey {
             case operatorNpub = "operator_npub"
+            case kind
             case serviceURL = "service_url"
+            case displayName = "display_name"
             case note
             case requestedAt = "requested_at"
             case expiresAt = "expires_at"
@@ -1598,7 +1448,9 @@ actor MCPService {
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             operatorNpub = try c.decodeIfPresent(String.self, forKey: .operatorNpub) ?? ""
+            kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? Self.adoption
             serviceURL = try c.decodeIfPresent(String.self, forKey: .serviceURL) ?? ""
+            displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? ""
             note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
             requestedAt = try c.decodeIfPresent(String.self, forKey: .requestedAt) ?? ""
             expiresAt = try c.decodeIfPresent(String.self, forKey: .expiresAt) ?? ""
@@ -1606,149 +1458,76 @@ actor MCPService {
 
         /// Memberwise init for tests / previews (the Decodable init shadows
         /// the synthesized one).
-        init(operatorNpub: String, serviceURL: String = "", note: String = "",
+        init(operatorNpub: String, kind: String = adoption, serviceURL: String = "",
+             displayName: String = "", note: String = "",
              requestedAt: String = "", expiresAt: String = "") {
             self.operatorNpub = operatorNpub
+            self.kind = kind
             self.serviceURL = serviceURL
+            self.displayName = displayName
             self.note = note
             self.requestedAt = requestedAt
             self.expiresAt = expiresAt
         }
     }
 
-    private struct AdoptionListResponse: Decodable {
-        let requests: [AdoptionRequest]?
+    private struct OperatorRequestList: Decodable {
+        let requests: [OperatorRequest]?
     }
 
-    /// List the Authority's pending operator-adoption requests.
+    /// List the Authority's pending operator requests.
     ///
     /// Restricted to the Authority's own npub, which the connection proves:
     /// signed with its Keychain nsec, or held by the holder after a DM. When
     /// neither, the wheel returns `authority_consent_required`, which surfaces
     /// as `MCPError.structuredError` for the caller to drive the DM.
-    func callListAdoptionRequests(
+    func callListOperatorRequests(
         endpointURL: URL,
         authorityNpub: String
-    ) async throws -> [AdoptionRequest] {
-        await traffic(.outbound, label: "List Adoptions", detail: "SSE → \(endpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
-
-        let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = await makeTransport(endpoint: endpointURL, as: .npub(authorityNpub))
-        defer { Task { await client.disconnect() } }
-
-        try await client.connect(transport: transport)
-
-        let allTools = try await listAllTools(client: client)
-        guard let tool = allTools.first(where: { $0.name.contains("list_adoption_requests") }) else {
-            await traffic(.error, label: "List Adoptions", detail: "No list_adoption_requests tool found")
-            throw MCPError.toolCallFailed("No list_adoption_requests tool found on this Authority")
-        }
-
-        let (content, isError) = try await client.callTool(name: tool.name, arguments: [:])
-
-        if isError == true {
-            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "List Adoptions Error", detail: errorText)
-            throw MCPError.toolCallFailed(errorText)
-        }
-
-        guard let text = content.compactMap({ extractText($0) }).first else {
-            throw MCPError.invalidResponse
-        }
-
-        await traffic(.inbound, label: "List Adoptions", detail: String(text.prefix(4000)))
-        try await throwIfSoftError(text: text, label: "List Adoptions")
-
+    ) async throws -> [OperatorRequest] {
+        let text = try await callAuthorityTool(
+            endpointURL: endpointURL, suffix: "list_operator_requests", arguments: [:],
+            as: .npub(authorityNpub), label: "List Operator Requests"
+        )
         guard let data = text.data(using: .utf8) else { throw MCPError.invalidResponse }
-        let parsed = try JSONDecoder().decode(AdoptionListResponse.self, from: data)
-        return parsed.requests ?? []
+        return try JSONDecoder().decode(OperatorRequestList.self, from: data).requests ?? []
     }
 
-    /// Approve a pending adoption — provisions the operator (same effect as
-    /// `register_operator`). Consent witnessed by the Authority's own proof.
-    func callApproveAdoption(
+    /// Approve a pending request: an adoption provisions the operator, an
+    /// update applies its new service URL or name. The Authority acts.
+    func callApproveOperatorRequest(
         endpointURL: URL,
         operatorNpub: String,
+        kind: String,
         authorityNpub: String
     ) async throws -> String {
-        await traffic(.outbound, label: "Approve Adoption", detail: "SSE → \(endpointURL.absoluteString) op=\(operatorNpub.prefix(16))…")
-
-        let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = await makeTransport(endpoint: endpointURL, as: .npub(authorityNpub))
-        defer { Task { await client.disconnect() } }
-
-        try await client.connect(transport: transport)
-
-        let allTools = try await listAllTools(client: client)
-        guard let tool = allTools.first(where: { $0.name.contains("approve_adoption") }) else {
-            await traffic(.error, label: "Approve Adoption", detail: "No approve_adoption tool found")
-            throw MCPError.toolCallFailed("No approve_adoption tool found on this Authority")
-        }
-
-        let args: [String: Value] = ["operator_npub": .string(operatorNpub)]
-
-        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
-
-        if isError == true {
-            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "Approve Adoption Error", detail: errorText)
-            throw MCPError.toolCallFailed(errorText)
-        }
-
-        guard let text = content.compactMap({ extractText($0) }).first else {
-            throw MCPError.invalidResponse
-        }
-
-        await traffic(.inbound, label: "Approve Adoption", detail: String(text.prefix(4000)))
-        try await throwIfSoftError(text: text, label: "Approve Adoption")
-        return text
+        try await callAuthorityTool(
+            endpointURL: endpointURL, suffix: "approve_operator_request",
+            arguments: ["operator_npub": .string(operatorNpub), "kind": .string(kind)],
+            as: .npub(authorityNpub), label: "Approve Operator Request"
+        )
     }
 
-    /// Reject a pending adoption (owner consent). `reason` is optional.
-    func callRejectAdoption(
+    /// Reject a pending request. The Authority acts; `reason` is optional.
+    func callRejectOperatorRequest(
         endpointURL: URL,
         operatorNpub: String,
+        kind: String,
         authorityNpub: String,
         reason: String = ""
     ) async throws -> String {
-        await traffic(.outbound, label: "Reject Adoption", detail: "SSE → \(endpointURL.absoluteString) op=\(operatorNpub.prefix(16))…")
-
-        let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = await makeTransport(endpoint: endpointURL, as: .npub(authorityNpub))
-        defer { Task { await client.disconnect() } }
-
-        try await client.connect(transport: transport)
-
-        let allTools = try await listAllTools(client: client)
-        guard let tool = allTools.first(where: { $0.name.contains("reject_adoption") }) else {
-            await traffic(.error, label: "Reject Adoption", detail: "No reject_adoption tool found")
-            throw MCPError.toolCallFailed("No reject_adoption tool found on this Authority")
-        }
-
-        var args: [String: Value] = ["operator_npub": .string(operatorNpub)]
+        var args: [String: Value] = ["operator_npub": .string(operatorNpub), "kind": .string(kind)]
         if !reason.isEmpty { args["reason"] = .string(reason) }
-
-        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
-
-        if isError == true {
-            let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
-            await traffic(.error, label: "Reject Adoption Error", detail: errorText)
-            throw MCPError.toolCallFailed(errorText)
-        }
-
-        guard let text = content.compactMap({ extractText($0) }).first else {
-            throw MCPError.invalidResponse
-        }
-
-        await traffic(.inbound, label: "Reject Adoption", detail: String(text.prefix(4000)))
-        try await throwIfSoftError(text: text, label: "Reject Adoption")
-        return text
+        return try await callAuthorityTool(
+            endpointURL: endpointURL, suffix: "reject_operator_request", arguments: args,
+            as: .npub(authorityNpub), label: "Reject Operator Request"
+        )
     }
 
     /// Operator-initiated **deferred adoption** — calls `request_adoption` on
     /// the OPERATOR's own MCP endpoint, asking a chosen Authority to adopt it.
     /// The request is delivered MCP-to-MCP to the Authority and recorded as
-    /// pending in its Pending Adoptions queue; the operator stays orphaned
+    /// pending in its Pending Requests queue; the operator stays orphaned
     /// until the owner approves. Gated by the operator's own npub, which the
     /// connection proves; no Authority consent is needed at request time.
     func callRequestAdoption(
@@ -1791,6 +1570,30 @@ actor MCPService {
         await traffic(.inbound, label: "Request Adoption", detail: String(text.prefix(4000)))
         try await throwIfSoftError(text: text, label: "Request Adoption")
         return text
+    }
+
+    /// Adopt an operator in one flow, each party acting for itself: the
+    /// operator asks (`request_adoption` on its own endpoint, signed with its
+    /// key), then the Authority's owner approves. Returns the approval's text.
+    func callAdoptOperator(
+        operatorEndpointURL: URL,
+        operatorNpub: String,
+        authorityEndpointURL: URL,
+        authorityNpub: String,
+        serviceURL: String
+    ) async throws -> String {
+        _ = try await callRequestAdoption(
+            operatorEndpointURL: operatorEndpointURL,
+            operatorNpub: operatorNpub,
+            authorityNpub: authorityNpub,
+            serviceURL: serviceURL
+        )
+        return try await callApproveOperatorRequest(
+            endpointURL: authorityEndpointURL,
+            operatorNpub: operatorNpub,
+            kind: OperatorRequest.adoption,
+            authorityNpub: authorityNpub
+        )
     }
 
     // MARK: - Onboarding Status
@@ -2248,7 +2051,7 @@ actor MCPService {
         endpointURL: URL,
         senderNpub: String,
         service: String = "",
-        poison: String = "",
+        nonce: String = "",
         credentialCard: String = ""
     ) async throws -> String {
         let label = credentialCard.isEmpty ? "Receive Credentials" : "Redeem ncred"
@@ -2273,11 +2076,11 @@ actor MCPService {
             args["service"] = .string(service)
         }
         // The session phrase from request_credential_channel — sent as the wheel's
-        // `dpop_token` (renamed from "poison" in SDK 0.57.0; the wheel's pydantic
-        // arg validation rejects the old `poison` keyword). Required by the wheel
+        // `nonce` (renamed from "nonce" in SDK 0.57.0; the wheel's pydantic
+        // arg validation rejects the old `nonce` keyword). Required by the wheel
         // unless redeeming a credential card.
-        if !poison.isEmpty {
-            args["dpop_token"] = .string(poison)
+        if !nonce.isEmpty {
+            args["nonce"] = .string(nonce)
         }
         if !credentialCard.isEmpty {
             args["credential_card"] = .string(credentialCard)

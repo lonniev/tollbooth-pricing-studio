@@ -134,7 +134,7 @@ public enum CourierBridgeWake: Sendable {
         "scope",
         "npub",
         "challenge", "challenge_body", "challengeBody",
-        "dpop_token", "dpopToken",
+        "nonce", "nonce",
         "payload", "data", "content",
         "signer", "operator_npub", "operatorNpub",
     ]

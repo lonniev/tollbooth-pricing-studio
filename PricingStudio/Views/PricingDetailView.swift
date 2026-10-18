@@ -97,7 +97,7 @@ struct PricingDetailView: View {
             RegisterOperatorSheet(operatorTarget: target, pricingVM: viewModel)
         }
         // Deferred courtship (operator-initiated request_adoption → the
-        // Authority owner's Pending Adoptions queue), driven by the orphan
+        // Authority owner's Pending Requests queue), driven by the orphan
         // "Request Adoption" button. The operator stays orphaned until
         // approved, so reload to reflect current state on dismiss.
         .sheet(isPresented: $showingSeekAdoption, onDismiss: {
@@ -837,18 +837,13 @@ struct PricingDetailView: View {
                 ),
                 titleVisibility: .visible,
                 presenting: deregisterProofRemedy
-            ) { remedy in
-                if KeychainService.loadNsec(forNpub: remedy.signerNpub) != nil {
-                    Button("Sign with Keychain & Retry") {
-                        Task { await retryDeregisterWithProof(remedy) }
-                    }
-                }
+            ) { _ in
                 Button("Detach Locally Anyway", role: .destructive) {
                     Task { await detachOperatorLocallyOnly() }
                 }
                 Button("Cancel", role: .cancel) { }
             } message: { remedy in
-                Text("The Authority requires \(remedy.kind == .operatorProof ? "the operator's" : "the Authority's") cryptographic consent (npub \(String(remedy.signerNpub.prefix(20)))…) before removing this registry entry. The nsec must be in this device's Keychain to auto-sign.")
+                Text("The Authority needs proof that this comes from npub \(String(remedy.signerNpub.prefix(20)))… before removing this registry entry: keep its nsec in this device's Keychain, or prove it by DM.")
             }
             .confirmationDialog(
                 "Reset Pricing Model",
@@ -1277,8 +1272,8 @@ struct PricingDetailView: View {
             HStack(spacing: 12) {
                 Button {
                     // Deferred courtship: the operator requests adoption and the
-                    // chosen Authority's owner approves in their Pending Adoptions
-                    // queue (distinct from the inline register_operator switch).
+                    // chosen Authority's owner approves in their Pending Requests
+                    // queue.
                     showingSeekAdoption = true
                 } label: {
                     Label("Request Adoption", systemImage: "building.columns")
@@ -1317,34 +1312,19 @@ struct PricingDetailView: View {
         let mcpService = MCPService()
 
         do {
+            // The operator is leaving its Authority: it acts for itself.
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
                 operatorNpub: op.npub,
-                authorityNpub: authority.npub
+                actingNpub: op.npub
             )
-        } catch let MCPError.structuredError(code, _, extras) {
-            // Proof-related rejections get a remedy dialog rather than a
-            // dead-end "OK" alert. Local link is preserved so the user can
-            // retry — otherwise an auto-clear would leave Authority and
-            // local state inconsistent.
+        } catch let MCPError.structuredError(code, _, _) {
+            // A proof refusal gets a remedy dialog rather than a dead-end
+            // alert, and the local link stays, so Authority and local state
+            // never disagree by accident.
             switch code {
-            case "authority_consent_required":
-                deregisterProofRemedy = DeregisterProofRemedy(
-                    kind: .authorityProof,
-                    signerNpub: extras["authority_npub"] ?? authority.npub,
-                    endpointURL: endpointURL,
-                    operatorNpub: op.npub,
-                    authorityNpub: authority.npub
-                )
-                return
             case "proof_required", "proof_invalid", "proof_refresh_needed":
-                deregisterProofRemedy = DeregisterProofRemedy(
-                    kind: .operatorProof,
-                    signerNpub: op.npub,
-                    endpointURL: endpointURL,
-                    operatorNpub: op.npub,
-                    authorityNpub: authority.npub
-                )
+                deregisterProofRemedy = DeregisterProofRemedy(signerNpub: op.npub, operatorNpub: op.npub)
                 return
             default:
                 deregisterError = "Registry removal failed: \(code). Local link cleared."
@@ -1356,29 +1336,6 @@ struct PricingDetailView: View {
         op.authorityNpub = nil
         try? modelContext.save()
         viewModel.markNotRegistered()
-    }
-
-    /// Retry deregister after the user opts to sign with Keychain.
-    /// The call signs with the Keychain nsec, or rides the holder connection
-    /// if a DM proved the npub into it.
-    private func retryDeregisterWithProof(_ remedy: DeregisterProofRemedy) async {
-        guard let op = target as? Operator else { return }
-        deregisterProofRemedy = nil
-        let mcpService = MCPService()
-        do {
-            _ = try await mcpService.callDeregisterOperator(
-                endpointURL: remedy.endpointURL,
-                operatorNpub: remedy.operatorNpub,
-                authorityNpub: remedy.authorityNpub
-            )
-            op.authorityNpub = nil
-            try? modelContext.save()
-            viewModel.markNotRegistered()
-        } catch let MCPError.structuredError(code, _, _) {
-            deregisterError = "Retry failed: \(code). The Authority still holds the registration; try again or detach locally."
-        } catch {
-            deregisterError = "Retry failed: \(error.localizedDescription)."
-        }
     }
 
     /// "Detach Locally Anyway" — clear the local link without touching the
@@ -1393,16 +1350,14 @@ struct PricingDetailView: View {
     }
 }
 
-/// Snapshot of an in-progress deregister awaiting a proof-signing decision.
+/// A deregister the Authority refused because the request did not prove the
+/// acting npub.
 struct DeregisterProofRemedy: Identifiable {
-    enum Kind { case operatorProof, authorityProof }
     let id = UUID()
-    let kind: Kind
-    /// npub whose signature is needed (operator's or Authority's).
+    /// The npub the request had to prove: the operator leaving, or the
+    /// Authority disowning it.
     let signerNpub: String
-    let endpointURL: URL
     let operatorNpub: String
-    let authorityNpub: String
 }
 
 // MARK: - Member Info Popover

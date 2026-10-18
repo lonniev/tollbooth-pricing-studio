@@ -175,12 +175,12 @@ public enum OperatorSecretRotation {
 
     /// Collect-failed hint. Never says "all fields filled in" — that copy was
     /// the trap that encouraged pasting placeholders over live secrets.
-    public static func collectFailedCopy(mode: Mode, poison: String) -> String {
+    public static func collectFailedCopy(mode: Mode, nonce: String) -> String {
         switch mode {
         case .deliver:
-            return "Make sure you replied to the DM with phrase \"\(poison)\" and filled the listed fields (leave any you are not setting blank)."
+            return "Make sure you replied to the DM with phrase \"\(nonce)\" and filled the listed fields (leave any you are not setting blank)."
         case .rotate:
-            return "Make sure you replied to the DM with phrase \"\(poison)\" and filled only the fields you meant to rotate. Omitted fields are preserved."
+            return "Make sure you replied to the DM with phrase \"\(nonce)\" and filled only the fields you meant to rotate. Omitted fields are preserved."
         }
     }
 

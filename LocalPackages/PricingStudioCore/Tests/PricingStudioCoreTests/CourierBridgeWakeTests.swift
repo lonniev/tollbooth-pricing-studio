@@ -126,7 +126,7 @@ final class CourierBridgeWakeTests: XCTestCase {
         ]))
         XCTAssertFalse(CourierBridgeWake.isContentFreeWake([
             CourierBridgeWake.payloadTypeKey: CourierBridgeWake.payloadTypeValue,
-            "dpop_token": "faint-dusk-55",
+            "nonce": "faint-dusk-55",
         ]))
         XCTAssertFalse(CourierBridgeWake.isContentFreeWake([
             CourierBridgeWake.payloadTypeKey: CourierBridgeWake.payloadTypeValue,

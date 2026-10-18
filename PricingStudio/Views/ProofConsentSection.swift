@@ -6,7 +6,7 @@ import SwiftUI
 /// path — inline Keychain sign when the nsec is held, else a DM challenge →
 /// reply-in-Nostr-client → verify round-trip — instead of dead-ending on an
 /// error string. It is the single implementation shared by the Adopt-operator
-/// flow and the Pending Adoptions queue; each caller injects its own retry
+/// flow and the Pending Requests queue; each caller injects its own retry
 /// closures (`onAcquire` / `onVerify`) that drive the relevant view model.
 ///
 /// Self-contained (no `Section` wrapper) so it drops into both a `Form` and a

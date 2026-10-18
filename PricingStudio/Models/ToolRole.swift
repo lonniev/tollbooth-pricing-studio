@@ -16,7 +16,6 @@ enum ToolRoleClassifier {
     private static let operatorTools: Set<String> = [
         "set_pricing_model",
         "certify_credits",
-        "register_operator",
         "operator_status",
     ]
 

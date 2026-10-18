@@ -25,9 +25,6 @@ final class AuthorityBalanceViewModel {
             // Wake the MCP if it's serverless-cold. service_status is a
             // free, read-only tool that exists on every Tollbooth MCP and
             // requires no proof — the right shape for a session warmup.
-            // (Previously this used register_operator, which is a write
-            // tool whose 0.26.0+ authority_proof requirement filled the
-            // traffic log with noise for Authorities we don't sign for.)
             _ = try? await mcpService.callServiceStatus(endpointURL: endpointURL)
             let result = try await mcpService.callCheckBalance(
                 endpointURL: endpointURL,

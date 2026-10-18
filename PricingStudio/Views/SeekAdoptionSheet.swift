@@ -6,12 +6,11 @@ import SwiftData
 /// The operator asks a chosen Authority to adopt it by calling
 /// `request_adoption` on its OWN MCP endpoint (operator-signed proof). The
 /// request is delivered MCP-to-MCP and recorded as *pending* in that
-/// Authority's **Pending Adoptions** queue; the owner approves on their own
+/// Authority's **Pending Requests** queue; the owner approves on their own
 /// time. The operator stays orphaned until then.
 ///
-/// This is distinct from `RegisterOperatorSheet`, which performs the inline
-/// `register_operator` (Authority-side, immediate-consent) flow used when the
-/// Authority owner adopts/moves an operator directly.
+/// `RegisterOperatorSheet` runs the same request and approves it at once,
+/// for when this device holds both the operator's and the Authority's keys.
 struct SeekAdoptionSheet: View {
     let operatorTarget: any PricingTarget
     @Bindable var pricingVM: PricingViewModel
@@ -119,7 +118,7 @@ struct SeekAdoptionSheet: View {
                             Label("Adoption requested", systemImage: "paperplane.fill")
                                 .font(.headline)
                                 .foregroundStyle(.green)
-                            Text("**\(selectedAuthority?.displayName ?? "The Authority")**'s owner will review this in their **Pending Adoptions** queue. **\(operatorTarget.displayName)** stays orphaned until they approve — then it's provisioned automatically.")
+                            Text("**\(selectedAuthority?.displayName ?? "The Authority")**'s owner will review this in their **Pending Requests** queue. **\(operatorTarget.displayName)** stays orphaned until they approve — then it's provisioned automatically.")
                                 .font(.subheadline)
                         }
                     }

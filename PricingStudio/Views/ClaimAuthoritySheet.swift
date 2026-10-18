@@ -539,31 +539,18 @@ struct ClaimAuthoritySheet: View {
         }
 
         Task {
-            do {
-                // Establish DPYC session before claim — server requires npub in _dpyc_sessions.
-                // The candidate is registering its own npub against itself, so the candidate's
-                // nsec serves as both operator-side and Authority-side consent witness.
-                let mcpService = MCPService()
-                _ = try await mcpService.callRegisterOperator(
-                    endpointURL: endpointURL,
-                    operatorNpub: candidateNpub,
-                    authorityNpub: candidateNpub
-                )
-                await viewModel.initiateAuthorityClaim(
-                    authorityEndpoint: endpointURL,
-                    candidateNpub: candidateNpub
-                )
+            await viewModel.initiateAuthorityClaim(
+                authorityEndpoint: endpointURL,
+                candidateNpub: candidateNpub
+            )
 
-                if viewModel.claimStatus == .challengeSent {
-                    let identity = ChatIdentity(
-                        npub: candidateNpub,
-                        displayName: "Claim Candidate",
-                        entityType: .operator
-                    )
-                    chatVM.switchIdentity(to: identity)
-                }
-            } catch {
-                viewModel.claimStatus = .failed("Session registration failed: \(error.localizedDescription)")
+            if viewModel.claimStatus == .challengeSent {
+                let identity = ChatIdentity(
+                    npub: candidateNpub,
+                    displayName: "Claim Candidate",
+                    entityType: .operator
+                )
+                chatVM.switchIdentity(to: identity)
             }
         }
     }

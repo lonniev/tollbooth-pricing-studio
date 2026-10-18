@@ -1,8 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// Allows editing an Operator's community registry entry (service URL, display name)
-/// via the Authority's update_operator tool.
+/// Asks the sponsoring Authority to change an Operator's community registry entry
+/// (service URL, display name). The operator asks; the Authority's owner approves.
 struct EditOperatorRegistrationSheet: View {
     let operatorTarget: any PricingTarget
     @Environment(\.dismiss) private var dismiss
@@ -12,20 +12,17 @@ struct EditOperatorRegistrationSheet: View {
     @State private var serviceURL: String = ""
     @State private var displayName: String = ""
     @State private var status: UpdateStatus = .idle
-    /// proof_token (poison) from request_npub_proof, passed to the matching
+    /// proof_token (nonce) from request_npub_proof, passed to the matching
     /// receive_npub_proof so the wheel can resolve the pinned relay.
-    @State private var proofToken: String = ""
+    @State private var nonce: String = ""
 
     enum UpdateStatus: Equatable {
         case idle
         case updating
         case success(String)
         case failed(String)
-        /// Wheel returned `authority_consent_required` — the call needs a
-        /// fresh Schnorr identity proof signed by the Authority's npub.
-        case needsAuthorityProof(npub: String)
-        /// Wheel returned `proof_required` / `proof_invalid` / `proof_refresh_needed`
-        /// on the operator-side gate.
+        /// Wheel returned `proof_required`: the connection does not prove
+        /// the operator's npub yet.
         case needsOperatorProof(npub: String)
         /// Studio is acquiring a proof via the request/receive_npub_proof
         /// Secure Courier handshake against the Authority's MCP.
@@ -39,7 +36,6 @@ struct EditOperatorRegistrationSheet: View {
             case (.idle, .idle), (.updating, .updating): return true
             case (.success(let a), .success(let b)): return a == b
             case (.failed(let a), .failed(let b)): return a == b
-            case (.needsAuthorityProof(let a), .needsAuthorityProof(let b)): return a == b
             case (.needsOperatorProof(let a), .needsOperatorProof(let b)): return a == b
             case (.acquiringProof(let an, let ap), .acquiringProof(let bn, let bp)):
                 return an == bn && ap == bp
@@ -133,7 +129,7 @@ struct EditOperatorRegistrationSheet: View {
                     Section {
                         HStack {
                             ProgressView()
-                            Text("Updating registration...")
+                            Text("Requesting update...")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -141,7 +137,7 @@ struct EditOperatorRegistrationSheet: View {
 
                 if case .success(let msg) = status {
                     Section {
-                        Label("Updated", systemImage: "checkmark.circle.fill")
+                        Label("Requested", systemImage: "hourglass")
                             .font(.headline)
                             .foregroundStyle(.green)
                         Text(msg)
@@ -161,19 +157,11 @@ struct EditOperatorRegistrationSheet: View {
                 }
 
                 // --- Proof acquisition remedy --------------------------------
-                if case .needsAuthorityProof(let npub) = status {
-                    proofRemedySection(
-                        kind: "Authority",
-                        npub: npub,
-                        explanation: "The Authority's wheel needs cryptographic proof that you hold the Authority's nsec before it will modify this operator's registry entry."
-                    )
-                }
-
                 if case .needsOperatorProof(let npub) = status {
                     proofRemedySection(
                         kind: "Operator",
                         npub: npub,
-                        explanation: "The Authority's wheel needs cryptographic proof that you hold the operator's nsec."
+                        explanation: "The Authority needs to know this request comes from the operator."
                     )
                 }
 
@@ -181,7 +169,7 @@ struct EditOperatorRegistrationSheet: View {
                     proofAcquisitionInProgressSection(npub: npub, phase: phase)
                 }
             }
-            .navigationTitle(isSuccess ? "Registration Updated" : "Edit Registration")
+            .navigationTitle(isSuccess ? "Update Requested" : "Edit Registration")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if isSuccess {
@@ -192,7 +180,7 @@ struct EditOperatorRegistrationSheet: View {
                 }
                 if !isSuccess {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Update") {
+                        Button("Request") {
                             Task { await performUpdate() }
                         }
                         .disabled(
@@ -226,8 +214,7 @@ struct EditOperatorRegistrationSheet: View {
                 endpointURL: endpointURL,
                 operatorNpub: operatorTarget.npub,
                 serviceURL: serviceURL,
-                displayName: displayName,
-                authorityNpub: authority.npub
+                displayName: displayName
             )
 
             // Update local model
@@ -238,14 +225,10 @@ struct EditOperatorRegistrationSheet: View {
             }
 
             status = .success(result)
-        } catch let MCPError.structuredError(code, message, extras) {
-            // Mirror the Adopt remedy flow — branch on the wheel's
-            // error_code so the user can resolve the proof gap and retry
-            // in-place rather than starting over.
+        } catch let MCPError.structuredError(code, message, _) {
+            // The operator asks: when the connection does not prove its npub
+            // yet, offer the DM in place rather than starting over.
             switch code {
-            case "authority_consent_required":
-                let npub = extras["authority_npub"] ?? authority.npub
-                status = .needsAuthorityProof(npub: npub)
             case "proof_required", "proof_invalid", "proof_refresh_needed":
                 status = .needsOperatorProof(npub: operatorTarget.npub)
             default:
@@ -358,7 +341,7 @@ struct EditOperatorRegistrationSheet: View {
                 endpointURL: endpointURL,
                 patronNpub: npub
             )
-            proofToken = challenge.proofToken
+            nonce = challenge.nonce
             status = .acquiringProof(npub: npub, phase: .awaitingReply)
         } catch {
             status = .failed("Failed to send proof challenge: \(error.localizedDescription)")
@@ -381,7 +364,7 @@ struct EditOperatorRegistrationSheet: View {
             _ = try await mcpService.callReceiveNpubProof(
                 endpointURL: endpointURL,
                 patronNpub: npub,
-                poison: proofToken
+                nonce: nonce
             )
             await performUpdate()
         } catch {

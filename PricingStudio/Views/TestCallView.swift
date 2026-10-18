@@ -230,17 +230,13 @@ struct TestCallView: View {
                             .lineLimit(2)
                     }
                     if param.name == "npub" {
-                        // npub is auto-filled from identity selection
-                        Text(vm.paramValues["npub", default: "select identity above"])
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.green)
-                    } else if param.name == "dpop_token" {
-                        // Identity rides the connection; this argument is never sent.
+                        // npub is auto-filled from identity selection; the
+                        // connection proves it (signed, or held after the DM).
                         HStack(spacing: 4) {
                             Image(systemName: vm.signsLocally ? "key.fill" : "envelope.badge.shield.half.filled")
-                            Text(vm.signsLocally ? "Signed with stored nsec" : "Held after the npub-proof DM")
+                            Text(vm.paramValues["npub", default: "select identity above"])
+                                .font(.caption.monospaced())
                         }
-                        .font(.caption)
                         .foregroundStyle(.green)
                     } else if param.type == "boolean" {
                         Toggle("", isOn: Binding(

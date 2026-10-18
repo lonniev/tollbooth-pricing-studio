@@ -571,10 +571,10 @@ final class DMPollingService {
     /// stops a replayed, already-read DM from re-banner-ing.
     private var notifiedStore = NotifiedEventStore()
 
-    /// dpop_tokens we've already raised an approval banner for this process.
+    /// nonces we've already raised an approval banner for this process.
     /// The courier double-encodes each challenge (NIP-04 + NIP-44), so one
     /// logical approval arrives as two distinct Nostr events that share a
-    /// dpop_token — the real unit of approval. The per-*event* NotifiedEventStore
+    /// nonce — the real unit of approval. The per-*event* NotifiedEventStore
     /// can't collapse them (different event ids), and iOS won't reliably coalesce
     /// two same-identifier `add()`s fired in the same tick. So we dedup by token
     /// in our own state, at the single choke point every posting path funnels
@@ -622,14 +622,14 @@ final class DMPollingService {
         guard notificationMode != .off else { return }
         guard NostrNotificationPreferences.isEnabled(npub: npub) else { return }
 
-        // One banner per dpop_token, deduped in our own state — see
+        // One banner per nonce, deduped in our own state — see
         // postedApprovalTokens. The courier's twin encodings both land here;
         // the second insert fails and is suppressed. Record only tokens we
-        // actually post, so a muted/off npub (returned above) never poisons the
+        // actually post, so a muted/off npub (returned above) never nonces the
         // set. Log both branches (event id only, never the token) so a live test
         // can distinguish "collapsed a twin" from "two genuinely different
         // approvals" without leaking the approval secret.
-        guard postedApprovalTokens.insert(challenge.dpopToken).inserted else {
+        guard postedApprovalTokens.insert(challenge.nonce).inserted else {
             TrafficLogger.shared.log(.inbound, label: "Approval Dedup",
                                      detail: "\(npub.prefix(12))… suppressed twin approval event=\(dm.rawEventId.prefix(8))…")
             return
@@ -649,18 +649,18 @@ final class DMPollingService {
         let content = Self.makeApprovalNotificationContent(
             body: "May I act as \(resolve(dm.recipientPubkeyHex))? — from \(resolve(dm.senderPubkeyHex))",
             request: approvalRequest,
-            dpopToken: challenge.dpopToken
+            nonce: challenge.nonce
         )
 
-        // Key on the dpop_token, not the transport event id: per the frozen
-        // wire contract approval is per-dpop_token, so the token IS the unit of
+        // Key on the nonce, not the transport event id: per the frozen
+        // wire contract approval is per-nonce, so the token IS the unit of
         // approval. The courier double-encodes each challenge (NIP-04 + NIP-44)
         // for client compatibility, arriving as two distinct signed events that
         // both decode to the same token — keying on the token makes the second
         // REPLACE the first instead of stacking an identical banner. Distinct
         // approvals still carry distinct tokens, so real siblings never clobber.
         let request = UNNotificationRequest(
-            identifier: "proof-\(challenge.dpopToken)",
+            identifier: "proof-\(challenge.nonce)",
             content: content,
             trigger: nil
         )
@@ -710,12 +710,12 @@ final class DMPollingService {
     /// Build the actionable Approval-Request banner. Static and pure so the
     /// Watch-critical thread isolation (issue #83) is unit-testable without a
     /// live `UNUserNotificationCenter`. Each approval declares its own
-    /// per-dpop_token notification group so dismissing an unrelated DM banner
+    /// per-nonce notification group so dismissing an unrelated DM banner
     /// on the watch cannot sweep it away.
     static func makeApprovalNotificationContent(
         body: String,
         request: ProofApprovalService.ApprovalRequest,
-        dpopToken: String
+        nonce: String
     ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = "Approval requested"
@@ -723,7 +723,7 @@ final class DMPollingService {
         content.sound = .default
         content.categoryIdentifier = ProofApprovalService.categoryId
         content.userInfo = request.userInfo
-        content.threadIdentifier = ProofApprovalService.approvalThreadIdentifier(dpopToken: dpopToken)
+        content.threadIdentifier = ProofApprovalService.approvalThreadIdentifier(nonce: nonce)
         return content
     }
 

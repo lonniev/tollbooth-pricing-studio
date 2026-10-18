@@ -1,0 +1,1 @@
+- Studio follows tollbooth-dpyc 0.103: the Secure Courier phrase is `nonce`; adopting an operator is its own request, approved by the Authority; a registry update is the operator's request, approved in the Authority's Pending Requests queue (now showing adoptions and updates); either party removes an operator alone.

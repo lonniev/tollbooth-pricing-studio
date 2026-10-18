@@ -6,6 +6,11 @@ import Foundation
 // by the real sender → unsigned rumor). These types are the rumor payloads.
 // The seal signature is the authorship proof; wrap/seal timestamps are fuzzed,
 // so freshness derives ONLY from the explicit fields here.
+//
+// `challenge` carries the Secure Courier session phrase (the SDK's `nonce`,
+// named `dpop_token` before SDK 0.103); `nonce` is this contract's own
+// anti-replay echo. No operator emits these messages yet, so the rename
+// keeps v1.
 
 // MARK: - Offer
 
@@ -40,7 +45,7 @@ public struct AuthRequest: Codable, Sendable, Equatable {
     public let requestId: String
     public let operatorNpub: String
     public let operatorName: String
-    public let dpopToken: String
+    public let challenge: String
     public let offers: [AuthOffer]
     public let defaultOffer: String
     public let nonce: String
@@ -53,7 +58,7 @@ public struct AuthRequest: Codable, Sendable, Equatable {
         case requestId = "request_id"
         case operatorNpub = "operator_npub"
         case operatorName = "operator_name"
-        case dpopToken = "dpop_token"
+        case challenge
         case offers
         case defaultOffer = "default_offer"
         case nonce
@@ -65,7 +70,7 @@ public struct AuthRequest: Codable, Sendable, Equatable {
         requestId: String = UUID().uuidString.lowercased(),
         operatorNpub: String,
         operatorName: String,
-        dpopToken: String,
+        challenge: String,
         offers: [AuthOffer],
         defaultOffer: String,
         nonce: String? = nil,
@@ -77,7 +82,7 @@ public struct AuthRequest: Codable, Sendable, Equatable {
         self.requestId = requestId
         self.operatorNpub = operatorNpub
         self.operatorName = operatorName
-        self.dpopToken = dpopToken
+        self.challenge = challenge
         self.offers = offers
         self.defaultOffer = defaultOffer
         self.nonce = nonce ?? Data(GiftWrap.generateRandomBytes(32)).hexString
@@ -127,7 +132,7 @@ public struct AuthResponse: Codable, Sendable, Equatable {
     public let v: Int
     public let type: String
     public let requestId: String
-    public let dpopToken: String
+    public let challenge: String
     public let choice: String
     public let nonce: String
 
@@ -135,7 +140,7 @@ public struct AuthResponse: Codable, Sendable, Equatable {
         case v
         case type
         case requestId = "request_id"
-        case dpopToken = "dpop_token"
+        case challenge
         case choice
         case nonce
     }
@@ -147,7 +152,7 @@ public struct AuthResponse: Codable, Sendable, Equatable {
         self.v = 1
         self.type = Self.wireType
         self.requestId = request.requestId
-        self.dpopToken = request.dpopToken
+        self.challenge = request.challenge
         self.choice = choice
         self.nonce = request.nonce
     }

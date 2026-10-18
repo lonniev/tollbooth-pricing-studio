@@ -227,7 +227,7 @@ struct MessageBubble: View {
         guard let payload = courierPayload, !dm.isFromMe else { return nil }
         // Only proof-request DMs (those carrying a one-time challenge) get a
         // verdict; credential-delivery DMs keep the plain provenance popover.
-        guard let challenge = payload.poison?.value, !challenge.isEmpty else { return nil }
+        guard let challenge = payload.nonce?.value, !challenge.isEmpty else { return nil }
 
         let recipientHex = dm.recipientPubkeyHex
         let subjectNpub = (try? NostrKeyService.npubFromHex(recipientHex)) ?? ""

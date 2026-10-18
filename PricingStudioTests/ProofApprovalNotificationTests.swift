@@ -35,7 +35,7 @@ final class ProofApprovalNotificationTests: XCTestCase {
         let approval = DMPollingService.makeApprovalNotificationContent(
             body: "May I act as bob? — from alice",
             request: approvalRequest(),
-            dpopToken: token
+            nonce: token
         )
         let dm = DMPollingService.makeDMNotificationContent(
             senderName: "alice", receiverName: "bob", preview: "hi"
@@ -53,9 +53,9 @@ final class ProofApprovalNotificationTests: XCTestCase {
     /// request never clears another sibling approval.
     func testEachApprovalGetsItsOwnThread() {
         let a = DMPollingService.makeApprovalNotificationContent(
-            body: "x", request: approvalRequest(), dpopToken: "tok-a")
+            body: "x", request: approvalRequest(), nonce: "tok-a")
         let b = DMPollingService.makeApprovalNotificationContent(
-            body: "y", request: approvalRequest(), dpopToken: "tok-b")
+            body: "y", request: approvalRequest(), nonce: "tok-b")
         XCTAssertNotEqual(a.threadIdentifier, b.threadIdentifier)
     }
 
@@ -63,7 +63,7 @@ final class ProofApprovalNotificationTests: XCTestCase {
     /// or its precomputed userInfo payload.
     func testApprovalContentStaysActionable() {
         let content = DMPollingService.makeApprovalNotificationContent(
-            body: "b", request: approvalRequest(), dpopToken: token)
+            body: "b", request: approvalRequest(), nonce: token)
         XCTAssertEqual(content.categoryIdentifier, ProofApprovalService.categoryId)
         XCTAssertNotNil(ProofApprovalService.ApprovalRequest(userInfo: content.userInfo),
                         "The action handler still needs the precomputed reply payload")

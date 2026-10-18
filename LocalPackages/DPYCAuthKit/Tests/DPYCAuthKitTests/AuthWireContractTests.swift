@@ -12,7 +12,7 @@ final class AuthWireContractTests: XCTestCase {
         AuthRequest(
             operatorNpub: "npub1exampleoperator",
             operatorName: "Personal Brain",
-            dpopToken: "bold-hawk-55",
+            challenge: "bold-hawk-55",
             offers: [
                 AuthOffer(id: "hour", label: "Approve · 1 hour", validSeconds: 3600),
                 AuthOffer(id: "day", label: "Approve · all day", validSeconds: 57600),
@@ -31,7 +31,7 @@ final class AuthWireContractTests: XCTestCase {
         let json = rumor.content
 
         for key in ["\"v\":", "\"type\":\"auth-request\"", "\"request_id\":",
-                    "\"operator_npub\":", "\"operator_name\":", "\"dpop_token\":",
+                    "\"operator_npub\":", "\"operator_name\":", "\"challenge\":",
                     "\"offers\":", "\"valid_seconds\":", "\"label\":",
                     "\"default_offer\":", "\"nonce\":", "\"expires_at\":", "\"reply_relay\":"] {
             XCTAssertTrue(json.contains(key), "auth-request JSON must carry \(key) — got: \(json)")
@@ -49,7 +49,7 @@ final class AuthWireContractTests: XCTestCase {
         let json = rumor.content
 
         for key in ["\"v\":", "\"type\":\"auth-response\"", "\"request_id\":",
-                    "\"dpop_token\":", "\"choice\":\"day\"", "\"nonce\":"] {
+                    "\"challenge\":", "\"choice\":\"day\"", "\"nonce\":"] {
             XCTAssertTrue(json.contains(key), "auth-response JSON must carry \(key) — got: \(json)")
         }
 
@@ -62,7 +62,7 @@ final class AuthWireContractTests: XCTestCase {
         let sample = """
         {"v":1,"type":"auth-request","request_id":"3f2a1d9c-0b7e-4a55-9c1d-8e6f2b3a4c5d",\
         "operator_npub":"npub1example","operator_name":"Personal Brain",\
-        "dpop_token":"bold-hawk-55",\
+        "challenge":"bold-hawk-55",\
         "offers":[{"id":"hour","label":"Approve · 1 hour","valid_seconds":3600},\
         {"id":"day","label":"Approve · all day","valid_seconds":57600}],\
         "default_offer":"hour",\
@@ -70,7 +70,7 @@ final class AuthWireContractTests: XCTestCase {
         "expires_at":1751600000,"reply_relay":"wss://relay.damus.io"}
         """
         let request = try JSONDecoder().decode(AuthRequest.self, from: Data(sample.utf8))
-        XCTAssertEqual(request.dpopToken, "bold-hawk-55")
+        XCTAssertEqual(request.challenge, "bold-hawk-55")
         XCTAssertEqual(request.offers.count, 2)
         XCTAssertEqual(request.offers[1].validSeconds, 57600)
         XCTAssertEqual(request.defaultOffer, "hour")
@@ -121,7 +121,7 @@ final class AuthWireContractTests: XCTestCase {
 
     func testParserRejectsUnsupportedVersion() throws {
         let sample = """
-        {"v":2,"type":"auth-response","request_id":"r1","dpop_token":"t","choice":"hour","nonce":"n"}
+        {"v":2,"type":"auth-response","request_id":"r1","challenge":"t","choice":"hour","nonce":"n"}
         """
         let rumor = try NostrEvent.rumor(
             kind: .authResponse, content: sample, tags: [["p", operatorPub]], publicKeyHex: patronPub
@@ -190,21 +190,21 @@ final class AuthWireContractTests: XCTestCase {
         // nonce mismatch: hand-craft a response echoing the right ids but wrong nonce
         let forged = """
         {"v":1,"type":"auth-response","request_id":"\(request.requestId)",\
-        "dpop_token":"\(request.dpopToken)","choice":"hour","nonce":"deadbeef"}
+        "challenge":"\(request.challenge)","choice":"hour","nonce":"deadbeef"}
         """
         let forgedResponse = try JSONDecoder().decode(AuthResponse.self, from: Data(forged.utf8))
         XCTAssertThrowsError(try request.validate(forgedResponse)) { error in
             XCTAssertEqual(error as? AuthError, .nonceMismatch)
         }
 
-        // dpop_token mismatch
+        // challenge mismatch
         let wrongToken = """
         {"v":1,"type":"auth-response","request_id":"\(request.requestId)",\
-        "dpop_token":"other-token","choice":"hour","nonce":"\(request.nonce)"}
+        "challenge":"other-token","choice":"hour","nonce":"\(request.nonce)"}
         """
         let wrongTokenResponse = try JSONDecoder().decode(AuthResponse.self, from: Data(wrongToken.utf8))
         XCTAssertThrowsError(try request.validate(wrongTokenResponse)) { error in
-            XCTAssertEqual(error as? AuthError, .dpopTokenMismatch)
+            XCTAssertEqual(error as? AuthError, .challengeMismatch)
         }
     }
 

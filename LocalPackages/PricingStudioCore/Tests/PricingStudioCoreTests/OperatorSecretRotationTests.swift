@@ -143,7 +143,7 @@ final class OperatorSecretRotationTests: XCTestCase {
 
     func testRotateCopyNeverDemandsAllFieldsFilled() {
         let ready = OperatorSecretRotation.readyCopy(mode: .rotate)
-        let failed = OperatorSecretRotation.collectFailedCopy(mode: .rotate, poison: "amber fox")
+        let failed = OperatorSecretRotation.collectFailedCopy(mode: .rotate, nonce: "amber fox")
         XCTAssertFalse(ready.lowercased().contains("all fields"))
         XCTAssertFalse(failed.lowercased().contains("all fields"))
         XCTAssertTrue(ready.lowercased().contains("omit") || ready.lowercased().contains("only"))
