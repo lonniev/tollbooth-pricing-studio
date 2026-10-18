@@ -2577,7 +2577,8 @@ extension MCPService {
         await traffic(.outbound, label: "Publish Campaign", detail: "SSE → \(oracleURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = await makeTransport(endpoint: oracleURL)
+        // The Oracle publishes a campaign only on a request its author signed.
+        let transport = await makeTransport(endpoint: oracleURL, as: .npub(authorNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
