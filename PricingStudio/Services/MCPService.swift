@@ -1535,6 +1535,7 @@ actor MCPService {
         operatorNpub: String,
         authorityNpub: String,
         serviceURL: String = "",
+        displayName: String = "",
         note: String = ""
     ) async throws -> String {
         await traffic(.outbound, label: "Request Adoption", detail: "SSE → \(operatorEndpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
@@ -1553,6 +1554,7 @@ actor MCPService {
 
         var args: [String: Value] = ["authority_npub": .string(authorityNpub)]
         if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
+        if !displayName.isEmpty { args["display_name"] = .string(displayName) }
         if !note.isEmpty { args["note"] = .string(note) }
 
         let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
@@ -1580,13 +1582,15 @@ actor MCPService {
         operatorNpub: String,
         authorityEndpointURL: URL,
         authorityNpub: String,
-        serviceURL: String
+        serviceURL: String,
+        displayName: String
     ) async throws -> String {
         _ = try await callRequestAdoption(
             operatorEndpointURL: operatorEndpointURL,
             operatorNpub: operatorNpub,
             authorityNpub: authorityNpub,
-            serviceURL: serviceURL
+            serviceURL: serviceURL,
+            displayName: displayName
         )
         return try await callApproveOperatorRequest(
             endpointURL: authorityEndpointURL,

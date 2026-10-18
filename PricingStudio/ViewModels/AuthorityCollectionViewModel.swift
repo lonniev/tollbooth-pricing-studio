@@ -248,7 +248,8 @@ final class AuthorityCollectionViewModel {
                 operatorNpub: operatorToAdopt.npub,
                 authorityEndpointURL: endpointURL,
                 authorityNpub: authority.npub,
-                serviceURL: operatorURL
+                serviceURL: operatorURL,
+                displayName: operatorToAdopt.displayName
             )
             operatorToAdopt.authorityNpub = authority.npub
             try? context.save()

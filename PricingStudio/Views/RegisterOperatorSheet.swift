@@ -289,7 +289,8 @@ struct RegisterOperatorSheet: View {
                 operatorNpub: operatorTarget.npub,
                 authorityEndpointURL: endpointURL,
                 authorityNpub: authority.npub,
-                serviceURL: serviceURL
+                serviceURL: serviceURL,
+                displayName: operatorTarget.displayName
             )
 
             if let op = operatorTarget as? Operator {
