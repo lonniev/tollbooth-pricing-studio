@@ -3,9 +3,10 @@ import SwiftData
 
 /// Inline operator registration / re-registration / Authority-switch sheet.
 ///
-/// Performs the immediate-consent `register_operator` flow (Authority-side).
-/// For the operator-initiated *deferred courtship* (`request_adoption` → the
-/// Authority owner's Pending Adoptions queue) see `SeekAdoptionSheet`.
+/// The operator asks to be adopted (`request_adoption`) and the Authority
+/// approves at once — one flow for a device holding both keys. When only the
+/// operator's key is here, `SeekAdoptionSheet` asks and leaves the decision to
+/// the Authority owner's Pending Requests queue.
 ///
 /// Three cases, all handled by the same Form:
 ///   1. Operator has no current Authority — straight register flow.
@@ -247,10 +248,11 @@ struct RegisterOperatorSheet: View {
         }
         let mcpService = MCPService()
         do {
+            // The operator is leaving this Authority: it acts for itself.
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
                 operatorNpub: operatorTarget.npub,
-                authorityNpub: authority.npub
+                actingNpub: operatorTarget.npub
             )
             if let op = operatorTarget as? Operator {
                 op.authorityNpub = nil
@@ -271,16 +273,24 @@ struct RegisterOperatorSheet: View {
             return
         }
 
+        let serviceURL = (operatorTarget as? Operator)?.mcpEndpointURL?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let operatorEndpointURL = URL(string: serviceURL), !serviceURL.isEmpty else {
+            status = .failed("Set the operator's MCP endpoint URL first: it asks to be adopted from there.")
+            return
+        }
+
         status = .registering
         let mcpService = MCPService()
 
         do {
-            let result = try await mcpService.callRegisterOperator(
-                endpointURL: endpointURL,
+            let result = try await mcpService.callAdoptOperator(
+                operatorEndpointURL: operatorEndpointURL,
                 operatorNpub: operatorTarget.npub,
-                operatorServiceURL: (operatorTarget as? Operator)?.mcpEndpointURL ?? "",
-                displayName: operatorTarget.displayName,
-                authorityNpub: authority.npub
+                authorityEndpointURL: endpointURL,
+                authorityNpub: authority.npub,
+                serviceURL: serviceURL,
+                displayName: operatorTarget.displayName
             )
 
             if let op = operatorTarget as? Operator {

@@ -47,8 +47,8 @@ struct PurchaseCreditsSheet: View {
     /// Rendezvous relay the wheel committed for the proof challenge; the
     /// responder must reply there. Empty when the wheel predates pinning.
     @State private var proofRendezvousRelay: String = ""
-    /// proof_token (poison) from request_npub_proof, fed to receive_npub_proof.
-    @State private var proofToken: String = ""
+    /// proof_token (nonce) from request_npub_proof, fed to receive_npub_proof.
+    @State private var nonce: String = ""
     /// Opening sheet height. Defaults to ~80% so the amount, invoice, and proof
     /// fields are visible without dragging; `.medium` stays available so the
     /// user can drag down to reach the Messages tab during the proof exchange.
@@ -615,7 +615,7 @@ struct PurchaseCreditsSheet: View {
                     patronNpub: purchaserNpub
                 )
                 proofRendezvousRelay = challenge.rendezvousRelay
-                proofToken = challenge.proofToken
+                nonce = challenge.nonce
                 proofState = .awaitingReply
             } catch {
                 proofState = .failed(error.localizedDescription)
@@ -634,7 +634,7 @@ struct PurchaseCreditsSheet: View {
                 _ = try await mcpService.callReceiveNpubProof(
                     endpointURL: endpointURL,
                     patronNpub: purchaserNpub,
-                    poison: proofToken
+                    nonce: nonce
                 )
                 proofState = .idle
                 purchase()

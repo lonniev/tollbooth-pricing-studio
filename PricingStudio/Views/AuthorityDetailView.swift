@@ -24,7 +24,7 @@ struct AuthorityDetailView: View {
     /// Per-row Rotate target — opens `RotateCredentialSheet` for one field.
     @State private var rotatingFieldKey: String?
     @State private var adoptionsVM = PendingAdoptionsViewModel()
-    @State private var rejectingRequest: MCPService.AdoptionRequest?
+    @State private var rejectingRequest: MCPService.OperatorRequest?
     @State private var rejectReason = ""
     @State private var persistenceHealth: MCPService.NeonPersistenceHealth?
     @State private var persistenceHealthProblem: PersistenceHealthProblem?
@@ -520,7 +520,7 @@ struct AuthorityDetailView: View {
                 Label(msg, systemImage: "xmark.circle.fill").font(.caption2).foregroundStyle(.red)
             }
         }
-        // Fill the pane width like the sibling sections (Pending Adoptions,
+        // Fill the pane width like the sibling sections (Pending Requests,
         // Persistence Status) instead of shrinking to the checklist column.
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
@@ -669,13 +669,13 @@ struct AuthorityDetailView: View {
         OperatorSecretRotation.fieldLabel(field)
     }
 
-    // MARK: - Pending Adoptions (deferred-courtship owner queue)
+    // MARK: - Pending Requests (deferred-courtship owner queue)
 
     @ViewBuilder
     private var pendingAdoptionsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Label("Pending Adoptions", systemImage: "person.crop.circle.badge.questionmark")
+                Label("Pending Requests", systemImage: "person.crop.circle.badge.questionmark")
                     .font(.headline)
                 if adoptionsVM.pendingCount > 0 {
                     Text("\(adoptionsVM.pendingCount)")
@@ -699,7 +699,7 @@ struct AuthorityDetailView: View {
             switch adoptionsVM.state {
             case .idle:
                 if !isLinked {
-                    Text("Link this Authority’s identity to review adoption requests.")
+                    Text("Link this Authority’s identity to review operator requests.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -744,14 +744,22 @@ struct AuthorityDetailView: View {
     }
 
     @ViewBuilder
-    private func adoptionRow(_ req: MCPService.AdoptionRequest) -> some View {
+    private func adoptionRow(_ req: MCPService.OperatorRequest) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(req.operatorNpub)
-                .font(.caption.monospaced())
-                .textSelection(.enabled)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Image(systemName: req.isUpdate ? "pencil.circle" : "person.crop.circle.badge.plus")
+                    .accessibilityLabel(req.isUpdate ? "Update" : "Adoption")
+                if !req.displayName.isEmpty {
+                    Text(req.displayName)
+                        .font(.caption)
+                }
+                Text(req.operatorNpub)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(.secondary)
+            }
             if !req.serviceURL.isEmpty {
                 Text(req.serviceURL)
                     .font(.caption2)
@@ -771,7 +779,7 @@ struct AuthorityDetailView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            switch adoptionsVM.decisionStatus[req.operatorNpub] {
+            switch adoptionsVM.decisionStatus[req.id] {
             case .none:
                 adoptionActions(req)
             case .deciding:
@@ -785,7 +793,7 @@ struct AuthorityDetailView: View {
                 ProofConsentSection(
                     kind: "Authority",
                     npub: npub,
-                    explanation: "Approving provisions this operator. The wheel needs cryptographic proof that you hold this Authority’s nsec.",
+                    explanation: "Only this Authority’s owner may decide. The Authority needs proof that you hold its nsec.",
                     phase: nil,
                     onAcquire: { await adoptionsVM.acquireProofAndRetry(on: req, authority: authority, context: modelContext) },
                     onVerify: { await adoptionsVM.verifyProofAndRetry(on: req, authority: authority, context: modelContext) }
@@ -812,7 +820,7 @@ struct AuthorityDetailView: View {
     }
 
     @ViewBuilder
-    private func adoptionActions(_ req: MCPService.AdoptionRequest) -> some View {
+    private func adoptionActions(_ req: MCPService.OperatorRequest) -> some View {
         HStack(spacing: 10) {
             Button {
                 Task { await adoptionsVM.decide(.approve, on: req, authority: authority, context: modelContext) }
@@ -852,7 +860,7 @@ struct AuthorityDetailView: View {
     /// minute precision and tolerant of both `T` and space separators —
     /// deliberately not relative-formatted to avoid misparsing the wheel's
     /// Postgres TIMESTAMPTZ strings into nonsense intervals.
-    private func adoptionTimingText(_ req: MCPService.AdoptionRequest) -> String {
+    private func adoptionTimingText(_ req: MCPService.OperatorRequest) -> String {
         var parts: [String] = []
         if !req.requestedAt.isEmpty { parts.append("requested \(shortStamp(req.requestedAt))") }
         if !req.expiresAt.isEmpty { parts.append("expires \(shortStamp(req.expiresAt))") }
@@ -1355,17 +1363,12 @@ private struct ConnectedOperatorsList: View {
             titleVisibility: .visible,
             presenting: deregisterProofRemedy
         ) { remedy in
-            if KeychainService.loadNsec(forNpub: remedy.signerNpub) != nil {
-                Button("Sign with Keychain & Retry") {
-                    Task { await retryDeregisterWithProof(remedy) }
-                }
-            }
             Button("Detach Locally Anyway", role: .destructive) {
                 Task { await detachOperatorLocallyOnly(remedy) }
             }
             Button("Cancel", role: .cancel) { }
         } message: { remedy in
-            Text("The Authority requires \(remedy.kind == .operatorProof ? "the operator's" : "the Authority's") cryptographic consent (npub \(String(remedy.signerNpub.prefix(20)))…) before removing this registry entry. The nsec must be in this device's Keychain to auto-sign.")
+            Text("The Authority needs proof that this comes from npub \(String(remedy.signerNpub.prefix(20)))… before removing this registry entry: keep its nsec in this device's Keychain, or prove it by DM.")
         }
     }
 
@@ -1405,32 +1408,20 @@ private struct ConnectedOperatorsList: View {
         let mcpService = MCPService()
 
         do {
+            // The Authority disowns the operator: it acts for itself.
             _ = try await mcpService.callDeregisterOperator(
                 endpointURL: endpointURL,
                 operatorNpub: op.npub,
-                authorityNpub: authorityNpub
+                actingNpub: authorityNpub
             )
         } catch let MCPError.structuredError(code, _, extras) {
-            // Same proof-remedy fork as PricingDetailView: preserve local
-            // link so the user can retry instead of auto-clearing into an
-            // inconsistent state.
+            // Preserve the local link on a proof refusal so the user can
+            // resolve it instead of auto-clearing into an inconsistent state.
             switch code {
-            case "authority_consent_required":
+            case "authority_consent_required", "proof_required", "proof_invalid", "proof_refresh_needed":
                 deregisterProofRemedy = DeregisterProofRemedy(
-                    kind: .authorityProof,
                     signerNpub: extras["authority_npub"] ?? authorityNpub,
-                    endpointURL: endpointURL,
-                    operatorNpub: op.npub,
-                    authorityNpub: authorityNpub
-                )
-                return
-            case "proof_required", "proof_invalid", "proof_refresh_needed":
-                deregisterProofRemedy = DeregisterProofRemedy(
-                    kind: .operatorProof,
-                    signerNpub: op.npub,
-                    endpointURL: endpointURL,
-                    operatorNpub: op.npub,
-                    authorityNpub: authorityNpub
+                    operatorNpub: op.npub
                 )
                 return
             default:
@@ -1444,25 +1435,6 @@ private struct ConnectedOperatorsList: View {
         // Always clear local authority link
         op.authorityNpub = nil
         try? modelContext.save()
-    }
-
-    private func retryDeregisterWithProof(_ remedy: DeregisterProofRemedy) async {
-        deregisterProofRemedy = nil
-        guard let op = allOperators.first(where: { $0.npub == remedy.operatorNpub }) else { return }
-        let mcpService = MCPService()
-        do {
-            _ = try await mcpService.callDeregisterOperator(
-                endpointURL: remedy.endpointURL,
-                operatorNpub: remedy.operatorNpub,
-                authorityNpub: remedy.authorityNpub
-            )
-            op.authorityNpub = nil
-            try? modelContext.save()
-        } catch let MCPError.structuredError(code, _, _) {
-            deregisterError = "Retry failed: \(code). The Authority still holds the registration; try again or detach locally."
-        } catch {
-            deregisterError = "Retry failed: \(error.localizedDescription)."
-        }
     }
 
     private func detachOperatorLocallyOnly(_ remedy: DeregisterProofRemedy) async {
@@ -1539,30 +1511,15 @@ private struct AdoptOperatorSheet: View {
                 }
 
                 // --- Proof acquisition flow ----------------------------------
-                // When the Authority's wheel reports a missing/invalid proof
-                // for either side, surface a remedy path instead of dead-ending.
-                // Shared with the Pending Adoptions queue via ProofConsentSection.
+                // When the Authority's wheel needs its owner's npub proven,
+                // surface a remedy path instead of dead-ending.
+                // Shared with the Pending Requests queue via ProofConsentSection.
                 if case .needsAuthorityProof(let npub) = authorityVM.adoptionStatus {
                     Section {
                         ProofConsentSection(
                             kind: "Authority",
                             npub: npub,
                             explanation: "The Authority’s wheel needs cryptographic proof that you hold the Authority’s nsec before it will adopt this operator.",
-                            phase: nil,
-                            onAcquire: { await retryAcquire(npub: npub) },
-                            onVerify: { await retryVerify(npub: npub) }
-                        )
-                    } header: {
-                        Text("Proof needed to continue")
-                    }
-                }
-
-                if case .needsOperatorProof(let npub) = authorityVM.adoptionStatus {
-                    Section {
-                        ProofConsentSection(
-                            kind: "Operator",
-                            npub: npub,
-                            explanation: "The Authority’s wheel needs cryptographic proof that you hold the operator’s nsec.",
                             phase: nil,
                             onAcquire: { await retryAcquire(npub: npub) },
                             onVerify: { await retryVerify(npub: npub) }

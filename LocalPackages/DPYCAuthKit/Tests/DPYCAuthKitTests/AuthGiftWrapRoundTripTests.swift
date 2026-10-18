@@ -26,7 +26,7 @@ final class AuthGiftWrapRoundTripTests: XCTestCase {
         AuthRequest(
             operatorNpub: operatorNpub,
             operatorName: "Personal Brain",
-            dpopToken: "bold-hawk-55",
+            challenge: "bold-hawk-55",
             offers: [
                 AuthOffer(id: "hour", label: "Approve · 1 hour", validSeconds: 3600),
                 AuthOffer(id: "day", label: "Approve · all day", validSeconds: 57600),
@@ -74,7 +74,7 @@ final class AuthGiftWrapRoundTripTests: XCTestCase {
         let granted = try request.validate(receivedResponse)
         XCTAssertEqual(granted?.id, "hour")
         XCTAssertEqual(granted?.validSeconds, 3600, "Grant duration comes from the authored offer")
-        XCTAssertEqual(receivedResponse.dpopToken, "bold-hawk-55")
+        XCTAssertEqual(receivedResponse.challenge, "bold-hawk-55")
     }
 
     func testFullRejectionRoundTrip() throws {

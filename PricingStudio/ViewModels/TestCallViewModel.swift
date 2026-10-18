@@ -225,7 +225,7 @@ final class TestCallViewModel {
     /// Build the tool call arguments from paramValues, filtering empty optionals.
     private func buildArguments() -> [String: Value] {
         var args: [String: Value] = [:]
-        for param in toolParams where param.name != "dpop_token" {
+        for param in toolParams {
             let value = paramValues[param.name, default: ""]
             if value.isEmpty && !param.required { continue }
             if value.isEmpty { continue }

@@ -60,7 +60,7 @@ struct SecureCourierCard: View {
     private var effectiveSenderName: String { senderName.isEmpty ? operatorName : senderName }
 
     @State private var phase: Phase = .explain
-    @State private var currentPoison: String = ""
+    @State private var currentNonce: String = ""
     /// The per-conversation rendezvous relay the wheel committed when it
     /// published this challenge. The responder MUST reply on this relay
     /// so the courier's listener finds the DM. Populated from the
@@ -79,10 +79,10 @@ struct SecureCourierCard: View {
     enum Phase: Equatable {
         case explain
         case calling
-        case ready(poison: String)
+        case ready(nonce: String)
         case collecting
         case received(String)
-        case collectFailed(poison: String, error: String)
+        case collectFailed(nonce: String, error: String)
         case failed(String)
 
         static func == (lhs: Phase, rhs: Phase) -> Bool {
@@ -241,14 +241,14 @@ struct SecureCourierCard: View {
             explainContent
         case .calling:
             callingContent
-        case .ready(let poison):
-            readyContent(poison: poison)
+        case .ready(let nonce):
+            readyContent(nonce: nonce)
         case .collecting:
             collectingContent
         case .received(let message):
             receivedContent(message: message)
-        case .collectFailed(let poison, let error):
-            collectFailedContent(poison: poison, error: error)
+        case .collectFailed(let nonce, let error):
+            collectFailedContent(nonce: nonce, error: error)
         case .failed(let error):
             failedContent(error: error)
         }
@@ -407,7 +407,7 @@ struct SecureCourierCard: View {
         }
     }
 
-    private func readyContent(poison: String) -> some View {
+    private func readyContent(nonce: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Open Messages for **\(effectiveSenderName)** and reply to the secure courier form.")
                 .font(.caption)
@@ -424,7 +424,7 @@ struct SecureCourierCard: View {
                 Text("Verify phrase:")
                     .font(.caption2)
                     .foregroundStyle(.primary)
-                Text("\"\(poison)\"")
+                Text("\"\(nonce)\"")
                     .font(.caption.bold())
                     .foregroundStyle(.orange)
             }
@@ -585,7 +585,7 @@ struct SecureCourierCard: View {
         }
     }
 
-    private func collectFailedContent(poison: String, error: String) -> some View {
+    private func collectFailedContent(nonce: String, error: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Reply not found yet.")
                 .font(.caption)
@@ -600,7 +600,7 @@ struct SecureCourierCard: View {
                     .textSelection(.enabled)
             }
 
-            Text(OperatorSecretRotation.collectFailedCopy(mode: mode, poison: poison))
+            Text(OperatorSecretRotation.collectFailedCopy(mode: mode, nonce: nonce))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -654,14 +654,14 @@ struct SecureCourierCard: View {
             )
             if let data = result.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let poison = json["dpop_token"] as? String {
-                currentPoison = poison
+               let nonce = json["nonce"] as? String {
+                currentNonce = nonce
                 currentRendezvousRelay = json["rendezvous_relay"] as? String ?? ""
-                phase = .ready(poison: poison)
+                phase = .ready(nonce: nonce)
             } else {
-                currentPoison = ""
+                currentNonce = ""
                 currentRendezvousRelay = ""
-                phase = .ready(poison: "check your DMs")
+                phase = .ready(nonce: "check your DMs")
             }
         } catch {
             phase = .failed(error.localizedDescription)
@@ -687,7 +687,7 @@ struct SecureCourierCard: View {
                     endpointURL: endpointURL,
                     senderNpub: effectiveSender,
                     service: credentialService,
-                    poison: currentPoison
+                    nonce: currentNonce
                 )
                 if let data = result.data(using: .utf8),
                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -721,7 +721,7 @@ struct SecureCourierCard: View {
                 lastError = error.localizedDescription
                 if Self.isTerminalCourierError(lastError) {
                     collectStatus = ""
-                    phase = .collectFailed(poison: currentPoison, error: lastError)
+                    phase = .collectFailed(nonce: currentNonce, error: lastError)
                     return
                 }
                 // Transient — fall through and poll again.
@@ -731,7 +731,7 @@ struct SecureCourierCard: View {
             }
         }
         collectStatus = ""
-        phase = .collectFailed(poison: currentPoison, error: lastError)
+        phase = .collectFailed(nonce: currentNonce, error: lastError)
     }
 
     /// A courier error that will NOT resolve by waiting: the operator lacks the
@@ -741,10 +741,9 @@ struct SecureCourierCard: View {
     private static func isTerminalCourierError(_ message: String) -> Bool {
         let m = message.lowercased()
         return m.contains("does not support")
-            || m.contains("dpop")
             || m.contains("proof")
             || m.contains("session phrase")
-            || m.contains("poison")
+            || m.contains("nonce")
     }
 
     private func redeemNcred() async {

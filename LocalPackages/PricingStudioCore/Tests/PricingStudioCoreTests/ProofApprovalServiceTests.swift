@@ -21,7 +21,7 @@ final class ProofApprovalServiceTests: XCTestCase {
         --- Credential Payload ---
         \(confirmLine)
           cache_duration = @@@2h@@@
-        \(tokenLine ?? "  dpop_token = @@@\(token)@@@")
+        \(tokenLine ?? "  nonce = @@@\(token)@@@")
         \(relayLine ?? "  rendezvous_relay = @@@\(relay)@@@")
 
         IMPORTANT: include the anti-replay token exactly as shown.
@@ -44,7 +44,7 @@ final class ProofApprovalServiceTests: XCTestCase {
         let challenge = ProofApprovalService.classify(challengeDM())
 
         XCTAssertNotNil(challenge)
-        XCTAssertEqual(challenge?.dpopToken, token)
+        XCTAssertEqual(challenge?.nonce, token)
         XCTAssertEqual(challenge?.pinnedRelay.absoluteString, relay)
         XCTAssertEqual(challenge?.confirmKey, "confirm")
     }
@@ -66,7 +66,7 @@ final class ProofApprovalServiceTests: XCTestCase {
         --- Credential Payload ---
           api_key = @@@PASTE_YOUR_API_KEY_HERE@@@
           api_secret = @@@PASTE_YOUR_API_SECRET_HERE@@@
-          dpop_token = @@@\(token)@@@
+          nonce = @@@\(token)@@@
           rendezvous_relay = @@@\(relay)@@@
         """
         XCTAssertNil(ProofApprovalService.classify(dm))
@@ -81,7 +81,7 @@ final class ProofApprovalServiceTests: XCTestCase {
 
     func testRejectsMalformedChallenges() {
         XCTAssertNil(ProofApprovalService.classify(challengeDM(tokenLine: "  ")),
-                     "Missing dpop_token")
+                     "Missing nonce")
         XCTAssertNil(ProofApprovalService.classify(challengeDM(relayLine: "  ")),
                      "Missing rendezvous_relay")
         XCTAssertNil(ProofApprovalService.classify(
@@ -97,7 +97,7 @@ final class ProofApprovalServiceTests: XCTestCase {
         let challenge = ProofApprovalService.classify(challengeDM())!
         let reply = ProofApprovalService.buildApprovalReply(challenge)
 
-        XCTAssertTrue(reply.contains("dpop_token = @@@\(token)@@@"), "Token must echo exactly")
+        XCTAssertTrue(reply.contains("nonce = @@@\(token)@@@"), "Token must echo exactly")
         XCTAssertTrue(reply.contains("cache_duration = @@@2h@@@"))
         XCTAssertTrue(reply.contains("confirm = @@@approved@@@"))
         XCTAssertFalse(reply.contains("rendezvous_relay"), "Control field never echoes")
@@ -105,7 +105,7 @@ final class ProofApprovalServiceTests: XCTestCase {
 
         // The operator parses the reply with the same field grammar.
         let reparsed = CourierPayload.parse(reply)
-        XCTAssertEqual(reparsed?.poison?.value, token)
+        XCTAssertEqual(reparsed?.nonce?.value, token)
     }
 
     func testApprovalReplyDurationPassthrough() {
@@ -124,7 +124,7 @@ final class ProofApprovalServiceTests: XCTestCase {
             signerNpub: "npub1patron",
             replyToHex: String(repeating: "a", count: 64),
             pinnedRelay: URL(string: relay)!,
-            replyContent: "Approved.\n\n  dpop_token = @@@\(token)@@@",
+            replyContent: "Approved.\n\n  nonce = @@@\(token)@@@",
             eventId: String(repeating: "e", count: 64)
         )
 
@@ -183,18 +183,18 @@ final class ProofApprovalServiceTests: XCTestCase {
     /// on Apple Watch dismissing one member purges the whole group. Each approval
     /// must get its OWN non-empty, category-scoped thread so dismissing a DM (or a
     /// sibling approval) never sweeps away an actionable Approval Request. The raw
-    /// dpop_token must never appear in the identifier — it is SHA-256 digested.
+    /// nonce must never appear in the identifier — it is SHA-256 digested.
     /// (The DMPollingService integration — that its notification content wires this
     /// in — stays a hosted test; this covers the extractable hashing directly.)
     func testApprovalThreadIdentifierIsPerTokenNonEmptyAndHashed() {
-        let a = ProofApprovalService.approvalThreadIdentifier(dpopToken: "tok-a")
-        let b = ProofApprovalService.approvalThreadIdentifier(dpopToken: "tok-b")
+        let a = ProofApprovalService.approvalThreadIdentifier(nonce: "tok-a")
+        let b = ProofApprovalService.approvalThreadIdentifier(nonce: "tok-b")
 
         XCTAssertFalse(a.isEmpty, "Approval banner must declare its own notification group")
         XCTAssertNotEqual(a, b, "Distinct approvals stay in distinct groups")
         XCTAssertTrue(a.hasPrefix(ProofApprovalService.categoryId),
                       "Thread stays scoped to the approval category")
         XCTAssertFalse(a.contains("tok-a"),
-                       "Raw dpop_token must not leak into threadIdentifier (SHA-256 digested)")
+                       "Raw nonce must not leak into threadIdentifier (SHA-256 digested)")
     }
 }

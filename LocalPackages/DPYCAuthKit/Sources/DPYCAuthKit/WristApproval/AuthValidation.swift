@@ -9,7 +9,7 @@ public enum AuthError: Error, Equatable {
     case expired
     case unknownChoice(String)
     case requestIdMismatch
-    case dpopTokenMismatch
+    case challengeMismatch
     case nonceMismatch
     case malformedContent
 }
@@ -35,7 +35,7 @@ public extension AuthRequest {
 
     /// Validate a response against this request (Operator side).
     ///
-    /// Checks the request-id, dpop_token, and nonce echoes, the hard expiry,
+    /// Checks the request-id, challenge, and nonce echoes, the hard expiry,
     /// and that the choice names an authored offer — a response cannot grant
     /// anything that was not offered. Returns the granted offer, or nil for
     /// an explicit reject. Nonce single-use bookkeeping is the caller's:
@@ -44,8 +44,8 @@ public extension AuthRequest {
         guard response.requestId == requestId else {
             throw AuthError.requestIdMismatch
         }
-        guard response.dpopToken == dpopToken else {
-            throw AuthError.dpopTokenMismatch
+        guard response.challenge == challenge else {
+            throw AuthError.challengeMismatch
         }
         guard response.nonce == nonce else {
             throw AuthError.nonceMismatch

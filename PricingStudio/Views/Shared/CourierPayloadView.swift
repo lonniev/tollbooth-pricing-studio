@@ -4,7 +4,7 @@ import PricingStudioCore
 /// Renders a parsed Secure Courier payload as an editable credential form.
 ///
 /// Displays the greeting, credential fields with inline editing,
-/// the anti-replay poison (read-only), and provenance metadata.
+/// the anti-replay nonce (read-only), and provenance metadata.
 /// When the user fills in all fields, the "Send Credentials" button
 /// serializes and sends the reply via the `onSend` callback.
 struct CourierPayloadView: View {
@@ -23,11 +23,11 @@ struct CourierPayloadView: View {
     /// It must render as an approval (verdict + stated purpose + confirm/ignore),
     /// never as an empty credential form, which reads as a raw text blob.
     private var isApprovalRequest: Bool {
-        payload.fields.isEmpty && payload.poison != nil
+        payload.fields.isEmpty && payload.nonce != nil
     }
 
     /// True when the trust banner's Device-Grant anchor already surfaces the
-    /// dpop code as the cross-check value, making the standalone poison row
+    /// nonce as the cross-check value, making the standalone nonce row
     /// redundant.
     private var codeShownInAnchor: Bool {
         if let v = trust?.verifyAt, !v.isEmpty { return true }
@@ -96,11 +96,11 @@ struct CourierPayloadView: View {
                 }
             }
 
-            // Poison (read-only). Hidden when the Device-Grant anchor already
+            // Nonce (read-only). Hidden when the Device-Grant anchor already
             // presents this same code as the human's cross-check value — showing
             // it twice under two labels ("Code" and "Anti-replay") reads as two
             // different codes.
-            if let poison = payload.poison, !codeShownInAnchor {
+            if let nonce = payload.nonce, !codeShownInAnchor {
                 HStack(spacing: 8) {
                     Image(systemName: "shield.checkered")
                         .foregroundStyle(.purple)
@@ -108,7 +108,7 @@ struct CourierPayloadView: View {
                     Text("Anti-replay:")
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
-                    Text(poison.value)
+                    Text(nonce.value)
                         .font(.caption.monospaced())
                         .foregroundStyle(.purple)
                         .textSelection(.enabled)
@@ -304,7 +304,7 @@ struct CourierPayloadView: View {
                         } icon: {
                             Image(systemName: "checkmark.shield").font(.caption2).foregroundStyle(color)
                         }
-                        if let code = payload.poison?.value, !code.isEmpty {
+                        if let code = payload.nonce?.value, !code.isEmpty {
                             HStack(spacing: 6) {
                                 Text("Code")
                                     .font(.caption2.weight(.semibold))

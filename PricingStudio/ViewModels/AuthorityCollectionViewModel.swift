@@ -191,9 +191,6 @@ final class AuthorityCollectionViewModel {
         /// fresh Schnorr identity proof signed by the Authority's npub.
         /// The associated value is the npub that must sign.
         case needsAuthorityProof(npub: String)
-        /// Wheel returned `proof_required` / `proof_invalid` / `proof_refresh_needed`
-        /// on the operator-side gate. Associated value is the operator npub.
-        case needsOperatorProof(npub: String)
         /// Studio is acquiring a proof via the request/receive_npub_proof
         /// Secure Courier handshake against the Authority's MCP.
         case acquiringProof(npub: String, phase: ProofPhase)
@@ -207,9 +204,9 @@ final class AuthorityCollectionViewModel {
 
     var showingAdoptSheet = false
     var adoptionStatus: AdoptionStatus = .idle
-    /// proof_token (poison) from the most recent request_npub_proof, threaded
+    /// proof_token (nonce) from the most recent request_npub_proof, threaded
     /// into the matching receive_npub_proof so the wheel can resolve the pin.
-    private var pendingProofToken: String = ""
+    private var pendingNonce: String = ""
 
     func requestAdopt(_ auth: Authority) {
         authorityToClaim = auth  // reuse to track which authority
@@ -217,7 +214,7 @@ final class AuthorityCollectionViewModel {
         showingAdoptSheet = true
     }
 
-    /// Call `register_operator` on the Authority's MCP endpoint to adopt an operator.
+    /// Adopt an operator: it asks to be adopted, then the Authority approves.
     func adoptOperator(
         authority: Authority,
         operatorToAdopt: Operator,
@@ -229,13 +226,12 @@ final class AuthorityCollectionViewModel {
             return
         }
 
-        // The Authority's wheel-side register_operator routes through the
-        // Oracle, which rejects with "service_url is required" when the
-        // operator has no MCP endpoint URL. Catch that locally rather than
-        // round-tripping a guaranteed failure to the server. The user is
-        // pointed at Edit Operator, which is where the URL gets set.
+        // Adoption routes through the Oracle, which rejects with "service_url
+        // is required" when the operator has no MCP endpoint URL — and the
+        // operator's own endpoint is where it asks to be adopted. Catch that
+        // locally. The user is pointed at Edit Operator, where the URL is set.
         let operatorURL = operatorToAdopt.mcpEndpointURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if operatorURL.isEmpty {
+        guard let operatorEndpointURL = URL(string: operatorURL), !operatorURL.isEmpty else {
             adoptionStatus = .failed(
                 "Operator has no MCP endpoint URL. Open Edit Operator and set its public MCP URL " +
                 "(e.g. https://my-service.fastmcp.app/mcp) before adopting."
@@ -247,12 +243,13 @@ final class AuthorityCollectionViewModel {
         let mcpService = MCPService()
 
         do {
-            let result = try await mcpService.callRegisterOperator(
-                endpointURL: endpointURL,
+            let result = try await mcpService.callAdoptOperator(
+                operatorEndpointURL: operatorEndpointURL,
                 operatorNpub: operatorToAdopt.npub,
-                operatorServiceURL: operatorToAdopt.mcpEndpointURL ?? "",
-                displayName: operatorToAdopt.displayName,
-                authorityNpub: authority.npub
+                authorityEndpointURL: endpointURL,
+                authorityNpub: authority.npub,
+                serviceURL: operatorURL,
+                displayName: operatorToAdopt.displayName
             )
             operatorToAdopt.authorityNpub = authority.npub
             try? context.save()
@@ -268,8 +265,6 @@ final class AuthorityCollectionViewModel {
                 // under an npub we hadn't recorded yet.
                 let npub = extras["authority_npub"] ?? authority.npub
                 adoptionStatus = .needsAuthorityProof(npub: npub)
-            case "proof_required", "proof_invalid", "proof_refresh_needed":
-                adoptionStatus = .needsOperatorProof(npub: operatorToAdopt.npub)
             default:
                 adoptionStatus = .failed(message)
             }
@@ -314,7 +309,7 @@ final class AuthorityCollectionViewModel {
                 endpointURL: endpointURL,
                 patronNpub: npub
             )
-            pendingProofToken = challenge.proofToken
+            pendingNonce = challenge.nonce
             adoptionStatus = .acquiringProof(npub: npub, phase: .awaitingReply)
         } catch {
             adoptionStatus = .failed("Failed to send proof challenge: \(error.localizedDescription)")
@@ -341,7 +336,7 @@ final class AuthorityCollectionViewModel {
             _ = try await mcpService.callReceiveNpubProof(
                 endpointURL: endpointURL,
                 patronNpub: npub,
-                poison: pendingProofToken
+                nonce: pendingNonce
             )
             await adoptOperator(
                 authority: authority,

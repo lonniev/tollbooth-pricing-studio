@@ -44,17 +44,6 @@ enum OperatorProofService {
         return "Nostr " + Data(try signedEvent(tags: tags, npub: npub).utf8).base64EncodedString()
     }
 
-    /// A signed kind-27235 event for the two-party tools that still take a
-    /// second npub's consent as an argument (`authority_proof`).
-    ///
-    /// - Parameters:
-    ///   - toolName: The MCP tool name (placed in the `u` tag).
-    ///   - operatorNpub: The operator's npub whose nsec is in Keychain.
-    /// - Returns: JSON string of the signed Nostr event.
-    static func createProof(toolName: String, operatorNpub: String) throws -> String {
-        try signedEvent(tags: [["u", toolName]], npub: operatorNpub)
-    }
-
     private static func signedEvent(tags: [[String]], npub operatorNpub: String) throws -> String {
         guard let nsec = KeychainService.loadNsec(forNpub: operatorNpub) else {
             throw ProofError.noNsecFound

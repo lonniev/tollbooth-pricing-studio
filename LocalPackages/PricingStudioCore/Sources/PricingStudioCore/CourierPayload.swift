@@ -3,7 +3,7 @@ import Foundation
 /// Parsed representation of a Secure Courier DM payload.
 ///
 /// Extracts the `key = @@@value@@@` credential fields, the greeting preamble,
-/// the anti-replay poison, and the provenance metadata from a raw DM string.
+/// the anti-replay nonce, and the provenance metadata from a raw DM string.
 /// Reusable across PricingStudio and future Patron app.
 public struct CourierPayload: Sendable {
 
@@ -57,8 +57,8 @@ public struct CourierPayload: Sendable {
     /// The `key = @@@value@@@` fields in order of appearance.
     public var fields: [Field]
 
-    /// The anti-replay poison field (if present), separated from editable fields.
-    public var poison: Field?
+    /// The anti-replay nonce field (if present), separated from editable fields.
+    public var nonce: Field?
 
     /// The rendezvous relay the courier published the challenge on. The
     /// responder MUST publish their reply to this exact relay so the
@@ -80,10 +80,10 @@ public struct CourierPayload: Sendable {
     /// The original raw DM text.
     public let rawText: String
 
-    public init(greeting: String, fields: [Field], poison: Field?, rendezvousRelay: Field?, provenance: Provenance, attestationJSON: String? = nil, rawText: String) {
+    public init(greeting: String, fields: [Field], nonce: Field?, rendezvousRelay: Field?, provenance: Provenance, attestationJSON: String? = nil, rawText: String) {
         self.greeting = greeting
         self.fields = fields
-        self.poison = poison
+        self.nonce = nonce
         self.rendezvousRelay = rendezvousRelay
         self.provenance = provenance
         self.attestationJSON = attestationJSON
@@ -165,14 +165,14 @@ public struct CourierPayload: Sendable {
             allFields.append(Field(key: key, value: value))
         }
 
-        // Separate the dpop_token, rendezvous_relay, and attestation from
+        // Separate the nonce, rendezvous_relay, and attestation from
         // editable fields. All are protocol-control metadata, not user-editable
         // values. (Wheel 0.57.0+ renamed the credential-DM control field
-        // poison → dpop_token; the attestation arrived with proof provenance.)
-        let poison = allFields.first(where: { $0.key == "dpop_token" })
+        // nonce → nonce; the attestation arrived with proof provenance.)
+        let nonce = allFields.first(where: { $0.key == "nonce" })
         let rendezvousRelay = allFields.first(where: { $0.key == "rendezvous_relay" })
         let attestationJSON = allFields.first(where: { $0.key == "attestation" })?.value
-        let controlKeys: Set<String> = ["dpop_token", "rendezvous_relay", "attestation"]
+        let controlKeys: Set<String> = ["nonce", "rendezvous_relay", "attestation"]
         let fields = allFields.filter { !controlKeys.contains($0.key) }
 
         // If no header was found, derive greeting from text before first field in full text
@@ -190,7 +190,7 @@ public struct CourierPayload: Sendable {
         return CourierPayload(
             greeting: finalGreeting,
             fields: fields,
-            poison: poison,
+            nonce: nonce,
             rendezvousRelay: rendezvousRelay,
             provenance: provenance,
             attestationJSON: attestationJSON,
@@ -241,8 +241,8 @@ public struct CourierPayload: Sendable {
         for field in filledFields {
             lines.append("  \(field.key) = @@@\(field.value)@@@")
         }
-        if let poison {
-            lines.append("  \(poison.key) = @@@\(poison.value)@@@")
+        if let nonce {
+            lines.append("  \(nonce.key) = @@@\(nonce.value)@@@")
         }
         return lines.joined(separator: "\n")
     }

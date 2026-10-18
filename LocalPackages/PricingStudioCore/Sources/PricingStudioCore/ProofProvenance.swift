@@ -183,7 +183,7 @@ public enum ProofProvenance {
         public let viaDeliveryKey: Bool
         /// The subject whose proof the request seeks (the recipient's npub).
         public let subjectNpub: String
-        /// The one-time challenge / dpop code bound into the signature.
+        /// The one-time challenge nonce bound into the signature.
         public let challenge: String
         /// The verification outcome (`ok`, `senderMismatch`, `absent`, …).
         public let verificationReason: String

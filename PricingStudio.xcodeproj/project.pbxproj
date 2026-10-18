@@ -127,7 +127,7 @@
 		ADPT000100000000000000B1 /* RegisterOperatorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000100000000000000A1 /* RegisterOperatorSheet.swift */; };
 		ADPT000200000000000000B1 /* ProofConsentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A1 /* ProofConsentSection.swift */; };
 		ADPT000200000000000000B2 /* PendingAdoptionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */; };
-		ADPT000200000000000000B3 /* AdoptionRequestDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */; };
+		ADPT000200000000000000B3 /* OperatorRequestDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADPT000200000000000000A3 /* OperatorRequestDecodeTests.swift */; };
 		OGLT000200000000000000B3 /* OnboardingGateLiftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OGLT000200000000000000A3 /* OnboardingGateLiftTests.swift */; };
 		NBHT000200000000000000B3 /* NeonPersistenceHealthDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NBHT000200000000000000A3 /* NeonPersistenceHealthDecodeTests.swift */; };
 		NBHE000200000000000000B3 /* NetworkPersistenceHealthErrorClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NBHE000200000000000000A3 /* NetworkPersistenceHealthErrorClassificationTests.swift */; };
@@ -351,7 +351,7 @@
 		ADPT000100000000000000A1 /* RegisterOperatorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterOperatorSheet.swift; sourceTree = "<group>"; };
 		ADPT000200000000000000A1 /* ProofConsentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofConsentSection.swift; sourceTree = "<group>"; };
 		ADPT000200000000000000A2 /* PendingAdoptionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAdoptionsViewModel.swift; sourceTree = "<group>"; };
-		ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdoptionRequestDecodeTests.swift; sourceTree = "<group>"; };
+		ADPT000200000000000000A3 /* OperatorRequestDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorRequestDecodeTests.swift; sourceTree = "<group>"; };
 		OGLT000200000000000000A3 /* OnboardingGateLiftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingGateLiftTests.swift; sourceTree = "<group>"; };
 		NBHT000200000000000000A3 /* NeonPersistenceHealthDecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeonPersistenceHealthDecodeTests.swift; sourceTree = "<group>"; };
 		NBHE000200000000000000A3 /* NetworkPersistenceHealthErrorClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPersistenceHealthErrorClassificationTests.swift; sourceTree = "<group>"; };
@@ -734,7 +734,7 @@
 		AA0000010000000000000D10 /* PricingStudioTests */ = {
 			isa = PBXGroup;
 			children = (
-				ADPT000200000000000000A3 /* AdoptionRequestDecodeTests.swift */,
+				ADPT000200000000000000A3 /* OperatorRequestDecodeTests.swift */,
 				OGLT000200000000000000A3 /* OnboardingGateLiftTests.swift */,
 				NBHT000200000000000000A3 /* NeonPersistenceHealthDecodeTests.swift */,
 				NBHE000200000000000000A3 /* NetworkPersistenceHealthErrorClassificationTests.swift */,
@@ -1166,7 +1166,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				ADPT000200000000000000B3 /* AdoptionRequestDecodeTests.swift in Sources */,
+				ADPT000200000000000000B3 /* OperatorRequestDecodeTests.swift in Sources */,
 				OGLT000200000000000000B3 /* OnboardingGateLiftTests.swift in Sources */,
 				NBHT000200000000000000B3 /* NeonPersistenceHealthDecodeTests.swift in Sources */,
 				NBHE000200000000000000B3 /* NetworkPersistenceHealthErrorClassificationTests.swift in Sources */,

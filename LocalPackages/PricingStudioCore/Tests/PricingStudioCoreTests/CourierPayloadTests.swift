@@ -36,7 +36,7 @@ final class CourierPayloadTests: XCTestCase {
         --- Credential Payload ---
           nsec = @@@PASTE_YOUR_NSEC_HERE@@@
           claim = @@@PASTE_YOUR_CLAIM_HERE@@@
-          dpop_token = @@@7f3a2b1c@@@
+          nonce = @@@7f3a2b1c@@@
 
         --- Message Provenance ---
         Service: tollbooth-authority
@@ -50,9 +50,9 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertNotNil(payload)
         XCTAssertTrue(payload!.greeting.contains("Welcome to the Tollbooth"))
         XCTAssertEqual(payload!.fields.count, 2)
-        XCTAssertNotNil(payload!.poison)
-        XCTAssertEqual(payload!.poison?.key, "dpop_token")
-        XCTAssertEqual(payload!.poison?.value, "7f3a2b1c")
+        XCTAssertNotNil(payload!.nonce)
+        XCTAssertEqual(payload!.nonce?.key, "nonce")
+        XCTAssertEqual(payload!.nonce?.value, "7f3a2b1c")
         XCTAssertEqual(payload!.provenance.service, "tollbooth-authority")
         XCTAssertEqual(payload!.provenance.operatorNpub, "npub1exampleoperator123")
         XCTAssertEqual(payload!.provenance.sent, "2026-03-15T10:00:00Z")
@@ -61,7 +61,7 @@ final class CourierPayloadTests: XCTestCase {
 
     func testParseProofRequestHasNoEditableFields() {
         // A proof-request DM (npub_ownership) carries only control fields —
-        // dpop_token / rendezvous_relay / attestation — and NO credential
+        // nonce / rendezvous_relay / attestation — and NO credential
         // fields to fill. parse still succeeds (it's a valid courier payload),
         // but fields.count == 0. That's why the credential-entry card renders
         // bare and reads as "raw": there is nothing to fill in. The fix routes
@@ -73,7 +73,7 @@ final class CourierPayloadTests: XCTestCase {
 
         --- Credential Payload ---
 
-          dpop_token = @@@eager-hawk-88@@@
+          nonce = @@@eager-hawk-88@@@
           rendezvous_relay = @@@wss://relay.primal.net@@@
 
         --- Operator Attestation ---
@@ -88,7 +88,7 @@ final class CourierPayloadTests: XCTestCase {
         let payload = CourierPayload.parse(text)
         XCTAssertNotNil(payload, "a proof request is still a valid courier payload")
         XCTAssertEqual(payload!.fields.count, 0, "a proof request has no editable credential fields")
-        XCTAssertEqual(payload!.poison?.key, "dpop_token")
+        XCTAssertEqual(payload!.nonce?.key, "nonce")
         XCTAssertNotNil(payload!.attestationJSON)
         XCTAssertEqual(payload!.provenance.reason, "I'm resolving your architecture question.")
     }
@@ -113,16 +113,16 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertFalse(payload.fields[1].needsInput)
     }
 
-    // MARK: - Poison Separated
+    // MARK: - Nonce Separated
 
-    func testPoisonSeparated() {
-        let text = "nsec = @@@val@@@\ndpop_token = @@@deadbeef@@@\nclaim = @@@yes@@@"
+    func testNonceSeparated() {
+        let text = "nsec = @@@val@@@\nnonce = @@@deadbeef@@@\nclaim = @@@yes@@@"
         let payload = CourierPayload.parse(text)!
 
-        XCTAssertEqual(payload.fields.count, 2, "Poison should not be in fields")
-        XCTAssertNotNil(payload.poison)
-        XCTAssertEqual(payload.poison?.value, "deadbeef")
-        XCTAssertTrue(payload.fields.allSatisfy { $0.key != "dpop_token" })
+        XCTAssertEqual(payload.fields.count, 2, "Nonce should not be in fields")
+        XCTAssertNotNil(payload.nonce)
+        XCTAssertEqual(payload.nonce?.value, "deadbeef")
+        XCTAssertTrue(payload.fields.allSatisfy { $0.key != "nonce" })
     }
 
     // MARK: - isComplete When All Filled
@@ -156,7 +156,7 @@ final class CourierPayloadTests: XCTestCase {
         --- Credential Payload ---
           nsec = @@@nsec1abc@@@
           claim = @@@yes@@@
-          dpop_token = @@@deadbeef@@@
+          nonce = @@@deadbeef@@@
         """
 
         var payload = CourierPayload.parse(text)!
@@ -168,7 +168,7 @@ final class CourierPayloadTests: XCTestCase {
 
         XCTAssertTrue(serialized.contains("nsec = @@@nsec1edited@@@"))
         XCTAssertTrue(serialized.contains("claim = @@@yes@@@"))
-        XCTAssertTrue(serialized.contains("dpop_token = @@@deadbeef@@@"))
+        XCTAssertTrue(serialized.contains("nonce = @@@deadbeef@@@"))
 
         // Re-parse the serialized output
         let reparsed = CourierPayload.parse(serialized)
@@ -203,11 +203,11 @@ final class CourierPayloadTests: XCTestCase {
         // The challenge DM has @@@yes@@@ in the instruction text AND in the payload section.
         // Only the payload section fields should be extracted.
         let text = """
-        You are requesting to become the curator of this Authority. Reply with: claim = @@@yes@@@ and include the poison slug.
+        You are requesting to become the curator of this Authority. Reply with: claim = @@@yes@@@ and include the nonce slug.
 
         --- Credential Payload ---
           claim = @@@yes@@@
-          dpop_token = @@@keen-nest-44@@@
+          nonce = @@@keen-nest-44@@@
 
         --- Message Provenance ---
         Service: tollbooth-authority
@@ -221,8 +221,8 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertEqual(payload.fields.count, 1, "Only one 'claim' field from the payload section, not the greeting")
         XCTAssertEqual(payload.fields[0].key, "claim")
         XCTAssertEqual(payload.fields[0].value, "yes")
-        XCTAssertNotNil(payload.poison)
-        XCTAssertEqual(payload.poison?.value, "keen-nest-44")
+        XCTAssertNotNil(payload.nonce)
+        XCTAssertEqual(payload.nonce?.value, "keen-nest-44")
         XCTAssertTrue(payload.greeting.contains("Reply with"))
     }
 
@@ -279,12 +279,12 @@ final class CourierPayloadTests: XCTestCase {
 
     func testRendezvousRelayExtracted() {
         // The wheel embeds the per-conversation rendezvous relay so the
-        // responder knows where to publish their reply. Like ``poison``,
+        // responder knows where to publish their reply. Like ``nonce``,
         // it's protocol-control metadata, not a user-editable field.
         let text = """
         --- Credential Payload ---
           nsec = @@@PASTE_YOUR_NSEC_HERE@@@
-          dpop_token = @@@bold-hawk-42@@@
+          nonce = @@@bold-hawk-42@@@
           rendezvous_relay = @@@wss://relay.primal.net@@@
         """
 
@@ -292,7 +292,7 @@ final class CourierPayloadTests: XCTestCase {
 
         XCTAssertEqual(payload.fields.count, 1, "Only nsec is user-editable")
         XCTAssertEqual(payload.fields[0].key, "nsec")
-        XCTAssertEqual(payload.poison?.value, "bold-hawk-42")
+        XCTAssertEqual(payload.nonce?.value, "bold-hawk-42")
         XCTAssertEqual(payload.rendezvousRelay?.value, "wss://relay.primal.net")
     }
 
@@ -302,23 +302,23 @@ final class CourierPayloadTests: XCTestCase {
         let text = """
         --- Credential Payload ---
           nsec = @@@PASTE_YOUR_NSEC_HERE@@@
-          dpop_token = @@@bold-hawk-42@@@
+          nonce = @@@bold-hawk-42@@@
         """
 
         let payload = CourierPayload.parse(text)!
 
-        XCTAssertNotNil(payload.poison)
+        XCTAssertNotNil(payload.nonce)
         XCTAssertNil(payload.rendezvousRelay)
     }
 
     func testRendezvousRelayNotSerializedInReply() {
         // The reply only needs to echo user-editable fields plus the
-        // poison. The rendezvous URL is the sender's listener address
+        // nonce. The rendezvous URL is the sender's listener address
         // — it has no business in the reply body.
         let text = """
         --- Credential Payload ---
           nsec = @@@nsec1real@@@
-          dpop_token = @@@bold-hawk-42@@@
+          nonce = @@@bold-hawk-42@@@
           rendezvous_relay = @@@wss://relay.primal.net@@@
         """
 
@@ -326,7 +326,7 @@ final class CourierPayloadTests: XCTestCase {
         let serialized = payload.serialize()
 
         XCTAssertTrue(serialized.contains("nsec = @@@nsec1real@@@"))
-        XCTAssertTrue(serialized.contains("dpop_token = @@@bold-hawk-42@@@"))
+        XCTAssertTrue(serialized.contains("nonce = @@@bold-hawk-42@@@"))
         XCTAssertFalse(serialized.contains("rendezvous_relay"))
     }
 
@@ -343,7 +343,7 @@ final class CourierPayloadTests: XCTestCase {
 
         --- Credential Payload ---
           confirm = @@@PASTE_YOUR_CONFIRM_HERE@@@
-          dpop_token = @@@bold-hawk-42@@@
+          nonce = @@@bold-hawk-42@@@
           rendezvous_relay = @@@wss://relay.test.com@@@
 
         IMPORTANT: include the anti-replay token exactly as shown.
@@ -372,7 +372,7 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertEqual(payload?.provenance.operatorNpub, "npub1registeredoperator")
         XCTAssertEqual(payload?.provenance.deliveryKey, "npub1ephemeraldeliverykey")
         // Control fields still handled.
-        XCTAssertEqual(payload?.poison?.value, "bold-hawk-42")
+        XCTAssertEqual(payload?.nonce?.value, "bold-hawk-42")
     }
 
     /// Legacy DM without an attestation block: attestationJSON is nil (→ amber,
@@ -382,7 +382,7 @@ final class CourierPayloadTests: XCTestCase {
         Hi
 
         --- Credential Payload ---
-          dpop_token = @@@bold-hawk-42@@@
+          nonce = @@@bold-hawk-42@@@
           rendezvous_relay = @@@wss://relay.test.com@@@
 
         --- Message Provenance ---
