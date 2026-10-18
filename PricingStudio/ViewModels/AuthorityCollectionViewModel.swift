@@ -33,8 +33,6 @@ final class AuthorityCollectionViewModel {
         if selectedAuthority?.npub == auth.npub {
             selectedAuthority = nil
         }
-        KeychainService.deleteToken(forOperator: auth.npub)
-        KeychainService.deleteTokenBundle(forOperator: auth.npub)
         context.delete(auth)
         try? context.save()
     }
@@ -282,14 +280,11 @@ final class AuthorityCollectionViewModel {
 
     /// Drive the Secure Courier proof-of-npub handshake for an arbitrary
     /// `npub` against this Authority's MCP, then automatically retry
-    /// `adoptOperator`. The receive_npub_proof side-effect persists the
-    /// poison-keyed proof_token to Keychain under (`npub`, host), so the
-    /// retry's `argsWithProof` picks it up via the cached-token fallback.
+    /// `adoptOperator`. The reply proves `npub` into this host's holder
+    /// connection, which the retry rides.
     ///
     /// Auto-sign shortcut: if the Studio's Keychain already holds the
-    /// `nsec` for this `npub`, skip the DM dance entirely. `argsWithProof`
-    /// will produce an inline kind-27235 Schnorr proof from the nsec on
-    /// the retry — no relay round-trip needed.
+    /// `nsec` for this `npub`, skip the DM entirely; the retry signs with it.
     func acquireProofAndRetryAdopt(
         for npub: String,
         authority: Authority,
@@ -303,7 +298,7 @@ final class AuthorityCollectionViewModel {
         }
 
         if KeychainService.loadNsec(forNpub: npub) != nil {
-            // Inline Schnorr tactic — fastest path. argsWithProof handles it.
+            // Studio holds the key: the retry signs with it.
             await adoptOperator(
                 authority: authority,
                 operatorToAdopt: operatorToAdopt,
@@ -342,8 +337,7 @@ final class AuthorityCollectionViewModel {
         adoptionStatus = .acquiringProof(npub: npub, phase: .verifying)
         let mcpService = MCPService()
         do {
-            // callReceiveNpubProof persists the proof_token to Keychain
-            // for (npub, host) — argsWithProof will use it on the retry.
+            // The reply proves the npub into the holder connection.
             _ = try await mcpService.callReceiveNpubProof(
                 endpointURL: endpointURL,
                 patronNpub: npub,

@@ -3,62 +3,23 @@ import Security
 
 enum KeychainService {
 
-    private static let tokenService = "com.tollbooth.dpyc.PricingStudio"
-    private static let bundleService = "com.tollbooth.dpyc.PricingStudio.bundle"
+    private static let holderService = "com.tollbooth.dpyc.PricingStudio.holder"
     private static let nsecService = "com.tollbooth.dpyc.PricingStudio.nsec"
 
-    // MARK: - Token Bundle Storage (preferred)
+    // MARK: - Holder Tokens
 
-    static func saveTokenBundle(_ bundle: TokenBundle, forOperator key: String) throws {
-        let data = try JSONEncoder().encode(bundle)
-        try save(data: data, service: bundleService, account: key)
-        // Also save bare token for backward compat with any code reading the old key
-        try save(data: Data(bundle.accessToken.utf8), service: tokenService, account: key)
+    /// This device's holder connection to one operator host (see `HolderConnection`).
+    static func saveHolderTokens(_ tokens: HolderTokens, forHost host: String) throws {
+        try save(data: try JSONEncoder().encode(tokens), service: holderService, account: host)
     }
 
-    static func loadTokenBundle(forOperator key: String) -> TokenBundle? {
-        guard let data = loadData(service: bundleService, account: key) else { return nil }
-        return try? JSONDecoder().decode(TokenBundle.self, from: data)
+    static func loadHolderTokens(forHost host: String) -> HolderTokens? {
+        guard let data = loadData(service: holderService, account: host) else { return nil }
+        return try? JSONDecoder().decode(HolderTokens.self, from: data)
     }
 
-    static func deleteTokenBundle(forOperator key: String) {
-        delete(service: bundleService, account: key)
-        delete(service: tokenService, account: key)
-    }
-
-    // MARK: - Legacy OAuth Token Storage
-
-    static func saveToken(_ token: String, forOperator npub: String) throws {
-        try save(data: Data(token.utf8), service: tokenService, account: npub)
-    }
-
-    static func loadToken(forOperator npub: String) -> String? {
-        load(service: tokenService, account: npub)
-    }
-
-    static func deleteToken(forOperator npub: String) {
-        delete(service: tokenService, account: npub)
-    }
-
-    // MARK: - Patron-Scoped Token Bundle Storage
-
-    private static let patronBundleService = "com.tollbooth.dpyc.PricingStudio.patron.bundle"
-
-    static func saveTokenBundle(_ bundle: TokenBundle, forPatron patronNpub: String, operator operatorHost: String) throws {
-        let key = "oauth-token-\(patronNpub)-\(operatorHost)"
-        let data = try JSONEncoder().encode(bundle)
-        try save(data: data, service: patronBundleService, account: key)
-    }
-
-    static func loadTokenBundle(forPatron patronNpub: String, operator operatorHost: String) -> TokenBundle? {
-        let key = "oauth-token-\(patronNpub)-\(operatorHost)"
-        guard let data = loadData(service: patronBundleService, account: key) else { return nil }
-        return try? JSONDecoder().decode(TokenBundle.self, from: data)
-    }
-
-    static func deleteTokenBundle(forPatron patronNpub: String, operator operatorHost: String) {
-        let key = "oauth-token-\(patronNpub)-\(operatorHost)"
-        delete(service: patronBundleService, account: key)
+    static func deleteHolderTokens(forHost host: String) {
+        delete(service: holderService, account: host)
     }
 
     // MARK: - nsec Storage
@@ -214,28 +175,6 @@ enum KeychainService {
     static func deleteNcred(forPatron patronNpub: String, service: String, operator operatorNpub: String) {
         let account = "\(patronNpub):\(service):\(operatorNpub)"
         delete(service: ncredService, account: account)
-    }
-
-    // MARK: - Proof Token Storage (poison-keyed npub proof)
-
-    private static let proofTokenService = "com.tollbooth.dpyc.PricingStudio.proof_token"
-
-    /// Save a poison proof token for a patron+operator pair.
-    static func saveProofToken(_ token: String, forPatron patronNpub: String, operator operatorHost: String) throws {
-        let account = "\(patronNpub):\(operatorHost)"
-        try save(data: Data(token.utf8), service: proofTokenService, account: account)
-    }
-
-    /// Load a saved proof token for a patron+operator pair.
-    static func loadProofToken(forPatron patronNpub: String, operator operatorHost: String) -> String? {
-        let account = "\(patronNpub):\(operatorHost)"
-        return load(service: proofTokenService, account: account)
-    }
-
-    /// Delete a saved proof token.
-    static func deleteProofToken(forPatron patronNpub: String, operator operatorHost: String) {
-        let account = "\(patronNpub):\(operatorHost)"
-        delete(service: proofTokenService, account: account)
     }
 
     // MARK: - Generic Keychain Operations

@@ -3,33 +3,52 @@ import MCP
 
 actor MCPService {
 
-    /// Create a transport that always carries a bearer.
-    ///
-    /// An operator with holder bearer on refuses a request with no
-    /// `Authorization` header. Studio proves itself in the arguments (an
-    /// inline kind-27235 signed with the nsec it holds), so at the connection
-    /// it is an anonymous caller: `Bearer anonymous`, unless the authorizer
-    /// already set a token it holds for this host.
-    private func makeTransport(endpoint: URL) -> HTTPClientTransport {
+    /// Who a request proves itself as. Identity rides on the connection,
+    /// never in tool arguments.
+    enum Caller: Sendable {
+        /// No npub: `Bearer anonymous`.
+        case anonymous
+        /// One npub: each request is signed with its nsec when the Keychain
+        /// holds it, else it rides this host's holder connection.
+        case npub(String)
+        /// This host's holder connection: every npub a Courier DM proved into it.
+        case holder
+    }
+
+    /// A transport whose every request proves `caller`.
+    private func makeTransport(endpoint: URL, as caller: Caller = .anonymous) async -> HTTPClientTransport {
         HTTPClientTransport(
             endpoint: endpoint,
             streaming: true,
             sseInitializationTimeout: 30,
-            authorizer: MCPAuthFactory.makeAuthorizer(for: endpoint),
-            requestModifier: Self.withAnonymousBearer
+            requestModifier: await Self.authorization(as: caller, endpoint: endpoint)
         )
     }
 
     static let anonymousBearer = "Bearer anonymous"
 
-    static func withAnonymousBearer(_ request: URLRequest) -> URLRequest {
-        guard request.value(forHTTPHeaderField: "Authorization") == nil else { return request }
-        var request = request
-        request.setValue(anonymousBearer, forHTTPHeaderField: "Authorization")
-        return request
+    /// Sets each request's `Authorization` for `caller`. A holder that cannot
+    /// connect leaves the request anonymous, and the operator's answer says
+    /// what proof it wanted.
+    static func authorization(as caller: Caller, endpoint: URL) async -> (URLRequest) -> URLRequest {
+        let header: (URLRequest) -> String
+        switch caller {
+        case .anonymous, .npub(""):
+            header = { _ in anonymousBearer }
+        case .npub(let npub) where OperatorProofService.holdsKey(for: npub):
+            header = { (try? OperatorProofService.signRequest($0, as: npub)) ?? anonymousBearer }
+        case .npub, .holder:
+            let bearer = (try? await HolderConnection.shared.bearer(for: endpoint)).map { "Bearer \($0)" }
+            header = { _ in bearer ?? anonymousBearer }
+        }
+        return { request in
+            var request = request
+            request.setValue(header(request), forHTTPHeaderField: "Authorization")
+            return request
+        }
     }
 
-    // MARK: - Proof Tactics
+    // MARK: - Two-party consent
 
     /// Per-host slug fallback. The slug is the operator's namespace prefix
     /// ("schwab", "brain", "fermyon", …), derived from the universal
@@ -40,15 +59,6 @@ actor MCPService {
     /// dictionary is consulted only when a `tools/list` fetch transiently
     /// fails, so a cold-start blip degrades gracefully instead of throwing.
     private var slugCache: [String: String] = [:]
-
-    /// Public helper for callers that build their own proof outside
-    /// `argsWithProof` (e.g. PricingDetailView's reset_pricing_model flow).
-    /// Signs a kind-27235 event whose `u` tag matches the runtime tool name
-    /// the wheel's `require_proof` will check.
-    func signRuntimeProof(capability: String, endpointURL: URL, operatorNpub: String) async throws -> String {
-        let name = await runtimeName(for: capability, endpointURL: endpointURL)
-        return try OperatorProofService.createProof(toolName: name, operatorNpub: operatorNpub)
-    }
 
     /// Join the operator's slug with a capability to produce the runtime
     /// tool name — the one identifier that crosses every server boundary
@@ -84,116 +94,37 @@ actor MCPService {
         return slugCache[host] ?? ""
     }
 
-    /// Build args for any tool that takes an npub + proof. Picks the best
-    /// available tactic (wheel v0.23 `require_proof` accepts either form):
-    ///
-    /// 1. **Inline Schnorr proof** — when the App holds the nsec for
-    ///    `npub`, sign a fresh kind-27235 event with the operator's
-    ///    runtime tool name (`<slug>_<capability>`) in the `u` tag.
-    ///    No relay round-trip, no cache dependency.
-    /// 2. **Cached poison phrase** — when the App holds a `proof_token`
-    ///    in Keychain for the (npub, host) pair from a prior
-    ///    request_npub_proof / receive_npub_proof exchange.
-    /// 3. **Empty** — let the wheel return its actionable
-    ///    "proof is required" guidance.
-    ///
-    /// Pass `npubKey: "patron_npub"` for tools whose schema names the
-    /// npub argument differently (e.g., get_patron_onboarding_status).
-    /// Produce a Schnorr identity proof for an arbitrary npub against the
-    /// runtime tool name resolved from `capability` at `endpointURL`.
-    ///
-    /// Domain-agnostic. The function knows nothing about whether the npub
-    /// belongs to a patron, operator, authority, or anything else — it just
-    /// signs (or looks up a cached token) for whatever npub the caller gave
-    /// it. Tools that need `n` distinct proofs in a single call invoke this
-    /// `n` times, once per signing identity, and assemble the args dict
-    /// themselves.
-    ///
-    /// Resolution ladder:
-    ///   1. nsec in Keychain → fresh kind-27235 Schnorr event bound to the
-    ///      runtime tool name (60-second wheel-side validity window).
-    ///   2. Cached proof_token in Keychain (poison phrase from a prior
-    ///      `request_npub_proof` / `receive_npub_proof` round trip against
-    ///      the same MCP host) → returned verbatim; wheel verifies the
-    ///      cached poison-hash against the proven-npub cache.
-    ///   3. Neither available → empty string. Caller decides whether to
-    ///      include it; the server returns a clear error_code that
-    ///      `throwIfSoftError` surfaces in the UI.
-    ///
-    /// Returns "" when `npub` is empty — callers can pipe it through
-    /// without a guard.
-    private func makeIdentityProof(
-        forNpub npub: String,
-        capability: String,
-        endpointURL: URL
-    ) async -> String {
-        let toolName = await runtimeName(for: capability, endpointURL: endpointURL)
-        return await makeIdentityProof(forNpub: npub, toolName: toolName, endpointURL: endpointURL)
+    /// The second party's consent on the two-party Authority tools
+    /// (`register_operator`, `update_operator`, `deregister_operator`): a
+    /// kind-27235 event bound to the runtime tool name, signed with `npub`'s
+    /// Keychain nsec; "" when Studio does not hold it, and the call then rides
+    /// the holder connection, whose wallet may hold `npub` by DM.
+    private func consentProof(forNpub npub: String, capability: String, endpointURL: URL) async -> String {
+        guard !npub.isEmpty, OperatorProofService.holdsKey(for: npub) else { return "" }
+        let name = await runtimeName(for: capability, endpointURL: endpointURL)
+        return (try? OperatorProofService.createProof(toolName: name, operatorNpub: npub)) ?? ""
     }
 
-    /// Identity proof bound to an EXACT runtime tool name — the `u` tag the
-    /// wheel validates against the tool being invoked.
-    ///
-    /// Prefer this whenever the caller already knows the real tool name (e.g.
-    /// from `tools/list`). The capability-based overload re-derives the name as
-    /// `<slug>_<capability>` via a second slug lookup; if that lookup transiently
-    /// fails (cold start / dropped fetch) it falls back to the *bare* capability,
-    /// producing a proof whose `u` tag (`check_balance`) doesn't match the real
-    /// tool (`authority_check_balance`) — which the wheel rejects as
-    /// `proof_invalid`. Signing for the known tool name removes that race.
-    private func makeIdentityProof(
-        forNpub npub: String,
-        toolName: String,
-        endpointURL: URL
-    ) async -> String {
-        guard !npub.isEmpty else { return "" }
-        let host = endpointURL.host ?? endpointURL.absoluteString
-        if let signed = try? OperatorProofService.createProof(toolName: toolName, operatorNpub: npub) {
-            return signed
-        }
-        if let cached = KeychainService.loadProofToken(forPatron: npub, operator: host), !cached.isEmpty {
-            return cached
-        }
-        return ""
-    }
-
-    /// Convenience: build args for the common case of a tool that takes the
-    /// caller's `npub` and exactly one identity proof under arg name "proof".
-    ///
-    /// Tools that take more than one proof (e.g. wheel 0.26.0+ Authority
-    /// lifecycle tools, which require both an operator proof and an
-    /// Authority-side consent proof) compose `makeIdentityProof` directly
-    /// at their call site and assemble the args dict explicitly. This
-    /// keeps `argsWithProof` single-purpose and avoids smuggling
-    /// tool-specific roles into a utility signature.
-    private func argsWithProof(
-        npub: String,
-        capability: String,
-        endpointURL: URL,
-        npubKey: String = "npub",
-        extra: [String: Value] = [:]
+    /// Arguments for a two-party Authority tool. The call rides the holder
+    /// connection; each party whose nsec Studio holds also signs inline (the
+    /// operator as `dpop_token`, the Authority as `authority_proof`), and a
+    /// party it does not hold must already be in the holder's wallet by DM.
+    private func twoPartyArgs(
+        operatorNpub: String, authorityNpub: String,
+        capability: String, endpointURL: URL, extra: [String: Value] = [:]
     ) async -> [String: Value] {
-        var args = extra
-        guard !npub.isEmpty else { return args }
-        args[npubKey] = .string(npub)
-        args["dpop_token"] = .string(await makeIdentityProof(forNpub: npub, capability: capability, endpointURL: endpointURL))
+        var args = npubArgs(operatorNpub, extra)
+        let operatorProof = await consentProof(forNpub: operatorNpub, capability: capability, endpointURL: endpointURL)
+        if !operatorProof.isEmpty { args["dpop_token"] = .string(operatorProof) }
+        let authorityProof = await consentProof(forNpub: authorityNpub, capability: capability, endpointURL: endpointURL)
+        if !authorityProof.isEmpty { args["authority_proof"] = .string(authorityProof) }
         return args
     }
 
-    /// Like ``argsWithProof(npub:capability:…)`` but binds the proof to an
-    /// already-known runtime tool name (from `tools/list`), avoiding the slug
-    /// re-derivation race that can yield a mismatched `proof_invalid`.
-    private func argsWithProof(
-        npub: String,
-        toolName: String,
-        endpointURL: URL,
-        npubKey: String = "npub",
-        extra: [String: Value] = [:]
-    ) async -> [String: Value] {
+    /// `extra` with the acting npub under `key`, omitted when empty.
+    private func npubArgs(_ npub: String, key: String = "npub", _ extra: [String: Value] = [:]) -> [String: Value] {
         var args = extra
-        guard !npub.isEmpty else { return args }
-        args[npubKey] = .string(npub)
-        args["dpop_token"] = .string(await makeIdentityProof(forNpub: npub, toolName: toolName, endpointURL: endpointURL))
+        if !npub.isEmpty { args[key] = .string(npub) }
         return args
     }
 
@@ -235,8 +166,8 @@ actor MCPService {
 
     // MARK: - Npub Proof Exchange
 
-    /// Request a poison-keyed npub ownership proof from the MCP.
-    /// Returns the proof_token (poison phrase) that the application must remember.
+    /// Send the npub-proof DM. Returns the session phrase that
+    /// ``callReceiveNpubProof`` passes back to find the human's reply.
     /// The wheel's response to ``request_npub_proof``.
     ///
     /// ``rendezvousRelay`` is the per-conversation relay pin — the
@@ -252,7 +183,8 @@ actor MCPService {
         let result = try await callToolGeneric(
             endpointURL: endpointURL,
             toolName: "request_npub_proof",
-            arguments: ["patron_npub": .string(patronNpub)]
+            arguments: ["patron_npub": .string(patronNpub)],
+            as: .holder
         )
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -264,31 +196,30 @@ actor MCPService {
         return NpubProofChallenge(proofToken: proofToken, rendezvousRelay: rendezvousRelay)
     }
 
-    /// Receive and confirm a poison-keyed npub ownership proof.
-    /// Returns the proof_token and stores it in Keychain for the patron+operator pair.
+    /// Drain the human's reply to ``callRequestNpubProof`` into this host's
+    /// holder connection, so later calls naming `patronNpub` ride it with no
+    /// proof argument.
     ///
-    /// - Parameter poison: the `proof_token` returned by ``callRequestNpubProof``.
-    ///   The wheel's deterministic retrieve contract requires it to resolve the
-    ///   pinned rendezvous relay for this exact challenge.
-    func callReceiveNpubProof(endpointURL: URL, patronNpub: String, poison: String) async throws -> String {
+    /// - Parameter poison: the session phrase ``callRequestNpubProof`` returned;
+    ///   the operator uses it to find this exact challenge's reply.
+    @discardableResult
+    func callReceiveNpubProof(endpointURL: URL, patronNpub: String, poison: String) async throws -> Bool {
         let result = try await callToolGeneric(
             endpointURL: endpointURL,
             toolName: "receive_npub_proof",
             arguments: [
                 "patron_npub": .string(patronNpub),
                 "dpop_token": .string(poison),
-            ]
+            ],
+            as: .holder
         )
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               json["success"] as? Bool == true,
-              let proofToken = json["dpop_token"] as? String else {
+              json["held_by_connection"] as? Bool == true else {
             throw MCPError.toolCallFailed("receive_npub_proof failed: \(result)")
         }
-        // Persist to Keychain for this patron+operator
-        let host = endpointURL.host ?? endpointURL.absoluteString
-        try KeychainService.saveProofToken(proofToken, forPatron: patronNpub, operator: host)
-        return proofToken
+        return true
     }
 
     // MARK: - Free Tools
@@ -369,7 +300,7 @@ actor MCPService {
         await traffic(.outbound, label: "Oracle Connect", detail: "SSE → \(oracleURL.absoluteString) (Bearer auth)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: oracleURL)
+        let transport = await makeTransport(endpoint: oracleURL)
         defer { Task { await client.disconnect() } }
         do {
             try await client.connect(transport: transport)
@@ -446,7 +377,7 @@ actor MCPService {
         await traffic(.outbound, label: "Balance Check", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(patronNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -457,10 +388,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No check_balance tool found")
         }
 
-        // Bind the proof to the actual balance tool we resolved from tools/list
-        // (e.g. authority_check_balance), not a re-derived <slug>_check_balance —
-        // the latter can mis-resolve on a cold endpoint and trip proof_invalid.
-        let args = await argsWithProof(npub: patronNpub, toolName: balanceTool.name, endpointURL: endpointURL)
+        let args = npubArgs(patronNpub)
         let (content, isError) = try await client.callTool(name: balanceTool.name, arguments: args)
 
         if isError == true {
@@ -647,7 +575,7 @@ actor MCPService {
         await traffic(.outbound, label: "Account Statement", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(patronNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -661,7 +589,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement tool found")
         }
 
-        let args = await argsWithProof(npub: patronNpub, toolName: tool.name, endpointURL: endpointURL)
+        let args = npubArgs(patronNpub)
         let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
 
         if isError == true {
@@ -845,7 +773,7 @@ actor MCPService {
         await traffic(.outbound, label: "Statement Infographic", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(patronNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -856,7 +784,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No account_statement_infographic tool found")
         }
 
-        let args = await argsWithProof(npub: patronNpub, toolName: infoTool.name, endpointURL: endpointURL)
+        let args = npubArgs(patronNpub)
         let (content, isError) = try await client.callTool(name: infoTool.name, arguments: args)
 
         if isError == true {
@@ -924,7 +852,7 @@ actor MCPService {
         await traffic(.outbound, label: "Purchase Credits", detail: "SSE → \(endpointURL.absoluteString) amount=\(amountSats)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(patronNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -937,7 +865,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: purchaseTool.name,
-            arguments: await argsWithProof(npub: patronNpub, capability: "purchase_credits", endpointURL: endpointURL, extra: ["amount_sats": .int(amountSats)])
+            arguments: npubArgs(patronNpub, ["amount_sats": .int(amountSats)])
         )
 
         if isError == true {
@@ -1042,7 +970,7 @@ actor MCPService {
         await traffic(.outbound, label: "Restore Credits", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId) patron=\(patronNpub.prefix(16))… operator=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(operatorNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1053,25 +981,11 @@ actor MCPService {
             throw MCPError.toolCallFailed("This operator's wheel doesn't expose restore_credits (upgrade to 0.31.0+).")
         }
 
-        // Sign with the OPERATOR's nsec. patron_npub is a plain tool
-        // argument that identifies whose ledger receives the credit;
-        // the operator's proof is the gate (wheel 0.36.0+).
-        let proof = (try? await signRuntimeProof(
-            capability: "restore_credits",
-            endpointURL: endpointURL,
-            operatorNpub: operatorNpub
-        )) ?? ""
-        if proof.isEmpty {
-            throw MCPError.structuredError(
-                code: "operator_nsec_missing",
-                message: "Operator nsec for \(operatorNpub.prefix(16))… is not in this device's Keychain. Only the operator can restore credits; the patron must escalate to the operator's support.",
-                extras: ["operator_npub": operatorNpub]
-            )
-        }
+        // The operator acts (the connection proves it); patron_npub names
+        // whose ledger receives the credit.
         let args: [String: Value] = [
             "invoice_id": .string(invoiceId),
             "patron_npub": .string(patronNpub),
-            "dpop_token": .string(proof),
         ]
         let (content, isError) = try await client.callTool(name: restoreTool.name, arguments: args)
 
@@ -1113,7 +1027,7 @@ actor MCPService {
         await traffic(.outbound, label: "Check Payment", detail: "SSE → \(endpointURL.absoluteString) invoice=\(invoiceId)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(npub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1126,7 +1040,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: paymentTool.name,
-            arguments: await argsWithProof(npub: npub, capability: "check_payment", endpointURL: endpointURL, extra: ["invoice_id": .string(invoiceId)])
+            arguments: npubArgs(npub, ["invoice_id": .string(invoiceId)])
         )
 
         if isError == true {
@@ -1223,8 +1137,7 @@ actor MCPService {
     /// - Parameters:
     ///   - endpointURL: The operator's MCP SSE endpoint.
         ///   - model: The pricing model to save.
-    ///   - operatorNpub: If provided, generates a kind-27235 operator proof
-    ///     so a patron session can prove operator authority.
+    ///   - operatorNpub: The operator, whom the connection proves (restricted tool).
     func callSetPricingModel(
         endpointURL: URL,
         model: PricingModelResponse,
@@ -1233,7 +1146,7 @@ actor MCPService {
         await traffic(.outbound, label: "Set Pricing Model", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: operatorNpub.map(Caller.npub) ?? .anonymous)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1264,19 +1177,7 @@ actor MCPService {
 
         let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
 
-        // Pass operator Schnorr proof as a separate parameter (restricted tool)
-        var arguments: [String: Value] = ["model_json": .string(jsonString)]
-        if let npub = operatorNpub {
-            let proof = (try? await signRuntimeProof(
-                capability: "set_pricing_model",
-                endpointURL: endpointURL,
-                operatorNpub: npub
-            )) ?? ""
-            if !proof.isEmpty {
-                arguments["dpop_token"] = .string(proof)
-            }
-            await traffic(.outbound, label: "Proof", detail: "Signed kind-27235 for \(npub.prefix(16))…")
-        }
+        let arguments: [String: Value] = ["model_json": .string(jsonString)]
 
         await traffic(.outbound, label: "callTool: \(setTool.name)", detail: "model_json: \(String(jsonString.prefix(4000)))")
 
@@ -1321,7 +1222,7 @@ actor MCPService {
         await traffic(.outbound, label: "Service Status", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1395,7 +1296,7 @@ actor MCPService {
         await traffic(.outbound, label: "Register Authority Npub", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1438,7 +1339,7 @@ actor MCPService {
         await traffic(.outbound, label: "Confirm Claim", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1480,7 +1381,7 @@ actor MCPService {
         await traffic(.outbound, label: "Check Approval", detail: "SSE → \(endpointURL.absoluteString) candidate=\(candidateNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1515,14 +1416,9 @@ actor MCPService {
     /// Call `register_operator` on an Authority's MCP endpoint to adopt an operator.
     /// Returns the text response from the tool.
     ///
-    /// `authorityNpub` is the Authority's own npub — the wheel (0.26.0+)
-    /// requires a second Schnorr proof signed by this npub as cryptographic
-    /// witness of the Authority's human consent. The proof is produced
-    /// automatically by `argsWithProof` if the Authority's nsec is in
-    /// Keychain. Pass an empty string only for the legacy session-priming
-    /// use where the Authority is registering its own npub against itself
-    /// (operator and Authority are the same identity, so `proof` doubles
-    /// as `authority_proof`).
+    /// `authorityNpub` is the Authority's own npub, whose consent the tool
+    /// requires alongside the operator's (see ``twoPartyArgs``). Pass an empty
+    /// string when the Authority registers its own npub against itself.
     func callRegisterOperator(
         endpointURL: URL,
         operatorNpub: String,
@@ -1533,7 +1429,7 @@ actor MCPService {
         await traffic(.outbound, label: "Register Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .holder)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1544,26 +1440,14 @@ actor MCPService {
             throw MCPError.toolCallFailed("No register_operator tool found on this Authority")
         }
 
-        // Tool needs TWO proofs: operator-side + Authority-side consent.
-        // Build args explicitly so the shape of the call is visible at the
-        // call site, not hidden in a utility's parameter list.
         var extra: [String: Value] = ["service_url": .string(operatorServiceURL)]
         // Carry the operator's chosen name so the community roster is named by it, not a
         // truncated npub (wheel threads display_name through register_operator).
         if !displayName.isEmpty { extra["display_name"] = .string(displayName) }
-        var args = await argsWithProof(
-            npub: operatorNpub,
-            capability: "register_operator",
-            endpointURL: endpointURL,
-            extra: extra
+        let args = await twoPartyArgs(
+            operatorNpub: operatorNpub, authorityNpub: authorityNpub,
+            capability: "register_operator", endpointURL: endpointURL, extra: extra
         )
-        if !authorityNpub.isEmpty {
-            args["authority_proof"] = .string(await makeIdentityProof(
-                forNpub: authorityNpub,
-                capability: "register_operator",
-                endpointURL: endpointURL
-            ))
-        }
 
         let (content, isError) = try await client.callTool(
             name: registerTool.name,
@@ -1598,7 +1482,7 @@ actor MCPService {
         await traffic(.outbound, label: "Update Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .holder)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1613,21 +1497,13 @@ actor MCPService {
             throw MCPError.toolCallFailed("No update_operator tool found on this Authority")
         }
 
-        // Tool needs TWO proofs: operator-side + Authority-side consent.
-        var args = await argsWithProof(
-            npub: operatorNpub,
-            capability: "update_operator",
-            endpointURL: endpointURL
+        var extra: [String: Value] = [:]
+        if !serviceURL.isEmpty { extra["service_url"] = .string(serviceURL) }
+        if !displayName.isEmpty { extra["display_name"] = .string(displayName) }
+        let args = await twoPartyArgs(
+            operatorNpub: operatorNpub, authorityNpub: authorityNpub,
+            capability: "update_operator", endpointURL: endpointURL, extra: extra
         )
-        if !authorityNpub.isEmpty {
-            args["authority_proof"] = .string(await makeIdentityProof(
-                forNpub: authorityNpub,
-                capability: "update_operator",
-                endpointURL: endpointURL
-            ))
-        }
-        if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
-        if !displayName.isEmpty { args["display_name"] = .string(displayName) }
 
         let (content, isError) = try await client.callTool(
             name: updateTool.name,
@@ -1660,7 +1536,7 @@ actor MCPService {
         await traffic(.outbound, label: "Deregister Operator", detail: "SSE → \(endpointURL.absoluteString) npub=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .holder)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1671,19 +1547,10 @@ actor MCPService {
             throw MCPError.toolCallFailed("No deregister_operator tool found on this Authority")
         }
 
-        // Tool needs TWO proofs: operator-side + Authority-side consent.
-        var args = await argsWithProof(
-            npub: operatorNpub,
-            capability: "deregister_operator",
-            endpointURL: endpointURL
+        let args = await twoPartyArgs(
+            operatorNpub: operatorNpub, authorityNpub: authorityNpub,
+            capability: "deregister_operator", endpointURL: endpointURL
         )
-        if !authorityNpub.isEmpty {
-            args["authority_proof"] = .string(await makeIdentityProof(
-                forNpub: authorityNpub,
-                capability: "deregister_operator",
-                endpointURL: endpointURL
-            ))
-        }
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
@@ -1755,12 +1622,10 @@ actor MCPService {
 
     /// List the Authority's pending operator-adoption requests.
     ///
-    /// The single restricted owner-queue tool: gated by an `authority_proof`
-    /// signed by the Authority's OWN npub. `makeIdentityProof` produces it
-    /// inline from the Keychain nsec, or falls back to a cached poison token;
-    /// when neither is held it yields "" and the wheel returns
-    /// `authority_consent_required`, which surfaces as `MCPError.structuredError`
-    /// for the caller to drive the npub-proof handshake.
+    /// Restricted to the Authority's own npub, which the connection proves:
+    /// signed with its Keychain nsec, or held by the holder after a DM. When
+    /// neither, the wheel returns `authority_consent_required`, which surfaces
+    /// as `MCPError.structuredError` for the caller to drive the DM.
     func callListAdoptionRequests(
         endpointURL: URL,
         authorityNpub: String
@@ -1768,7 +1633,7 @@ actor MCPService {
         await traffic(.outbound, label: "List Adoptions", detail: "SSE → \(endpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(authorityNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1779,15 +1644,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No list_adoption_requests tool found on this Authority")
         }
 
-        let args: [String: Value] = [
-            "authority_proof": .string(await makeIdentityProof(
-                forNpub: authorityNpub,
-                capability: "list_adoption_requests",
-                endpointURL: endpointURL
-            ))
-        ]
-
-        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: [:])
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
@@ -1817,7 +1674,7 @@ actor MCPService {
         await traffic(.outbound, label: "Approve Adoption", detail: "SSE → \(endpointURL.absoluteString) op=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(authorityNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1828,14 +1685,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No approve_adoption tool found on this Authority")
         }
 
-        let args: [String: Value] = [
-            "operator_npub": .string(operatorNpub),
-            "authority_proof": .string(await makeIdentityProof(
-                forNpub: authorityNpub,
-                capability: "approve_adoption",
-                endpointURL: endpointURL
-            ))
-        ]
+        let args: [String: Value] = ["operator_npub": .string(operatorNpub)]
 
         let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
 
@@ -1864,7 +1714,7 @@ actor MCPService {
         await traffic(.outbound, label: "Reject Adoption", detail: "SSE → \(endpointURL.absoluteString) op=\(operatorNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(authorityNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1875,14 +1725,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("No reject_adoption tool found on this Authority")
         }
 
-        var args: [String: Value] = [
-            "operator_npub": .string(operatorNpub),
-            "authority_proof": .string(await makeIdentityProof(
-                forNpub: authorityNpub,
-                capability: "reject_adoption",
-                endpointURL: endpointURL
-            ))
-        ]
+        var args: [String: Value] = ["operator_npub": .string(operatorNpub)]
         if !reason.isEmpty { args["reason"] = .string(reason) }
 
         let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
@@ -1906,9 +1749,8 @@ actor MCPService {
     /// the OPERATOR's own MCP endpoint, asking a chosen Authority to adopt it.
     /// The request is delivered MCP-to-MCP to the Authority and recorded as
     /// pending in its Pending Adoptions queue; the operator stays orphaned
-    /// until the owner approves. Gated by the operator's OWN npub proof
-    /// (`makeIdentityProof` signs it inline from the Keychain nsec, or uses a
-    /// cached token); no Authority consent is needed at request time.
+    /// until the owner approves. Gated by the operator's own npub, which the
+    /// connection proves; no Authority consent is needed at request time.
     func callRequestAdoption(
         operatorEndpointURL: URL,
         operatorNpub: String,
@@ -1919,7 +1761,7 @@ actor MCPService {
         await traffic(.outbound, label: "Request Adoption", detail: "SSE → \(operatorEndpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: operatorEndpointURL)
+        let transport = await makeTransport(endpoint: operatorEndpointURL, as: .npub(operatorNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -1930,14 +1772,7 @@ actor MCPService {
             throw MCPError.toolCallFailed("This operator's MCP has no request_adoption tool — it needs tollbooth-dpyc 0.45.0 or newer.")
         }
 
-        var args: [String: Value] = [
-            "authority_npub": .string(authorityNpub),
-            "dpop_token": .string(await makeIdentityProof(
-                forNpub: operatorNpub,
-                capability: "request_adoption",
-                endpointURL: operatorEndpointURL
-            )),
-        ]
+        var args: [String: Value] = ["authority_npub": .string(authorityNpub)]
         if !serviceURL.isEmpty { args["service_url"] = .string(serviceURL) }
         if !note.isEmpty { args["note"] = .string(note) }
 
@@ -2235,7 +2070,7 @@ actor MCPService {
         await traffic(.outbound, label: "Persistence Health", detail: "SSE → \(endpointURL.absoluteString) authority=\(authorityNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(authorityNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2252,22 +2087,7 @@ actor MCPService {
             )
         }
 
-        // Restricted owner-consent tool: bind the proof to the Authority's own
-        // npub under `authority_proof`, exactly like list_adoption_requests.
-        // Sign for the EXACT tool.name just resolved from tools/list — not the
-        // capability overload, whose second slug lookup can transiently miss and
-        // fall back to the bare capability, producing a `u`-tag mismatch the wheel
-        // rejects as authority_consent_required. Signing the known name removes
-        // that race.
-        let args: [String: Value] = [
-            "authority_proof": .string(await makeIdentityProof(
-                forNpub: authorityNpub,
-                toolName: tool.name,
-                endpointURL: endpointURL
-            ))
-        ]
-
-        let (content, isError) = try await client.callTool(name: tool.name, arguments: args)
+        let (content, isError) = try await client.callTool(name: tool.name, arguments: [:])
 
         if isError == true {
             let errorText = content.compactMap { extractText($0) }.joined(separator: "\n")
@@ -2301,7 +2121,7 @@ actor MCPService {
         await traffic(.outbound, label: "Onboarding Status", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2344,7 +2164,7 @@ actor MCPService {
         await traffic(.outbound, label: "Patron Onboarding", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(patronNpub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2364,12 +2184,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: await argsWithProof(
-                npub: patronNpub,
-                capability: "get_patron_onboarding_status",
-                endpointURL: endpointURL,
-                npubKey: "patron_npub"
-            )
+            arguments: npubArgs(patronNpub, key: "patron_npub")
         )
 
         if isError == true {
@@ -2396,7 +2211,7 @@ actor MCPService {
         await traffic(.outbound, label: "Credential Channel", detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2440,7 +2255,7 @@ actor MCPService {
         await traffic(.outbound, label: label, detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2493,7 +2308,7 @@ actor MCPService {
         await traffic(.outbound, label: "Forget Credentials", detail: "service=\(service) npub=\(npub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(npub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2506,7 +2321,7 @@ actor MCPService {
 
         let (content, isError) = try await client.callTool(
             name: tool.name,
-            arguments: await argsWithProof(npub: npub, capability: "forget_credentials", endpointURL: endpointURL, extra: ["service": .string(service)])
+            arguments: npubArgs(npub, ["service": .string(service)])
         )
 
         if isError == true {
@@ -2541,7 +2356,7 @@ actor MCPService {
         )
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(npub))
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2556,17 +2371,11 @@ actor MCPService {
             throw MCPError.toolCallFailed("Operator does not support update_operator_credential")
         }
 
-        // The wheel's signature is exactly (field, value, dpop_token): the
-        // operator identity and credential service come from the runtime, and
-        // FastMCP rejects any extra keyword — so no `npub`, no `service`.
+        // The operator identity and credential service come from the runtime,
+        // and FastMCP rejects any extra keyword — so no `npub`, no `service`.
         let arguments: [String: Value] = [
             "field": .string(field),
             "value": .string(value),
-            "dpop_token": .string(await makeIdentityProof(
-                forNpub: npub,
-                capability: "update_operator_credential",
-                endpointURL: endpointURL
-            )),
         ]
 
         let (content, isError) = try await client.callTool(
@@ -2595,7 +2404,7 @@ actor MCPService {
         await traffic(.outbound, label: "Operator Connect", detail: "SSE → \(endpointURL.absoluteString) (Bearer auth)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
         do {
             try await client.connect(transport: transport)
@@ -2697,7 +2506,7 @@ actor MCPService {
                        detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
         try await client.connect(transport: transport)
 
@@ -2809,13 +2618,15 @@ actor MCPService {
     func callToolGeneric(
         endpointURL: URL,
         toolName: String,
-        arguments: [String: Value] = [:]
+        arguments: [String: Value] = [:],
+        as caller: Caller = .anonymous
     ) async throws -> String {
         await traffic(.outbound, label: "Test Call", detail: "\(toolName) → \(endpointURL.absoluteString)")
         let text = try await _connectAndCall(
             endpointURL: endpointURL,
             toolName: toolName,
-            arguments: arguments
+            arguments: arguments,
+            as: caller
         )
         await traffic(.inbound, label: "Test Call Result", detail: String(text.prefix(4000)))
         return text
@@ -2828,10 +2639,11 @@ actor MCPService {
     private func _connectAndCall(
         endpointURL: URL,
         toolName: String,
-        arguments: [String: Value]
+        arguments: [String: Value],
+        as caller: Caller = .anonymous
     ) async throws -> String {
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: caller)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2863,7 +2675,7 @@ actor MCPService {
         endpointURL: URL
     ) async throws -> [Tool] {
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -2958,7 +2770,7 @@ extension MCPService {
         await traffic(.outbound, label: "Publish Campaign", detail: "SSE → \(oracleURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: oracleURL)
+        let transport = await makeTransport(endpoint: oracleURL)
         defer { Task { await client.disconnect() } }
 
         try await client.connect(transport: transport)
@@ -3009,23 +2821,17 @@ extension MCPService {
         await traffic(.outbound, label: "Mint Coupon", detail: "\(name) — \(discountPercent)% off")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(operatorNpub))
         defer { Task { await client.disconnect() } }
         try await client.connect(transport: transport)
 
         let tool = try await findCouponTool(client: client, suffix: "mint_coupon")
-        let proof = try await signRuntimeProof(
-            capability: "mint_coupon",
-            endpointURL: endpointURL,
-            operatorNpub: operatorNpub,
-        )
 
         var args: [String: Value] = [
             "name": .string(name),
             "discount_percent": .double(discountPercent),
             "valid_from": .string(isoFormatter.string(from: validFrom)),
             "valid_until": .string(isoFormatter.string(from: validUntil)),
-            "dpop_token": .string(proof),
         ]
         if let upp = usesPerPatron { args["uses_per_patron"] = .int(upp) }
         if let tu = totalUses { args["total_uses"] = .int(tu) }
@@ -3043,20 +2849,15 @@ extension MCPService {
         await traffic(.outbound, label: "List Coupons", detail: "SSE → \(endpointURL.absoluteString)")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(operatorNpub))
         defer { Task { await client.disconnect() } }
         try await client.connect(transport: transport)
 
         let tool = try await findCouponTool(client: client, suffix: "list_coupons")
-        let proof = try await signRuntimeProof(
-            capability: "list_coupons",
-            endpointURL: endpointURL,
-            operatorNpub: operatorNpub,
-        )
 
         let json = try await callJSONTool(
             client: client, name: tool.name,
-            arguments: ["dpop_token": .string(proof)],
+            arguments: [:],
             label: "List Coupons",
         )
 
@@ -3087,20 +2888,14 @@ extension MCPService {
         await traffic(.outbound, label: "Update Coupon", detail: couponId.prefix(8) + "…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(operatorNpub))
         defer { Task { await client.disconnect() } }
         try await client.connect(transport: transport)
 
         let tool = try await findCouponTool(client: client, suffix: "update_coupon")
-        let proof = try await signRuntimeProof(
-            capability: "update_coupon",
-            endpointURL: endpointURL,
-            operatorNpub: operatorNpub,
-        )
 
         var args: [String: Value] = [
             "coupon_id": .string(couponId),
-            "dpop_token": .string(proof),
         ]
         if let n = name { args["name"] = .string(n) }
         if let d = discountPercent { args["discount_percent"] = .double(d) }
@@ -3125,23 +2920,15 @@ extension MCPService {
         await traffic(.outbound, label: "Delete Coupon", detail: couponId.prefix(8) + "…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
-        let transport = makeTransport(endpoint: endpointURL)
+        let transport = await makeTransport(endpoint: endpointURL, as: .npub(operatorNpub))
         defer { Task { await client.disconnect() } }
         try await client.connect(transport: transport)
 
         let tool = try await findCouponTool(client: client, suffix: "delete_coupon")
-        let proof = try await signRuntimeProof(
-            capability: "delete_coupon",
-            endpointURL: endpointURL,
-            operatorNpub: operatorNpub,
-        )
 
         _ = try await callJSONTool(
             client: client, name: tool.name,
-            arguments: [
-                "coupon_id": .string(couponId),
-                "dpop_token": .string(proof),
-            ],
+            arguments: ["coupon_id": .string(couponId)],
             label: "Delete Coupon",
         )
     }

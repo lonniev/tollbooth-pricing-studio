@@ -49,7 +49,6 @@ final class OperatorCollectionViewModel {
         if selectedOperator?.npub == op.npub {
             selectedOperator = nil
         }
-        KeychainService.deleteToken(forOperator: op.npub)
         KeychainService.deleteNsec(forNpub: op.npub)
         context.delete(op)
         try? context.save()

@@ -346,8 +346,7 @@ struct EditOperatorRegistrationSheet: View {
         }
 
         if KeychainService.loadNsec(forNpub: npub) != nil {
-            // Inline Schnorr — the next callUpdateOperator's
-            // argsWithProof will sign from Keychain.
+            // Studio holds the key: the retry signs with it.
             await performUpdate()
             return
         }
@@ -377,9 +376,8 @@ struct EditOperatorRegistrationSheet: View {
         status = .acquiringProof(npub: npub, phase: .verifying)
         let mcpService = MCPService()
         do {
-            // callReceiveNpubProof persists the poison-keyed proof_token
-            // to Keychain for (npub, host) — argsWithProof picks it up
-            // on the retry's cached-token fallback.
+            // The reply proves the npub into this host's holder connection,
+            // which the retry rides.
             _ = try await mcpService.callReceiveNpubProof(
                 endpointURL: endpointURL,
                 patronNpub: npub,

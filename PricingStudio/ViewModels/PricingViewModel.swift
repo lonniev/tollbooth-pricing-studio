@@ -860,9 +860,5 @@ final class PricingViewModel {
             return (nil, nil)
         }
     }
-
-    // MARK: - Token Resolution
-
-    /// Resolve a valid access token: cached bundle → refresh → full re-auth.
 }
 

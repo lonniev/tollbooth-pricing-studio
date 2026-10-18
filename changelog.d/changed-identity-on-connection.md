@@ -1,0 +1,1 @@
+- Studio proves who is acting on the connection: requests are signed with the Keychain nsec, and an npub Studio holds no key for rides a holder connection proven by the usual DM. Tool calls carry no proof argument, and the cached proof tokens are gone.
