@@ -1,0 +1,1 @@
+- The README calls the Secure Courier's anti-replay phrase its `nonce`.
