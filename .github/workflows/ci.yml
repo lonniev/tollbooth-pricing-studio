@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
 
     steps:
       - uses: actions/checkout@v7
@@ -57,7 +57,7 @@ jobs:
   # only compile). A logic change whose test fails is caught HERE, not merely
   # compiled. See issue #88.
   test:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
 
