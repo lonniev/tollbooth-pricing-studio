@@ -28,7 +28,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", branch: "main"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.8.1"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.16.1"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.16.2"),
         .package(url: "https://github.com/mattt/eventsource.git", from: "1.5.1"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
     ],
