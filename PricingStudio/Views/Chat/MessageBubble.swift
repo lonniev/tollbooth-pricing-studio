@@ -29,8 +29,6 @@ struct MessageBubble: View {
             VStack(alignment: dm.isFromMe ? .leading : .trailing, spacing: 4) {
                 if let _ = courierPayload, !dm.isFromMe {
                     courierContent
-                } else if dm.content.hasPrefix("ncred1") {
-                    ncredContent
                 } else {
                     plainContent
                 }
@@ -167,33 +165,6 @@ struct MessageBubble: View {
                     )
             }
         }
-    }
-
-    // MARK: - Credential Card (ncred)
-
-    @ViewBuilder
-    private var ncredContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "creditcard.fill")
-                    .foregroundStyle(.green)
-                Text("Credential Card")
-                    .font(.caption.bold())
-                    .foregroundStyle(.green)
-            }
-            Text("Save this card to reuse your credentials next time.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(dm.content)
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(.primary)
-                .textSelection(.enabled)
-                .lineLimit(3)
-                .truncationMode(.middle)
-        }
-        .padding(10)
-        .background(Color.green.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Courier Payload Content

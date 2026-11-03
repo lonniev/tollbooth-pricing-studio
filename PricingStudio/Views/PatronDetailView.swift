@@ -573,8 +573,6 @@ private struct OperatorBalanceCard: View {
         } catch {
             // Log but don't block — local cleanup proceeds
         }
-        // Also clear local ncred if any
-        KeychainService.deleteNcred(forPatron: patron.npub, service: service, operator: balance.id)
         // Refresh onboarding status to show missing credentials + Deliver button
         await loadPatronOnboardingStatus()
     }
