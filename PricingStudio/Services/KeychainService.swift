@@ -155,26 +155,21 @@ enum KeychainService {
         defaults.set(true, forKey: flag)
     }
 
-    // MARK: - Credential Cards (ncred)
+    // MARK: - Retired credential cards
 
-    private static let ncredService = "com.tollbooth.ncred"
-
-    /// Save an ncred credential card keyed by patron+service+operator.
-    static func saveNcred(_ ncred: String, forPatron patronNpub: String, service: String, operator operatorNpub: String) throws {
-        let account = "\(patronNpub):\(service):\(operatorNpub)"
-        try save(data: Data(ncred.utf8), service: ncredService, account: account)
-    }
-
-    /// Load a saved ncred for a patron+service+operator triple.
-    static func loadNcred(forPatron patronNpub: String, service: String, operator operatorNpub: String) -> String? {
-        let account = "\(patronNpub):\(service):\(operatorNpub)"
-        return load(service: ncredService, account: account)
-    }
-
-    /// Delete a saved ncred.
-    static func deleteNcred(forPatron patronNpub: String, service: String, operator operatorNpub: String) {
-        let account = "\(patronNpub):\(service):\(operatorNpub)"
-        delete(service: ncredService, account: account)
+    /// Operators no longer issue or redeem credential cards (ncred1…). A card
+    /// saved by an earlier Studio is a reusable credential, so it is deleted
+    /// once, every account of the service, local and synced copies alike.
+    static func removeSavedCredentialCardsIfNeeded(defaults: UserDefaults = .standard) {
+        let flag = "com.tollbooth.dpyc.PricingStudio.removedCredentialCards.v1"
+        guard defaults.bool(forKey: flag) == false else { return }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.tollbooth.ncred",
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
+        ]
+        SecItemDelete(query as CFDictionary)
+        defaults.set(true, forKey: flag)
     }
 
     // MARK: - Generic Keychain Operations

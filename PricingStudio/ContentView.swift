@@ -493,6 +493,8 @@ struct ContentView: View {
             KeychainService.ensureNsecAccessibility()
             // OpenRouter cutover: drop legacy Anthropic/xAI keys once.
             KeychainService.migrateLegacyProviderAPIKeysIfNeeded()
+            // Credential cards are retired: delete any saved ones once.
+            KeychainService.removeSavedCredentialCardsIfNeeded()
             DMPollingService.shared.startPolling(modelContext: modelContext)
         }
         .overlay {

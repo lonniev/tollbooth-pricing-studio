@@ -190,4 +190,43 @@ final class KeychainServiceTests: XCTestCase {
         deleteKey(service: legacyAnthropicService)
         deleteKey(service: legacyXAIService)
     }
+
+    func testSavedCredentialCardsAreRemovedOnce() {
+        let defaults = UserDefaults(suiteName: "KeychainServiceTests.CredentialCards.\(UUID().uuidString)")!
+        let service = "com.tollbooth.ncred"
+        let accounts = ["npub1a:x:npub1op", "npub1b:schwab-operator:npub1op"]
+        func plant(_ account: String) {
+            let add: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecValueData as String: Data("ncred1test".utf8),
+            ]
+            SecItemDelete(add.filter { $0.key != kSecValueData as String } as CFDictionary)
+            XCTAssertEqual(SecItemAdd(add as CFDictionary, nil), errSecSuccess)
+        }
+        func present(_ account: String) -> Bool {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+            ]
+            return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+        }
+        accounts.forEach(plant)
+        XCTAssertTrue(accounts.allSatisfy(present))
+
+        KeychainService.removeSavedCredentialCardsIfNeeded(defaults: defaults)
+        XCTAssertFalse(accounts.contains(where: present), "every saved card is deleted")
+
+        // The latch makes it a one-time sweep.
+        plant(accounts[0])
+        KeychainService.removeSavedCredentialCardsIfNeeded(defaults: defaults)
+        XCTAssertTrue(present(accounts[0]), "a second call does nothing once latched")
+        let cleanup: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+        ]
+        SecItemDelete(cleanup as CFDictionary)
+    }
 }

@@ -2055,11 +2055,9 @@ actor MCPService {
         endpointURL: URL,
         senderNpub: String,
         service: String = "",
-        nonce: String = "",
-        credentialCard: String = ""
+        nonce: String = ""
     ) async throws -> String {
-        let label = credentialCard.isEmpty ? "Receive Credentials" : "Redeem ncred"
-        await traffic(.outbound, label: label, detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
+        await traffic(.outbound, label: "Receive Credentials", detail: "SSE → \(endpointURL.absoluteString) npub=\(senderNpub.prefix(16))…")
 
         let client = Client(name: "PricingStudio", version: "1.0.0")
         let transport = await makeTransport(endpoint: endpointURL)
@@ -2079,15 +2077,9 @@ actor MCPService {
         if !service.isEmpty {
             args["service"] = .string(service)
         }
-        // The session phrase from request_credential_channel — sent as the wheel's
-        // `nonce` (renamed from "nonce" in SDK 0.57.0; the wheel's pydantic
-        // arg validation rejects the old `nonce` keyword). Required by the wheel
-        // unless redeeming a credential card.
+        // The session phrase request_credential_channel returned.
         if !nonce.isEmpty {
             args["nonce"] = .string(nonce)
-        }
-        if !credentialCard.isEmpty {
-            args["credential_card"] = .string(credentialCard)
         }
         let (content, isError) = try await client.callTool(
             name: tool.name,
