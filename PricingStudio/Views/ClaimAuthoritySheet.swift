@@ -168,11 +168,16 @@ struct ClaimAuthoritySheet: View {
                             get: { challengePayload! },
                             set: { challengePayload = $0 }
                         ),
-                        onSend: isSending ? nil : { serialized in
+                        onSend: isSending ? nil : { answered in
                             guard let target = challengeSenderHex else { return }
                             isSending = true
                             Task {
-                                await chatVM.sendMessage(to: target, content: serialized)
+                                await chatVM.sendMessage(
+                                    to: target,
+                                    content: answered.replyContent(),
+                                    replyTags: answered.replyTags,
+                                    pinnedRelay: answered.rendezvousRelay
+                                )
                                 credentialsSent = true
                                 await triggerVerification()
                             }
@@ -227,24 +232,16 @@ struct ClaimAuthoritySheet: View {
         .navigationTitle("Claim Challenge")
     }
 
-    /// Scan conversations for the most recent inbound courier payload and extract it.
+    /// Scan conversations for the most recent inbound courier request.
+    /// The reply goes to the key that sent it: the courier drains replies
+    /// addressed to its delivery key.
     private func extractChallengePayload() {
         var latest: (payload: CourierPayload, senderHex: String, date: Date)?
         for conversation in chatVM.conversations {
             for dm in conversation.messages where !dm.isFromMe {
-                if let payload = CourierPayload.parse(dm.content) {
-                    let dmDate = dm.createdAt
-                    if latest == nil || dmDate > latest!.date {
-                        let hex: String
-                        if let opNpub = payload.provenance.operatorNpub,
-                           opNpub.hasPrefix("npub1"),
-                           let h = try? NostrKeyService.publicKeyHexFromNpub(opNpub) {
-                            hex = h
-                        } else {
-                            hex = dm.senderPubkeyHex
-                        }
-                        latest = (payload, hex, dmDate)
-                    }
+                if let payload = CourierPayload.parse(tags: dm.tags, requestId: dm.messageId),
+                   latest == nil || dm.createdAt > latest!.date {
+                    latest = (payload, dm.senderPubkeyHex, dm.createdAt)
                 }
             }
         }

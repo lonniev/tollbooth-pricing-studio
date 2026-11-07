@@ -20,8 +20,9 @@ final class ProofApprovalNotificationTests: XCTestCase {
             signerNpub: "npub1patron",
             replyToHex: String(repeating: "a", count: 64),
             pinnedRelay: URL(string: relay)!,
-            replyContent: "Approved.",
-            eventId: String(repeating: "e", count: 64)
+            replyContent: #"{"nonce":"bold-hawk-42"}"#,
+            eventId: String(repeating: "e", count: 64),
+            requestId: String(repeating: "f", count: 64)
         )
     }
 

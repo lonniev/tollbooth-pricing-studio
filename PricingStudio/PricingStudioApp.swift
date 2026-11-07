@@ -372,7 +372,8 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
                     publicKeyHex: pubKeyHex,
                     recipientPubkeyHex: request.replyToHex,
                     message: request.replyContent,
-                    pinnedRelay: request.pinnedRelay
+                    pinnedRelay: request.pinnedRelay,
+                    extraTags: request.replyTags
                 )
                 TrafficLogger.shared.log(.outbound, label: "Wrist Approve", detail: "approval delivered on \(request.pinnedRelay.absoluteString)", npub: request.signerNpub)
             } catch {

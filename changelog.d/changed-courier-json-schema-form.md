@@ -1,0 +1,4 @@
+- Secure Courier requests are read from the JSON Schema `form` tag the SDK puts on the NIP-17 message, not from the DM text. The `@@@` text parser is gone.
+- Courier forms mask secrets (with a reveal toggle and a paste button), offer suggested values as one-tap chips, show each field's help behind an ⓘ, grow for long values, and check each value before sending.
+- Replies are JSON, with an `e` tag naming the request, and go to the request's rendezvous relay. One-tap approvals (including on the watch) classify from the form's `x-courier-kind`.
+- Credential forms now get the same operator trust banner as proof requests.

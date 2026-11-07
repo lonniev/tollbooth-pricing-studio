@@ -1068,8 +1068,8 @@ struct PricingDetailView: View {
                 } else if plan.mode == .rotate, !plan.candidates.isEmpty {
                     // One-tap bulk entry into the shared courier card with every
                     // configured secret listed; the steward fills only what they
-                    // mean to rotate. CourierPayload.serialize already omits
-                    // unfilled placeholders so untouched vault entries survive.
+                    // mean to rotate. CourierPayload.replyContent already omits
+                    // unfilled fields so untouched vault entries survive.
                     Button {
                         if let endpoint = target.mcpEndpointURL,
                            let url = URL(string: endpoint) {

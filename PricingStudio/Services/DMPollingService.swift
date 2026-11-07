@@ -304,20 +304,20 @@ final class DMPollingService {
                                 updated[npub] = (updated[npub] ?? 0) + 1
                                 self.unreadCounts = updated
                                 self.updateAppBadge()
-                                if let challenge = ProofApprovalService.classify(dm.content) {
+                                if let challenge = ProofApprovalService.classify(tags: dm.tags, requestId: dm.messageId) {
                                     // One-tap-approvable proof challenge → the
                                     // actionable Wrist Approval banner.
                                     self.postApprovalNotification(npub: npub, dm: dm, challenge: challenge)
                                 } else {
                                     // Redact courier payloads — don't leak secrets in notifications or logs
-                                    let isCourier = dm.content.contains("@@@")
+                                    let isCourier = CourierPayload.isCourierTraffic(content: dm.content, tags: dm.tags)
                                     let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
                                     self.postLocalNotification(npub: npub, preview: safePreview, dm: dm)
                                 }
                             }
                         }
                         self.lastPollAt = Date()
-                        let isCourierLog = dm.content.contains("@@@")
+                        let isCourierLog = CourierPayload.isCourierTraffic(content: dm.content, tags: dm.tags)
                         TrafficLogger.shared.log(.inbound, label: "Sub Event",
                                                  detail: "\(npub.prefix(12))… kind=\(event.kind) isNew=\(isNew) isFromMe=\(dm.isFromMe) from=\(dm.senderPubkeyHex.prefix(8))… \(isCourierLog ? "content=[REDACTED courier]" : "content=\(String(dm.content.prefix(40)))")")
                     }
@@ -454,7 +454,7 @@ final class DMPollingService {
         let freshSet = Set(freshEventIds)
         var remaining = freshEventIds.count
         for dm in dms where freshSet.contains(dm.rawEventId) {
-            if let challenge = ProofApprovalService.classify(dm.content) {
+            if let challenge = ProofApprovalService.classify(tags: dm.tags, requestId: dm.messageId) {
                 postApprovalNotification(npub: npub, dm: dm, challenge: challenge)
                 remaining -= 1
             }
@@ -644,7 +644,8 @@ final class DMPollingService {
             replyToHex: dm.senderPubkeyHex,
             pinnedRelay: challenge.pinnedRelay,
             replyContent: ProofApprovalService.buildApprovalReply(challenge),
-            eventId: dm.rawEventId
+            eventId: dm.rawEventId,
+            requestId: challenge.payload.requestId
         )
         let content = Self.makeApprovalNotificationContent(
             body: "May I act as \(resolve(dm.recipientPubkeyHex))? — from \(resolve(dm.senderPubkeyHex))",

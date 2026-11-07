@@ -1,30 +1,24 @@
+import DPYCAuthKit
 import SwiftUI
 import PricingStudioCore
 
-/// Renders a parsed Secure Courier payload as an editable credential form.
+/// Renders a Secure Courier request as a native form, drawn from the JSON
+/// Schema in the request's `form` tag.
 ///
-/// Displays the greeting, credential fields with inline editing,
-/// the anti-replay nonce (read-only), and provenance metadata.
-/// When the user fills in all fields, the "Send Credentials" button
-/// serializes and sends the reply via the `onSend` callback.
+/// Secrets (`writeOnly`) are masked with a reveal toggle and a paste button,
+/// offered values (`examples`) are quick-pick chips, allowed values (`enum`)
+/// are a menu, and each field's `description` sits behind an ⓘ. An approval
+/// shows only its choices and a confirm button. `onSend` receives the payload
+/// to reply with; the caller sends its JSON content, `e` tag and relay pin.
 struct CourierPayloadView: View {
     @Binding var payload: CourierPayload
-    var onSend: ((String) -> Void)?
-    /// Operator-attested trust state for a proof-request DM (green/amber/red).
-    /// Computed by the caller from the embedded provenance attestation; `nil`
-    /// for non-proof DMs, which show only the existing provenance metadata.
+    var onSend: ((CourierPayload) -> Void)?
+    /// Operator-attested trust state (green/amber/red), computed by the caller
+    /// from the request's `attestation` tag.
     var trust: ProofProvenance.TrustAssessment?
 
     @State private var showProvenance = false
     @State private var sent = false
-
-    /// A proof / approval request carries a one-time challenge but NO editable
-    /// credential fields — the reply is a confirmation, not a filled-in form.
-    /// It must render as an approval (verdict + stated purpose + confirm/ignore),
-    /// never as an empty credential form, which reads as a raw text blob.
-    private var isApprovalRequest: Bool {
-        payload.fields.isEmpty && payload.nonce != nil
-    }
 
     /// True when the trust banner's Device-Grant anchor already surfaces the
     /// nonce as the cross-check value, making the standalone nonce row
@@ -34,24 +28,27 @@ struct CourierPayloadView: View {
         return false
     }
 
+    /// The fields an approval lets the patron choose (how long to remember
+    /// it). Every other approval field is answered "approved" on send.
+    private var approvalChoices: [Binding<CourierPayload.Field>] {
+        $payload.fields.filter {
+            !$0.wrappedValue.property.examples.isEmpty || !$0.wrappedValue.property.allowed.isEmpty
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Trust banner — the human-facing verdict on who is really asking.
             if let trust {
                 trustBanner(trust)
             }
 
-            // Provenance (compact, at top — metadata, not an action).
-            // A red verdict SUPPRESSES the requester-asserted service label:
-            // rendering an unverified name manufactures confidence the protocol
-            // has not earned.
+            // The form's title is meaningful for a credential request
+            // ("Schwab operator credentials"). For an approval it is the request
+            // type — noise — and on red it is an unverified claim, so neither
+            // shows it.
             HStack(spacing: 8) {
-                // The service capsule is meaningful for a credential DM
-                // ("schwab-operator"), but for a proof/approval request it is
-                // just the request type ("npub_ownership") — noise dressed as an
-                // identity. Show it only for credential DMs, and never on red.
-                if let service = payload.provenance.service, trust?.level != .red, !isApprovalRequest {
-                    Label(service, systemImage: "lock.shield")
+                if !payload.isApproval, trust?.level != .red, !payload.form.title.isEmpty {
+                    Label(payload.form.title, systemImage: "lock.shield")
                         .font(.caption.bold())
                         .foregroundStyle(.orange)
                         .padding(.horizontal, 8)
@@ -75,32 +72,29 @@ struct CourierPayloadView: View {
                 }
             }
 
-            // Greeting. Suppressed for a proof/approval request: its greeting is
-            // generic boilerplate ("…needs to verify you own this npub…") that
-            // repeats what the trust banner and the signed reason already say —
-            // showing it too is the wordiness. Credential DMs keep their
-            // greeting (it carries real per-service instructions).
-            if !payload.greeting.isEmpty, !isApprovalRequest {
-                Text(payload.greeting)
+            // The operator's greeting. An approval's greeting repeats what the
+            // trust banner and the signed reason already say, so it is hidden.
+            if let greeting = payload.form.description, !payload.isApproval {
+                Text(greeting)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            // Credential fields — a proof/approval request has none, so skip
-            // the empty form (rendering it is what read as "raw").
-            if !isApprovalRequest {
-                VStack(spacing: 8) {
+            if payload.isApproval {
+                ForEach(approvalChoices) { $field in
+                    CourierFieldRow(field: $field)
+                }
+            } else {
+                VStack(spacing: 10) {
                     ForEach($payload.fields) { $field in
-                        fieldRow(field: $field)
+                        CourierFieldRow(field: $field)
                     }
                 }
             }
 
             // Nonce (read-only). Hidden when the Device-Grant anchor already
-            // presents this same code as the human's cross-check value — showing
-            // it twice under two labels ("Code" and "Anti-replay") reads as two
-            // different codes.
-            if let nonce = payload.nonce, !codeShownInAnchor {
+            // presents this same code as the human's cross-check value.
+            if !codeShownInAnchor {
                 HStack(spacing: 8) {
                     Image(systemName: "shield.checkered")
                         .foregroundStyle(.purple)
@@ -108,7 +102,7 @@ struct CourierPayloadView: View {
                     Text("Anti-replay:")
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
-                    Text(nonce.value)
+                    Text(payload.nonce)
                         .font(.caption.monospaced())
                         .foregroundStyle(.purple)
                         .textSelection(.enabled)
@@ -118,16 +112,14 @@ struct CourierPayloadView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
-            // Action
             if let onSend {
-                if isApprovalRequest {
-                    // No fields to fill — the reply is a confirmation. For an
-                    // unverified (red) request the safe default is to NOT
+                if payload.isApproval {
+                    // For an unverified (red) request the safe default is to NOT
                     // approve, so the affordance is de-emphasized and captioned;
-                    // ignoring the request is a first-class outcome (just leave).
+                    // ignoring the request is a first-class outcome.
                     VStack(spacing: 4) {
                         Button {
-                            onSend(payload.serialize())
+                            onSend(payload.approved())
                             sent = true
                         } label: {
                             Label(
@@ -149,8 +141,7 @@ struct CourierPayloadView: View {
                     }
                 } else {
                     Button {
-                        let serialized = payload.serialize()
-                        onSend(serialized)
+                        onSend(payload)
                         sent = true
                     } label: {
                         Label(
@@ -304,7 +295,8 @@ struct CourierPayloadView: View {
                         } icon: {
                             Image(systemName: "checkmark.shield").font(.caption2).foregroundStyle(color)
                         }
-                        if let code = payload.nonce?.value, !code.isEmpty {
+                        if !payload.nonce.isEmpty {
+                            let code = payload.nonce
                             HStack(spacing: 6) {
                                 Text("Code")
                                     .font(.caption2.weight(.semibold))
@@ -365,49 +357,22 @@ struct CourierPayloadView: View {
         )
     }
 
-    // MARK: - Field Row
-
-    @ViewBuilder
-    private func fieldRow(field: Binding<CourierPayload.Field>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: field.wrappedValue.needsInput ? "circle" : "checkmark.circle.fill")
-                    .foregroundStyle(field.wrappedValue.needsInput ? .orange : .green)
-                    .font(.caption)
-                Text(field.wrappedValue.key)
-                    .font(.caption.bold())
-                    .monospaced()
-            }
-
-            TextField(
-                placeholderText(for: field.wrappedValue),
-                text: field.value
-            )
-            .font(.system(.callout, design: .monospaced))
-            .textFieldStyle(.roundedBorder)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-        }
-    }
-
-    private func placeholderText(for field: CourierPayload.Field) -> String {
-        field.needsInput ? "Paste your \(field.key) here" : field.key
-    }
-
     // MARK: - Provenance
 
+    /// The operator that signed the request (from its attestation), and the
+    /// relay the reply goes to. Whether to trust the signer is the banner's
+    /// job; this only names it.
     @ViewBuilder
     private var provenanceSection: some View {
-        let prov = payload.provenance
         VStack(alignment: .leading, spacing: 4) {
-            if let op = prov.operatorNpub {
-                provenanceRow("person.fill", "Operator", op)
+            if let json = payload.attestationJSON,
+               let event = ProofProvenance.parse(json),
+               let npub = try? NostrKeyService.npubFromHex(event.pubkey) {
+                provenanceRow("person.fill", "Operator", npub)
             }
-            if let sent = prov.sent {
-                provenanceRow("clock", "Sent", sent)
-            }
-            if let proto = prov.protocolVersion {
-                provenanceRow("shield.lefthalf.filled", "Protocol", proto)
+            provenanceRow("antenna.radiowaves.left.and.right", "Reply via", payload.rendezvousRelay.absoluteString)
+            if !payload.form.service.isEmpty {
+                provenanceRow("tag", "Service", payload.form.service)
             }
         }
         .padding(.top, 4)
@@ -427,5 +392,127 @@ struct CourierPayloadView: View {
         }
         .font(.caption2)
         .foregroundStyle(.tertiary)
+    }
+}
+
+// MARK: - Field Row
+
+/// One form field, drawn by what its schema says it is.
+private struct CourierFieldRow: View {
+    @Binding var field: CourierPayload.Field
+
+    @State private var revealed = false
+    @State private var showHelp = false
+
+    private var property: CourierForm.Property { field.property }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: field.needsInput ? "circle" : "checkmark.circle.fill")
+                    .foregroundStyle(field.problem != nil ? .red : (field.needsInput ? .orange : .green))
+                    .font(.caption)
+                Text(property.title)
+                    .font(.caption.bold())
+                if property.isRequired {
+                    Circle()
+                        .fill(.orange)
+                        .frame(width: 5, height: 5)
+                        .accessibilityLabel("Required")
+                }
+                if let help = property.description {
+                    Button {
+                        showHelp.toggle()
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("About \(property.title)")
+                    .popover(isPresented: $showHelp) {
+                        Text(help)
+                            .font(.caption)
+                            .padding()
+                            .presentationCompactAdaptation(.popover)
+                    }
+                }
+                Spacer()
+            }
+
+            if !property.allowed.isEmpty {
+                Picker(property.title, selection: $field.value) {
+                    Text("Choose…").tag("")
+                    ForEach(property.allowed, id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.menu)
+            } else {
+                input
+                if !property.examples.isEmpty {
+                    choices
+                }
+            }
+
+            if let problem = field.problem {
+                Label(problem, systemImage: "exclamationmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    /// The text entry: masked for a secret unless revealed, growing for long
+    /// values (a PEM key) otherwise.
+    @ViewBuilder
+    private var input: some View {
+        HStack(spacing: 6) {
+            Group {
+                if property.isSecret && !revealed {
+                    SecureField(property.title, text: $field.value)
+                } else {
+                    TextField(property.title, text: $field.value, axis: .vertical)
+                        .lineLimit(1...6)
+                }
+            }
+            .font(.system(.callout, design: .monospaced))
+            .textFieldStyle(.roundedBorder)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+
+            if property.isSecret {
+                Button {
+                    revealed.toggle()
+                } label: {
+                    Image(systemName: revealed ? "eye.slash" : "eye")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(revealed ? "Hide \(property.title)" : "Show \(property.title)")
+            }
+            Button {
+                if let pasted = UIPasteboard.general.string {
+                    field.value = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            } label: {
+                Image(systemName: "doc.on.clipboard")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Paste \(property.title)")
+        }
+    }
+
+    /// The offered values, one tap each.
+    private var choices: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(property.examples, id: \.self) { example in
+                    let chosen = field.value == example
+                    Button(example) { field.value = example }
+                        .font(.caption.monospaced())
+                        .buttonStyle(.bordered)
+                        .tint(chosen ? .accentColor : .secondary)
+                        .controlSize(.small)
+                }
+            }
+        }
     }
 }

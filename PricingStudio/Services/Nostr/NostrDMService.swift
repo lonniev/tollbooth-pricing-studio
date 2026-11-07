@@ -67,7 +67,8 @@ actor NostrDMService {
         publicKeyHex: String,
         recipientPubkeyHex: String,
         message: String,
-        pinnedRelay: URL? = nil
+        pinnedRelay: URL? = nil,
+        extraTags: [[String]] = []
     ) async throws {
         var nip17OK = false
         var nip04OK = false
@@ -90,7 +91,8 @@ actor NostrDMService {
                 message: message,
                 senderPrivKeyHex: privateKeyHex,
                 senderPubKeyHex: publicKeyHex,
-                recipientPubKeyHex: recipientPubkeyHex
+                recipientPubKeyHex: recipientPubkeyHex,
+                extraTags: extraTags
             )
             let results = await relay.publish(wrapEvent, primaryRelay: pinnedRelay)
             let accepted = results.filter { $0.1 }.count

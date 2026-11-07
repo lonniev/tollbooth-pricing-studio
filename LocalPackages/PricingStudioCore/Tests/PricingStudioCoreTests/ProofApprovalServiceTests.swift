@@ -4,117 +4,62 @@ import XCTest
 
 final class ProofApprovalServiceTests: XCTestCase {
 
-    private let token = "faint-dusk-55"
-    private let relay = "wss://relay.primal.net"
+    private let token = "bold-hawk-42"
+    private let relay = "wss://relay.example"
+    private let requestId = String(repeating: "c", count: 64)
 
-    /// Mirrors the wheel's build_welcome output for the npub-ownership proof
-    /// template (nostr_credentials.py build_welcome + runtime.py proof
-    /// template: confirm placeholder, cache_duration prefilled "2h").
-    private func challengeDM(
-        confirmLine: String = "  confirm = @@@PASTE_YOUR_CONFIRM_HERE@@@",
-        tokenLine: String? = nil,
-        relayLine: String? = nil
-    ) -> String {
-        """
-        A service wants to verify you own this npub.
-
-        --- Credential Payload ---
-        \(confirmLine)
-          cache_duration = @@@2h@@@
-        \(tokenLine ?? "  nonce = @@@\(token)@@@")
-        \(relayLine ?? "  rendezvous_relay = @@@\(relay)@@@")
-
-        IMPORTANT: include the anti-replay token exactly as shown.
-        IMPORTANT: reply via the rendezvous_relay above — the courier listens there.
-
-        --- Message Provenance ---
-        Service: Npub ownership — the signed DM itself proves you own this npub
-        Operator: npub1operator
-        Sent: 2026-07-04 12:00:00 UTC
-        Protocol: DPYC Secure Courier v0.59.1
-
-        Your reply is end-to-end encrypted — only this service can read it.
-        If you didn't request this, simply ignore this message.
-        """
+    private func tags(_ fixture: String) throws -> [[String]] {
+        [["p", "aa"], ["form", try CourierFixtures.text(fixture)]]
     }
 
     // MARK: - Classifier
 
-    func testClassifiesWheelProofChallenge() {
-        let challenge = ProofApprovalService.classify(challengeDM())
-
-        XCTAssertNotNil(challenge)
-        XCTAssertEqual(challenge?.nonce, token)
-        XCTAssertEqual(challenge?.pinnedRelay.absoluteString, relay)
-        XCTAssertEqual(challenge?.confirmKey, "confirm")
+    func testClassifiesTheProofApproval() throws {
+        let challenge = try XCTUnwrap(
+            ProofApprovalService.classify(tags: try tags("approval"), requestId: requestId)
+        )
+        XCTAssertEqual(challenge.nonce, token)
+        XCTAssertEqual(challenge.pinnedRelay, URL(string: relay))
     }
 
-    func testClassifiesChallengeWithPrefilledConfirm() {
-        // Operator gave the confirm field a default — nothing needs input.
-        let dm = challengeDM(confirmLine: "  confirm = @@@yes@@@")
-        let challenge = ProofApprovalService.classify(dm)
-
-        XCTAssertNotNil(challenge)
-        XCTAssertNil(challenge?.confirmKey)
+    func testCredentialFormIsNotOneTap() throws {
+        XCTAssertNil(ProofApprovalService.classify(tags: try tags("credentials"), requestId: requestId))
     }
 
-    func testRejectsCredentialChannelDM() {
-        // A credential channel asks for real secrets — never one-tap approvable.
-        let dm = """
-        Welcome! Reply with your credentials.
-
-        --- Credential Payload ---
-          api_key = @@@PASTE_YOUR_API_KEY_HERE@@@
-          api_secret = @@@PASTE_YOUR_API_SECRET_HERE@@@
-          nonce = @@@\(token)@@@
-          rendezvous_relay = @@@\(relay)@@@
-        """
-        XCTAssertNil(ProofApprovalService.classify(dm))
+    func testApprovalAskingForASecretIsNotOneTap() throws {
+        let form = try CourierFixtures.text("approval") {
+            CourierFixtures.set(&$0, property: "confirm", "writeOnly", true)
+        }
+        XCTAssertNil(ProofApprovalService.classify(tags: [["form", form]], requestId: requestId))
     }
 
-    func testRejectsPassphraseProofField() {
-        // taxsort's proof field stores the supplied value as a passphrase —
-        // a watch tap must not silently set one.
-        let dm = challengeDM(confirmLine: "  passphrase = @@@PASTE_YOUR_PASSPHRASE_HERE@@@")
-        XCTAssertNil(ProofApprovalService.classify(dm))
-    }
-
-    func testRejectsMalformedChallenges() {
-        XCTAssertNil(ProofApprovalService.classify(challengeDM(tokenLine: "  ")),
-                     "Missing nonce")
-        XCTAssertNil(ProofApprovalService.classify(challengeDM(relayLine: "  ")),
-                     "Missing rendezvous_relay")
-        XCTAssertNil(ProofApprovalService.classify(
-            challengeDM(relayLine: "  rendezvous_relay = @@@https://example.com@@@")),
-            "Non-websocket relay")
-        XCTAssertNil(ProofApprovalService.classify("Just a friendly plain-text DM"),
-                     "No courier fields")
+    func testTextOnlyMessageIsNotAChallenge() {
+        XCTAssertNil(ProofApprovalService.classify(tags: [["p", "aa"]], requestId: requestId))
     }
 
     // MARK: - Reply Builder
 
-    func testApprovalReplyEchoesTokenAndDuration() {
-        let challenge = ProofApprovalService.classify(challengeDM())!
-        let reply = ProofApprovalService.buildApprovalReply(challenge)
-
-        XCTAssertTrue(reply.contains("nonce = @@@\(token)@@@"), "Token must echo exactly")
-        XCTAssertTrue(reply.contains("cache_duration = @@@2h@@@"))
-        XCTAssertTrue(reply.contains("confirm = @@@approved@@@"))
-        XCTAssertFalse(reply.contains("rendezvous_relay"), "Control field never echoes")
-        XCTAssertFalse(reply.contains("PASTE_YOUR"), "No placeholders survive")
-
-        // The operator parses the reply with the same field grammar.
-        let reparsed = CourierPayload.parse(reply)
-        XCTAssertEqual(reparsed?.nonce?.value, token)
+    func testApprovalReplyIsJSONWithNonceRelayAndDuration() throws {
+        let challenge = try XCTUnwrap(
+            ProofApprovalService.classify(tags: try tags("approval"), requestId: requestId)
+        )
+        let reply = try CourierFixtures.object(ProofApprovalService.buildApprovalReply(challenge))
+        XCTAssertEqual(reply, [
+            "confirm": "approved",
+            "cache_duration": "2h",
+            "nonce": token,
+            "rendezvous_relay": relay,
+        ])
     }
 
-    func testApprovalReplyDurationPassthrough() {
-        let challenge = ProofApprovalService.classify(challengeDM())!
-
-        XCTAssertTrue(ProofApprovalService.buildApprovalReply(challenge, duration: "30 min")
-            .contains("cache_duration = @@@30 min@@@"))
-        XCTAssertTrue(ProofApprovalService.buildApprovalReply(challenge, duration: "unlimited")
-            .contains("cache_duration = @@@unlimited@@@"))
+    func testApprovalReplyDurationPassthrough() throws {
+        let challenge = try XCTUnwrap(
+            ProofApprovalService.classify(tags: try tags("approval"), requestId: requestId)
+        )
+        let reply = try CourierFixtures.object(
+            ProofApprovalService.buildApprovalReply(challenge, duration: "30d")
+        )
+        XCTAssertEqual(reply["cache_duration"], "30d")
     }
 
     // MARK: - userInfo Codec
@@ -124,8 +69,9 @@ final class ProofApprovalServiceTests: XCTestCase {
             signerNpub: "npub1patron",
             replyToHex: String(repeating: "a", count: 64),
             pinnedRelay: URL(string: relay)!,
-            replyContent: "Approved.\n\n  nonce = @@@\(token)@@@",
-            eventId: String(repeating: "e", count: 64)
+            replyContent: #"{"nonce":"faint-dusk-55"}"#,
+            eventId: String(repeating: "e", count: 64),
+            requestId: String(repeating: "f", count: 64)
         )
 
         let decoded = ProofApprovalService.ApprovalRequest(userInfo: request.userInfo)
@@ -138,15 +84,20 @@ final class ProofApprovalServiceTests: XCTestCase {
             replyToHex: "aa",
             pinnedRelay: URL(string: relay)!,
             replyContent: "x",
-            eventId: "ee"
+            eventId: "ee",
+            requestId: "ff"
         )
 
         var missingKey = request.userInfo
         missingKey.removeValue(forKey: "proofApproval.replyContent")
         XCTAssertNil(ProofApprovalService.ApprovalRequest(userInfo: missingKey))
 
+        var noRequestId = request.userInfo
+        noRequestId.removeValue(forKey: "proofApproval.requestId")
+        XCTAssertNil(ProofApprovalService.ApprovalRequest(userInfo: noRequestId))
+
         var wrongVersion = request.userInfo
-        wrongVersion["proofApproval.v"] = 2
+        wrongVersion["proofApproval.v"] = 1
         XCTAssertNil(ProofApprovalService.ApprovalRequest(userInfo: wrongVersion))
 
         XCTAssertNil(ProofApprovalService.ApprovalRequest(userInfo: [:]))

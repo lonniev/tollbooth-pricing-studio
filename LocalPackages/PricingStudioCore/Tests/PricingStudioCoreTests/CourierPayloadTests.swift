@@ -3,394 +3,147 @@ import XCTest
 
 final class CourierPayloadTests: XCTestCase {
 
-    // MARK: - Parse Nil on Plain Text
+    private let nonce = "bold-hawk-42"
+    private let relay = "wss://relay.example"
+    private let requestId = String(repeating: "c", count: 64)
 
-    func testParseNilOnPlainText() {
-        XCTAssertNil(CourierPayload.parse("Hello, this is a regular message."))
-        XCTAssertNil(CourierPayload.parse(""))
-        XCTAssertNil(CourierPayload.parse("No delimiters here @ at all"))
+    private func credentials(extraTags: [[String]] = []) throws -> CourierPayload {
+        try XCTUnwrap(CourierPayload.parse(
+            tags: [["p", "aa"], ["form", try CourierFixtures.text("credentials")]] + extraTags,
+            requestId: requestId
+        ))
     }
 
-    // MARK: - Parse Basic Fields
+    // MARK: - Reading the form
 
-    func testParseBasicFields() {
-        let text = "nsec = @@@nsec1abc123@@@\nclaim = @@@yes@@@"
-        let payload = CourierPayload.parse(text)
-
-        XCTAssertNotNil(payload)
-        XCTAssertEqual(payload?.fields.count, 2)
-        XCTAssertEqual(payload?.fields[0].key, "nsec")
-        XCTAssertEqual(payload?.fields[0].value, "nsec1abc123")
-        XCTAssertEqual(payload?.fields[1].key, "claim")
-        XCTAssertEqual(payload?.fields[1].value, "yes")
+    func testFormReadsTitleGreetingKindAndService() throws {
+        let form = try credentials().form
+        XCTAssertEqual(form.title, "Schwab operator credentials")
+        XCTAssertEqual(form.description, "Paste your keys below.")
+        XCTAssertEqual(form.kind, .credentials)
+        XCTAssertEqual(form.service, "schwab-operator")
+        XCTAssertEqual(form.delimiter, "@@@")
     }
 
-    // MARK: - Parse Full Welcome DM
-
-    func testParseFullWelcomeDM() {
-        let text = """
-        Welcome to the Tollbooth network!
-
-        Please fill in your credentials below.
-
-        --- Credential Payload ---
-          nsec = @@@PASTE_YOUR_NSEC_HERE@@@
-          claim = @@@PASTE_YOUR_CLAIM_HERE@@@
-          nonce = @@@7f3a2b1c@@@
-
-        --- Message Provenance ---
-        Service: tollbooth-authority
-        Operator: npub1exampleoperator123
-        Sent: 2026-03-15T10:00:00Z
-        Protocol: secure-courier/1.0
-        """
-
-        let payload = CourierPayload.parse(text)
-
-        XCTAssertNotNil(payload)
-        XCTAssertTrue(payload!.greeting.contains("Welcome to the Tollbooth"))
-        XCTAssertEqual(payload!.fields.count, 2)
-        XCTAssertNotNil(payload!.nonce)
-        XCTAssertEqual(payload!.nonce?.key, "nonce")
-        XCTAssertEqual(payload!.nonce?.value, "7f3a2b1c")
-        XCTAssertEqual(payload!.provenance.service, "tollbooth-authority")
-        XCTAssertEqual(payload!.provenance.operatorNpub, "npub1exampleoperator123")
-        XCTAssertEqual(payload!.provenance.sent, "2026-03-15T10:00:00Z")
-        XCTAssertEqual(payload!.provenance.protocolVersion, "secure-courier/1.0")
+    func testFieldsKeepTheOperatorsOrderAndHideControlValues() throws {
+        let payload = try credentials()
+        XCTAssertEqual(payload.fields.map(\.key), ["app_key", "secret", "account_label"])
+        XCTAssertEqual(payload.nonce, nonce)
+        XCTAssertEqual(payload.rendezvousRelay, URL(string: relay))
     }
 
-    func testParseProofRequestHasNoEditableFields() {
-        // A proof-request DM (npub_ownership) carries only control fields —
-        // nonce / rendezvous_relay / attestation — and NO credential
-        // fields to fill. parse still succeeds (it's a valid courier payload),
-        // but fields.count == 0. That's why the credential-entry card renders
-        // bare and reads as "raw": there is nothing to fill in. The fix routes
-        // this to an approval presentation, not a fill-in form.
-        let text = """
-        Hi — Cypher-MCP needs to verify you own this npub. Reply with any text to confirm.
-
-        I'm resolving your architecture question and need the Operator to run the paid graph query.
-
-        --- Credential Payload ---
-
-          nonce = @@@eager-hawk-88@@@
-          rendezvous_relay = @@@wss://relay.primal.net@@@
-
-        --- Operator Attestation ---
-        attestation = @@@{"kind":27235,"tags":[["service","npub_ownership"],["reason","why"]],"sig":"d713"}@@@
-
-        --- Message Provenance ---
-        Service: npub ownership proof
-        Reason: I'm resolving your architecture question.
-        Operator: npub17eezx4fpe7dn2az0jw2vmwu6k35m3g4yvn85e3d5zf3sryp82x7sus4uut
-        Protocol: DPYC Secure Courier v0.66.0
-        """
-        let payload = CourierPayload.parse(text)
-        XCTAssertNotNil(payload, "a proof request is still a valid courier payload")
-        XCTAssertEqual(payload!.fields.count, 0, "a proof request has no editable credential fields")
-        XCTAssertEqual(payload!.nonce?.key, "nonce")
-        XCTAssertNotNil(payload!.attestationJSON)
-        XCTAssertEqual(payload!.provenance.reason, "I'm resolving your architecture question.")
+    func testSecretsRequiredTitlesAndHelpComeFromTheSchema() throws {
+        let fields = try credentials().fields
+        let appKey = fields[0].property
+        XCTAssertTrue(appKey.isSecret)
+        XCTAssertTrue(appKey.isRequired)
+        XCTAssertEqual(appKey.title, "App key")
+        XCTAssertEqual(appKey.description, "From developer.schwab.com, your app's page")
+        let label = fields[2].property
+        XCTAssertFalse(label.isSecret)
+        XCTAssertFalse(label.isRequired)
+        XCTAssertEqual(label.title, "account_label")
     }
 
-    // MARK: - Placeholder Detection
-
-    func testPlaceholderDetection() {
-        let text = "nsec = @@@PASTE_YOUR_NSEC_HERE@@@\nclaim = @@@PASTE_YOUR_CLAIM_HERE@@@"
-        let payload = CourierPayload.parse(text)!
-
-        XCTAssertTrue(payload.fields[0].needsInput)
-        XCTAssertTrue(payload.fields[1].needsInput)
+    func testApprovalFormOffersDurationChoices() throws {
+        let payload = try XCTUnwrap(CourierPayload.parse(
+            tags: [["form", try CourierFixtures.text("approval")]], requestId: requestId
+        ))
+        XCTAssertTrue(payload.isApproval)
+        let duration = try XCTUnwrap(payload.fields.first { $0.key == "cache_duration" })
+        XCTAssertEqual(duration.value, "2h")
+        XCTAssertEqual(duration.property.examples, ["2h", "1d", "1w", "30d"])
     }
 
-    // MARK: - Filled Fields Not Placeholders
-
-    func testFilledFieldsNotPlaceholders() {
-        let text = "nsec = @@@nsec1realkey@@@\nclaim = @@@yes@@@"
-        let payload = CourierPayload.parse(text)!
-
-        XCTAssertFalse(payload.fields[0].needsInput)
-        XCTAssertFalse(payload.fields[1].needsInput)
+    func testAttestationComesFromItsTag() throws {
+        XCTAssertNil(try credentials().attestationJSON)
+        XCTAssertEqual(try credentials(extraTags: [["attestation", "{\"kind\":27235}"]]).attestationJSON,
+                       "{\"kind\":27235}")
     }
 
-    // MARK: - Nonce Separated
+    // MARK: - Not a courier request
 
-    func testNonceSeparated() {
-        let text = "nsec = @@@val@@@\nnonce = @@@deadbeef@@@\nclaim = @@@yes@@@"
-        let payload = CourierPayload.parse(text)!
-
-        XCTAssertEqual(payload.fields.count, 2, "Nonce should not be in fields")
-        XCTAssertNotNil(payload.nonce)
-        XCTAssertEqual(payload.nonce?.value, "deadbeef")
-        XCTAssertTrue(payload.fields.allSatisfy { $0.key != "nonce" })
+    func testNoFormTagIsNotARequest() {
+        XCTAssertNil(CourierPayload.parse(tags: [["p", "aa"]], requestId: requestId))
     }
 
-    // MARK: - isComplete When All Filled
-
-    func testIsCompleteWhenAllFilled() {
-        let text = "nsec = @@@nsec1real@@@\nclaim = @@@yes@@@"
-        let payload = CourierPayload.parse(text)!
-        XCTAssertTrue(payload.isComplete)
+    func testTwoFormTagsAreRefused() throws {
+        let form = try CourierFixtures.text("credentials")
+        XCTAssertNil(CourierPayload.parse(tags: [["form", form], ["form", form]], requestId: requestId))
     }
 
-    func testIsNotCompleteWithPlaceholders() {
-        let text = "nsec = @@@PASTE_YOUR_NSEC_HERE@@@\nclaim = @@@yes@@@"
-        let payload = CourierPayload.parse(text)!
-        XCTAssertFalse(payload.isComplete)
+    func testFormsOutsideTheSubsetAreRefused() throws {
+        let edits: [(String, (inout [String: Any]) -> Void)] = [
+            ("unknown kind", { $0["x-courier-kind"] = "survey" }),
+            ("nested object", { CourierFixtures.set(&$0, property: "secret", "type", "object") }),
+            ("number field", { CourierFixtures.set(&$0, property: "secret", "type", "number") }),
+            ("empty nonce", { CourierFixtures.set(&$0, property: "nonce", "const", "") }),
+            ("https relay", { CourierFixtures.set(&$0, property: "rendezvous_relay", "const", "https://relay.example") }),
+            ("not an object", { $0["type"] = "array" }),
+        ]
+        for (name, edit) in edits {
+            let form = try CourierFixtures.text("credentials", edit: edit)
+            XCTAssertNil(CourierPayload.parse(tags: [["form", form]], requestId: requestId), name)
+        }
+        XCTAssertNil(CourierPayload.parse(tags: [["form", "not json"]], requestId: requestId))
     }
 
-    // MARK: - Newline Stripping
+    // MARK: - Replying
 
-    func testNewlineStripping() {
-        let text = "nsec = @@@nsec1abc\n123\r\n456@@@"
-        let payload = CourierPayload.parse(text)!
-
-        XCTAssertEqual(payload.fields[0].value, "nsec1abc123456",
-                       "Newlines injected by mobile clients should be stripped")
+    func testReplyCarriesFilledFieldsAndControlValuesOnly() throws {
+        var payload = try credentials()
+        payload.fields[0].value = "key-\"quoted\"\nsecond line"
+        let reply = try CourierFixtures.object(payload.replyContent())
+        XCTAssertEqual(reply, [
+            "app_key": "key-\"quoted\"\nsecond line",
+            "nonce": nonce,
+            "rendezvous_relay": relay,
+        ])
+        XCTAssertEqual(payload.replyTags, [["e", requestId]])
     }
 
-    // MARK: - Serialize Round Trip
-
-    func testSerializeRoundTrip() {
-        let text = """
-        --- Credential Payload ---
-          nsec = @@@nsec1abc@@@
-          claim = @@@yes@@@
-          nonce = @@@deadbeef@@@
-        """
-
-        var payload = CourierPayload.parse(text)!
-
-        // Edit a field
-        payload.fields[0].value = "nsec1edited"
-
-        let serialized = payload.serialize()
-
-        XCTAssertTrue(serialized.contains("nsec = @@@nsec1edited@@@"))
-        XCTAssertTrue(serialized.contains("claim = @@@yes@@@"))
-        XCTAssertTrue(serialized.contains("nonce = @@@deadbeef@@@"))
-
-        // Re-parse the serialized output
-        let reparsed = CourierPayload.parse(serialized)
-        XCTAssertNotNil(reparsed)
-        XCTAssertEqual(reparsed?.fields.first(where: { $0.key == "nsec" })?.value, "nsec1edited")
+    func testCanSendNeedsOneFilledField() throws {
+        var payload = try credentials()
+        XCTAssertFalse(payload.canSend)
+        payload.fields[1].value = "s3cr3t"
+        XCTAssertTrue(payload.canSend)
     }
 
-    // MARK: - Provenance Parsing
-
-    func testProvenanceParsing() {
-        let text = """
-        key = @@@val@@@
-
-        --- Message Provenance ---
-        Service: my-service
-        Operator: npub1operator
-        Sent: 2026-03-15T12:00:00Z
-        Protocol: secure-courier/2.0
-        """
-
-        let payload = CourierPayload.parse(text)!
-
-        XCTAssertEqual(payload.provenance.service, "my-service")
-        XCTAssertEqual(payload.provenance.operatorNpub, "npub1operator")
-        XCTAssertEqual(payload.provenance.sent, "2026-03-15T12:00:00Z")
-        XCTAssertEqual(payload.provenance.protocolVersion, "secure-courier/2.0")
+    func testAFieldThatBreaksItsRuleBlocksSending() throws {
+        let form = try CourierFixtures.text("credentials") {
+            CourierFixtures.set(&$0, property: "secret", "minLength", 8)
+        }
+        var payload = try XCTUnwrap(CourierPayload.parse(tags: [["form", form]], requestId: requestId))
+        payload.fields[1].value = "short"
+        XCTAssertEqual(payload.problems, ["secret": "At least 8 characters"])
+        XCTAssertFalse(payload.canSend)
+        payload.fields[1].value = "long enough"
+        XCTAssertTrue(payload.canSend)
     }
 
-    // MARK: - Greeting Fields Not Duplicated
-
-    func testGreetingFieldsNotDuplicated() {
-        // The challenge DM has @@@yes@@@ in the instruction text AND in the payload section.
-        // Only the payload section fields should be extracted.
-        let text = """
-        You are requesting to become the curator of this Authority. Reply with: claim = @@@yes@@@ and include the nonce slug.
-
-        --- Credential Payload ---
-          claim = @@@yes@@@
-          nonce = @@@keen-nest-44@@@
-
-        --- Message Provenance ---
-        Service: tollbooth-authority
-        Operator: npub1example
-        Sent: 2026-03-20T16:00:00Z
-        Protocol: secure-courier/1.0
-        """
-
-        let payload = CourierPayload.parse(text)!
-
-        XCTAssertEqual(payload.fields.count, 1, "Only one 'claim' field from the payload section, not the greeting")
-        XCTAssertEqual(payload.fields[0].key, "claim")
-        XCTAssertEqual(payload.fields[0].value, "yes")
-        XCTAssertNotNil(payload.nonce)
-        XCTAssertEqual(payload.nonce?.value, "keen-nest-44")
-        XCTAssertTrue(payload.greeting.contains("Reply with"))
+    func testApprovedFillsOnlyFieldsWithoutChoices() throws {
+        let payload = try XCTUnwrap(CourierPayload.parse(
+            tags: [["form", try CourierFixtures.text("approval")]], requestId: requestId
+        )).approved()
+        XCTAssertEqual(payload.fields.map(\.value), ["approved", "2h"])
     }
 
-    // MARK: - Editing Placeholder Clears needsInput
+    // MARK: - Recognising courier traffic
 
-    func testEditingPlaceholderClearsNeedsInput() {
-        let text = """
-        --- Credential Payload ---
-          nsec = @@@PASTE_YOUR_NSEC_HERE@@@
-          claim = @@@PASTE_YOUR_CLAIM_HERE@@@
-        """
-        var payload = CourierPayload.parse(text)!
-
-        XCTAssertTrue(payload.fields[0].needsInput)
-        XCTAssertTrue(payload.fields[1].needsInput)
-        XCTAssertFalse(payload.isComplete)
-
-        // Simulate user editing
-        payload.fields[0].value = "nsec1realkey123"
-        payload.fields[1].value = "yes"
-
-        XCTAssertFalse(payload.fields[0].needsInput)
-        XCTAssertFalse(payload.fields[1].needsInput)
-        XCTAssertTrue(payload.isComplete)
+    func testReplyFieldCountReadsOurOwnReply() throws {
+        var payload = try credentials()
+        payload.fields[0].value = "k"
+        payload.fields[1].value = "s"
+        XCTAssertEqual(CourierPayload.replyFieldCount(payload.replyContent()), 2)
+        XCTAssertNil(CourierPayload.replyFieldCount("hello"))
+        XCTAssertNil(CourierPayload.replyFieldCount(#"{"note":"no nonce"}"#))
+        XCTAssertNil(CourierPayload.replyFieldCount(#"{"nonce":5}"#))
     }
 
-    // MARK: - No Fields Returns Nil
-
-    func testNoFieldsReturnsNil() {
-        let text = "@@@ some text @@@ but no key = pattern"
-        XCTAssertNil(CourierPayload.parse(text))
-    }
-
-    // MARK: - Multiple @ Signs in Value
-
-    func testMultipleAtSignsInValue() {
-        let text = "email = @@@user@example.com@@@"
-        let payload = CourierPayload.parse(text)
-
-        XCTAssertNotNil(payload)
-        XCTAssertEqual(payload?.fields.first?.value, "user@example.com")
-    }
-
-    func testAtSignsNotTripleInValue() {
-        // Value containing @@ (double, not triple) should be captured correctly
-        let text = "token = @@@abc@@def@@@"
-        let payload = CourierPayload.parse(text)
-
-        XCTAssertNotNil(payload)
-        XCTAssertEqual(payload?.fields.first?.value, "abc@@def")
-    }
-
-    // MARK: - Rendezvous Relay Pin (v0.39.0+ protocol)
-
-    func testRendezvousRelayExtracted() {
-        // The wheel embeds the per-conversation rendezvous relay so the
-        // responder knows where to publish their reply. Like ``nonce``,
-        // it's protocol-control metadata, not a user-editable field.
-        let text = """
-        --- Credential Payload ---
-          nsec = @@@PASTE_YOUR_NSEC_HERE@@@
-          nonce = @@@bold-hawk-42@@@
-          rendezvous_relay = @@@wss://relay.primal.net@@@
-        """
-
-        let payload = CourierPayload.parse(text)!
-
-        XCTAssertEqual(payload.fields.count, 1, "Only nsec is user-editable")
-        XCTAssertEqual(payload.fields[0].key, "nsec")
-        XCTAssertEqual(payload.nonce?.value, "bold-hawk-42")
-        XCTAssertEqual(payload.rendezvousRelay?.value, "wss://relay.primal.net")
-    }
-
-    func testRendezvousRelayAbsentOnLegacyChallenge() {
-        // Pre-v0.39.0 wheels don't embed rendezvous_relay. Parsing must
-        // continue to succeed without it.
-        let text = """
-        --- Credential Payload ---
-          nsec = @@@PASTE_YOUR_NSEC_HERE@@@
-          nonce = @@@bold-hawk-42@@@
-        """
-
-        let payload = CourierPayload.parse(text)!
-
-        XCTAssertNotNil(payload.nonce)
-        XCTAssertNil(payload.rendezvousRelay)
-    }
-
-    func testRendezvousRelayNotSerializedInReply() {
-        // The reply only needs to echo user-editable fields plus the
-        // nonce. The rendezvous URL is the sender's listener address
-        // — it has no business in the reply body.
-        let text = """
-        --- Credential Payload ---
-          nsec = @@@nsec1real@@@
-          nonce = @@@bold-hawk-42@@@
-          rendezvous_relay = @@@wss://relay.primal.net@@@
-        """
-
-        let payload = CourierPayload.parse(text)!
-        let serialized = payload.serialize()
-
-        XCTAssertTrue(serialized.contains("nsec = @@@nsec1real@@@"))
-        XCTAssertTrue(serialized.contains("nonce = @@@bold-hawk-42@@@"))
-        XCTAssertFalse(serialized.contains("rendezvous_relay"))
-    }
-
-    // MARK: - Operator Attestation + Delivery Key (proof provenance)
-
-    /// A self-DM request body mirroring the SDK's open_channel output: the
-    /// attestation must be captured (not treated as an editable field), the
-    /// registered operator npub and the delivery key must be read from the
-    /// provenance section.
-    func testParseAttestationAndDeliveryKey() {
-        let attestation = #"{"id":"abc","pubkey":"c812","kind":27235,"tags":[["u","npub_proof_request"]],"content":"","sig":"ff","created_at":1}"#
-        let text = """
-        Hi — verify you own this npub.
-
-        --- Credential Payload ---
-          confirm = @@@PASTE_YOUR_CONFIRM_HERE@@@
-          nonce = @@@bold-hawk-42@@@
-          rendezvous_relay = @@@wss://relay.test.com@@@
-
-        IMPORTANT: include the anti-replay token exactly as shown.
-
-        --- Operator Attestation ---
-        Signed by the Operator's registered npub; binds the delivery key and this exact request.
-        attestation = @@@\(attestation)@@@
-
-        --- Message Provenance ---
-        Service: Test X API credentials
-        Operator: npub1registeredoperator
-        Delivery key: npub1ephemeraldeliverykey
-          (Relays drop self-addressed DMs, so this request is delivered from a one-time key.)
-        Sent: 2026-07-19 00:00:00 UTC
-        Protocol: DPYC Secure Courier v0.65.0
-
-        If you didn't request this, simply ignore this message.
-        """
-
-        let payload = CourierPayload.parse(text)
-        XCTAssertNotNil(payload)
-        // Attestation captured, and NOT surfaced as an editable credential field.
-        XCTAssertEqual(payload?.attestationJSON, attestation)
-        XCTAssertFalse(payload?.fields.contains(where: { $0.key == "attestation" }) ?? true)
-        // Registered operator npub and delivery key parsed from provenance.
-        XCTAssertEqual(payload?.provenance.operatorNpub, "npub1registeredoperator")
-        XCTAssertEqual(payload?.provenance.deliveryKey, "npub1ephemeraldeliverykey")
-        // Control fields still handled.
-        XCTAssertEqual(payload?.nonce?.value, "bold-hawk-42")
-    }
-
-    /// Legacy DM without an attestation block: attestationJSON is nil (→ amber,
-    /// never green), and nothing breaks.
-    func testParseLegacyDMHasNoAttestation() {
-        let text = """
-        Hi
-
-        --- Credential Payload ---
-          nonce = @@@bold-hawk-42@@@
-          rendezvous_relay = @@@wss://relay.test.com@@@
-
-        --- Message Provenance ---
-        Operator: npub1registeredoperator
-        """
-        let payload = CourierPayload.parse(text)
-        XCTAssertNotNil(payload)
-        XCTAssertNil(payload?.attestationJSON)
-        XCTAssertNil(payload?.provenance.deliveryKey)
+    func testCourierTrafficIsRecognised() throws {
+        XCTAssertTrue(CourierPayload.isCourierTraffic(content: "Hi", tags: [["form", "{}"]]))
+        XCTAssertTrue(CourierPayload.isCourierTraffic(content: #"{"nonce":"x","secret":"y"}"#, tags: []))
+        XCTAssertTrue(CourierPayload.isCourierTraffic(content: "  secret = @@@x@@@", tags: []))
+        XCTAssertFalse(CourierPayload.isCourierTraffic(content: "see you at 5", tags: []))
     }
 }

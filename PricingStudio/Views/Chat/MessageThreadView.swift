@@ -1,4 +1,5 @@
 import DPYCAuthKit
+import PricingStudioCore
 import SwiftUI
 import SwiftData
 
@@ -91,18 +92,20 @@ struct MessageThreadView: View {
                                 isSelected: selectedMessageIds.contains(dm.id),
                                 isPending: chatVM.pendingMessageIds.contains(dm.id),
                                 missedRendezvous: chatVM.pinMissedEventIds.contains(dm.id),
-                                onSendReply: { recipientHex, content in
+                                onSendCourierReply: { recipientHex, answered in
                                     Task {
                                         await chatVM.sendMessage(
                                             to: recipientHex,
-                                            content: content
+                                            content: answered.replyContent(),
+                                            replyTags: answered.replyTags,
+                                            pinnedRelay: answered.rendezvousRelay
                                         )
                                     }
                                 }
                             )
                             .id(dm.id)
                             .modifier(MessageGestureModifier(
-                                isCourierInput: !dm.isFromMe && dm.content.contains("@@@"),
+                                isCourierInput: !dm.isFromMe && CourierPayload.parse(tags: dm.tags, requestId: dm.messageId) != nil,
                                 onDelete: { Task { await chatVM.requestDeletion(eventIds: [dm.rawEventId]) } },
                                 onToggleSelect: { toggleSelection(dm.id) }
                             ))
