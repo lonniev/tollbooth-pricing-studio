@@ -23,7 +23,7 @@ final class ProofApprovalServiceTests: XCTestCase {
     }
 
     func testCredentialFormIsNotOneTap() throws {
-        XCTAssertNil(ProofApprovalService.classify(tags: try tags("credentials"), requestId: requestId))
+        XCTAssertNil(ProofApprovalService.classify(tags: try tags("credential_form"), requestId: requestId))
     }
 
     func testApprovalAskingForASecretIsNotOneTap() throws {

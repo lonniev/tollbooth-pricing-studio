@@ -9,7 +9,7 @@ final class CourierPayloadTests: XCTestCase {
 
     private func credentials(extraTags: [[String]] = []) throws -> CourierPayload {
         try XCTUnwrap(CourierPayload.parse(
-            tags: [["p", "aa"], ["form", try CourierFixtures.text("credentials")]] + extraTags,
+            tags: [["p", "aa"], ["form", try CourierFixtures.text("credential_form")]] + extraTags,
             requestId: requestId
         ))
     }
@@ -68,7 +68,7 @@ final class CourierPayloadTests: XCTestCase {
     }
 
     func testTwoFormTagsAreRefused() throws {
-        let form = try CourierFixtures.text("credentials")
+        let form = try CourierFixtures.text("credential_form")
         XCTAssertNil(CourierPayload.parse(tags: [["form", form], ["form", form]], requestId: requestId))
     }
 
@@ -82,7 +82,7 @@ final class CourierPayloadTests: XCTestCase {
             ("not an object", { $0["type"] = "array" }),
         ]
         for (name, edit) in edits {
-            let form = try CourierFixtures.text("credentials", edit: edit)
+            let form = try CourierFixtures.text("credential_form", edit: edit)
             XCTAssertNil(CourierPayload.parse(tags: [["form", form]], requestId: requestId), name)
         }
         XCTAssertNil(CourierPayload.parse(tags: [["form", "not json"]], requestId: requestId))
@@ -110,7 +110,7 @@ final class CourierPayloadTests: XCTestCase {
     }
 
     func testAFieldThatBreaksItsRuleBlocksSending() throws {
-        let form = try CourierFixtures.text("credentials") {
+        let form = try CourierFixtures.text("credential_form") {
             CourierFixtures.set(&$0, property: "secret", "minLength", 8)
         }
         var payload = try XCTUnwrap(CourierPayload.parse(tags: [["form", form]], requestId: requestId))
