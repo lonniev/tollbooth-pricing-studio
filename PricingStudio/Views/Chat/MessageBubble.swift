@@ -16,6 +16,9 @@ struct MessageBubble: View {
     /// courier will never drain it. Delivered to the network is not delivered
     /// to the recipient, and the row must not imply otherwise.
     var missedRendezvous: Bool = false
+    /// Operators and Authorities saved in this app, by npub → display name.
+    /// A request whose attestation one of them signed resolves to that name.
+    var knownOperators: [String: String] = [:]
     /// Send a courier reply: the recipient's hex key and the answered request.
     var onSendCourierReply: ((String, CourierPayload) -> Void)?
 
@@ -187,8 +190,8 @@ struct MessageBubble: View {
     /// genuine self-proof the attestation is signed by the operator, and the
     /// DM's recipient *is* that same operator identity, so the signer resolving
     /// to `dm.recipientPubkeyHex` yields green; an impostor who signs with any
-    /// other key resolves to nothing and yields red (claimed name suppressed).
-    /// Cross-operator resolution against the community registry is a follow-up.
+    /// other key resolves to nothing. A request signed by an Operator or
+    /// Authority saved in this app resolves to that saved name.
     private var trustAssessment: ProofProvenance.TrustAssessment? {
         guard let payload = courierPayload, !dm.isFromMe else { return nil }
         // Every request carries a one-time challenge, so every request — a
@@ -198,18 +201,28 @@ struct MessageBubble: View {
         let recipientHex = dm.recipientPubkeyHex
         let subjectNpub = (try? NostrKeyService.npubFromHex(recipientHex)) ?? ""
 
+        // Known signers: this device's own identity (the self-proof case) and
+        // every Operator or Authority the human saved in this app. The name
+        // shown is used only once the signature verifies against that key.
+        var known: Set<String> = [recipientHex]
+        var signerName: String? = subjectNpub.isEmpty ? nil : subjectNpub
+        if let signerHex = payload.attestationJSON.flatMap(ProofProvenance.parse)?.pubkey,
+           signerHex != recipientHex,
+           let signerNpub = try? NostrKeyService.npubFromHex(signerHex),
+           let name = knownOperators[signerNpub] {
+            known.insert(signerHex)
+            signerName = name.isEmpty ? signerNpub : name
+        }
+
         return ProofProvenance.assess(
             attestationJSON: payload.attestationJSON,
             expectedSenderPubkeyHex: dm.senderPubkeyHex,
             expectedSubjectNpub: subjectNpub,
             expectedChallenge: challenge,
-            knownOperatorPubkeyHexes: [recipientHex],
-            priorContactPubkeyHexes: [recipientHex],
-            // The verified signer resolves to this device's own operator
-            // identity (the self-proof case). Show the actual npub, not a
-            // placeholder phrase — an unverifiable label ("your operator
-            // identity") is exactly the empty text the human cannot check.
-            resolvedOperatorName: subjectNpub.isEmpty ? nil : subjectNpub,
+            knownOperatorPubkeyHexes: known,
+            // Saving an operator in this app is the standing relationship.
+            priorContactPubkeyHexes: known,
+            resolvedOperatorName: signerName,
             claimedService: payload.form.title,
             signatureValidator: { event in
                 verifyEventSignature(NostrEvent(

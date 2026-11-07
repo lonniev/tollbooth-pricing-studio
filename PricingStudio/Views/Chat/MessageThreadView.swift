@@ -92,6 +92,7 @@ struct MessageThreadView: View {
                                 isSelected: selectedMessageIds.contains(dm.id),
                                 isPending: chatVM.pendingMessageIds.contains(dm.id),
                                 missedRendezvous: chatVM.pinMissedEventIds.contains(dm.id),
+                                knownOperators: knownOperators,
                                 onSendCourierReply: { recipientHex, answered in
                                     Task {
                                         await chatVM.sendMessage(
@@ -185,6 +186,14 @@ struct MessageThreadView: View {
 
     /// Resolve a pubkey hex to a known entity's display name.
     /// Prefers patron aliases (most specific) over operator/authority names.
+    /// Operators and Authorities saved in this app, npub → display name.
+    private var knownOperators: [String: String] {
+        var names: [String: String] = [:]
+        for auth in authorities where !auth.npub.isEmpty { names[auth.npub] = auth.displayName }
+        for op in operators where !op.npub.isEmpty { names[op.npub] = op.displayName }
+        return names
+    }
+
     private func displayName(for pubkeyHex: String) -> String? {
         let npub = try? NostrKeyService.npubFromHex(pubkeyHex)
 
