@@ -41,88 +41,36 @@ public enum ProofApprovalService {
     /// A courier DM that a single tap can safely approve.
     public struct ProofChallenge: Sendable {
         public let payload: CourierPayload
-        public let nonce: String
-        public let pinnedRelay: URL
-        /// The confirmation placeholder's key ("confirm" et al), nil when the
-        /// operator prefilled it and nothing needs input.
-        public let confirmKey: String?
+        public var nonce: String { payload.nonce }
+        public var pinnedRelay: URL { payload.rendezvousRelay }
 
-        public init(payload: CourierPayload, nonce: String, pinnedRelay: URL, confirmKey: String?) {
+        public init(payload: CourierPayload) {
             self.payload = payload
-            self.nonce = nonce
-            self.pinnedRelay = pinnedRelay
-            self.confirmKey = confirmKey
         }
     }
 
-    /// Keys whose placeholder a one-tap "approved" may legitimately fill.
-    private static let confirmationKeys: Set<String> = [
-        "confirm", "confirmation", "ack", "approve",
-    ]
+    /// The field an approval reply uses to say how long the proof is kept.
+    public static let durationKey = "cache_duration"
 
-    /// Substrings that mark a field as a real secret or identifier a tap can
-    /// never supply — presence of any such input field disqualifies the DM.
-    private static let secretMarkers = [
-        "key", "secret", "token", "pass", "uri", "host", "npub",
-    ]
-
-    /// Decide whether a DM is a one-tap-approvable npub-proof challenge.
+    /// Decide whether a DM is a one-tap-approvable request.
     ///
-    /// Requirements (all): parses as a courier payload; carries a non-empty
-    /// nonce and a ws/wss rendezvous relay; and its unfilled fields are
-    /// at most one confirmation-style placeholder. Credential-channel DMs
-    /// (api_key…) and operators whose proof field is a real passphrase
-    /// (e.g. taxsort) deliberately fail — a watch tap cannot supply a
-    /// meaningful secret, only an affirmation.
-    public static func classify(_ content: String) -> ProofChallenge? {
-        guard let payload = CourierPayload.parse(content) else { return nil }
-
-        guard let token = payload.nonce?.value, !token.isEmpty else { return nil }
-
-        guard let relayText = payload.rendezvousRelay?.value,
-              let relay = URL(string: relayText),
-              let scheme = relay.scheme?.lowercased(),
-              scheme == "ws" || scheme == "wss" else { return nil }
-
-        let inputFields = payload.fields.filter {
-            $0.needsInput && $0.key.lowercased() != "cache_duration"
-        }
-        guard inputFields.count <= 1 else { return nil }
-
-        for field in inputFields {
-            let key = field.key.lowercased()
-            guard confirmationKeys.contains(key) else { return nil }
-            guard !secretMarkers.contains(where: key.contains) else { return nil }
-        }
-
-        return ProofChallenge(
-            payload: payload,
-            nonce: token,
-            pinnedRelay: relay,
-            confirmKey: inputFields.first?.key
-        )
+    /// It must be a courier request whose form says it is an approval, with
+    /// no secret field. A watch tap can affirm; it can never supply a secret,
+    /// so a credential form (or an approval that asks for one) is left for
+    /// the in-app form.
+    public static func classify(tags: [[String]], requestId: String) -> ProofChallenge? {
+        guard let payload = CourierPayload.parse(tags: tags, requestId: requestId),
+              payload.isApproval,
+              !payload.fields.contains(where: { $0.property.isSecret }) else { return nil }
+        return ProofChallenge(payload: payload)
     }
 
     // MARK: - Reply Builder
 
-    /// The reply the Approve button sends: affirmation wording plus the
-    /// re-serialized form. The operator's parser matches solely on the echoed
-    /// nonce; `cache_duration` sets how long the proof stays cached.
+    /// The reply the Approve button sends: the approval answered, with how
+    /// long to keep the proof, as the courier's JSON reply.
     public static func buildApprovalReply(_ challenge: ProofChallenge, duration: String = defaultDuration) -> String {
-        var payload = challenge.payload
-        payload.fields = payload.fields.map { field in
-            var field = field
-            if field.key == challenge.confirmKey {
-                field.value = "approved"
-            } else if field.key.lowercased() == "cache_duration" {
-                field.value = duration
-            }
-            return field
-        }
-        if !payload.fields.contains(where: { $0.key.lowercased() == "cache_duration" }) {
-            payload.fields.append(CourierPayload.Field(key: "cache_duration", value: duration))
-        }
-        return "Approved.\n\n\(payload.serialize())"
+        challenge.payload.approved().setting(durationKey, to: duration).replyContent()
     }
 
     // MARK: - userInfo Codec
@@ -137,6 +85,13 @@ public enum ProofApprovalService {
         public let pinnedRelay: URL
         public let replyContent: String
         public let eventId: String
+        /// The request's rumor id, quoted in the reply's `e` tag.
+        public let requestId: String
+
+        /// The reply's private rumor tags.
+        public var replyTags: [[String]] {
+            requestId.isEmpty ? [] : [["e", requestId]]
+        }
 
         private enum Key {
             static let version = "proofApproval.v"
@@ -145,40 +100,45 @@ public enum ProofApprovalService {
             static let pinnedRelay = "proofApproval.pinnedRelay"
             static let replyContent = "proofApproval.replyContent"
             static let eventId = "proofApproval.eventId"
+            static let requestId = "proofApproval.requestId"
         }
 
         public var userInfo: [String: Any] {
             [
-                Key.version: 1,
+                Key.version: 2,
                 Key.signerNpub: signerNpub,
                 Key.replyToHex: replyToHex,
                 Key.pinnedRelay: pinnedRelay.absoluteString,
                 Key.replyContent: replyContent,
                 Key.eventId: eventId,
+                Key.requestId: requestId,
             ]
         }
 
-        public init(signerNpub: String, replyToHex: String, pinnedRelay: URL, replyContent: String, eventId: String) {
+        public init(signerNpub: String, replyToHex: String, pinnedRelay: URL, replyContent: String, eventId: String, requestId: String) {
             self.signerNpub = signerNpub
             self.replyToHex = replyToHex
             self.pinnedRelay = pinnedRelay
             self.replyContent = replyContent
             self.eventId = eventId
+            self.requestId = requestId
         }
 
         public init?(userInfo: [AnyHashable: Any]) {
-            guard (userInfo[Key.version] as? Int) == 1,
+            guard (userInfo[Key.version] as? Int) == 2,
                   let signerNpub = userInfo[Key.signerNpub] as? String,
                   let replyToHex = userInfo[Key.replyToHex] as? String,
                   let relayText = userInfo[Key.pinnedRelay] as? String,
                   let pinnedRelay = URL(string: relayText),
                   let replyContent = userInfo[Key.replyContent] as? String,
-                  let eventId = userInfo[Key.eventId] as? String else { return nil }
+                  let eventId = userInfo[Key.eventId] as? String,
+                  let requestId = userInfo[Key.requestId] as? String else { return nil }
             self.signerNpub = signerNpub
             self.replyToHex = replyToHex
             self.pinnedRelay = pinnedRelay
             self.replyContent = replyContent
             self.eventId = eventId
+            self.requestId = requestId
         }
     }
 

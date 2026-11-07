@@ -147,8 +147,8 @@ struct OnboardingStatusSheet: View {
                         .tint(.orange)
                     } else if plan.mode == .rotate, !plan.candidates.isEmpty {
                         Button {
-                            // List every configured secret; CourierPayload.serialize
-                            // omits unfilled placeholders so a partial reply is surgical.
+                            // List every configured secret; CourierPayload.replyContent
+                            // omits unfilled fields so a partial reply is surgical.
                             let listed = OperatorSecretRotation.plan(
                                 configured: plan.candidates,
                                 missing: [],

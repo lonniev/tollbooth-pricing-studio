@@ -35,6 +35,40 @@ final class GiftWrapTests: XCTestCase {
         XCTAssertEqual(dm?.isFromMe, false)
     }
 
+    func testDMCarriesItsRumorTagsAndRumorId() throws {
+        let wrap = try GiftWrap.wrapDM(
+            message: "{}",
+            senderPrivKeyHex: alicePriv,
+            senderPubKeyHex: alicePub,
+            recipientPubKeyHex: bobPub,
+            extraTags: [["e", String(repeating: "c", count: 64)]]
+        )
+        let dm = try XCTUnwrap(GiftWrap.unwrapDM(wrap, privateKeyHex: bobPriv, publicKeyHex: bobPub))
+        XCTAssertEqual(dm.tags, [["p", bobPub], ["e", String(repeating: "c", count: 64)]])
+
+        let rumor = try GiftWrap.unwrap(wrap, recipientPrivateKeyHex: bobPriv).rumor
+        XCTAssertEqual(dm.messageId, rumor.id, "The DM names its rumor, not the wrap")
+        XCTAssertNotEqual(dm.messageId, wrap.id)
+        XCTAssertEqual(dm.messageId.count, 64)
+    }
+
+    /// The vector comes from tollbooth-dpyc `_rumor_id` (Python), so the id a
+    /// reply quotes matches the one the SDK gave its request: slashes, a dash
+    /// outside ASCII and a newline all serialize the same on both sides.
+    func testRumorIdMatchesTheSDK() throws {
+        let id = try computeEventId(
+            pubkey: String(repeating: "a", count: 64),
+            createdAt: 1_762_500_000,
+            kind: 14,
+            tags: [
+                ["p", String(repeating: "b", count: 64)],
+                ["form", #"{"title":"Npub ownership — proof","relay":"wss://relay.example"}"#],
+            ],
+            content: "Hi\nconfirm = @@@x@@@"
+        )
+        XCTAssertEqual(id, "7272f650db6b3e23001518a2dcdc405f3234c59284e470457a66de02625919fb")
+    }
+
     func testUnwrapExposesSealPubkey() throws {
         let rumor = try NostrEvent.rumor(
             kind: .privateDM,

@@ -63,16 +63,20 @@ public enum GiftWrap {
     }
 
     /// Build a NIP-17 gift-wrapped DM: kind 14 rumor → kind 13 → kind 1059.
+    ///
+    /// *extraTags* follow the rumor's `p` tag. They are encrypted with the
+    /// message, so only the recipient reads them (a courier reply's `e` tag).
     public static func wrapDM(
         message: String,
         senderPrivKeyHex: String,
         senderPubKeyHex: String,
-        recipientPubKeyHex: String
+        recipientPubKeyHex: String,
+        extraTags: [[String]] = []
     ) throws -> NostrEvent {
         let rumor = try NostrEvent.rumor(
             kind: .privateDM,
             content: message,
-            tags: [["p", recipientPubKeyHex]],
+            tags: [["p", recipientPubKeyHex]] + extraTags,
             publicKeyHex: senderPubKeyHex
         )
         return try wrap(

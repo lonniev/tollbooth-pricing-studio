@@ -321,7 +321,15 @@ final class ChatViewModel {
     var fetchError: String?
 
     /// Send a DM to the given counterparty via dual protocol.
-    func sendMessage(to counterpartyPubkeyHex: String, content: String) async {
+    ///
+    /// A courier reply passes the request's rendezvous relay as *pinnedRelay*
+    /// (the courier drains only that relay) and its `e` tag as *replyTags*.
+    func sendMessage(
+        to counterpartyPubkeyHex: String,
+        content: String,
+        replyTags: [[String]] = [],
+        pinnedRelay: URL? = nil
+    ) async {
         guard let identity = currentIdentity,
               let privHex = identity.privateKeyHex else {
             sendError = "No private key available for this identity. Add an nsec in the entity editor."
@@ -337,7 +345,8 @@ final class ChatViewModel {
             content: content,
             createdAt: Date(),
             encryption: .nip04,
-            isFromMe: true
+            isFromMe: true,
+            tags: replyTags
         )
         pendingMessageIds.insert(optimisticId)
 
@@ -350,18 +359,6 @@ final class ChatViewModel {
             )
         }
 
-        // Courier relay pinning: if the counterparty's latest courier DM
-        // names a rendezvous relay, the reply MUST be published there —
-        // the courier's listener drains only that relay.
-        let pinnedRelay = conversations
-            .first(where: { $0.counterpartyPubkeyHex == counterpartyPubkeyHex })?
-            .messages
-            .filter { !$0.isFromMe }
-            .reversed()
-            .compactMap { CourierPayload.parse($0.content)?.rendezvousRelay?.value }
-            .compactMap { URL(string: $0) }
-            .first
-
         // Send to relay in background — message is already visible as pending
         do {
             try await dmService.sendDM(
@@ -369,7 +366,8 @@ final class ChatViewModel {
                 publicKeyHex: identity.publicKeyHex,
                 recipientPubkeyHex: counterpartyPubkeyHex,
                 message: content,
-                pinnedRelay: pinnedRelay
+                pinnedRelay: pinnedRelay,
+                extraTags: replyTags
             )
             // Relay accepted — clear pending state and update cache immediately
             pendingMessageIds.remove(optimisticId)

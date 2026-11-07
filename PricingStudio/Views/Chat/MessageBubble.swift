@@ -4,8 +4,8 @@ import SwiftUI
 
 /// Individual message bubble with left/right alignment and encryption badge.
 ///
-/// When a DM contains Secure Courier `@@@` credential fields, renders an
-/// interactive `CourierPayloadView` instead of plain text.
+/// When a DM is a Secure Courier request (its rumor carries a `form` tag),
+/// renders an interactive `CourierPayloadView` instead of plain text.
 struct MessageBubble: View {
     let dm: DecryptedDM
     let fontName: String
@@ -16,7 +16,8 @@ struct MessageBubble: View {
     /// courier will never drain it. Delivered to the network is not delivered
     /// to the recipient, and the row must not imply otherwise.
     var missedRendezvous: Bool = false
-    var onSendReply: ((String, String) -> Void)?
+    /// Send a courier reply: the recipient's hex key and the answered request.
+    var onSendCourierReply: ((String, CourierPayload) -> Void)?
 
     @State private var courierPayload: CourierPayload?
     @State private var didParse = false
@@ -82,7 +83,7 @@ struct MessageBubble: View {
         )
         .onAppear {
             if !didParse {
-                courierPayload = CourierPayload.parse(dm.content)
+                courierPayload = CourierPayload.parse(tags: dm.tags, requestId: dm.messageId)
                 didParse = true
             }
         }
@@ -90,20 +91,15 @@ struct MessageBubble: View {
 
     // MARK: - Plain Text Content
 
-    /// True if this is an outbound Secure Courier reply (contains filled @@@ fields).
-    private var isOutboundCourierReply: Bool {
-        dm.isFromMe && dm.content.contains("@@@") && !dm.content.contains("PASTE_YOUR_")
-    }
-
-    /// Count of fields in an outbound courier reply.
-    private var courierFieldCount: Int {
-        dm.content.components(separatedBy: "@@@").count / 2
+    /// The field count of an outbound Secure Courier reply, nil otherwise.
+    private var courierFieldCount: Int? {
+        dm.isFromMe ? CourierPayload.replyFieldCount(dm.content) : nil
     }
 
     @ViewBuilder
     private var plainContent: some View {
         Group {
-            if isOutboundCourierReply {
+            if let courierFieldCount {
                 VStack(alignment: .leading, spacing: 4) {
                     // Compact summary — tap to expand
                     HStack(spacing: 6) {
@@ -177,16 +173,15 @@ struct MessageBubble: View {
                     get: { courierPayload! },
                     set: { courierPayload = $0 }
                 ),
-                onSend: { serialized in
-                    let replyTarget = replyTargetHex
-                    onSendReply?(replyTarget, serialized)
+                onSend: { answered in
+                    onSendCourierReply?(replyTargetHex, answered)
                 },
                 trust: trustAssessment
             )
         }
     }
 
-    /// Operator-attested trust verdict for an incoming proof-request DM.
+    /// Operator-attested trust verdict for an incoming courier request.
     ///
     /// Uses only data already on the DM — no identity store needed. For a
     /// genuine self-proof the attestation is signed by the operator, and the
@@ -196,9 +191,9 @@ struct MessageBubble: View {
     /// Cross-operator resolution against the community registry is a follow-up.
     private var trustAssessment: ProofProvenance.TrustAssessment? {
         guard let payload = courierPayload, !dm.isFromMe else { return nil }
-        // Only proof-request DMs (those carrying a one-time challenge) get a
-        // verdict; credential-delivery DMs keep the plain provenance popover.
-        guard let challenge = payload.nonce?.value, !challenge.isEmpty else { return nil }
+        // Every request carries a one-time challenge, so every request — a
+        // credential form as much as an approval — gets a verdict.
+        let challenge = payload.nonce
 
         let recipientHex = dm.recipientPubkeyHex
         let subjectNpub = (try? NostrKeyService.npubFromHex(recipientHex)) ?? ""
@@ -215,7 +210,7 @@ struct MessageBubble: View {
             // placeholder phrase — an unverifiable label ("your operator
             // identity") is exactly the empty text the human cannot check.
             resolvedOperatorName: subjectNpub.isEmpty ? nil : subjectNpub,
-            claimedService: payload.provenance.service,
+            claimedService: payload.form.title,
             signatureValidator: { event in
                 verifyEventSignature(NostrEvent(
                     id: event.id, pubkey: event.pubkey, created_at: event.created_at,

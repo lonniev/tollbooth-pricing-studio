@@ -3,7 +3,7 @@ import PackageDescription
 
 // PricingStudioCore — host-free pure-logic extracted from the app so its tests
 // run in CI via `swift test` (no simulator, no app launch). Slices:
-// Secure-Courier DM parsing (CourierPayload), npub-proof approval classification
+// Secure-Courier request forms (CourierForm, CourierPayload), npub-proof approval classification
 // (ProofApprovalService), proof provenance, notification prefs, the Courier
 // Bridge wake doctrine (CourierBridgeDoctrine), content-free wake recognition +
 // device-token registration shape (CourierBridgeWake), live-subscription
@@ -24,7 +24,10 @@ let package = Package(
         .target(name: "PricingStudioCore"),
         .testTarget(
             name: "PricingStudioCoreTests",
-            dependencies: ["PricingStudioCore"]
+            dependencies: ["PricingStudioCore"],
+            // Golden courier forms copied from tollbooth-dpyc
+            // tests/fixtures/courier_form/ — the cross-repo contract.
+            resources: [.copy("Fixtures")]
         ),
     ]
 )

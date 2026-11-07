@@ -13,6 +13,12 @@ public struct DecryptedDM: Identifiable, Sendable {
     public let createdAt: Date
     public let encryption: EncryptionType
     public let isFromMe: Bool
+    /// The message's own tags: the kind 14 rumor's tags for a NIP-17 DM
+    /// (private, encrypted with the content), or the kind 4 event's tags.
+    public let tags: [[String]]
+    /// The message's NIP-01 id: the rumor's for a NIP-17 DM, the event's for
+    /// NIP-04. A reply names it in an `e` tag.
+    public let messageId: String
 
     public var id: String { rawEventId }
 
@@ -28,7 +34,9 @@ public struct DecryptedDM: Identifiable, Sendable {
         content: String,
         createdAt: Date,
         encryption: EncryptionType,
-        isFromMe: Bool
+        isFromMe: Bool,
+        tags: [[String]] = [],
+        messageId: String? = nil
     ) {
         self.rawEventId = rawEventId
         self.senderPubkeyHex = senderPubkeyHex
@@ -37,6 +45,8 @@ public struct DecryptedDM: Identifiable, Sendable {
         self.createdAt = createdAt
         self.encryption = encryption
         self.isFromMe = isFromMe
+        self.tags = tags
+        self.messageId = messageId ?? rawEventId
     }
 }
 
@@ -92,7 +102,8 @@ public enum NIP04DM {
                 content: plaintext,
                 createdAt: Date(timeIntervalSince1970: TimeInterval(event.created_at)),
                 encryption: .nip04,
-                isFromMe: isFromMe
+                isFromMe: isFromMe,
+                tags: event.tags
             )
         } catch {
             logger.debug("NIP-04 decrypt failed for \(event.id.prefix(8)): \(error.localizedDescription)")
@@ -123,6 +134,13 @@ public extension GiftWrap {
             let recipientHex = rumor.tags
                 .first(where: { $0.first == "p" })?[safe: 1] ?? publicKeyHex
 
+            // The rumor's id is recomputed from its fields, never taken from
+            // the sender: a reply quotes it to name the request it answers.
+            let rumorId = (try? computeEventId(
+                pubkey: rumor.pubkey, createdAt: rumor.created_at, kind: rumor.kind,
+                tags: rumor.tags, content: rumor.content
+            )) ?? event.id
+
             // The rumor's created_at is the real send time; the gift wrap's
             // timestamp is fuzzed (NIP-17 randomizes it for privacy, often
             // +/- hours from actual send time). unwrap() already prefers it.
@@ -133,7 +151,9 @@ public extension GiftWrap {
                 content: rumor.content,
                 createdAt: Date(timeIntervalSince1970: TimeInterval(rumor.created_at)),
                 encryption: .nip44,
-                isFromMe: isFromMe
+                isFromMe: isFromMe,
+                tags: rumor.tags,
+                messageId: rumorId
             )
         } catch {
             logger.debug("Gift wrap unwrap failed for \(event.id.prefix(8)): \(error.localizedDescription)")
