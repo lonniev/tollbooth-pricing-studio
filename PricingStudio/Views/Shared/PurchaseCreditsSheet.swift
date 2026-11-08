@@ -31,6 +31,10 @@ struct PurchaseCreditsSheet: View {
     var onSettled: (() -> Void)? = nil
     /// Optional "message the cashier" affordance for unrecoverable errors.
     var onNotifyCashier: (() -> Void)? = nil
+    /// Restart an invoice already created, perhaps on another device: the sheet
+    /// skips choosing an amount and shows that invoice's payment page again.
+    var resumeInvoiceId: String? = nil
+    var resumeAmountSats: Int = 0
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -103,8 +107,16 @@ struct PurchaseCreditsSheet: View {
         NavigationStack {
             Form {
                 heroTicketSection
-                amountSection
+                if resumeInvoiceId == nil {
+                    amountSection
+                }
                 purchaseStateSection
+            }
+            .task {
+                if let invoiceId = resumeInvoiceId, case .idle = purchaseState {
+                    if resumeAmountSats > 0 { selectedAmount = resumeAmountSats }
+                    resume(invoiceId)
+                }
             }
             .navigationTitle("Top Up")
             .toolbar {
@@ -331,7 +343,11 @@ struct PurchaseCreditsSheet: View {
 
         case .purchasing:
             Section {
-                HStack { ProgressView(); Text("Creating invoice…").foregroundStyle(.secondary) }
+                HStack {
+                    ProgressView()
+                    Text(resumeInvoiceId == nil ? "Creating invoice…" : "Finding invoice…")
+                        .foregroundStyle(.secondary)
+                }
             }
 
         case .success(let result):
@@ -420,7 +436,7 @@ struct PurchaseCreditsSheet: View {
                 .font(.subheadline.bold())
             Text(guidance.explanation).font(.caption).foregroundStyle(.secondary)
             if guidance.isRetryable {
-                Button("Retry") { purchase() }.buttonStyle(.borderedProminent)
+                Button("Retry") { start() }.buttonStyle(.borderedProminent)
             }
             if guidance.canNotify, let onNotifyCashier {
                 Button {
@@ -471,6 +487,16 @@ struct PurchaseCreditsSheet: View {
                 color: .red,
                 explanation: "Couldn't reach \(cashierName). Check your connection and try again.",
                 isRetryable: true,
+                canNotify: false
+            )
+        }
+        if lower.contains("expired before it was paid") {
+            return ErrorGuidance(
+                headline: "Invoice Expired",
+                icon: "clock.badge.xmark",
+                color: .secondary,
+                explanation: message,
+                isRetryable: false,
                 canNotify: false
             )
         }
@@ -583,6 +609,55 @@ struct PurchaseCreditsSheet: View {
 
     // MARK: - Actions
 
+    /// Carry on whichever flow this sheet opened for, e.g. after a proof.
+    private func start() {
+        if let invoiceId = resumeInvoiceId {
+            resume(invoiceId)
+        } else {
+            purchase()
+        }
+    }
+
+    /// Fetch an unpaid invoice's payment page from the cashier. The cashier
+    /// returns it only to the invoice's owner, the purchaser here.
+    private func resume(_ invoiceId: String) {
+        purchaseState = .purchasing
+        Task {
+            do {
+                guard let endpointURL = URL(string: endpoint) else {
+                    throw MCPError.connectionFailed("Invalid endpoint")
+                }
+                let result = try await mcpService.callCheckPayment(
+                    endpointURL: endpointURL,
+                    invoiceId: invoiceId,
+                    npub: purchaserNpub
+                )
+                let invoice = MCPService.PurchaseResult(
+                    invoiceId: invoiceId,
+                    checkoutLink: result.checkoutLink,
+                    lightningInvoice: result.lightningInvoice,
+                    amountSats: resumeAmountSats
+                )
+                if result.status == "Settled" || result.creditsGranted > 0 {
+                    purchaseState = .success(invoice)
+                    paymentCheckState = .settled("Already paid. +\(result.creditsGranted) sats credited.")
+                    onSettled?()
+                } else if result.status == "Processing" {
+                    purchaseState = .success(invoice)
+                    paymentCheckState = .checked("Payment seen, waiting for confirmation.")
+                } else if !result.checkoutLink.isEmpty {
+                    purchaseState = .success(invoice)
+                } else if result.status == "Expired" || result.status == "Invalid" {
+                    purchaseState = .error("This invoice expired before it was paid. Start a new top up.")
+                } else {
+                    purchaseState = .error("\(cashierName) did not return this invoice's payment page.")
+                }
+            } catch {
+                purchaseState = .error(error.localizedDescription)
+            }
+        }
+    }
+
     private func purchase() {
         purchaseState = .purchasing
         Task {
@@ -637,7 +712,7 @@ struct PurchaseCreditsSheet: View {
                     nonce: nonce
                 )
                 proofState = .idle
-                purchase()
+                start()
             } catch {
                 proofState = .failed(error.localizedDescription)
             }
@@ -652,7 +727,7 @@ struct PurchaseCreditsSheet: View {
             return
         }
         proofState = .idle
-        purchase()
+        start()
     }
 
     private func checkPayment(invoiceId: String) {

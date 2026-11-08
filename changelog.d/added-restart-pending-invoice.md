@@ -1,0 +1,1 @@
+- A Pending invoice has a Restart button that shows its Lightning QR and payment page again, so a top-up started on another device can be paid here.
