@@ -49,10 +49,20 @@ def main() -> None:
 
     # Age rating moved to app scope; the declaration hangs off the appInfo (or
     # the app). Find whichever path returns it.
-    app_info_id = api("GET", f"/v1/apps/{app_id}/appInfos", token)[1]["data"][0]["id"]
+    # An update has two appInfos: the live one (READY_FOR_SALE, locked) and the
+    # one riding the new version. Only the latter's declaration is editable.
+    infos = api("GET", f"/v1/apps/{app_id}/appInfos", token)[1]["data"]
+    infos.sort(key=lambda i: i["attributes"].get("appStoreState") == "READY_FOR_SALE")
+    vers = api("GET", f"/v1/apps/{app_id}/appStoreVersions", token, query={
+        "limit": "10", "fields[appStoreVersions]": "appStoreState,platform"})[1]["data"]
+    editable = [v["id"] for v in vers
+                if v["attributes"].get("platform") == "IOS"
+                and v["attributes"].get("appStoreState") in EDITABLE_STATES]
+    paths = [f"/v1/appInfos/{i['id']}/ageRatingDeclaration" for i in infos]
+    paths += [f"/v1/appStoreVersions/{vid}/ageRatingDeclaration" for vid in editable]
+    paths.append(f"/v1/apps/{app_id}/ageRatingDeclaration")
     decl = None
-    for path in (f"/v1/appInfos/{app_info_id}/ageRatingDeclaration",
-                 f"/v1/apps/{app_id}/ageRatingDeclaration"):
+    for path in paths:
         status, data = api("GET", path, token)
         print(f"GET {path} → HTTP {status}")
         if status == 200 and data.get("data"):
