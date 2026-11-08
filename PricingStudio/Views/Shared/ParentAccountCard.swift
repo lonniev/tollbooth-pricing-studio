@@ -86,26 +86,35 @@ struct ParentAccountCard: View {
                 }
             }
             Spacer()
-            claimButton
-            Button(action: onTopUp) {
-                Label(topUpLabel, systemImage: "bolt.fill").font(.caption)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.mini)
-            .tint(.green)
-            if let onStatement {
-                Button(action: onStatement) {
-                    Label("Statement", systemImage: "chart.bar.doc.horizontal").font(.caption)
+            HStack(spacing: 6) {
+                claimButton
+                iconButton(topUpLabel, systemImage: "bolt.fill", tint: .green, action: onTopUp)
+                if let onStatement {
+                    iconButton("Statement", systemImage: "chart.bar.doc.horizontal", action: onStatement)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
+                iconButton("Refresh", systemImage: "arrow.clockwise", action: onRefresh)
             }
-            Button(action: onRefresh) {
-                Label("Refresh", systemImage: "arrow.clockwise").font(.caption)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.mini)
         }
+    }
+
+    /// The header's actions are icons: a phone row has room for the account
+    /// title and three glyphs, never three worded buttons. The label stays the
+    /// VoiceOver name.
+    private func iconButton(
+        _ title: String,
+        systemImage: String,
+        tint: Color? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .labelStyle(.iconOnly)
+                .font(.caption)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .controlSize(.small)
+        .tint(tint)
     }
 
     // MARK: - Self-funded (penultimate Authority)
@@ -132,12 +141,7 @@ struct ParentAccountCard: View {
     @ViewBuilder
     private var claimButton: some View {
         if let claimLabel, let onClaim {
-            Button(action: onClaim) {
-                Label(claimLabel, systemImage: claimIcon).font(.caption)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.mini)
-            .tint(.secondary)
+            iconButton(claimLabel, systemImage: claimIcon, tint: .secondary, action: onClaim)
         }
     }
 
