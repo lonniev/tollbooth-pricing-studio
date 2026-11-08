@@ -28,6 +28,8 @@ NONE_LEVELS = [
     "violenceRealisticProlongedGraphicOrSadistic",
 ]
 FALSE_FLAGS = ["gambling", "unrestrictedWebAccess", "seventeenPlus", "lootBox"]
+# Required boolean questions that start out null on an existing declaration.
+DECLARED_NO = ["socialMedia"]
 
 
 def build_attrs():
@@ -74,6 +76,12 @@ def main() -> None:
             attrs[k] = False
         elif isinstance(v, str):
             attrs[k] = "NONE"
+    # Questions Apple added after the declaration was first written come back
+    # null, and the API then refuses the version until they are answered.
+    # Studio is a pricing and payments tool, so each answer is no.
+    for k in DECLARED_NO:
+        if decl.get("attributes", {}).get(k) is None:
+            attrs[k] = False
     rid = decl["id"]
     s, r = api("PATCH", f"/v1/ageRatingDeclarations/{rid}", token, body={
         "data": {"type": "ageRatingDeclarations", "id": rid, "attributes": attrs}})
