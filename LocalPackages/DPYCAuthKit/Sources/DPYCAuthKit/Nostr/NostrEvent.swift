@@ -198,14 +198,6 @@ public func verifyEventSignature(_ event: NostrEvent) -> Bool {
     }
 }
 
-// MARK: - Timestamp Helpers
-
-/// NIP-17 fuzzed timestamp: 0–48 hours into the past.
-public func randomizedTimestamp() -> Int {
-    let fuzzWindow = 2 * 24 * 60 * 60  // 48 hours
-    return Int(Date().timeIntervalSince1970) - Int.random(in: 0...fuzzWindow)
-}
-
 // MARK: - Errors
 
 public enum NostrEventError: LocalizedError {

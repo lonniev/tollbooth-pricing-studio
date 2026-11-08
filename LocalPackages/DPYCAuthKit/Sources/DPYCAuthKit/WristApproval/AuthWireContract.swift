@@ -4,8 +4,8 @@ import Foundation
 //
 // Both messages travel as NIP-59 gift wraps (kind 1059 → kind-13 seal signed
 // by the real sender → unsigned rumor). These types are the rumor payloads.
-// The seal signature is the authorship proof; wrap/seal timestamps are fuzzed,
-// so freshness derives ONLY from the explicit fields here.
+// The seal signature is the authorship proof; a peer may backdate wrap/seal
+// timestamps (NIP-59), so freshness derives ONLY from the explicit fields here.
 //
 // `challenge` carries the Secure Courier session phrase (the SDK's `nonce`,
 // named `dpop_token` before SDK 0.103); `nonce` is this contract's own

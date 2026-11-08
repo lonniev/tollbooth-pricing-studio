@@ -25,6 +25,12 @@ public enum GiftWrap {
     ) throws -> NostrEvent {
         let rumorJSON = try jsonEncode(rumor)
 
+        // Seal and wrap carry the real send time. NIP-59 suggests backdating
+        // them, but an ephemeral relay drops a backdated event as old before
+        // the recipient fetches it, and the courier's NIP-04 copy shows the
+        // real time anyway.
+        let now = Int(Date().timeIntervalSince1970)
+
         // Kind 13 seal — NIP-44 encrypt rumor, sign with sender
         let sealContent = try NIP44Service.encrypt(
             rumorJSON,
@@ -37,7 +43,7 @@ public enum GiftWrap {
             tags: [],  // No tags for metadata protection
             privateKeyHex: senderPrivKeyHex,
             publicKeyHex: senderPubKeyHex,
-            createdAt: randomizedTimestamp()
+            createdAt: now
         )
         let sealJSON = try jsonEncode(seal)
 
@@ -58,7 +64,7 @@ public enum GiftWrap {
             tags: [["p", recipientPubKeyHex]],  // p-tag for relay routing
             privateKeyHex: ephemeralPrivHex,
             publicKeyHex: ephemeralPubHex,
-            createdAt: randomizedTimestamp()
+            createdAt: now
         )
     }
 

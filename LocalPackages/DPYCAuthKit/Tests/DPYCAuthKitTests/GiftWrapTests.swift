@@ -172,7 +172,7 @@ final class GiftWrapTests: XCTestCase {
         }
     }
 
-    func testWrapTimestampIsFuzzedIntoPast() throws {
+    func testWrapAndSealCarryTheRealSendTime() throws {
         let before = Int(Date().timeIntervalSince1970)
         let wrap = try GiftWrap.wrapDM(
             message: "when was this?",
@@ -181,12 +181,14 @@ final class GiftWrapTests: XCTestCase {
             recipientPubKeyHex: bobPub
         )
         let after = Int(Date().timeIntervalSince1970)
-        let fuzzWindow = 2 * 24 * 60 * 60
-        XCTAssertLessThanOrEqual(wrap.created_at, after, "Wrap timestamp must never be in the future")
-        XCTAssertGreaterThanOrEqual(wrap.created_at, before - fuzzWindow, "Wrap timestamp fuzz is at most 48h into the past")
+        XCTAssertTrue((before...after).contains(wrap.created_at),
+                      "An ephemeral relay drops a backdated wrap before it is fetched")
+        let sealJSON = try NIP44Service.decrypt(wrap.content, privateKeyHex: bobPriv, publicKeyHex: wrap.pubkey)
+        let seal = try JSONDecoder().decode(NostrEvent.self, from: Data(sealJSON.utf8))
+        XCTAssertTrue((before...after).contains(seal.created_at))
     }
 
-    func testDMRecoversRealSendTimeNotFuzzedTimestamp() throws {
+    func testDMRecoversTheRumorsSendTime() throws {
         let wrap = try GiftWrap.wrapDM(
             message: "timely",
             senderPrivKeyHex: alicePriv,
@@ -196,6 +198,6 @@ final class GiftWrapTests: XCTestCase {
         let sentAt = Date()
         let dm = try XCTUnwrap(GiftWrap.unwrapDM(wrap, privateKeyHex: bobPriv, publicKeyHex: bobPub))
         XCTAssertLessThan(abs(dm.createdAt.timeIntervalSince(sentAt)), 60,
-                          "DM timestamp should be the rumor's real send time, not the fuzzed wrap time")
+                          "DM timestamp is the rumor's send time")
     }
 }
