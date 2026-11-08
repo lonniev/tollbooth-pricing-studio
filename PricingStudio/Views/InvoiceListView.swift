@@ -11,15 +11,22 @@ struct InvoiceListView: View {
     /// stable across body re-evaluations and pull-to-refresh.
     let sources: [InvoiceSource]
     @Bindable var accountVM: PatronAccountViewModel
+    /// The glyphs on a restarted top-up pass.
+    var beneficiaryBadge: PurchaseCreditsSheet.ActorBadge
+    var cashierBadge: PurchaseCreditsSheet.ActorBadge
     var onOpenMessages: ((_ operatorNpub: String) -> Void)?
 
     init(
         entityNpub: String,
+        beneficiaryBadge: PurchaseCreditsSheet.ActorBadge,
+        cashierBadge: PurchaseCreditsSheet.ActorBadge,
         sources: [InvoiceSource],
         accountVM: PatronAccountViewModel,
         onOpenMessages: ((_ operatorNpub: String) -> Void)? = nil
     ) {
         self.entityNpub = entityNpub
+        self.beneficiaryBadge = beneficiaryBadge
+        self.cashierBadge = cashierBadge
         self.sources = sources
         self.accountVM = accountVM
         self.onOpenMessages = onOpenMessages
@@ -34,6 +41,14 @@ struct InvoiceListView: View {
     @State private var sortColumn: SortColumn = .date
     @State private var sortAscending = false
     @State private var hideExpired = false
+    @State private var restarting: RestartTarget?
+
+    /// A pending invoice to show again, with the store that issued it.
+    private struct RestartTarget: Identifiable {
+        let item: MCPService.InvoiceLineItem
+        let source: InvoiceSource
+        var id: String { item.id }
+    }
 
     private enum SortColumn: String {
         case date, amount, credits, status
@@ -87,6 +102,22 @@ struct InvoiceListView: View {
                 patronNpub: entityNpub,
                 allItems: allInvoiceItemsByOperator,
                 dateFormatter: Self.dateFormatter
+            )
+        }
+        .sheet(item: $restarting) { target in
+            PurchaseCreditsSheet(
+                cashierName: target.source.displayName,
+                cashierNpub: target.source.npub,
+                endpoint: target.source.mcpEndpointURL ?? "",
+                purchaserNpub: entityNpub,
+                beneficiaryBadge: beneficiaryBadge,
+                cashierBadge: cashierBadge,
+                onSettled: {
+                    Task { await accountVM.forceRefresh(forNpub: entityNpub, sources: sources) }
+                },
+                onNotifyCashier: onOpenMessages.map { open in { open(target.source.npub) } },
+                resumeInvoiceId: target.item.id,
+                resumeAmountSats: target.item.amountSats
             )
         }
         // Recover sheet binding removed when restore_credits became
@@ -285,7 +316,7 @@ struct InvoiceListView: View {
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 8)
                 } else {
-                    invoiceTable(items: visible, endpoint: op.mcpEndpointURL ?? "")
+                    invoiceTable(items: visible, source: op)
                 }
             case .error(let message):
                 Label(message, systemImage: "exclamationmark.triangle")
@@ -326,7 +357,7 @@ struct InvoiceListView: View {
     // MARK: - Invoice Table
 
     @ViewBuilder
-    private func invoiceTable(items: [MCPService.InvoiceLineItem], endpoint: String) -> some View {
+    private func invoiceTable(items: [MCPService.InvoiceLineItem], source: InvoiceSource) -> some View {
         // Column headers — tappable for sorting
         HStack(spacing: 0) {
             sortableHeader("Date", column: .date)
@@ -343,7 +374,7 @@ struct InvoiceListView: View {
         .padding(.horizontal, 4)
 
         ForEach(items) { item in
-            invoiceLineItemRow(item: item, endpoint: endpoint)
+            invoiceLineItemRow(item: item, source: source)
         }
     }
 
@@ -369,7 +400,8 @@ struct InvoiceListView: View {
     }
 
     @ViewBuilder
-    private func invoiceLineItemRow(item: MCPService.InvoiceLineItem, endpoint: String) -> some View {
+    private func invoiceLineItemRow(item: MCPService.InvoiceLineItem, source: InvoiceSource) -> some View {
+        let endpoint = source.mcpEndpointURL ?? ""
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 0) {
                 // Date
@@ -408,6 +440,17 @@ struct InvoiceListView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                         .disabled(checkingInvoices.contains(item.id))
+
+                        Button {
+                            restarting = RestartTarget(item: item, source: source)
+                        } label: {
+                            Label("Restart", systemImage: "qrcode")
+                                .labelStyle(.iconOnly)
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .tint(.orange)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)

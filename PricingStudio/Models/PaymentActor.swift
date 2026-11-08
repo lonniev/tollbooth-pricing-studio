@@ -31,6 +31,9 @@ struct InvoiceSource: Identifiable, Hashable, Sendable {
 protocol PaymentActor {
     var npub: String { get }
     var displayName: String { get }
+    /// The glyphs on this actor's top-up pass: itself, and the store it pays.
+    var badge: PurchaseCreditsSheet.ActorBadge { get }
+    var cashierBadge: PurchaseCreditsSheet.ActorBadge { get }
     func invoiceSources(
         authorities: [Authority],
         operators: [Operator]
@@ -43,6 +46,8 @@ struct PatronRole: PaymentActor {
     let entity: Patron
     var npub: String { entity.npub }
     var displayName: String { entity.displayName }
+    var badge: PurchaseCreditsSheet.ActorBadge { .patron }
+    var cashierBadge: PurchaseCreditsSheet.ActorBadge { .operator }
 
     func invoiceSources(
         authorities: [Authority],
@@ -56,6 +61,8 @@ struct OperatorRole: PaymentActor {
     let entity: Operator
     var npub: String { entity.npub }
     var displayName: String { entity.displayName }
+    var badge: PurchaseCreditsSheet.ActorBadge { .operator }
+    var cashierBadge: PurchaseCreditsSheet.ActorBadge { .authority }
 
     func invoiceSources(
         authorities: [Authority],
@@ -73,6 +80,8 @@ struct StandardAuthorityRole: PaymentActor {
     let entity: Authority
     var npub: String { entity.npub }
     var displayName: String { entity.displayName }
+    var badge: PurchaseCreditsSheet.ActorBadge { .authority }
+    var cashierBadge: PurchaseCreditsSheet.ActorBadge { .authority }
 
     func invoiceSources(
         authorities: [Authority],
@@ -90,6 +99,8 @@ struct PenultimateAuthorityRole: PaymentActor {
     let entity: Authority
     var npub: String { entity.npub }
     var displayName: String { entity.displayName }
+    var badge: PurchaseCreditsSheet.ActorBadge { .authority }
+    var cashierBadge: PurchaseCreditsSheet.ActorBadge { .authority }
 
     func invoiceSources(
         authorities: [Authority],

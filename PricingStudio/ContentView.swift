@@ -748,6 +748,8 @@ struct ContentView: View {
                 if hasEconomicSurface {
                     InvoiceListView(
                         entityNpub: role.npub,
+                        beneficiaryBadge: role.badge,
+                        cashierBadge: role.cashierBadge,
                         sources: role.invoiceSources(authorities: authorities, operators: operators),
                         accountVM: patronAccountVM,
                         onOpenMessages: openMessagesFor
@@ -815,6 +817,8 @@ struct ContentView: View {
             case .invoiceHistory:
                 InvoiceListView(
                     entityNpub: role.npub,
+                    beneficiaryBadge: role.badge,
+                    cashierBadge: role.cashierBadge,
                     sources: role.invoiceSources(authorities: authorities, operators: operators),
                     accountVM: patronAccountVM,
                     onOpenMessages: openMessagesFor
@@ -872,6 +876,8 @@ struct ContentView: View {
             case .invoices:
                 InvoiceListView(
                     entityNpub: role.npub,
+                    beneficiaryBadge: role.badge,
+                    cashierBadge: role.cashierBadge,
                     sources: role.invoiceSources(authorities: authorities, operators: operators),
                     accountVM: patronAccountVM,
                     onOpenMessages: openMessagesFor

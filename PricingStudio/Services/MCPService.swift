@@ -845,6 +845,10 @@ actor MCPService {
         let creditsGranted: Int
         let balanceApiSats: Int
         let message: String
+        /// Present while the invoice is unpaid and the caller owns it, so a
+        /// top-up started elsewhere can be paid here.
+        var checkoutLink: String = ""
+        var lightningInvoice: String? = nil
     }
 
     /// Result of a successful restore_credits call.
@@ -999,7 +1003,9 @@ actor MCPService {
             status: (responseDict["status"] as? String) ?? "Unknown",
             creditsGranted: (responseDict["credits_granted"] as? Int) ?? 0,
             balanceApiSats: (responseDict["balance_api_sats"] as? Int) ?? 0,
-            message: (responseDict["message"] as? String) ?? ""
+            message: (responseDict["message"] as? String) ?? "",
+            checkoutLink: (responseDict["checkout_link"] as? String) ?? "",
+            lightningInvoice: responseDict["lightning_invoice"] as? String
         )
     }
 
