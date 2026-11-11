@@ -292,28 +292,15 @@ final class DMPollingService {
                         let isSelfNotice = dm.senderPubkeyHex == pubKeyHex
                             && dm.recipientPubkeyHex == pubKeyHex
                         if (!dm.isFromMe || isSelfNotice) && isNew {
-                            // Dedup BEFORE touching unread or posting. Relays replay
-                            // their backlog on every (re)connect, so the same event
-                            // arrives repeatedly; the durable store collapses those to
-                            // one announcement and keeps the unread count honest.
-                            // NOTE: delivery happened above via onLiveDM and is NOT
-                            // gated by this — only the badge/banner are.
-                            let fresh = self.notifiableEventIds(npub: npub, eventIds: [dm.rawEventId])
-                            if !fresh.isEmpty {
-                                var updated = self.unreadCounts
-                                updated[npub] = (updated[npub] ?? 0) + 1
-                                self.unreadCounts = updated
-                                self.updateAppBadge()
-                                if let challenge = ProofApprovalService.classify(tags: dm.tags, requestId: dm.messageId) {
-                                    // One-tap-approvable proof challenge → the
-                                    // actionable Wrist Approval banner.
-                                    self.postApprovalNotification(npub: npub, dm: dm, challenge: challenge)
-                                } else {
-                                    // Redact courier payloads — don't leak secrets in notifications or logs
-                                    let isCourier = CourierPayload.isCourierTraffic(content: dm.content, tags: dm.tags)
-                                    let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
-                                    self.postLocalNotification(npub: npub, preview: safePreview, dm: dm)
+                            // A courier request's text copy waits for its form,
+                            // which is the copy that counts (CourierTwinLedger).
+                            if dm.courierTextTwinNonce != nil {
+                                Task { @MainActor in
+                                    try? await Task.sleep(for: CourierTwinLedger.textCopyHold)
+                                    self.announceLiveDM(npub: npub, dm: dm)
                                 }
+                            } else {
+                                self.announceLiveDM(npub: npub, dm: dm)
                             }
                         }
                         self.lastPollAt = Date()
@@ -421,6 +408,42 @@ final class DMPollingService {
         }
     }
 
+    /// Badge and banner for one live inbound DM. Relays replay their backlog on
+    /// every (re)connect, so the durable event store collapses repeats to one
+    /// announcement; a courier request's two copies count once (CourierTwinLedger).
+    /// Delivery to the chat happens before this and is not gated by it.
+    private func announceLiveDM(npub: String, dm: DecryptedDM) {
+        let fresh = notifiableEventIds(npub: npub, eventIds: [dm.rawEventId])
+        guard !fresh.isEmpty,
+              twinLedger.counts(nonce: dm.courierFormNonce ?? dm.courierTextTwinNonce) else { return }
+        var updated = unreadCounts
+        updated[npub] = (updated[npub] ?? 0) + 1
+        unreadCounts = updated
+        updateAppBadge()
+        if let challenge = ProofApprovalService.classify(tags: dm.tags, requestId: dm.messageId) {
+            // One-tap-approvable proof challenge → the actionable Wrist Approval banner.
+            postApprovalNotification(npub: npub, dm: dm, challenge: challenge)
+        } else {
+            // Redact courier payloads — don't leak secrets in notifications or logs
+            let isCourier = CourierPayload.isCourierTraffic(content: dm.content, tags: dm.tags)
+            let safePreview = isCourier ? "🔒 Secure Courier message" : String(dm.content.prefix(80))
+            postLocalNotification(npub: npub, preview: safePreview, dm: dm)
+        }
+    }
+
+    /// The fresh events of a poll that count: a courier request's two copies
+    /// count once, the form first (CourierTwinLedger). Events with no decoded
+    /// message pass through.
+    private func countedFreshIds(_ fresh: [String], dms: [DecryptedDM]) -> [String] {
+        let freshSet = Set(fresh)
+        let decoded = dms.filter { freshSet.contains($0.rawEventId) }
+        let decodedIds = Set(decoded.map(\.rawEventId))
+        let counted = twinLedger.countedIds(decoded.map {
+            (id: $0.rawEventId, formNonce: $0.courierFormNonce, textNonce: $0.courierTextTwinNonce)
+        })
+        return fresh.filter { !decodedIds.contains($0) || counted.contains($0) }
+    }
+
     // MARK: - Apply results (MainActor)
 
     private func applyResults(_ results: [DMPollResult]) {
@@ -429,7 +452,7 @@ final class DMPollingService {
             // Dedup per-message against the durable store so a re-fetch of the
             // same events never re-announces (the watermark is the first guard;
             // this is the second, and it survives processes).
-            let fresh = notifiableEventIds(npub: r.npub, eventIds: r.newEventIds)
+            let fresh = countedFreshIds(notifiableEventIds(npub: r.npub, eventIds: r.newEventIds), dms: r.newDMs)
             if !fresh.isEmpty {
                 updated[r.npub] = (updated[r.npub] ?? 0) + fresh.count
                 let plainCount = postApprovalNotifications(npub: r.npub, freshEventIds: fresh, dms: r.newDMs)
@@ -482,7 +505,7 @@ final class DMPollingService {
                 // first-sight baseline gate. The store persists across these
                 // short-lived background processes, so consecutive wakes don't
                 // re-announce the same DM even before the watermark advances.
-                let fresh = notifiableEventIds(npub: r.npub, eventIds: r.newEventIds)
+                let fresh = countedFreshIds(notifiableEventIds(npub: r.npub, eventIds: r.newEventIds), dms: r.newDMs)
                 if !fresh.isEmpty {
                     updatedUnread[r.npub] = (updatedUnread[r.npub] ?? 0) + fresh.count
                     let plainCount = postApprovalNotifications(npub: r.npub, freshEventIds: fresh, dms: r.newDMs)
@@ -581,6 +604,10 @@ final class DMPollingService {
     /// through. In-memory is enough: tokens are short-lived (≈2h) and a re-notify
     /// after a process restart is harmless (the still-live challenge just reminds).
     private var postedApprovalTokens: Set<String> = []
+
+    /// Counts each courier request once: its form and its text copy are two
+    /// events but one message. In-memory, like postedApprovalTokens.
+    private var twinLedger = CourierTwinLedger()
 
     /// Which of `eventIds` should produce a notification now, honoring the mode.
     /// Dedup lives HERE — upstream of postLocalNotification — so the badge count

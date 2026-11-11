@@ -1,0 +1,1 @@
+- A Secure Courier request shows once, as its form. Its plain-text copy no longer appears beside it, adds to the unread count, or posts a second banner.

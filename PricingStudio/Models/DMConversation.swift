@@ -1,5 +1,6 @@
 import DPYCAuthKit
 import Foundation
+import PricingStudioCore
 
 /// A conversation with a single counterparty, containing all decrypted DMs.
 struct DMConversation: Identifiable, Sendable {
@@ -13,25 +14,47 @@ struct DMConversation: Identifiable, Sendable {
 
     /// Messages with NIP-04/NIP-17 duplicates removed.
     ///
-    /// The Secure Courier sends both a NIP-04 and NIP-17 copy for
-    /// compatibility. They may arrive at very different times. Dedup by
-    /// (content, direction) — if two messages have the same text and the
-    /// same direction, keep the one with stronger encryption (NIP-44)
-    /// or the earlier arrival if encryption matches.
+    /// The Secure Courier sends every message twice for compatibility: as a
+    /// NIP-17 gift wrap and as a NIP-04 copy. Two messages with the same text
+    /// and direction are one; the NIP-44 copy wins, else the first arrival.
+    /// A courier request's NIP-04 copy is dropped when its form is here: the
+    /// form is the one to show (see `isCopy(_:of:)`).
     var dedupedMessages: [DecryptedDM] {
         var seen: [String: DecryptedDM] = [:]
         for dm in messages.sorted(by: { $0.createdAt < $1.createdAt }) {
             let key = "\(dm.isFromMe):\(dm.content)"
             if let existing = seen[key] {
-                // Prefer NIP-44 over NIP-04; otherwise keep the first arrival
-                if dm.encryption == .nip44 && existing.encryption == .nip04 {
-                    seen[key] = dm
-                }
+                if Self.prefers(dm, over: existing) { seen[key] = dm }
             } else {
                 seen[key] = dm
             }
         }
-        return seen.values.sorted { $0.createdAt < $1.createdAt }
+        let formNonces = Set(seen.values.compactMap(\.courierFormNonce))
+        return seen.values
+            .filter { dm in dm.courierTextTwinNonce.map { !formNonces.contains($0) } ?? true }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// Whether *a* and *b* are two copies of one message: the same text from
+    /// the same sender within two days, or a courier request's form and its
+    /// text copy (the same nonce, from the same sender).
+    static func isCopy(_ a: DecryptedDM, of b: DecryptedDM) -> Bool {
+        guard a.senderPubkeyHex == b.senderPubkeyHex else { return false }
+        if a.content == b.content {
+            return abs(a.createdAt.timeIntervalSince(b.createdAt)) < 48 * 60 * 60
+        }
+        if let nonce = a.courierFormNonce { return b.courierTextTwinNonce == nonce }
+        if let nonce = b.courierFormNonce { return a.courierTextTwinNonce == nonce }
+        return false
+    }
+
+    /// Which of two copies to keep: a courier form beats its text copy, then
+    /// NIP-44 beats NIP-04. *incoming* replaces *existing* only when it wins.
+    static func prefers(_ incoming: DecryptedDM, over existing: DecryptedDM) -> Bool {
+        let incomingForm = incoming.courierFormNonce != nil
+        let existingForm = existing.courierFormNonce != nil
+        if incomingForm != existingForm { return incomingForm }
+        return incoming.encryption == .nip44 && existing.encryption == .nip04
     }
 
     /// Most recent message in the conversation (after deduplication).
@@ -48,5 +71,18 @@ struct DMConversation: Identifiable, Sendable {
         }
         let prefix = counterpartyPubkeyHex.prefix(8)
         return "\(prefix)..."
+    }
+}
+
+extension DecryptedDM {
+    /// The nonce of the courier form this incoming message carries, if any.
+    var courierFormNonce: String? {
+        isFromMe ? nil : CourierPayload.formNonce(tags: tags)
+    }
+
+    /// The nonce of the courier request this incoming message is the text
+    /// copy of, if any.
+    var courierTextTwinNonce: String? {
+        isFromMe ? nil : CourierPayload.textTwinNonce(content: content, tags: tags)
     }
 }

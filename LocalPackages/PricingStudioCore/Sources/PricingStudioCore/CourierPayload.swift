@@ -182,4 +182,37 @@ public struct CourierPayload: Sendable {
             || replyFieldCount(content) != nil
             || content.contains("@@@")
     }
+
+    // MARK: - The text twin of a request
+
+    /// The nonce a request's form carries, or nil when *tags* hold no
+    /// courier form.
+    public static func formNonce(tags: [[String]]) -> String? {
+        parse(tags: tags, requestId: "")?.nonce
+    }
+
+    /// The nonce written in a request's text body (`nonce = @@@…@@@`), or nil
+    /// when the body names none.
+    public static func twinNonce(content: String, delimiter: String = "@@@") -> String? {
+        guard !delimiter.isEmpty else { return nil }
+        for line in content.split(whereSeparator: \.isNewline) {
+            let parts = line.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2,
+                  parts[0].trimmingCharacters(in: .whitespaces) == "nonce" else { continue }
+            let value = parts[1].trimmingCharacters(in: .whitespaces)
+            guard value.hasPrefix(delimiter), value.hasSuffix(delimiter),
+                  value.count > delimiter.count * 2 else { continue }
+            let nonce = String(value.dropFirst(delimiter.count).dropLast(delimiter.count))
+            return nonce.isEmpty ? nil : nonce
+        }
+        return nil
+    }
+
+    /// The nonce of a request's text-only copy: a message with no form tag
+    /// whose body names a nonce. The courier sends every request twice, as a
+    /// form and as this text copy; the form is the one to show.
+    public static func textTwinNonce(content: String, tags: [[String]]) -> String? {
+        guard !tags.contains(where: { $0.first == "form" }) else { return nil }
+        return twinNonce(content: content)
+    }
 }

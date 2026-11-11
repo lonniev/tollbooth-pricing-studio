@@ -146,4 +146,31 @@ final class CourierPayloadTests: XCTestCase {
         XCTAssertTrue(CourierPayload.isCourierTraffic(content: "  secret = @@@x@@@", tags: []))
         XCTAssertFalse(CourierPayload.isCourierTraffic(content: "see you at 5", tags: []))
     }
+
+    // MARK: - The text twin of a request
+
+    private let twinBody = """
+    Hi — excalibur-mcp needs to verify you own this npub.
+    --- Credential Payload ---
+      confirm = @@@PASTE_YOUR_CONFIRM_HERE@@@
+      cache_duration = @@@2h@@@
+      nonce = @@@bold-hawk-42@@@
+      rendezvous_relay = @@@wss://relay.example@@@
+    """
+
+    func testTwinNonceReadsTheBodysNonceLine() {
+        XCTAssertEqual(CourierPayload.twinNonce(content: twinBody), nonce)
+        XCTAssertNil(CourierPayload.twinNonce(content: "nonce = bold-hawk-42"))
+        XCTAssertNil(CourierPayload.twinNonce(content: "nonce = @@@@@@"))
+        XCTAssertNil(CourierPayload.twinNonce(content: "see you at 5"))
+        XCTAssertEqual(CourierPayload.twinNonce(content: "nonce = ##x##", delimiter: "##"), "x")
+    }
+
+    func testOnlyATaglessCopyIsATextTwin() throws {
+        XCTAssertEqual(CourierPayload.textTwinNonce(content: twinBody, tags: [["p", "aa"]]), nonce)
+        let formTags = [["p", "aa"], ["form", try CourierFixtures.text("credential_form")]]
+        XCTAssertNil(CourierPayload.textTwinNonce(content: twinBody, tags: formTags))
+        XCTAssertEqual(CourierPayload.formNonce(tags: formTags), try credentials().nonce)
+        XCTAssertNil(CourierPayload.formNonce(tags: [["p", "aa"]]))
+    }
 }
