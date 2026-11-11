@@ -268,6 +268,11 @@ struct AddOperatorSheet: View {
         if !trimmedNsec.isEmpty {
             try? KeychainService.saveNsec(trimmedNsec, forNpub: finalNpub)
         }
+        if !trimmedNip05.isEmpty {
+            NostrProfileService.publishNip05InBackground(
+                npub: finalNpub, nip05: trimmedNip05, displayName: trimmedName
+            )
+        }
         dismiss()
     }
 

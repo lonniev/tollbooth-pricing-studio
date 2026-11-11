@@ -22,6 +22,9 @@ struct EditOperatorSheet: View {
     /// Set when the user flips the notification mute toggle so Save enables,
     /// even though the preference itself already persisted immediately.
     @State private var notifPrefChanged = false
+    /// The relays' profile does not yet claim the saved NIP-05, so Save
+    /// enables to publish it.
+    @State private var profileNip05Stale = false
 
     init(viewModel: OperatorCollectionViewModel, operator_: Operator, pricingVM: PricingViewModel? = nil) {
         self.viewModel = viewModel
@@ -53,7 +56,7 @@ struct EditOperatorSheet: View {
         let nameChanged = displayName != operator_.displayName
         let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (operator_.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty
-        return nameOK && urlOK && (nameChanged || nip05Changed || nsecChanged || urlChanged || notifPrefChanged)
+        return nameOK && urlOK && (nameChanged || nip05Changed || nsecChanged || urlChanged || notifPrefChanged || profileNip05Stale)
     }
 
     var body: some View {
@@ -202,6 +205,10 @@ struct EditOperatorSheet: View {
             }
             .task {
                 hasStoredNsec = KeychainService.loadNsec(forNpub: operator_.npub) != nil
+                if hasStoredNsec {
+                    profileNip05Stale = await !NostrProfileService()
+                        .claims(npub: operator_.npub, nip05: operator_.nip05)
+                }
             }
             .sheet(isPresented: $showingSwitchSheet) {
                 if let pricingVM {
@@ -245,6 +252,9 @@ struct EditOperatorSheet: View {
         if !trimmedNsec.isEmpty {
             try? KeychainService.saveNsec(trimmedNsec, forNpub: operator_.npub)
         }
+        NostrProfileService.publishNip05InBackground(
+            npub: operator_.npub, nip05: operator_.nip05, displayName: operator_.displayName
+        )
         dismiss()
     }
 }

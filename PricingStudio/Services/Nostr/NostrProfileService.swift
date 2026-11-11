@@ -80,4 +80,43 @@ struct NostrProfileService {
         )
         return await relayService.publish(event)
     }
+
+    /// The profile `npub` would carry once it claims `nip05`: the relays' current
+    /// kind-0 with `nip05` set and, only where the profile has none, the name
+    /// filled from `displayName`. Every other field is kept, because a kind-0
+    /// replaces the whole profile.
+    static func merged(
+        _ current: NostrProfileMetadata?, nip05: String?, displayName: String
+    ) -> NostrProfileMetadata {
+        var meta = current ?? NostrProfileMetadata()
+        meta.nip05 = nip05
+        if (meta.name ?? "").isEmpty { meta.name = displayName }
+        if (meta.display_name ?? "").isEmpty { meta.display_name = displayName }
+        return meta.normalized()
+    }
+
+    /// Whether the relays' profile for `npub` already claims `nip05`.
+    func claims(npub: String, nip05: String?) async -> Bool {
+        let current = await fetch(npub: npub)?.normalized()
+        return current?.nip05 == NostrProfileMetadata(nip05: nip05).normalized().nip05
+    }
+
+    /// Publish `npub`'s profile claiming `nip05`, signed by its Keychain nsec.
+    /// Does nothing when no nsec is held or the relays already match.
+    func publishNip05(npub: String, nip05: String?, displayName: String) async throws {
+        guard KeychainService.loadNsec(forNpub: npub) != nil else { return }
+        let current = await fetch(npub: npub)?.normalized()
+        let meta = Self.merged(current, nip05: nip05, displayName: displayName)
+        guard meta != current else { return }
+        _ = try await publish(npub: npub, metadata: meta)
+    }
+
+    /// Fire-and-forget form of `publishNip05` for a sheet's Save.
+    static func publishNip05InBackground(npub: String, nip05: String?, displayName: String) {
+        Task.detached(priority: .utility) {
+            try? await NostrProfileService().publishNip05(
+                npub: npub, nip05: nip05, displayName: displayName
+            )
+        }
+    }
 }

@@ -14,6 +14,9 @@ struct EditAuthoritySheet: View {
     /// Set when the user flips the notification mute toggle so Save enables,
     /// even though the preference itself already persisted immediately.
     @State private var notifPrefChanged = false
+    /// The relays' profile does not yet claim the saved NIP-05, so Save
+    /// enables to publish it.
+    @State private var profileNip05Stale = false
 
     init(viewModel: AuthorityCollectionViewModel, authority: Authority) {
         self.viewModel = viewModel
@@ -27,7 +30,7 @@ struct EditAuthoritySheet: View {
             && displayName != authority.displayName
         let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (authority.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty
-        return nameChanged || nip05Changed || nsecChanged || notifPrefChanged
+        return nameChanged || nip05Changed || nsecChanged || notifPrefChanged || profileNip05Stale
     }
 
     var body: some View {
@@ -126,6 +129,9 @@ struct EditAuthoritySheet: View {
                         if !trimmedNsec.isEmpty {
                             try? KeychainService.saveNsec(trimmedNsec, forNpub: authority.npub)
                         }
+                        NostrProfileService.publishNip05InBackground(
+                            npub: authority.npub, nip05: authority.nip05, displayName: authority.displayName
+                        )
                         dismiss()
                     }
                     .disabled(!hasChanges)
@@ -133,6 +139,10 @@ struct EditAuthoritySheet: View {
             }
             .task {
                 hasStoredNsec = KeychainService.loadNsec(forNpub: authority.npub) != nil
+                if hasStoredNsec {
+                    profileNip05Stale = await !NostrProfileService()
+                        .claims(npub: authority.npub, nip05: authority.nip05)
+                }
             }
         }
     }
