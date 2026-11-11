@@ -64,6 +64,9 @@ final class NIP46Tests: XCTestCase {
         XCTAssertFalse(NIP46.isConnect(ok, to: clientKey, secret: "s3cr3T"))
         XCTAssertFalse(NIP46.isConnect(ok, to: clientKey, secret: "s3cr3"))
         XCTAssertFalse(NIP46.isConnect(ok, to: String(repeating: "cd", count: 32), secret: "s3cr3t"))
+        let ndk = NIP46Request(id: "2", method: "connect", params: ["", "s3cr3t"])
+        XCTAssertTrue(NIP46.isConnect(ndk, to: clientKey, secret: "s3cr3t"), "NDK sends an empty signer param")
+        XCTAssertFalse(NIP46.isConnect(ndk, to: clientKey, secret: "other"))
         XCTAssertFalse(NIP46.isConnect(NIP46Request(id: "1", method: "connect", params: [clientKey]),
                                        to: clientKey, secret: "s3cr3t"), "a connect without the secret")
         XCTAssertFalse(NIP46.isConnect(NIP46Request(id: "1", method: "ping", params: [clientKey, "s3cr3t"]),
