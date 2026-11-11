@@ -51,11 +51,15 @@ final class NostrConnectService {
     static let shared = NostrConnectService()
 
     private(set) var sessions: [NostrConnectSession] = []
-    private(set) var pending: [NostrConnectApproval] = []
+    private(set) var pending: [NostrConnectApproval] = [] {
+        didSet { NostrConnectPresenter.shared.refresh() }
+    }
     /// Bunker links not yet used, newest last.
     private(set) var invites: [BunkerInvite] = []
     /// A token opened or pasted, waiting for the user to pick an identity.
-    var pairing: NostrConnectURI?
+    var pairing: NostrConnectURI? {
+        didSet { NostrConnectPresenter.shared.refresh() }
+    }
     var lastError: String?
 
     private static let storeKey = "nostrConnectSessions"
@@ -141,6 +145,7 @@ final class NostrConnectService {
     // MARK: - Listening (foreground only)
 
     func startListening() {
+        NostrConnectPresenter.shared.refresh()
         guard !listening else { return }
         listening = true
         resubscribe()
