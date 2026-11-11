@@ -16,10 +16,14 @@ struct NostrConnectSection: View {
     @State private var service = NostrConnectService.shared
     @State private var working = false
     @State private var error: String?
+    @State private var naming = false
+    @State private var newName = ""
+    @State private var renaming: NostrConnectSession?
+    @State private var rename = ""
 
     var body: some View {
         Section {
-            Button { makeBunkerLink() } label: {
+            Button { newName = ""; naming = true } label: {
                 Label("Copy a bunker:// link", systemImage: "link.badge.plus")
             }
             if let invite = service.invites.last(where: { $0.signerNpub == npub }) {
@@ -37,10 +41,28 @@ struct NostrConnectSection: View {
             }
             .disabled(working)
             ForEach(service.sessions.filter { $0.signerNpub == npub }) { session in
-                Label(session.displayName, systemImage: "app.connected.to.app.below.fill")
-                    .swipeActions {
-                        Button("Disconnect", role: .destructive) { service.disconnect(session) }
+                HStack {
+                    Button {
+                        rename = session.label ?? ""
+                        renaming = session
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(session.displayName, systemImage: "app.connected.to.app.below.fill")
+                            Text("Connected \(session.pairedAt, format: .dateTime.month().day().hour().minute())")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.primary)
+                    .accessibilityHint("Rename")
+                    Spacer()
+                    Button { service.disconnect(session) } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Disconnect \(session.displayName)")
+                }
             }
             if let message = error ?? service.lastError {
                 Label(message, systemImage: "exclamationmark.triangle")
@@ -49,13 +71,36 @@ struct NostrConnectSection: View {
         } header: {
             Text("Nostr Connect (NIP-46)")
         } footer: {
-            Text("Sign in to Nostr sites as this identity. A bunker:// link works once. Keep Studio open while you sign in.")
+            Text("""
+            Sign in to a Nostr site as this identity, with its key kept here.
+            Copy a bunker:// link and paste it into the site's Nostr login.
+            Each link works once, for ten minutes.
+            Every site you connect gets its own row; tap a name to rename it, ✕ to disconnect.
+            Studio asks you before each signature, while it is open.
+            """)
+        }
+        .alert("Which site is this link for?", isPresented: $naming) {
+            TextField("Stacker News", text: $newName)
+            Button("Copy link") { makeBunkerLink() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The name labels the connection once the site signs in.")
+        }
+        .alert("Rename connection", isPresented: Binding(
+            get: { renaming != nil }, set: { if !$0 { renaming = nil } }
+        )) {
+            TextField(renaming?.appName ?? "Name", text: $rename)
+            Button("Save") {
+                if let session = renaming { service.rename(session, to: rename) }
+                renaming = nil
+            }
+            Button("Cancel", role: .cancel) { renaming = nil }
         }
     }
 
     private func makeBunkerLink() {
         do {
-            copy(try service.makeBunkerLink(for: npub))
+            copy(try service.makeBunkerLink(for: npub, label: newName))
             error = nil
         } catch {
             self.error = error.localizedDescription
