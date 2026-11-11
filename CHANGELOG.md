@@ -2,7 +2,45 @@
 
 Changes not yet released live in `changelog.d/`, one file per change — see the README there for why, and `scripts/changelog.py` for what folds them in at release time.
 
-## [1.22.0] — 2026-10-07
+## [1.22.1] — 2026-11-11
+
+### Fixed
+
+- The age-rating script answers Apple's new required social-media question (no), which blocked App Review.
+- Saving an Operator or Authority now publishes its NIP-05 to its Nostr profile, signed by its Keychain key. Edit enables Save when the relays' profile lacks the saved NIP-05, so one tap publishes it.
+
+## [1.22.0] — 2026-11-08
+
+### Added
+
+- A Pending invoice has a Restart button that shows its Lightning QR and payment page again, so a top-up started on another device can be paid here.
+
+### Changed
+
+- The account card's Top Up, Statement and Refresh actions are now icon buttons, so the row fits an iPhone.
+
+- Secure Courier requests are read from the JSON Schema `form` tag the SDK puts on the NIP-17 message, not from the DM text. The `@@@` text parser is gone.
+- Courier forms mask secrets (with a reveal toggle and a paste button), offer suggested values as one-tap chips, show each field's help behind an ⓘ, grow for long values, and check each value before sending.
+- Replies are JSON, with an `e` tag naming the request, and go to the request's rendezvous relay. One-tap approvals (including on the watch) classify from the form's `x-courier-kind`.
+- Credential forms now get the same operator trust banner as proof requests.
+
+- Studio proves who is acting on the connection: requests are signed with the Keychain nsec, and an npub Studio holds no key for rides a holder connection proven by the usual DM. Tool calls carry no proof argument, and the cached proof tokens are gone.
+
+- The README calls the Secure Courier's anti-replay phrase its `nonce`.
+
+- Studio follows tollbooth-dpyc 0.103: the Secure Courier phrase is `nonce`; adopting an operator is its own request, approved by the Authority; a registry update is the operator's request, approved in the Authority's Pending Requests queue (now showing adoptions and updates); either party removes an operator alone.
+
+- Publishing a campaign signs the request with the author's key; the Oracle now publishes only signed campaigns.
+
+### Removed
+
+- Credential cards (ncred) are gone: the Courier sheet starts the DM reply flow with one Begin button, and any card an earlier Studio saved in the Keychain is deleted once at launch.
+
+### Fixed
+
+- Every MCP request carries `Authorization: Bearer anonymous` unless the authorizer holds a token for that host, so operators with tollbooth-dpyc holder bearer on answer Studio directly instead of with a 401 that opened a login sheet. Studio still proves itself with its own signed proofs.
+
+- Courier replies and other gift-wrapped DMs carry the real send time, so ephemeral relays keep them until they are fetched.
 
 ### Changed — a coupon names the tools it applies to; a price push cannot drop it
 

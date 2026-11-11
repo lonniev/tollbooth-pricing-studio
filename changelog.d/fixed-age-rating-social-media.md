@@ -1,1 +1,0 @@
-- The age-rating script answers Apple's new required social-media question (no), which blocked App Review.

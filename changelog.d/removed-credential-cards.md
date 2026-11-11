@@ -1,1 +1,0 @@
-- Credential cards (ncred) are gone: the Courier sheet starts the DM reply flow with one Begin button, and any card an earlier Studio saved in the Keychain is deleted once at launch.
