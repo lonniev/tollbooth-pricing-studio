@@ -11,9 +11,11 @@ struct NostrConnectSession: Codable, Identifiable, Equatable {
     let appName: String?
     let appURL: String?
     let pairedAt: Date
+    /// The name the user gave this connection; wins over the app's own.
+    var label: String?
 
     var id: String { "\(clientPubkey):\(signerPubkey)" }
-    var displayName: String { appName ?? appURL ?? "App \(clientPubkey.prefix(8))" }
+    var displayName: String { label ?? appName ?? appURL ?? "App \(clientPubkey.prefix(8))" }
 }
 
 /// A `bunker://` link Studio made for one identity. Its secret lets the first
@@ -27,6 +29,8 @@ struct BunkerInvite: Identifiable {
     let secret: String
     let createdAt: Date
     let link: String
+    /// The name the user gave the site this link is for.
+    let label: String?
 
     var expiresAt: Date { createdAt.addingTimeInterval(NostrConnectService.inviteLifetime) }
 }
@@ -115,13 +119,14 @@ final class NostrConnectService {
 
     /// A one-time `bunker://` link for the identity `npub`.
     @discardableResult
-    func makeBunkerLink(for npub: String) throws -> BunkerInvite {
+    func makeBunkerLink(for npub: String, label: String? = nil) throws -> BunkerInvite {
         let keys = try Self.keys(for: npub)
         let secret = Self.randomId()
         let invite = BunkerInvite(
             signerNpub: npub, signerPubkey: keys.pub, relay: Self.bunkerRelay, secret: secret,
             createdAt: Date(),
-            link: BunkerURI.make(signerPubkey: keys.pub, relays: [Self.bunkerRelay], secret: secret)
+            link: BunkerURI.make(signerPubkey: keys.pub, relays: [Self.bunkerRelay], secret: secret),
+            label: Self.cleanLabel(label)
         )
         pruneInvites()
         invites.append(invite)
@@ -133,6 +138,19 @@ final class NostrConnectService {
     private func pruneInvites() {
         let now = Date()
         invites.removeAll { $0.expiresAt < now }
+    }
+
+    /// Give a connection the user's own name; an empty name restores the app's.
+    func rename(_ session: NostrConnectSession, to name: String) {
+        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        sessions[index].label = Self.cleanLabel(name)
+        save()
+    }
+
+    /// A trimmed name of at most 40 characters, or nil when blank.
+    nonisolated static func cleanLabel(_ name: String?) -> String? {
+        let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : String(trimmed.prefix(40))
     }
 
     func disconnect(_ session: NostrConnectSession) {
@@ -261,7 +279,7 @@ final class NostrConnectService {
 
         let session = NostrConnectSession(
             clientPubkey: event.pubkey, signerNpub: invite.signerNpub, signerPubkey: invite.signerPubkey,
-            relays: [invite.relay], appName: nil, appURL: nil, pairedAt: Date()
+            relays: [invite.relay], appName: nil, appURL: nil, pairedAt: Date(), label: invite.label
         )
         sessions.removeAll { $0.id == session.id }
         sessions.append(session)

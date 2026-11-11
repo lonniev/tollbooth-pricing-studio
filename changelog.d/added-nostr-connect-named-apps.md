@@ -1,0 +1,1 @@
+- Nostr Connect: name a site when you copy its bunker:// link, tap a connected app to rename it, and tap ✕ to disconnect it. The section's footer explains how signing in works.
