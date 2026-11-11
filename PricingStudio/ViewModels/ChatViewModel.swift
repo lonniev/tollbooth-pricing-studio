@@ -91,15 +91,10 @@ final class ChatViewModel {
         if let idx = cached.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
             // Check for exact duplicate by event ID
             guard !cached[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) else { return }
-            // Check for cross-protocol duplicate (NIP-04 + NIP-17 = same message, different event IDs)
-            // Keep the one with the more recent timestamp (NIP-04 has real time, NIP-17 is fuzzed back)
-            if let dupIdx = cached[idx].messages.firstIndex(where: {
-                $0.senderPubkeyHex == dm.senderPubkeyHex
-                && $0.content == dm.content
-                && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 48 * 60 * 60
-            }) {
-                // Replace if incoming has a more recent (accurate) timestamp
-                if dm.createdAt > cached[idx].messages[dupIdx].createdAt {
+            // The other copy of a message already here (NIP-04 + NIP-17, or a
+            // courier form and its text copy): keep the better one.
+            if let dupIdx = cached[idx].messages.firstIndex(where: { DMConversation.isCopy($0, of: dm) }) {
+                if DMConversation.prefers(dm, over: cached[idx].messages[dupIdx]) {
                     cached[idx].messages[dupIdx] = dm
                 }
                 return
@@ -137,13 +132,9 @@ final class ChatViewModel {
             if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
                 if conversations[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) {
                     // Already present — skip
-                } else if let dupIdx = conversations[idx].messages.firstIndex(where: {
-                    $0.senderPubkeyHex == dm.senderPubkeyHex
-                    && $0.content == dm.content
-                    && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 48 * 60 * 60
-                }) {
-                    // Cross-protocol duplicate — keep the one with the more recent timestamp
-                    if dm.createdAt > conversations[idx].messages[dupIdx].createdAt {
+                } else if let dupIdx = conversations[idx].messages.firstIndex(where: { DMConversation.isCopy($0, of: dm) }) {
+                    // The other copy of a message already here: keep the better one.
+                    if DMConversation.prefers(dm, over: conversations[idx].messages[dupIdx]) {
                         conversations[idx].messages[dupIdx] = dm
                     }
                 } else if dm.isFromMe,
