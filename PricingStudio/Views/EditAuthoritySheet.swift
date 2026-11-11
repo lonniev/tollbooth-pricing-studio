@@ -110,6 +110,9 @@ struct EditAuthoritySheet: View {
                 }
 
                 NotificationToggleSection(npub: authority.npub) { notifPrefChanged = true }
+                if hasStoredNsec {
+                    NostrConnectSection(npub: authority.npub)
+                }
             }
             .navigationTitle("Edit Authority")
             .navigationBarTitleDisplayMode(.inline)

@@ -8,80 +8,57 @@ extension NostrConnectURI: @retroactive Identifiable {
     public var id: String { clientPubkey }
 }
 
-/// Apps that sign in with one of Studio's identities over NIP-46.
-struct ConnectedAppsView: View {
+/// One identity's NIP-46 sign-in: make a bunker:// link, pair a pasted
+/// nostrconnect:// link, and list the apps already paired. Each Patron,
+/// Operator and Authority edit sheet shows it when Studio holds the nsec.
+struct NostrConnectSection: View {
+    let npub: String
     @State private var service = NostrConnectService.shared
-    @State private var identities: [(npub: String, name: String)] = []
+    @State private var working = false
+    @State private var error: String?
 
     var body: some View {
-        Form {
-            Section {
-                Menu {
-                    ForEach(identities, id: \.npub) { identity in
-                        Button(identity.name) { makeBunkerLink(for: identity.npub) }
-                    }
-                } label: {
-                    Label("Copy a bunker:// link", systemImage: "link.badge.plus")
-                }
-                .disabled(identities.isEmpty)
-                if let invite = service.invites.last {
-                    HStack {
-                        Label {
-                            Text("\(IdentityName.of(invite.signerNpub)) · until \(invite.expiresAt, style: .time)")
-                        } icon: {
-                            Image(systemName: "checkmark.circle")
-                        }
+        Section {
+            Button { makeBunkerLink() } label: {
+                Label("Copy a bunker:// link", systemImage: "link.badge.plus")
+            }
+            if let invite = service.invites.last(where: { $0.signerNpub == npub }) {
+                HStack {
+                    Label("Copied · until \(invite.expiresAt, style: .time)", systemImage: "checkmark.circle")
                         .foregroundStyle(.secondary)
-                        Spacer()
-                        Button { copy(invite) } label: { Image(systemName: "doc.on.doc") }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Copy again")
+                    Spacer()
+                    Button { copy(invite) } label: { Image(systemName: "doc.on.doc") }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Copy again")
+                }
+            }
+            Button { pastePairing() } label: {
+                Label("Paste a nostrconnect:// link", systemImage: "doc.on.clipboard")
+            }
+            .disabled(working)
+            ForEach(service.sessions.filter { $0.signerNpub == npub }) { session in
+                Label(session.displayName, systemImage: "app.connected.to.app.below.fill")
+                    .swipeActions {
+                        Button("Disconnect", role: .destructive) { service.disconnect(session) }
                     }
-                }
-            } footer: {
-                Text("For a site that asks for bunker:// or a NIP-05 address. Paste the link there, then come back to Studio. It works once.")
             }
-
-            Section {
-                Button {
-                    service.open(UIPasteboard.general.string ?? "")
-                } label: {
-                    Label("Paste a nostrconnect:// link", systemImage: "doc.on.clipboard")
-                }
-                if let error = service.lastError {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                }
-            } footer: {
-                Text("Copy the link a site shows under Continue with Nostr, or tap it to open Studio. Keep Studio open while you sign in.")
+            if let message = error ?? service.lastError {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
             }
-
-            if !service.sessions.isEmpty {
-                Section("Connected") {
-                    ForEach(service.sessions) { session in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(session.displayName)
-                            Text(IdentityName.of(session.signerNpub))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .swipeActions {
-                            Button("Disconnect", role: .destructive) { service.disconnect(session) }
-                        }
-                    }
-                }
-            }
+        } header: {
+            Text("Nostr Connect (NIP-46)")
+        } footer: {
+            Text("Sign in to Nostr sites as this identity. A bunker:// link works once. Keep Studio open while you sign in.")
         }
-        .navigationTitle("Connected Apps")
-        .task { identities = IdentityName.held() }
     }
 
-    private func makeBunkerLink(for npub: String) {
+    private func makeBunkerLink() {
         do {
             copy(try service.makeBunkerLink(for: npub))
-            service.lastError = nil
+            error = nil
         } catch {
-            service.lastError = error.localizedDescription
+            self.error = error.localizedDescription
         }
     }
 
@@ -91,6 +68,26 @@ struct ConnectedAppsView: View {
             [[UTType.plainText.identifier: invite.link]],
             options: [.expirationDate: invite.expiresAt, .localOnly: true]
         )
+    }
+
+    private func pastePairing() {
+        let uri: NostrConnectURI
+        do {
+            uri = try NostrConnectURI.parse(UIPasteboard.general.string ?? "")
+        } catch {
+            self.error = error.localizedDescription
+            return
+        }
+        working = true
+        error = nil
+        Task {
+            do {
+                try await service.pair(uri, as: npub)
+            } catch {
+                self.error = error.localizedDescription
+            }
+            working = false
+        }
     }
 }
 

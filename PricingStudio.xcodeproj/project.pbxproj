@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		NC4600000000000000000012 /* ConnectedAppsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC4600000000000000000002 /* ConnectedAppsView.swift */; };
+		NC4600000000000000000012 /* NostrConnectViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC4600000000000000000002 /* NostrConnectViews.swift */; };
 		NC4600000000000000000011 /* NostrConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC4600000000000000000001 /* NostrConnectService.swift */; };
 		1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */; };
 		1A9E319668E94E4F9FFDF88F /* ForkInterviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6094B651CBBB4BC48F72E6F2 /* ForkInterviewSheet.swift */; };
@@ -234,7 +234,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		NC4600000000000000000002 /* ConnectedAppsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectedAppsView.swift; sourceTree = "<group>"; };
+		NC4600000000000000000002 /* NostrConnectViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrConnectViews.swift; sourceTree = "<group>"; };
 		NC4600000000000000000001 /* NostrConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrConnectService.swift; sourceTree = "<group>"; };
 		075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenInterviewView.swift; sourceTree = "<group>"; };
 		1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorProofService.swift; sourceTree = "<group>"; };
@@ -665,7 +665,7 @@
 				AA0000010000000000000940 /* CommunityCanvasView.swift */,
 				AA0000010000000000000602 /* ConstraintParamEditor.swift */,
 				AA0000010000000000000702 /* SettingsSheet.swift */,
-				NC4600000000000000000002 /* ConnectedAppsView.swift */,
+				NC4600000000000000000002 /* NostrConnectViews.swift */,
 				AADD000100000000000000FF /* RelayView.swift */,
 				AA0000010000000000000250 /* Chat */,
 				AA0000010000000000000902 /* PricingConsultantView.swift */,
@@ -1141,7 +1141,7 @@
 				COUP00010000000000000005 /* CouponsView.swift in Sources */,
 				AA0000010000000000000711 /* RelaySettings.swift in Sources */,
 				AA0000010000000000000712 /* SettingsSheet.swift in Sources */,
-				NC4600000000000000000012 /* ConnectedAppsView.swift in Sources */,
+				NC4600000000000000000012 /* NostrConnectViews.swift in Sources */,
 				AADD000100000000000000FE /* RelayView.swift in Sources */,
 				AA0000010000000000000811 /* DMPollingService.swift in Sources */,
 				AA00000100000000INBX0011 /* InboxSignalService.swift in Sources */,
