@@ -191,10 +191,14 @@ public enum NIP46 {
     }
 
     /// Whether `request` is a `connect` to `signerPubkey` carrying `secret`
-    /// (params: `[signer-pubkey, secret, perms?]`). Compares in constant time.
+    /// (params: `[signer-pubkey, secret, perms?]`). NDK — Stacker News's
+    /// client — leaves the first param empty when the link has no `pubkey=`,
+    /// so empty is accepted; the secret is what proves the paste. Compares
+    /// the secret in constant time.
     public static func isConnect(_ request: NIP46Request, to signerPubkey: String, secret: String) -> Bool {
-        guard request.method == "connect", request.params.count >= 2,
-              request.params[0].lowercased() == signerPubkey.lowercased() else { return false }
+        guard request.method == "connect", request.params.count >= 2 else { return false }
+        let named = request.params[0].lowercased()
+        guard named.isEmpty || named == signerPubkey.lowercased() else { return false }
         let given = Array(request.params[1].utf8), expected = Array(secret.utf8)
         guard given.count == expected.count, !expected.isEmpty else { return false }
         return zip(given, expected).reduce(0) { $0 | ($1.0 ^ $1.1) } == 0
