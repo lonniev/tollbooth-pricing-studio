@@ -43,6 +43,13 @@ struct PricingStudioApp: App {
                     // Warm the relay set from the DPYC community registry so
                     // courier/proof/DM flows have relays before first use.
                     Task { await RelaySettings.shared.refresh() }
+                    NostrConnectService.shared.startListening()
+                }
+                // A site's "Continue with Nostr" link opens Studio to sign in.
+                .onOpenURL { url in
+                    if url.scheme?.lowercased() == "nostrconnect" {
+                        NostrConnectService.shared.open(url.absoluteString)
+                    }
                 }
         }
         .modelContainer(AppModelContainer.shared)
@@ -53,6 +60,10 @@ struct PricingStudioApp: App {
             if phase == .active {
                 EntityDeduplicator.dedupeAll(in: AppModelContainer.shared.mainContext)
                 DMPollingService.shared.removeWakePushBanners()
+                NostrConnectService.shared.startListening()
+            } else if phase == .background {
+                // NIP-46 signing is foreground only.
+                NostrConnectService.shared.stopListening()
             }
         }
     }

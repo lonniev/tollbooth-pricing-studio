@@ -21,6 +21,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.tollbooth.dpyc.pricingstudio</string>
+				<string>nostrconnect</string>
 			</array>
 		</dict>
 	</array>

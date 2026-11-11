@@ -368,6 +368,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheet()
         }
+        .nostrConnectSheets()
         // KeypairGeneratorSheet is in SidebarView (scoping)
         .onChange(of: authorityVM.selectedAuthority) { _, newAuth in
             guard let auth = newAuth else { return }
