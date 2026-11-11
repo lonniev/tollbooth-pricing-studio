@@ -1,0 +1,1 @@
+- The Approve and Connect prompts for Nostr sign-in now appear over any open screen, including Settings → Connected Apps, where they were hidden before.

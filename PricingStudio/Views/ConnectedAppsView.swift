@@ -223,21 +223,60 @@ struct NostrConnectApprovalSheet: View {
     }
 }
 
-/// The pairing and approval sheets, shown over whatever screen is up.
-private struct NostrConnectSheets: ViewModifier {
-    @State private var service = NostrConnectService.shared
+/// Shows the pairing and approval sheets in a window of their own above the
+/// app, so they appear whatever sheet is already open (Settings → Connected
+/// Apps is itself a sheet, and a second sheet cannot rise from the root).
+@MainActor
+final class NostrConnectPresenter {
+    static let shared = NostrConnectPresenter()
+    private var window: UIWindow?
+    /// The app window that was key before the prompt, made key again after.
+    private weak var previousKey: UIWindow?
 
-    func body(content: Content) -> some View {
-        content
-            .sheet(item: $service.pairing) { uri in
-                NostrConnectPairSheet(uri: uri)
-            }
-            .sheet(item: Binding(get: { service.pending.first }, set: { _ in })) { approval in
-                NostrConnectApprovalSheet(approval: approval)
-            }
+    private init() {}
+
+    /// Open the window when a prompt is waiting; close it when none is.
+    func refresh() {
+        let service = NostrConnectService.shared
+        let needed = service.pairing != nil || !service.pending.isEmpty
+        if needed, window == nil {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+            else { return }
+            let host = UIHostingController(rootView: NostrConnectPrompts())
+            host.view.backgroundColor = .clear
+            let window = UIWindow(windowScene: scene)
+            window.windowLevel = .alert + 1
+            window.backgroundColor = .clear
+            window.rootViewController = host
+            previousKey = scene.keyWindow
+            window.makeKeyAndVisible()
+            self.window = window
+        } else if !needed, let window {
+            window.isHidden = true
+            self.window = nil
+            previousKey?.makeKey()
+        }
     }
 }
 
-extension View {
-    func nostrConnectSheets() -> some View { modifier(NostrConnectSheets()) }
+/// The prompt window's content: nothing but the two sheets.
+private struct NostrConnectPrompts: View {
+    @State private var service = NostrConnectService.shared
+    /// Sheets present only after the host is on screen.
+    @State private var ready = false
+
+    var body: some View {
+        Color.clear
+            .ignoresSafeArea()
+            .sheet(item: Binding(get: { ready ? service.pairing : nil },
+                                 set: { service.pairing = $0 })) { uri in
+                NostrConnectPairSheet(uri: uri)
+            }
+            .sheet(item: Binding(get: { ready && service.pairing == nil ? service.pending.first : nil },
+                                 set: { _ in })) { approval in
+                NostrConnectApprovalSheet(approval: approval)
+            }
+            .task { ready = true }
+    }
 }
