@@ -2,6 +2,7 @@ import DPYCAuthKit
 import SwiftData
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 extension NostrConnectURI: @retroactive Identifiable {
     public var id: String { clientPubkey }
@@ -10,9 +11,37 @@ extension NostrConnectURI: @retroactive Identifiable {
 /// Apps that sign in with one of Studio's identities over NIP-46.
 struct ConnectedAppsView: View {
     @State private var service = NostrConnectService.shared
+    @State private var identities: [(npub: String, name: String)] = []
 
     var body: some View {
         Form {
+            Section {
+                Menu {
+                    ForEach(identities, id: \.npub) { identity in
+                        Button(identity.name) { makeBunkerLink(for: identity.npub) }
+                    }
+                } label: {
+                    Label("Copy a bunker:// link", systemImage: "link.badge.plus")
+                }
+                .disabled(identities.isEmpty)
+                if let invite = service.invites.last {
+                    HStack {
+                        Label {
+                            Text("\(IdentityName.of(invite.signerNpub)) · until \(invite.expiresAt, style: .time)")
+                        } icon: {
+                            Image(systemName: "checkmark.circle")
+                        }
+                        .foregroundStyle(.secondary)
+                        Spacer()
+                        Button { copy(invite) } label: { Image(systemName: "doc.on.doc") }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Copy again")
+                    }
+                }
+            } footer: {
+                Text("For a site that asks for bunker:// or a NIP-05 address. Paste the link there, then come back to Studio. It works once.")
+            }
+
             Section {
                 Button {
                     service.open(UIPasteboard.general.string ?? "")
@@ -44,6 +73,24 @@ struct ConnectedAppsView: View {
             }
         }
         .navigationTitle("Connected Apps")
+        .task { identities = IdentityName.held() }
+    }
+
+    private func makeBunkerLink(for npub: String) {
+        do {
+            copy(try service.makeBunkerLink(for: npub))
+            service.lastError = nil
+        } catch {
+            service.lastError = error.localizedDescription
+        }
+    }
+
+    /// The pasteboard drops the link when the link itself expires.
+    private func copy(_ invite: BunkerInvite) {
+        UIPasteboard.general.setItems(
+            [[UTType.plainText.identifier: invite.link]],
+            options: [.expirationDate: invite.expiresAt, .localOnly: true]
+        )
     }
 }
 

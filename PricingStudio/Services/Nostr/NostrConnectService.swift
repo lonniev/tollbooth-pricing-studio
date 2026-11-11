@@ -16,6 +16,21 @@ struct NostrConnectSession: Codable, Identifiable, Equatable {
     var displayName: String { appName ?? appURL ?? "App \(clientPubkey.prefix(8))" }
 }
 
+/// A `bunker://` link Studio made for one identity. Its secret lets the first
+/// app that presents it pair; it lives in memory only, for one use and at
+/// most `NostrConnectService.inviteLifetime`.
+struct BunkerInvite: Identifiable {
+    let id = UUID()
+    let signerNpub: String
+    let signerPubkey: String
+    let relay: URL
+    let secret: String
+    let createdAt: Date
+    let link: String
+
+    var expiresAt: Date { createdAt.addingTimeInterval(NostrConnectService.inviteLifetime) }
+}
+
 /// A request waiting for the user to Approve or Reject.
 struct NostrConnectApproval: Identifiable {
     let id = UUID()
@@ -26,9 +41,10 @@ struct NostrConnectApproval: Identifiable {
     let detail: String
 }
 
-/// Studio as a NIP-46 remote signer, foreground only. A site shows a
-/// `nostrconnect://` token; the user opens it here and picks an identity;
-/// Studio answers that site's requests while it is the active app. Every
+/// Studio as a NIP-46 remote signer, foreground only. Pairing goes one of two
+/// ways: a site shows a `nostrconnect://` token that the user opens here, or
+/// Studio makes a `bunker://` link that the user pastes into the site. Studio
+/// then answers that site's requests while it is the active app. Every
 /// signature and every encrypt/decrypt asks the user first.
 @MainActor @Observable
 final class NostrConnectService {
@@ -36,6 +52,8 @@ final class NostrConnectService {
 
     private(set) var sessions: [NostrConnectSession] = []
     private(set) var pending: [NostrConnectApproval] = []
+    /// Bunker links not yet used, newest last.
+    private(set) var invites: [BunkerInvite] = []
     /// A token opened or pasted, waiting for the user to pick an identity.
     var pairing: NostrConnectURI?
     var lastError: String?
@@ -43,6 +61,9 @@ final class NostrConnectService {
     private static let storeKey = "nostrConnectSessions"
     private static let maxPending = 20
     private static let maxSeen = 500
+    nonisolated static let inviteLifetime: TimeInterval = 600
+    /// Where bunker links tell sites to reach Studio.
+    static let bunkerRelay = URL(string: "wss://relay.primal.net")!
 
     private var connections: [URL: PersistentRelayConnection] = [:]
     private var eventTasks: [URL: Task<Void, Never>] = [:]
@@ -88,6 +109,28 @@ final class NostrConnectService {
         if listening { resubscribe() }
     }
 
+    /// A one-time `bunker://` link for the identity `npub`.
+    @discardableResult
+    func makeBunkerLink(for npub: String) throws -> BunkerInvite {
+        let keys = try Self.keys(for: npub)
+        let secret = Self.randomId()
+        let invite = BunkerInvite(
+            signerNpub: npub, signerPubkey: keys.pub, relay: Self.bunkerRelay, secret: secret,
+            createdAt: Date(),
+            link: BunkerURI.make(signerPubkey: keys.pub, relays: [Self.bunkerRelay], secret: secret)
+        )
+        pruneInvites()
+        invites.append(invite)
+        TrafficLogger.shared.log(.outbound, label: "Nostr Connect", detail: "bunker link made")
+        if listening { resubscribe() }
+        return invite
+    }
+
+    private func pruneInvites() {
+        let now = Date()
+        invites.removeAll { $0.expiresAt < now }
+    }
+
     func disconnect(_ session: NostrConnectSession) {
         sessions.removeAll { $0.id == session.id }
         pending.removeAll { $0.session.id == session.id }
@@ -111,19 +154,24 @@ final class NostrConnectService {
         connections = [:]
     }
 
-    /// One subscription per relay naming every identity paired through it.
+    /// One subscription per relay naming every identity paired or invited through it.
     private func resubscribe() {
+        pruneInvites()
         var signersByRelay: [URL: Set<String>] = [:]
         for session in sessions {
             for relay in session.relays { signersByRelay[relay, default: []].insert(session.signerPubkey) }
         }
+        for invite in invites { signersByRelay[invite.relay, default: []].insert(invite.signerPubkey) }
         for (url, conn) in connections where signersByRelay[url] == nil {
             conn.disconnect()
             eventTasks[url]?.cancel()
             connections[url] = nil
             eventTasks[url] = nil
         }
-        let since = Int(Date().timeIntervalSince1970) - 60
+        // Reach back to the oldest live invite, so a connect sent while the
+        // user was pasting the link in Safari is still found on return.
+        let oldestInvite = invites.map(\.createdAt).min() ?? Date()
+        let since = Int(min(Date(), oldestInvite).timeIntervalSince1970) - 60
         for (url, signers) in signersByRelay {
             let conn = connections[url] ?? makeConnection(url)
             conn.subscribe(subId: "nip46", filters: [[
@@ -157,7 +205,14 @@ final class NostrConnectService {
         // Only the paired app's own key may ask, and only of the identity it paired with.
         guard let session = sessions.first(where: {
             $0.clientPubkey == event.pubkey && tagged.contains($0.signerPubkey)
-        }), let keys = try? Self.keys(for: session.signerNpub),
+        }) else {
+            pruneInvites()
+            if let invite = invites.first(where: { tagged.contains($0.signerPubkey) }) {
+                await accept(event, invite)
+            }
+            return
+        }
+        guard let keys = try? Self.keys(for: session.signerNpub),
               let decoded = try? NIP46.decryptRequest(event, signerPrivateKeyHex: keys.priv)
         else { return }
         let (request, cipher) = decoded
@@ -187,6 +242,29 @@ final class NostrConnectService {
         default:
             await reply(NIP46Response(id: request.id, result: "", error: "unsupported method"), cipher, session)
         }
+    }
+
+    /// Pair the app that sent `event` if it is a `connect` carrying `invite`'s
+    /// secret. Anything else is ignored; the secret is spent on success.
+    private func accept(_ event: NostrEvent, _ invite: BunkerInvite) async {
+        guard let keys = try? Self.keys(for: invite.signerNpub),
+              let decoded = try? NIP46.decryptRequest(event, signerPrivateKeyHex: keys.priv),
+              NIP46.isConnect(decoded.request, to: invite.signerPubkey, secret: invite.secret),
+              invites.contains(where: { $0.id == invite.id })
+        else { return }
+        invites.removeAll { $0.id == invite.id }
+
+        let session = NostrConnectSession(
+            clientPubkey: event.pubkey, signerNpub: invite.signerNpub, signerPubkey: invite.signerPubkey,
+            relays: [invite.relay], appName: nil, appURL: nil, pairedAt: Date()
+        )
+        sessions.removeAll { $0.id == session.id }
+        sessions.append(session)
+        save()
+        TrafficLogger.shared.log(.inbound, label: "Nostr Connect",
+                                 detail: "paired \(session.displayName) by bunker link")
+        await reply(NIP46Response(id: decoded.request.id, result: "ack"), decoded.cipher, session)
+        if listening { resubscribe() }
     }
 
     /// The user's answer. Leaves the queue at once, so the next request's
