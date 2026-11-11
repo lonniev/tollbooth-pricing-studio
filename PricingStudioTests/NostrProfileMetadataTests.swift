@@ -36,6 +36,39 @@ final class NostrProfileMetadataTests: XCTestCase {
         XCTAssertNil(m.website)
     }
 
+    // MARK: - NIP-05 merge
+
+    func testMergedSetsNip05AndKeepsEveryOtherField() {
+        let current = NostrProfileMetadata(
+            name: "thebrain-mcp", about: "graph", picture: "https://x/y.svg", lud16: "s@w.com"
+        )
+        let m = NostrProfileService.merged(
+            current, nip05: "thebrain@tollbooth-dpyc.org", displayName: "TheBrain MCP"
+        )
+        XCTAssertEqual(m.nip05, "thebrain@tollbooth-dpyc.org")
+        XCTAssertEqual(m.name, "thebrain-mcp", "an existing name is never overwritten")
+        XCTAssertEqual(m.display_name, "TheBrain MCP", "an empty display_name is filled")
+        XCTAssertEqual(m.about, "graph")
+        XCTAssertEqual(m.picture, "https://x/y.svg")
+        XCTAssertEqual(m.lud16, "s@w.com")
+    }
+
+    func testMergedWithNoProfileFillsTheName() {
+        let m = NostrProfileService.merged(
+            nil, nip05: "cypher@tollbooth-dpyc.org", displayName: "Cypher MCP"
+        )
+        XCTAssertEqual(m.name, "Cypher MCP")
+        XCTAssertEqual(m.display_name, "Cypher MCP")
+        XCTAssertEqual(m.nip05, "cypher@tollbooth-dpyc.org")
+    }
+
+    func testMergedWithClearedNip05DropsTheClaim() {
+        let current = NostrProfileMetadata(name: "Sat", nip05: "sat@tollbooth-dpyc.org")
+        let m = NostrProfileService.merged(current, nip05: nil, displayName: "Sat")
+        XCTAssertNil(m.nip05)
+        XCTAssertEqual(m.name, "Sat")
+    }
+
     func testProfileSignedKind0IsValidEvent() throws {
         let (nsec, npub) = try NostrKeyService.generateKeyPair()
         let priv = try NostrKeyService.privateKeyHexFromNsec(nsec)
