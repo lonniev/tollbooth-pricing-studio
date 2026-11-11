@@ -12,6 +12,7 @@ public enum NostrEventKind: Int, Codable, Sendable {
     case seal = 13             // NIP-59 seal (middle layer)
     case privateDM = 14        // NIP-17 private DM (inner layer)
     case giftWrap = 1059       // NIP-17 gift wrap (outer layer)
+    case nostrConnect = 24133  // NIP-46 remote-signer request/response
     case authRequest = 24135   // DPYC Wrist Approval auth-request rumor
     case authResponse = 24136  // DPYC Wrist Approval auth-response rumor
     case httpAuth = 27235      // NIP-98 HTTP Auth (operator proof)
@@ -57,11 +58,27 @@ public struct NostrEvent: Codable, Sendable, Identifiable {
         publicKeyHex: String,
         createdAt: Int? = nil
     ) throws -> NostrEvent {
+        try signed(
+            kindNumber: kind.rawValue, content: content, tags: tags,
+            privateKeyHex: privateKeyHex, publicKeyHex: publicKeyHex, createdAt: createdAt
+        )
+    }
+
+    /// Build a signed Nostr event of any kind number — for signing on behalf
+    /// of another app (NIP-46 `sign_event`), whose kinds Studio does not name.
+    public static func signed(
+        kindNumber: Int,
+        content: String,
+        tags: [[String]],
+        privateKeyHex: String,
+        publicKeyHex: String,
+        createdAt: Int? = nil
+    ) throws -> NostrEvent {
         let timestamp = createdAt ?? Int(Date().timeIntervalSince1970)
         let eventId = try computeEventId(
             pubkey: publicKeyHex,
             createdAt: timestamp,
-            kind: kind.rawValue,
+            kind: kindNumber,
             tags: tags,
             content: content
         )
@@ -70,7 +87,7 @@ public struct NostrEvent: Codable, Sendable, Identifiable {
             id: eventId,
             pubkey: publicKeyHex,
             created_at: timestamp,
-            kind: kind.rawValue,
+            kind: kindNumber,
             tags: tags,
             content: content,
             sig: sig

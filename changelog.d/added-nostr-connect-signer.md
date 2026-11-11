@@ -1,0 +1,1 @@
+- Studio signs in to Nostr sites as one of your identities (NIP-46). Tap or paste a site's `nostrconnect://` link, pick the identity, and approve each request while Studio is open. Settings → Connected Apps lists and disconnects them.

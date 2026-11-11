@@ -42,6 +42,18 @@ struct SettingsSheet: View {
                     Label("About", systemImage: "info.circle")
                 }
 
+                // MARK: - Connected Apps (NIP-46)
+
+                Section {
+                    NavigationLink {
+                        ConnectedAppsView()
+                    } label: {
+                        Label("Connected Apps", systemImage: "link")
+                    }
+                } footer: {
+                    Text("Sign in to Nostr sites with an identity Studio holds.")
+                }
+
                 // MARK: - OpenRouter API Key
 
                 Section {
