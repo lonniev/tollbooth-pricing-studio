@@ -1,1 +1,0 @@
-- Saving an Operator or Authority now publishes its NIP-05 to its Nostr profile, signed by its Keychain key. Edit enables Save when the relays' profile lacks the saved NIP-05, so one tap publishes it.

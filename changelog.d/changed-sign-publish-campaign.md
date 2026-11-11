@@ -1,1 +1,0 @@
-- Publishing a campaign signs the request with the author's key; the Oracle now publishes only signed campaigns.

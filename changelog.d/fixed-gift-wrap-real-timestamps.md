@@ -1,1 +1,0 @@
-- Courier replies and other gift-wrapped DMs carry the real send time, so ephemeral relays keep them until they are fetched.
