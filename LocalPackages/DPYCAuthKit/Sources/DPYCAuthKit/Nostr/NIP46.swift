@@ -75,6 +75,18 @@ public struct NostrConnectURI: Equatable, Sendable {
     }
 }
 
+/// A signer's `bunker://<signer-pubkey>?relay=…&secret=…` link, which the
+/// user pastes into a site; the site then sends `connect` with the secret.
+public enum BunkerURI {
+    private static let unreserved = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+
+    public static func make(signerPubkey: String, relays: [URL], secret: String) -> String {
+        func enc(_ s: String) -> String { s.addingPercentEncoding(withAllowedCharacters: unreserved) ?? s }
+        let query = relays.map { "relay=\(enc($0.absoluteString))" } + ["secret=\(enc(secret))"]
+        return "bunker://\(signerPubkey)?\(query.joined(separator: "&"))"
+    }
+}
+
 /// One decrypted request from the client.
 public struct NIP46Request: Codable, Equatable, Sendable {
     public let id: String
@@ -176,6 +188,16 @@ public enum NIP46 {
             kind: .nostrConnect, content: content, tags: [["p", clientPubkey]],
             privateKeyHex: signerPrivateKeyHex, publicKeyHex: signerPublicKeyHex
         )
+    }
+
+    /// Whether `request` is a `connect` to `signerPubkey` carrying `secret`
+    /// (params: `[signer-pubkey, secret, perms?]`). Compares in constant time.
+    public static func isConnect(_ request: NIP46Request, to signerPubkey: String, secret: String) -> Bool {
+        guard request.method == "connect", request.params.count >= 2,
+              request.params[0].lowercased() == signerPubkey.lowercased() else { return false }
+        let given = Array(request.params[1].utf8), expected = Array(secret.utf8)
+        guard given.count == expected.count, !expected.isEmpty else { return false }
+        return zip(given, expected).reduce(0) { $0 | ($1.0 ^ $1.1) } == 0
     }
 
     /// Decode `sign_event`'s param.

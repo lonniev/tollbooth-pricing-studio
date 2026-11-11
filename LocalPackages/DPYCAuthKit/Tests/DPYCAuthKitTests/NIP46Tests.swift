@@ -48,6 +48,28 @@ final class NIP46Tests: XCTestCase {
         XCTAssertEqual(Set(uri.relays).count, uri.relays.count)
     }
 
+    // MARK: - Bunker link
+
+    func testBunkerLinkEncodesRelayAndSecret() throws {
+        let link = BunkerURI.make(signerPubkey: clientKey, relays: [URL(string: "wss://relay.primal.net")!], secret: "a1b2")
+        XCTAssertEqual(link, "bunker://\(clientKey)?relay=wss%3A%2F%2Frelay.primal.net&secret=a1b2")
+        let comps = try XCTUnwrap(URLComponents(string: link))
+        XCTAssertEqual(comps.host, clientKey)
+        XCTAssertEqual(comps.queryItems?.first { $0.name == "relay" }?.value, "wss://relay.primal.net")
+    }
+
+    func testConnectNeedsTheSignerAndTheExactSecret() {
+        let ok = NIP46Request(id: "1", method: "connect", params: [clientKey.uppercased(), "s3cr3t", "sign_event:22242"])
+        XCTAssertTrue(NIP46.isConnect(ok, to: clientKey, secret: "s3cr3t"))
+        XCTAssertFalse(NIP46.isConnect(ok, to: clientKey, secret: "s3cr3T"))
+        XCTAssertFalse(NIP46.isConnect(ok, to: clientKey, secret: "s3cr3"))
+        XCTAssertFalse(NIP46.isConnect(ok, to: String(repeating: "cd", count: 32), secret: "s3cr3t"))
+        XCTAssertFalse(NIP46.isConnect(NIP46Request(id: "1", method: "connect", params: [clientKey]),
+                                       to: clientKey, secret: "s3cr3t"), "a connect without the secret")
+        XCTAssertFalse(NIP46.isConnect(NIP46Request(id: "1", method: "ping", params: [clientKey, "s3cr3t"]),
+                                       to: clientKey, secret: "s3cr3t"))
+    }
+
     // MARK: - Request / response round trip
 
     private func roundTrip(_ cipher: NIP46.Cipher) throws {

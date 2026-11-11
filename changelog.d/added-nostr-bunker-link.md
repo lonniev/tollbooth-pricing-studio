@@ -1,0 +1,1 @@
+- Settings → Connected Apps → **Copy a bunker:// link** signs you in to sites that ask for `bunker://` or a NIP-05 address, such as Stacker News. Pick an identity, paste the link into the site, then return to Studio. Each link works once, for ten minutes.
