@@ -38,7 +38,6 @@ Changes not yet released live in `changelog.d/`, one file per change — see the
 
 ### Fixed
 
-
 - Every MCP request carries `Authorization: Bearer anonymous` unless the authorizer holds a token for that host, so operators with tollbooth-dpyc holder bearer on answer Studio directly instead of with a 401 that opened a login sheet. Studio still proves itself with its own signed proofs.
 
 - Courier replies and other gift-wrapped DMs carry the real send time, so ephemeral relays keep them until they are fetched.
