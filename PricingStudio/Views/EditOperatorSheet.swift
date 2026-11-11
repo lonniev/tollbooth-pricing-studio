@@ -191,6 +191,9 @@ struct EditOperatorSheet: View {
                 }
 
                 NotificationToggleSection(npub: operator_.npub) { notifPrefChanged = true }
+                if hasStoredNsec {
+                    NostrConnectSection(npub: operator_.npub)
+                }
             }
             .navigationTitle("Edit Operator")
             .navigationBarTitleDisplayMode(.inline)

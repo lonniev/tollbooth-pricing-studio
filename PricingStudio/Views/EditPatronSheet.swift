@@ -173,6 +173,9 @@ struct EditPatronSheet: View {
                 }
 
                 NotificationToggleSection(npub: patron.npub) { notifPrefChanged = true }
+                if hasStoredNsec {
+                    NostrConnectSection(npub: patron.npub)
+                }
             }
             .navigationTitle("Edit Patron")
             .navigationBarTitleDisplayMode(.inline)
