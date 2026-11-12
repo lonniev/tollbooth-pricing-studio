@@ -47,6 +47,19 @@ final class ProofApprovalServiceTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(CourierForm.parse(try CourierFixtures.text("approval"))).isPeerGrant)
     }
 
+    func testASponsorRequestIsNeverOneTap() throws {
+        // A patron asks this account to sponsor them; only the in-app form shows who.
+        XCTAssertNil(ProofApprovalService.classify(tags: try tags("sponsor_request"), requestId: requestId))
+    }
+
+    func testTheSponsorRequestFormNamesThePatron() throws {
+        let form = try XCTUnwrap(CourierForm.parse(try CourierFixtures.text("sponsor_request")))
+        XCTAssertEqual(form.askingPatron, "npub1d999638gqpn8c594teklxtxva0uvxdng80q3ycyqvldjdl457c7qcrq64z")
+        XCTAssertNil(form.peerNpub)
+        XCTAssertTrue(form.isPeerGrant)
+        XCTAssertEqual(form.counterpart, form.askingPatron)
+    }
+
     func testAMalformedPeerIsNoPeer() throws {
         for bad in ["npub1short", "nsec1" + String(repeating: "q", count: 58), "npub1" + String(repeating: "b", count: 58)] {
             let text = try CourierFixtures.text("peer_grant") { $0["x-peer-npub"] = bad }
