@@ -1,0 +1,1 @@
+- A courier request shows as its form even when its text copy reaches Studio first; the form arriving second was dropped.

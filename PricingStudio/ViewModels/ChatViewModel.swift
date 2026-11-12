@@ -87,32 +87,15 @@ final class ChatViewModel {
         // Always update the cache for this npub — even if not currently viewing it.
         // This way switchIdentity finds cached conversations and skips the relay fetch.
         var cached = conversationCache[npub]?.conversations ?? []
+        // One snapshot for both copies below: the cache must not spend an
+        // optimistic send's id before the visible list has matched it.
+        let pending = pendingMessageIds
+        var replacedPending: Set<String> = []
 
         if let idx = cached.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
-            // Check for exact duplicate by event ID
-            guard !cached[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) else { return }
-            // The other copy of a message already here (NIP-04 + NIP-17, or a
-            // courier form and its text copy): keep the better one.
-            if let dupIdx = cached[idx].messages.firstIndex(where: { DMConversation.isCopy($0, of: dm) }) {
-                if DMConversation.prefers(dm, over: cached[idx].messages[dupIdx]) {
-                    cached[idx].messages[dupIdx] = dm
-                }
-                return
-            }
-            // Check for optimistic duplicate (same content + approximate time = relay echo of our sent message)
-            if dm.isFromMe,
-               let optimisticIdx = cached[idx].messages.firstIndex(where: {
-                   $0.isFromMe && $0.content == dm.content
-                   && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 120
-                   && pendingMessageIds.contains($0.rawEventId)
-               }) {
-                // Replace optimistic with real event
-                pendingMessageIds.remove(cached[idx].messages[optimisticIdx].rawEventId)
-                cached[idx].messages[optimisticIdx] = dm
-            } else {
-                cached[idx].messages.append(dm)
-                if !dm.isFromMe { Haptics.messageReceived() }
-            }
+            let result = cached[idx].absorb(dm, pendingIds: pending)
+            if let id = result.replacedPendingId { replacedPending.insert(id) }
+            if result.appended, !dm.isFromMe { Haptics.messageReceived() }
         } else {
             cached.insert(
                 DMConversation(counterpartyPubkeyHex: counterpartyHex, messages: [dm]),
@@ -130,25 +113,8 @@ final class ChatViewModel {
         // the entire array — preserves scroll position and reduces SwiftUI diff work
         if isActiveIdentity {
             if let idx = conversations.firstIndex(where: { $0.counterpartyPubkeyHex == counterpartyHex }) {
-                if conversations[idx].messages.contains(where: { $0.rawEventId == dm.rawEventId }) {
-                    // Already present — skip
-                } else if let dupIdx = conversations[idx].messages.firstIndex(where: { DMConversation.isCopy($0, of: dm) }) {
-                    // The other copy of a message already here: keep the better one.
-                    if DMConversation.prefers(dm, over: conversations[idx].messages[dupIdx]) {
-                        conversations[idx].messages[dupIdx] = dm
-                    }
-                } else if dm.isFromMe,
-                          let optIdx = conversations[idx].messages.firstIndex(where: {
-                              $0.isFromMe && $0.content == dm.content
-                              && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 120
-                              && pendingMessageIds.contains($0.rawEventId)
-                          }) {
-                    // Replace optimistic with real event
-                    pendingMessageIds.remove(conversations[idx].messages[optIdx].rawEventId)
-                    conversations[idx].messages[optIdx] = dm
-                } else {
-                    conversations[idx].messages.append(dm)
-                }
+                let result = conversations[idx].absorb(dm, pendingIds: pending)
+                if let id = result.replacedPendingId { replacedPending.insert(id) }
             } else {
                 conversations.insert(
                     DMConversation(counterpartyPubkeyHex: counterpartyHex, messages: [dm]),
@@ -157,6 +123,7 @@ final class ChatViewModel {
             }
             state = .loaded
         }
+        pendingMessageIds.subtract(replacedPending)
     }
 
     // MARK: - Merge Conversations

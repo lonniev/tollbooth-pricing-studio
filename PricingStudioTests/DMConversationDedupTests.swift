@@ -57,6 +57,42 @@ final class DMConversationDedupTests: XCTestCase {
         }
     }
 
+    /// The live path: each copy arrives on its own and is absorbed in turn.
+    /// The text copy landing first must not keep its form out (11-12: the
+    /// form won the comparison and was then dropped).
+    func testALiveFormReplacesItsTextCopyThatArrivedFirst() {
+        var convo = DMConversation(counterpartyPubkeyHex: sender, messages: [])
+        XCTAssertTrue(convo.absorb(text()).appended)
+        XCTAssertFalse(convo.absorb(form(at: -1)).appended)
+        XCTAssertEqual(convo.messages.map(\.rawEventId), ["form"])
+        XCTAssertEqual(convo.dedupedMessages.map(\.rawEventId), ["form"])
+    }
+
+    func testALiveTextCopyNeverReplacesItsForm() {
+        var convo = DMConversation(counterpartyPubkeyHex: sender, messages: [])
+        convo.absorb(form())
+        XCTAssertFalse(convo.absorb(text(at: 1)).appended)
+        XCTAssertEqual(convo.messages.map(\.rawEventId), ["form"])
+    }
+
+    func testAbsorbIgnoresTheSameEventTwiceAndReplacesAnOptimisticSend() {
+        var convo = DMConversation(counterpartyPubkeyHex: sender, messages: [])
+        convo.absorb(form())
+        XCTAssertFalse(convo.absorb(form()).appended)
+        XCTAssertEqual(convo.messages.count, 1)
+
+        let optimistic = DecryptedDM(rawEventId: "local-1", senderPubkeyHex: me, recipientPubkeyHex: sender,
+                                     content: "hello", createdAt: start, encryption: .nip44, isFromMe: true, tags: [])
+        let echo = DecryptedDM(rawEventId: "relay-1", senderPubkeyHex: me, recipientPubkeyHex: sender,
+                               content: "hello", createdAt: start.addingTimeInterval(2), encryption: .nip44,
+                               isFromMe: true, tags: [])
+        convo.absorb(optimistic)
+        let result = convo.absorb(echo, pendingIds: ["local-1"])
+        XCTAssertEqual(result.replacedPendingId, "local-1")
+        XCTAssertFalse(result.appended)
+        XCTAssertEqual(convo.messages.map(\.rawEventId), ["form", "relay-1"])
+    }
+
     func testATextCopyWithoutItsFormStays() {
         let shown = DMConversation(counterpartyPubkeyHex: sender, messages: [text()]).dedupedMessages
         XCTAssertEqual(shown.map(\.rawEventId), ["text"])
