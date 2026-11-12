@@ -57,6 +57,35 @@ struct DMConversation: Identifiable, Sendable {
         return incoming.encryption == .nip44 && existing.encryption == .nip04
     }
 
+    /// Merge one live message in. A message already here is ignored; a relay
+    /// echo of an optimistic send in *pendingIds* replaces that send; the
+    /// other copy of one already here leaves the better of the two (a courier
+    /// form replaces its text copy); anything else is appended.
+    ///
+    /// Returns whether *dm* was appended as new, and the id of the optimistic
+    /// send it replaced, if any.
+    @discardableResult
+    mutating func absorb(
+        _ dm: DecryptedDM, pendingIds: Set<String> = []
+    ) -> (appended: Bool, replacedPendingId: String?) {
+        if messages.contains(where: { $0.rawEventId == dm.rawEventId }) { return (false, nil) }
+        if dm.isFromMe, let optIdx = messages.firstIndex(where: {
+            $0.isFromMe && $0.content == dm.content
+                && abs($0.createdAt.timeIntervalSince(dm.createdAt)) < 120
+                && pendingIds.contains($0.rawEventId)
+        }) {
+            let replaced = messages[optIdx].rawEventId
+            messages[optIdx] = dm
+            return (false, replaced)
+        }
+        if let dupIdx = messages.firstIndex(where: { Self.isCopy($0, of: dm) }) {
+            if Self.prefers(dm, over: messages[dupIdx]) { messages[dupIdx] = dm }
+            return (false, nil)
+        }
+        messages.append(dm)
+        return (true, nil)
+    }
+
     /// Most recent message in the conversation (after deduplication).
     var latestMessage: DecryptedDM? {
         dedupedMessages.last
