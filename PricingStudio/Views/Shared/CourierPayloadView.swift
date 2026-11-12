@@ -28,10 +28,10 @@ struct CourierPayloadView: View {
         return false
     }
 
-    /// For a peer grant, the name Studio knows the peer by; nil when the peer
+    /// For a peer grant, the name Studio knows the other npub by; nil when it
     /// is a stranger (or the request is no peer grant).
     private var peerName: String? {
-        payload.form.peerNpub.flatMap { IdentityName.known($0) }
+        payload.form.counterpart.flatMap { IdentityName.known($0) }
     }
 
     /// A peer grant from an npub Studio does not know: approve with care.
@@ -91,8 +91,8 @@ struct CourierPayloadView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let peer = payload.form.peerNpub {
-                peerRow(peer)
+            if let other = payload.form.counterpart {
+                peerRow(other, asksSponsor: payload.form.askingPatron != nil)
             }
 
             if payload.isApproval {
@@ -178,10 +178,11 @@ struct CourierPayloadView: View {
 
     // MARK: - Peer
 
-    /// Who would see this account and pay for it: a name Studio knows, or a
-    /// warning and the raw npub.
+    /// The other npub: who would see this account and pay for it, or who asks
+    /// this account to sponsor them. A name Studio knows, or a warning and the
+    /// raw npub.
     @ViewBuilder
-    private func peerRow(_ peer: String) -> some View {
+    private func peerRow(_ peer: String, asksSponsor: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if let peerName {
                 Label(peerName, systemImage: "person.crop.circle.badge.checkmark")
@@ -195,7 +196,9 @@ struct CourierPayloadView: View {
                     .font(.caption.monospaced())
                     .textSelection(.enabled)
             }
-            Text("May see this account and pay for it. Cannot spend it.")
+            Text(asksSponsor
+                 ? "Asks you to sponsor them. You would see their account and pay for it."
+                 : "May see this account and pay for it. Cannot spend it.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

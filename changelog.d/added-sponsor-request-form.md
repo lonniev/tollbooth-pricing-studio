@@ -1,0 +1,1 @@
+- A request to sponsor someone shows who asks: their name in green if Studio knows the npub, or "Unknown npub" in orange. A line under it says what approving means. It is never one-tap from a banner or the Watch.

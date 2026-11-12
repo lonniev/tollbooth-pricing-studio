@@ -95,15 +95,24 @@ public struct CourierForm: Sendable, Equatable {
     /// For a peer-grant approval, the npub that asks to see the patron's
     /// account and pay for them (`x-peer-npub`); nil on any other form.
     public let peerNpub: String?
+    /// For the other way round, the patron who asks the recipient to sponsor
+    /// them (`x-patron-npub`); nil on any other form.
+    public let askingPatron: String?
 
-    /// Whether this approval would let another npub watch the patron's account.
-    public var isPeerGrant: Bool { peerNpub != nil }
+    /// Whether this approval would let one npub watch another's account:
+    /// someone asks to sponsor this account, or asks this account to sponsor them.
+    public var isPeerGrant: Bool { peerNpub != nil || askingPatron != nil }
+
+    /// The other npub in a peer grant: the would-be sponsor, or the patron who asks.
+    public var counterpart: String? { peerNpub ?? askingPatron }
 
     public init(
         title: String, description: String?, service: String, kind: Kind,
-        delimiter: String, properties: [Property], peerNpub: String? = nil
+        delimiter: String, properties: [Property], peerNpub: String? = nil,
+        askingPatron: String? = nil
     ) {
         self.peerNpub = peerNpub
+        self.askingPatron = askingPatron
         self.title = title
         self.description = description
         self.service = service
@@ -145,7 +154,8 @@ public struct CourierForm: Sendable, Equatable {
             kind: kind,
             delimiter: root["x-delimiter"] as? String ?? "@@@",
             properties: ordered.map(\.property),
-            peerNpub: (root["x-peer-npub"] as? String).flatMap(Self.validNpub)
+            peerNpub: (root["x-peer-npub"] as? String).flatMap(Self.validNpub),
+            askingPatron: (root["x-patron-npub"] as? String).flatMap(Self.validNpub)
         )
     }
 
