@@ -92,11 +92,18 @@ public struct CourierForm: Sendable, Equatable {
     public let delimiter: String
     /// Fields in the operator's order (`propertyOrder`).
     public let properties: [Property]
+    /// For a peer-grant approval, the npub that asks to see the patron's
+    /// account and pay for them (`x-peer-npub`); nil on any other form.
+    public let peerNpub: String?
+
+    /// Whether this approval would let another npub watch the patron's account.
+    public var isPeerGrant: Bool { peerNpub != nil }
 
     public init(
         title: String, description: String?, service: String, kind: Kind,
-        delimiter: String, properties: [Property]
+        delimiter: String, properties: [Property], peerNpub: String? = nil
     ) {
+        self.peerNpub = peerNpub
         self.title = title
         self.description = description
         self.service = service
@@ -137,8 +144,18 @@ public struct CourierForm: Sendable, Equatable {
             service: root["x-service"] as? String ?? "",
             kind: kind,
             delimiter: root["x-delimiter"] as? String ?? "@@@",
-            properties: ordered.map(\.property)
+            properties: ordered.map(\.property),
+            peerNpub: (root["x-peer-npub"] as? String).flatMap(Self.validNpub)
         )
+    }
+
+    /// *text* when it is shaped like a bech32 npub, else nil.
+    static func validNpub(_ text: String) -> String? {
+        let npub = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let charset = Set("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
+        guard npub.hasPrefix("npub1"), npub.count == 63,
+              npub.dropFirst(5).allSatisfy({ charset.contains($0) }) else { return nil }
+        return npub
     }
 
     /// One property, or nil when it falls outside the subset.

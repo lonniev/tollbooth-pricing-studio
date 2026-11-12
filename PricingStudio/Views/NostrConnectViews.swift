@@ -143,6 +143,20 @@ enum IdentityName {
         held().first { $0.npub == npub }?.name ?? String(npub.prefix(16)) + "…"
     }
 
+    /// The name Studio knows *npub* by — any Patron, Operator or Authority it
+    /// lists, whether or not it holds the nsec — or nil for a stranger.
+    @MainActor
+    static func known(_ npub: String) -> String? {
+        let context = AppModelContainer.shared.mainContext
+        var rows: [(String, String)] = []
+        rows += ((try? context.fetch(FetchDescriptor<Patron>())) ?? []).map { ($0.npub, $0.displayName) }
+        rows += ((try? context.fetch(FetchDescriptor<Operator>())) ?? []).map { ($0.npub, $0.displayName) }
+        rows += ((try? context.fetch(FetchDescriptor<Authority>())) ?? []).map { ($0.npub, $0.displayName) }
+        let target = npub.lowercased()
+        guard let row = rows.first(where: { $0.0.lowercased() == target }) else { return nil }
+        return row.1.isEmpty ? String(npub.prefix(16)) + "…" : row.1
+    }
+
     /// Every Patron, Operator and Authority whose nsec Studio holds.
     @MainActor
     static func held() -> [(npub: String, name: String)] {
