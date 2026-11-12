@@ -33,6 +33,27 @@ final class ProofApprovalServiceTests: XCTestCase {
         XCTAssertNil(ProofApprovalService.classify(tags: [["form", form]], requestId: requestId))
     }
 
+    func testAPeerGrantIsNeverOneTap() throws {
+        // It lets another npub watch the account; only the in-app form shows who.
+        XCTAssertNil(ProofApprovalService.classify(tags: try tags("peer_grant"), requestId: requestId))
+    }
+
+    func testThePeerGrantFormNamesThePeer() throws {
+        let form = try XCTUnwrap(CourierForm.parse(try CourierFixtures.text("peer_grant")))
+        XCTAssertEqual(form.peerNpub, "npub1d999638gqpn8c594teklxtxva0uvxdng80q3ycyqvldjdl457c7qcrq64z")
+        XCTAssertTrue(form.isPeerGrant)
+        XCTAssertEqual(form.kind, .approval)
+        XCTAssertNotNil(form.property("allow_for"))
+        XCTAssertFalse(try XCTUnwrap(CourierForm.parse(try CourierFixtures.text("approval"))).isPeerGrant)
+    }
+
+    func testAMalformedPeerIsNoPeer() throws {
+        for bad in ["npub1short", "nsec1" + String(repeating: "q", count: 58), "npub1" + String(repeating: "b", count: 58)] {
+            let text = try CourierFixtures.text("peer_grant") { $0["x-peer-npub"] = bad }
+            XCTAssertNil(try XCTUnwrap(CourierForm.parse(text)).peerNpub, bad)
+        }
+    }
+
     func testTextOnlyMessageIsNotAChallenge() {
         XCTAssertNil(ProofApprovalService.classify(tags: [["p", "aa"]], requestId: requestId))
     }

@@ -57,10 +57,12 @@ public enum ProofApprovalService {
     /// It must be a courier request whose form says it is an approval, with
     /// no secret field. A watch tap can affirm; it can never supply a secret,
     /// so a credential form (or an approval that asks for one) is left for
-    /// the in-app form.
+    /// the in-app form. A peer grant is left for the in-app form too: it lets
+    /// another npub watch the account, and only the form shows who that is.
     public static func classify(tags: [[String]], requestId: String) -> ProofChallenge? {
         guard let payload = CourierPayload.parse(tags: tags, requestId: requestId),
               payload.isApproval,
+              !payload.form.isPeerGrant,
               !payload.fields.contains(where: { $0.property.isSecret }) else { return nil }
         return ProofChallenge(payload: payload)
     }

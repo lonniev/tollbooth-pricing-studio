@@ -1,0 +1,1 @@
+- A peer-grant request shows who is asking: a name Studio knows, or a warning and the npub. It never offers one-tap approval from a banner or the Watch.

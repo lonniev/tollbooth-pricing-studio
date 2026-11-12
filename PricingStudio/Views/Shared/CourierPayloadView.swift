@@ -28,6 +28,17 @@ struct CourierPayloadView: View {
         return false
     }
 
+    /// For a peer grant, the name Studio knows the peer by; nil when the peer
+    /// is a stranger (or the request is no peer grant).
+    private var peerName: String? {
+        payload.form.peerNpub.flatMap { IdentityName.known($0) }
+    }
+
+    /// A peer grant from an npub Studio does not know: approve with care.
+    private var strangerPeer: Bool {
+        payload.form.isPeerGrant && peerName == nil
+    }
+
     /// The fields an approval lets the patron choose (how long to remember
     /// it). Every other approval field is answered "approved" on send.
     private var approvalChoices: [Binding<CourierPayload.Field>] {
@@ -80,6 +91,10 @@ struct CourierPayloadView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let peer = payload.form.peerNpub {
+                peerRow(peer)
+            }
+
             if payload.isApproval {
                 ForEach(approvalChoices) { $field in
                     CourierFieldRow(field: $field)
@@ -123,13 +138,13 @@ struct CourierPayloadView: View {
                             sent = true
                         } label: {
                             Label(
-                                sent ? "Reply sent" : (trust?.level == .red ? "Approve anyway & reply" : "Confirm & reply"),
+                                sent ? "Reply sent" : (trust?.level == .red || strangerPeer ? "Approve anyway & reply" : "Confirm & reply"),
                                 systemImage: sent ? "checkmark.circle.fill" : "paperplane.fill"
                             )
                             .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
-                        .tint(sent ? .secondary : (trust?.level == .red ? .red : .accentColor))
+                        .tint(sent ? .secondary : (trust?.level == .red ? .red : (strangerPeer ? .orange : .accentColor)))
                         .disabled(sent)
 
                         if trust?.level == .red && !sent {
@@ -159,6 +174,36 @@ struct CourierPayloadView: View {
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Peer
+
+    /// Who would see this account and pay for it: a name Studio knows, or a
+    /// warning and the raw npub.
+    @ViewBuilder
+    private func peerRow(_ peer: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let peerName {
+                Label(peerName, systemImage: "person.crop.circle.badge.checkmark")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.green)
+            } else {
+                Label("Unknown npub", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.orange)
+                Text(peer)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+            }
+            Text("May see this account and pay for it. Cannot spend it.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background((peerName == nil ? Color.orange : Color.green).opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Trust Banner
