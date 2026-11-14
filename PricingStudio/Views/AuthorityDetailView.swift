@@ -1480,14 +1480,11 @@ private struct AdoptOperatorSheet: View {
                     Text("Choose an unclaimed operator to register with \(authority.displayName)")
                 }
 
-                if case .registering = authorityVM.adoptionStatus {
-                    Section {
-                        HStack {
-                            ProgressView()
-                            Text("Registering operator…")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                if authorityVM.adoptionStatus == .asking {
+                    Section { AdoptionStepsView(ask: .running, approve: .pending) }
+                }
+                if authorityVM.adoptionStatus == .approving {
+                    Section { AdoptionStepsView(ask: .done, approve: .running) }
                 }
 
                 if case .success(let message) = authorityVM.adoptionStatus {
@@ -1571,7 +1568,7 @@ private struct AdoptOperatorSheet: View {
     /// disabled in any of these states.
     private var isAdoptionInFlight: Bool {
         switch authorityVM.adoptionStatus {
-        case .registering, .acquiringProof:
+        case .asking, .approving, .acquiringProof:
             return true
         default:
             return false

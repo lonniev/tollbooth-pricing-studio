@@ -110,6 +110,7 @@
 		AA0000010000000000000E11 /* InvoiceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000E01 /* InvoiceListView.swift */; };
 		AA0000010000000000000F02 /* OperatorAuthorityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F01 /* OperatorAuthorityView.swift */; };
 		AA0000010000000000000F12 /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F11 /* QRCodeView.swift */; };
+		AD0A0000ADA0000000005E02 /* AdoptionStepsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0A0000ADA0000000005E01 /* AdoptionStepsView.swift */; };
 		AA0000010000000000000F20 /* HolderConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F21 /* HolderConnection.swift */; };
 		AA0000010000000000000F30 /* LoadingQuoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F31 /* LoadingQuoteView.swift */; };
 		AA0000010000000000000F34 /* ParentAccountCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000F33 /* ParentAccountCard.swift */; };
@@ -338,6 +339,7 @@
 		AA0000010000000000000E01 /* InvoiceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceListView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F01 /* OperatorAuthorityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorAuthorityView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F11 /* QRCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeView.swift; sourceTree = "<group>"; };
+		AD0A0000ADA0000000005E01 /* AdoptionStepsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdoptionStepsView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F21 /* HolderConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HolderConnection.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F31 /* LoadingQuoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingQuoteView.swift; sourceTree = "<group>"; };
 		AA0000010000000000000F33 /* ParentAccountCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentAccountCard.swift; sourceTree = "<group>"; };
@@ -735,6 +737,7 @@
 				AA00000100000000ATBR0001 /* AdaptiveTabBar.swift */,
 				AA0000010000000000000B07 /* CourierPayloadView.swift */,
 				AA0000010000000000000F11 /* QRCodeView.swift */,
+				AD0A0000ADA0000000005E01 /* AdoptionStepsView.swift */,
 				AA0000010000000000000F33 /* ParentAccountCard.swift */,
 				AA0000010000000000000F35 /* PurchaseCreditsSheet.swift */,
 			);
@@ -1167,6 +1170,7 @@
 				AA0000010000000000000B15 /* SecondOpinionSheet.swift in Sources */,
 				AA0000010000000000000B17 /* CourierPayloadView.swift in Sources */,
 				AA0000010000000000000F12 /* QRCodeView.swift in Sources */,
+				AD0A0000ADA0000000005E02 /* AdoptionStepsView.swift in Sources */,
 				AA0000010000000000000F34 /* ParentAccountCard.swift in Sources */,
 				AA0000010000000000000F36 /* PurchaseCreditsSheet.swift in Sources */,
 				AA0000010000000000000B18 /* ReconciliationViewModel.swift in Sources */,

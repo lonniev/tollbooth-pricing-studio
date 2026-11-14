@@ -184,7 +184,10 @@ final class AuthorityCollectionViewModel {
 
     enum AdoptionStatus: Equatable {
         case idle
-        case registering
+        /// The operator is asking to be adopted.
+        case asking
+        /// The Authority is approving, which also sets up the operator's database.
+        case approving
         case success(String)
         case failed(String)
         /// Wheel returned `authority_consent_required` — the call needs a
@@ -239,7 +242,7 @@ final class AuthorityCollectionViewModel {
             return
         }
 
-        adoptionStatus = .registering
+        adoptionStatus = .asking
         let mcpService = MCPService()
 
         do {
@@ -249,7 +252,8 @@ final class AuthorityCollectionViewModel {
                 authorityEndpointURL: endpointURL,
                 authorityNpub: authority.npub,
                 serviceURL: operatorURL,
-                displayName: operatorToAdopt.displayName
+                displayName: operatorToAdopt.displayName,
+                onAsked: { [weak self] in self?.adoptionStatus = .approving }
             )
             operatorToAdopt.authorityNpub = authority.npub
             try? context.save()

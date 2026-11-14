@@ -1582,14 +1582,17 @@ actor MCPService {
 
     /// Adopt an operator in one flow, each party acting for itself: the
     /// operator asks (`request_adoption` on its own endpoint, signed with its
-    /// key), then the Authority's owner approves. Returns the approval's text.
+    /// key), then the Authority's owner approves, which also provisions the
+    /// operator's database. `onAsked` runs between the two, so a sheet can show
+    /// which step it is on. Returns the approval's text.
     func callAdoptOperator(
         operatorEndpointURL: URL,
         operatorNpub: String,
         authorityEndpointURL: URL,
         authorityNpub: String,
         serviceURL: String,
-        displayName: String
+        displayName: String,
+        onAsked: @MainActor @Sendable () -> Void = {}
     ) async throws -> String {
         _ = try await callRequestAdoption(
             operatorEndpointURL: operatorEndpointURL,
@@ -1598,6 +1601,7 @@ actor MCPService {
             serviceURL: serviceURL,
             displayName: displayName
         )
+        await onAsked()
         return try await callApproveOperatorRequest(
             endpointURL: authorityEndpointURL,
             operatorNpub: operatorNpub,
