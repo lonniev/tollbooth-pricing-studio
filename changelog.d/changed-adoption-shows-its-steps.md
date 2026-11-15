@@ -1,0 +1,2 @@
+- Adopting an Operator shows its two steps, Ask and Approve (approving also sets up its database), each with its own spinner, check or cross. Before, one spinner covered both, so it read as waiting on someone else.
+- Request Adoption offers **Approve now as <Authority>** when this device holds that Authority's key, so one person playing both roles never has to leave the sheet. Without the key, the sheet says the request waits in that Authority's Pending Requests, and Done closes it.

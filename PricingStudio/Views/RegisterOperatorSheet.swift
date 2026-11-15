@@ -30,19 +30,23 @@ struct RegisterOperatorSheet: View {
     enum AdoptionStatus: Equatable {
         case idle
         case deregistering
-        case registering
+        /// The Operator is asking to be adopted.
+        case asking
+        /// The Authority is approving, which also sets up the Operator's database.
+        case approving
         case success(String)
-        case failed(String)
+        /// `asked` says whether the ask landed before the failure.
+        case failed(String, asked: Bool)
+    }
 
-        static func == (lhs: AdoptionStatus, rhs: AdoptionStatus) -> Bool {
-            switch (lhs, rhs) {
-            case (.idle, .idle),
-                 (.deregistering, .deregistering),
-                 (.registering, .registering): return true
-            case (.success(let a), .success(let b)): return a == b
-            case (.failed(let a), .failed(let b)): return a == b
-            default: return false
-            }
+    /// Each step's state, for `AdoptionStepsView`; `nil` before anything has started.
+    private var steps: (ask: AdoptionStepsView.StepState, approve: AdoptionStepsView.StepState)? {
+        switch status {
+        case .idle, .deregistering: return nil
+        case .asking: return (.running, .pending)
+        case .approving: return (.done, .running)
+        case .success: return (.done, .done)
+        case .failed(_, let asked): return asked ? (.done, .failed) : (.failed, .pending)
         }
     }
 
@@ -52,7 +56,7 @@ struct RegisterOperatorSheet: View {
     }
 
     private var inFlight: Bool {
-        status == .deregistering || status == .registering
+        status == .deregistering || status == .asking || status == .approving
     }
 
     private var currentAuthority: Authority? {
@@ -154,13 +158,9 @@ struct RegisterOperatorSheet: View {
                     }
                 }
 
-                if case .registering = status {
+                if let steps {
                     Section {
-                        HStack {
-                            ProgressView()
-                            Text("Requesting adoption…")
-                                .foregroundStyle(.secondary)
-                        }
+                        AdoptionStepsView(ask: steps.ask, approve: steps.approve)
                     }
                 }
 
@@ -187,7 +187,7 @@ struct RegisterOperatorSheet: View {
                     }
                 }
 
-                if case .failed(let error) = status {
+                if case .failed(let error, _) = status {
                     Section {
                         Label("Request failed", systemImage: "xmark.circle.fill")
                             .foregroundStyle(.red)
@@ -269,18 +269,18 @@ struct RegisterOperatorSheet: View {
     private func register(with authority: Authority) async {
         guard let endpointString = authority.mcpEndpointURL,
               let endpointURL = URL(string: endpointString) else {
-            status = .failed("Authority has no MCP endpoint")
+            status = .failed("Authority has no MCP endpoint", asked: false)
             return
         }
 
         let serviceURL = (operatorTarget as? Operator)?.mcpEndpointURL?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let operatorEndpointURL = URL(string: serviceURL), !serviceURL.isEmpty else {
-            status = .failed("Set the operator's MCP endpoint URL first: it asks to be adopted from there.")
+            status = .failed("Set the operator's MCP endpoint URL first: it asks to be adopted from there.", asked: false)
             return
         }
 
-        status = .registering
+        status = .asking
         let mcpService = MCPService()
 
         do {
@@ -290,7 +290,8 @@ struct RegisterOperatorSheet: View {
                 authorityEndpointURL: endpointURL,
                 authorityNpub: authority.npub,
                 serviceURL: serviceURL,
-                displayName: operatorTarget.displayName
+                displayName: operatorTarget.displayName,
+                onAsked: { status = .approving }
             )
 
             if let op = operatorTarget as? Operator {
@@ -300,7 +301,7 @@ struct RegisterOperatorSheet: View {
 
             status = .success(result)
         } catch {
-            status = .failed(error.localizedDescription)
+            status = .failed(error.localizedDescription, asked: status == .approving)
         }
     }
 }
