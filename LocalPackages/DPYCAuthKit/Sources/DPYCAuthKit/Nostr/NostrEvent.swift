@@ -167,10 +167,11 @@ public func signEventId(_ eventIdHex: String, privateKeyHex: String) throws -> S
     }
 
     let privKey = try P256K.Schnorr.PrivateKey(dataRepresentation: Array(privKeyData))
-    var messageBytes = Array(eventIdData)
     var auxRand = [UInt8](repeating: 0, count: 32)
-    _ = SecRandomCopyBytes(kSecRandomDefault, 32, &auxRand)
-    let signature = try privKey.signature(message: &messageBytes, auxiliaryRand: &auxRand)
+    guard SecRandomCopyBytes(kSecRandomDefault, auxRand.count, &auxRand) == errSecSuccess else {
+        throw NostrEventError.randomnessUnavailable
+    }
+    let signature = try privKey.signature(message: Array(eventIdData), auxiliaryRand: auxRand)
     return signature.dataRepresentation.hexString
 }
 
@@ -204,12 +205,12 @@ public func verifyEventSignature(_ event: NostrEvent) -> Bool {
     do {
         // Nostr pubkeys are x-only (32-byte); parity is implicit-even.
         // Schnorr verification lives on XonlyKey (DataValidator/DigestValidator).
-        let xonly = P256K.Schnorr.XonlyKey(dataRepresentation: Array(pubData))
+        // A pubkey that is not a point on the curve throws here, and fails closed below.
+        let xonly = try P256K.Schnorr.XonlyKey(dataRepresentation: Array(pubData))
         let signature = try P256K.Schnorr.SchnorrSignature(dataRepresentation: Array(sigData))
         // The event id is already a SHA-256 digest — verify over the raw
         // 32-byte message, mirroring signEventId's raw-message signing.
-        var message = Array(idData)
-        return xonly.isValid(signature, for: &message)
+        return xonly.isValid(signature, for: Array(idData))
     } catch {
         return false
     }
@@ -221,12 +222,14 @@ public enum NostrEventError: LocalizedError {
     case invalidPrivateKey
     case invalidEventId
     case serializationFailed
+    case randomnessUnavailable
 
     public var errorDescription: String? {
         switch self {
         case .invalidPrivateKey: return "Invalid 32-byte private key"
         case .invalidEventId: return "Invalid 32-byte event ID"
         case .serializationFailed: return "Failed to serialize event"
+        case .randomnessUnavailable: return "The system could not supply random bytes for signing"
         }
     }
 }

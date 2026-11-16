@@ -23,7 +23,10 @@ let package = Package(
         ),
         .testTarget(
             name: "DPYCAuthKitTests",
-            dependencies: ["DPYCAuthKit"]
+            dependencies: [
+                "DPYCAuthKit",
+                .product(name: "P256K", package: "secp256k1.swift"),
+            ]
         ),
     ]
 )

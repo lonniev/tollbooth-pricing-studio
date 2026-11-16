@@ -1,0 +1,2 @@
+- Nostr signing runs on secp256k1.swift 0.25.1. Signing now refuses to go ahead if the system can't supply random bytes, and a public key that is not on the curve fails verification.
+- The official BIP-340 test vectors now check the library's Schnorr signing and verification.
