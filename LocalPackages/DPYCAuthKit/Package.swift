@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "DPYCAuthKit", targets: ["DPYCAuthKit"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/GigaBitcoin/secp256k1.swift.git", exact: "0.24.0"),
+        .package(url: "https://github.com/GigaBitcoin/secp256k1.swift.git", exact: "0.25.1"),
     ],
     targets: [
         .target(
@@ -23,7 +23,10 @@ let package = Package(
         ),
         .testTarget(
             name: "DPYCAuthKitTests",
-            dependencies: ["DPYCAuthKit"]
+            dependencies: [
+                "DPYCAuthKit",
+                .product(name: "P256K", package: "secp256k1.swift"),
+            ]
         ),
     ]
 )
