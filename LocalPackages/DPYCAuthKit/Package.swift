@@ -26,7 +26,8 @@ let package = Package(
             dependencies: [
                 "DPYCAuthKit",
                 .product(name: "P256K", package: "secp256k1.swift"),
-            ]
+            ],
+            resources: [.copy("Resources/escrowSigning.vectors.json")]
         ),
     ]
 )

@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E5C0000400000000000000B1 /* EscrowLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000400000000000000A1 /* EscrowLinkTests.swift */; };
+		E5C0000300000000000000B1 /* EscrowSignSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000300000000000000A1 /* EscrowSignSheet.swift */; };
+		E5C0000200000000000000B1 /* EscrowSigningService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000200000000000000A1 /* EscrowSigningService.swift */; };
+		E5C0000100000000000000B1 /* EscrowLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000100000000000000A1 /* EscrowLink.swift */; };
 		NC4600000000000000000012 /* NostrConnectViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC4600000000000000000002 /* NostrConnectViews.swift */; };
 		NC4600000000000000000011 /* NostrConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC4600000000000000000001 /* NostrConnectService.swift */; };
 		1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD45D2527BB24E228BE617A0 /* IdentityPickerView.swift */; };
@@ -237,6 +241,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		E5C0000400000000000000A1 /* EscrowLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscrowLinkTests.swift; sourceTree = "<group>"; };
+		E5C0000300000000000000A1 /* EscrowSignSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscrowSignSheet.swift; sourceTree = "<group>"; };
+		E5C0000200000000000000A1 /* EscrowSigningService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscrowSigningService.swift; sourceTree = "<group>"; };
+		E5C0000100000000000000A1 /* EscrowLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscrowLink.swift; sourceTree = "<group>"; };
 		NC4600000000000000000002 /* NostrConnectViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrConnectViews.swift; sourceTree = "<group>"; };
 		NC4600000000000000000001 /* NostrConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrConnectService.swift; sourceTree = "<group>"; };
 		075DBB0C2F9B42FCB563E2F2 /* FullScreenInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenInterviewView.swift; sourceTree = "<group>"; };
@@ -557,6 +565,7 @@
 				AA0000010000000000000231 /* ChatIdentity.swift */,
 				AA0000010000000000000232 /* DMConversation.swift */,
 				AA0000010000000000000411 /* AssistantMessage.swift */,
+				E5C0000100000000000000A1 /* EscrowLink.swift */,
 				AA0000010000000000000501 /* Contact.swift */,
 				AA0000010000000000000521 /* ConstraintCatalog.swift */,
 				AA0000010000000000000701 /* RelaySettings.swift */,
@@ -576,6 +585,7 @@
 			isa = PBXGroup;
 			children = (
 				1C4F947E5CB64034B5AEBF69 /* OperatorProofService.swift */,
+				E5C0000200000000000000A1 /* EscrowSigningService.swift */,
 				AA00000100000000000000E4 /* MCPService.swift */,
 				AA0000010000000000000F21 /* HolderConnection.swift */,
 				AA00000100000000000000E6 /* RegistryService.swift */,
@@ -645,6 +655,7 @@
 				ONBD000100000000000000A1 /* OnboardingStatusSheet.swift */,
 				SCUR000100000000000000A1 /* SecureCourierSheet.swift */,
 				RCS0000100000000000000A1 /* RotateCredentialSheet.swift */,
+				E5C0000300000000000000A1 /* EscrowSignSheet.swift */,
 				KEYS000100000000000000A1 /* KeypairGeneratorSheet.swift */,
 				AA00000100000000000007A1 /* ToolChainView.swift */,
 				AA00000100000000000000F0 /* PipelineStepCard.swift */,
@@ -762,6 +773,7 @@
 				BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */,
 				BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */,
 				BB0000010000000000000A52 /* KeychainServiceTests.swift */,
+				E5C0000400000000000000A1 /* EscrowLinkTests.swift */,
 				BB0000010000000000000B52 /* ConnectionIdentityTests.swift */,
 				DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
@@ -1034,6 +1046,7 @@
 			files = (
 				1A9E319668E94E4F9FFDF88F /* ForkInterviewSheet.swift in Sources */,
 				73CAFAD62513454B9CD36981 /* OperatorProofService.swift in Sources */,
+				E5C0000200000000000000B1 /* EscrowSigningService.swift in Sources */,
 				9E3FAA7C1B6E45B59CBDB128 /* ToolRole.swift in Sources */,
 				1394ABF37618497D9ADD6715 /* IdentityPickerView.swift in Sources */,
 				E5EBC54CF1A946579246EFB2 /* PricingDiffView.swift in Sources */,
@@ -1081,6 +1094,7 @@
 				ONBD000100000000000000B1 /* OnboardingStatusSheet.swift in Sources */,
 				SCUR000100000000000000B1 /* SecureCourierSheet.swift in Sources */,
 				RCS0000100000000000000B1 /* RotateCredentialSheet.swift in Sources */,
+				E5C0000300000000000000B1 /* EscrowSignSheet.swift in Sources */,
 				KEYS000100000000000000B1 /* KeypairGeneratorSheet.swift in Sources */,
 				AA00000100000000000007A0 /* ToolChainView.swift in Sources */,
 				AA00000100000000000000C0 /* PipelineStepCard.swift in Sources */,
@@ -1135,6 +1149,7 @@
 				AA000001000000000000F002 /* AvatarPickerView.swift in Sources */,
 				AA0000010000000000000E11 /* InvoiceListView.swift in Sources */,
 				AA0000010000000000000401 /* AssistantMessage.swift in Sources */,
+				E5C0000100000000000000B1 /* EscrowLink.swift in Sources */,
 				AA0000010000000000000402 /* OpenRouterService.swift in Sources */,
 				AA0000010000000000000403 /* AssistantViewModel.swift in Sources */,
 				AA0000010000000000000404 /* AssistantPanelView.swift in Sources */,
@@ -1199,6 +1214,7 @@
 				BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */,
 				BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */,
 				BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */,
+				E5C0000400000000000000B1 /* EscrowLinkTests.swift in Sources */,
 				BB0000010000000000000B51 /* ConnectionIdentityTests.swift in Sources */,
 				DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,

@@ -1,0 +1,1 @@
+- "Sign this…": a site's "Sign in Pricing Studio" link opens a job's Cashu escrow. Studio reads what waits on your npub from Task Booth itself (NIP-98 signed), rebuilds and checks each message so it only signs a Cashu move of sats locked to your key, asks for Face ID, signs (BIP-340) and hands the signature to Task Booth.
