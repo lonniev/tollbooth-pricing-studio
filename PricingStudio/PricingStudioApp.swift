@@ -25,6 +25,8 @@ enum AppModelContainer {
 struct PricingStudioApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    /// A site's "Sign in Pricing Studio" link, while its sheet is open.
+    @State private var escrowLink: EscrowLink?
 
     var body: some Scene {
         WindowGroup {
@@ -45,11 +47,17 @@ struct PricingStudioApp: App {
                     Task { await RelaySettings.shared.refresh() }
                     NostrConnectService.shared.startListening()
                 }
-                // A site's "Continue with Nostr" link opens Studio to sign in.
+                // A site's "Continue with Nostr" link opens Studio to sign in;
+                // its "Sign in Pricing Studio" link opens a job's escrow to sign.
                 .onOpenURL { url in
                     if url.scheme?.lowercased() == "nostrconnect" {
                         NostrConnectService.shared.open(url.absoluteString)
+                    } else if let link = EscrowLink(url: url) {
+                        escrowLink = link
                     }
+                }
+                .sheet(item: $escrowLink) { link in
+                    EscrowSignSheet(link: link)
                 }
         }
         .modelContainer(AppModelContainer.shared)
