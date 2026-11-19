@@ -1,1 +1,0 @@
-- Avatar picker: a catalog page's icons come in one request from Iconify's JSON API, in place of thirty. Paging used to trip Iconify's rate limit, and the tiles vanished. A refused or broken icon now shows 🖼️ in a full-size tile, and is asked for again later in place of being cached.

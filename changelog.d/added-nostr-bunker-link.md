@@ -1,1 +1,0 @@
-- **Copy a bunker:// link** in an identity's Nostr Connect section signs you in to sites that ask for `bunker://` or a NIP-05 address, such as Stacker News. Paste the link into the site, then return to Studio. Each link works once, for ten minutes.

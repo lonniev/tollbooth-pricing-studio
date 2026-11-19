@@ -1,1 +1,0 @@
-- A bunker:// link now pairs with Stacker News and other sites built on NDK, whose connect request leaves the signer's key out.

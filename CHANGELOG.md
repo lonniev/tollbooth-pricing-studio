@@ -2,6 +2,46 @@
 
 Changes not yet released live in `changelog.d/`, one file per change — see the README there for why, and `scripts/changelog.py` for what folds them in at release time.
 
+## [1.23.0] — 2026-11-18
+
+### Added
+
+- "Sign this…": a site's "Sign in Pricing Studio" link opens a job's Cashu escrow. Studio reads what waits on your npub from Task Booth itself (NIP-98 signed), rebuilds and checks each message so it only signs a Cashu move of sats locked to your key, asks for Face ID, signs (BIP-340) and hands the signature to Task Booth.
+
+- **Copy a bunker:// link** in an identity's Nostr Connect section signs you in to sites that ask for `bunker://` or a NIP-05 address, such as Stacker News. Paste the link into the site, then return to Studio. Each link works once, for ten minutes.
+
+- Nostr Connect: name a site when you copy its bunker:// link, tap a connected app to rename it, and tap ✕ to disconnect it. The section's footer explains how signing in works.
+
+- Studio signs in to Nostr sites as one of your identities (NIP-46). Each Patron, Operator and Authority whose key Studio holds has a **Nostr Connect** section in its edit sheet: paste a site's `nostrconnect://` link there (or tap the link and pick the identity), see the apps it is signed in to, and swipe to disconnect. Studio asks before every signature while it is open.
+
+- A peer-grant request shows who is asking: a name Studio knows, or a warning and the npub. It never offers one-tap approval from a banner or the Watch.
+
+- A request to sponsor someone shows who asks: their name in green if Studio knows the npub, or "Unknown npub" in orange. A line under it says what approving means. It is never one-tap from a banner or the Watch.
+
+### Changed
+
+- Adopting an Operator shows its two steps, Ask and Approve (approving also sets up its database), each with its own spinner, check or cross. Before, one spinner covered both, so it read as waiting on someone else.
+- Request Adoption offers **Approve now as <Authority>** when this device holds that Authority's key, so one person playing both roles never has to leave the sheet. Without the key, the sheet says the request waits in that Authority's Pending Requests, and Done closes it.
+
+- Nostr signing runs on secp256k1.swift 0.25.1. Signing now refuses to go ahead if the system can't supply random bytes, and a public key that is not on the curve fails verification.
+- The official BIP-340 test vectors now check the library's Schnorr signing and verification.
+
+### Fixed
+
+- Avatar picker: a catalog page's icons come in one request from Iconify's JSON API, in place of thirty. Paging used to trip Iconify's rate limit, and the tiles vanished. A refused or broken icon now shows 🖼️ in a full-size tile, and is asked for again later in place of being cached.
+
+- A bunker:// link now pairs with Stacker News and other sites built on NDK, whose connect request leaves the signer's key out.
+
+- A Secure Courier request shows once, as its form. Its plain-text copy no longer appears beside it, adds to the unread count, or posts a second banner.
+
+- A courier request shows as its form even when its text copy reaches Studio first; the form arriving second was dropped.
+
+- The Approve and Connect prompts for Nostr sign-in appear over any open screen, including an edit sheet.
+
+- Saving an Operator or Authority now publishes its NIP-05 to its Nostr profile, signed by its Keychain key. Edit enables Save when the relays' profile lacks the saved NIP-05, so one tap publishes it.
+
+- Edit Patron: Save waits for a relay to accept the profile, and says so when none did; the sheet stays open to retry. A slow relay read no longer overwrites a website or about typed meanwhile, and a NIP-05 kept only on the relays is filled in, so a Save never publishes the profile without it.
+
 ## [1.22.1] — 2026-11-11
 
 ### Fixed
