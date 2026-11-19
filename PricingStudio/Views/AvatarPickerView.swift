@@ -40,6 +40,61 @@ enum AvatarCatalog {
     }
 }
 
+// MARK: - Iconify, a page of icons in one request
+
+/// Iconify's JSON API, which returns many icons of one collection in a single request.
+/// Fetching each icon's own `.svg` sent thirty requests a page, and paging through the
+/// catalog tripped Iconify's rate limit (HTTP 429), so tiles got no icon at all.
+enum Iconify {
+    /// `prefix` and `name` from an icon URL as ``AvatarCatalog/iconURL(prefix:name:)`` makes it, or nil.
+    static func icon(of url: URL) -> (prefix: String, name: String)? {
+        guard url.host == "api.iconify.design", url.pathExtension == "svg" else { return nil }
+        let parts = url.path.split(separator: "/")
+        guard parts.count == 2 else { return nil }
+        return (String(parts[0]), url.deletingPathExtension().lastPathComponent)
+    }
+
+    /// One request for every icon in `names`.
+    static func batchURL(prefix: String, names: [String]) -> URL? {
+        var c = URLComponents(string: "https://api.iconify.design/\(prefix).json")
+        c?.queryItems = [URLQueryItem(name: "icons", value: names.joined(separator: ","))]
+        return c?.url
+    }
+
+    private struct Batch: Decodable {
+        struct Icon: Decodable { let body: String; let width, height, left, top: Double? }
+        struct Alias: Decodable { let parent: String }
+        let icons: [String: Icon]?
+        let aliases: [String: Alias]?
+        let width, height, left, top: Double?
+    }
+
+    /// Each named icon in a batch response as a standalone SVG document; names it lacks are left out.
+    static func documents(from data: Data) -> [String: Data] {
+        guard let batch = try? JSONDecoder().decode(Batch.self, from: data) else { return [:] }
+        let icons = batch.icons ?? [:]
+        var out: [String: Data] = [:]
+        func svg(_ icon: Batch.Icon) -> Data {
+            let w = icon.width ?? batch.width ?? 16, h = icon.height ?? batch.height ?? 16
+            let x = icon.left ?? batch.left ?? 0, y = icon.top ?? batch.top ?? 0
+            let doc = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"\(fmt(w))\" height=\"\(fmt(h))\" "
+                + "viewBox=\"\(fmt(x)) \(fmt(y)) \(fmt(w)) \(fmt(h))\">\(icon.body)</svg>"
+            return Data(doc.utf8)
+        }
+        for (name, icon) in icons { out[name] = svg(icon) }
+        for (name, alias) in batch.aliases ?? [:] { if let parent = icons[alias.parent] { out[name] = svg(parent) } }
+        return out
+    }
+
+    private static func fmt(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(v) }
+
+    /// Whether a fetched body is an SVG document, and not an error page served in its place.
+    static func isSVG(_ data: Data) -> Bool {
+        guard let head = String(data: data.prefix(512), encoding: .utf8)?.lowercased() else { return false }
+        return head.contains("<svg")
+    }
+}
+
 // MARK: - Remote SVG loading (cached) — renders an Iconify SVG via SVGView
 
 @MainActor
@@ -47,15 +102,31 @@ final class SVGDataCache {
     static let shared = SVGDataCache()
     private var cache: [String: Data] = [:]
 
+    /// An icon's SVG: from the cache, from Iconify's JSON API for an Iconify icon, else by URL.
+    /// Only a 200 that really is an SVG is kept; a refusal is not cached, so it is asked again later.
     func data(for url: URL) async -> Data? {
         let key = url.absoluteString
         if let hit = cache[key] { return hit }
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            cache[key] = data
-            return data
-        } catch {
-            return nil
+        if let icon = Iconify.icon(of: url) {
+            await prefetch(prefix: icon.prefix, names: [icon.name])
+            return cache[key]
+        }
+        guard let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200, Iconify.isSVG(data) else { return nil }
+        cache[key] = data
+        return data
+    }
+
+    /// Fetch every icon in `names` that is not cached yet, in one request.
+    func prefetch(prefix: String, names: [String]) async {
+        let wanted = names.filter { name in
+            AvatarCatalog.iconURL(prefix: prefix, name: name).map { cache[$0.absoluteString] == nil } ?? false
+        }
+        guard !wanted.isEmpty, let url = Iconify.batchURL(prefix: prefix, names: wanted),
+              let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+        for (name, svg) in Iconify.documents(from: data) {
+            if let key = AvatarCatalog.iconURL(prefix: prefix, name: name)?.absoluteString { cache[key] = svg }
         }
     }
 }
@@ -69,17 +140,18 @@ struct RemoteSVG: View {
     @State private var failed = false
 
     var body: some View {
-        Group {
-            if let data {
-                SVGView(data: data)
-                    .frame(width: size, height: size)
-            } else if failed {
-                Text("🖼️").font(.system(size: size * 0.6))
-            } else {
-                ProgressView().controlSize(.small)
-                    .frame(width: size, height: size)
+        // Always a sized box: an SVG that draws nothing must not collapse its tile and row.
+        Color.clear
+            .frame(width: size, height: size)
+            .overlay {
+                if let data {
+                    SVGView(data: data).frame(width: size, height: size)
+                } else if failed {
+                    Text("🖼️").font(.system(size: size * 0.6))
+                } else {
+                    ProgressView().controlSize(.small)
+                }
             }
-        }
         .task(id: url) {
             let loaded = await SVGDataCache.shared.data(for: url)
             if let loaded { data = loaded } else { failed = true }
@@ -187,6 +259,8 @@ struct AvatarPickerView: View {
     @State private var tab: Tab = .catalog
     @State private var collection = AvatarCatalog.collections[0].prefix
     @State private var page = 0
+    /// The page whose icons are fetched, one request a page; tiles wait for it.
+    @State private var pageReady = ""
     @State private var showCustom = false
     @State private var customURL = ""
     @StateObject private var catalog = IconCatalogModel()
@@ -239,7 +313,11 @@ struct AvatarPickerView: View {
                     ForEach(visibleNames, id: \.self) { name in
                         if let url = AvatarCatalog.iconURL(prefix: collection, name: name) {
                             tile(isSelected: selectedURL == url.absoluteString) {
-                                RemoteSVG(url: url, size: 32)
+                                if pageReady == "\(collection)/\(page)" {
+                                    RemoteSVG(url: url, size: 32)
+                                } else {
+                                    ProgressView().controlSize(.small).frame(width: 32, height: 32)
+                                }
                             } action: {
                                 selectedURL = url.absoluteString
                             }
@@ -250,6 +328,10 @@ struct AvatarPickerView: View {
             }
         }
         .onChange(of: collection) { _, _ in page = 0 }
+        .task(id: "\(collection)/\(page)/\(catalog.names.count)") {
+            await SVGDataCache.shared.prefetch(prefix: collection, names: visibleNames)
+            pageReady = "\(collection)/\(page)"
+        }
         .task(id: collection) { await catalog.load(prefix: collection) }
     }
 
