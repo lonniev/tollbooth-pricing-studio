@@ -1,0 +1,1 @@
+- Edit Patron: Save waits for a relay to accept the profile, and says so when none did; the sheet stays open to retry. A slow relay read no longer overwrites a website or about typed meanwhile, and a NIP-05 kept only on the relays is filled in, so a Save never publishes the profile without it.

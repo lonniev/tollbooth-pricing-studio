@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		E5C0000400000000000000B1 /* EscrowLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000400000000000000A1 /* EscrowLinkTests.swift */; };
+		E5C0000500000000000000B1 /* ProfileFillTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000500000000000000A1 /* ProfileFillTests.swift */; };
 		E5C0000300000000000000B1 /* EscrowSignSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000300000000000000A1 /* EscrowSignSheet.swift */; };
 		E5C0000200000000000000B1 /* EscrowSigningService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000200000000000000A1 /* EscrowSigningService.swift */; };
 		E5C0000100000000000000B1 /* EscrowLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0000100000000000000A1 /* EscrowLink.swift */; };
@@ -242,6 +243,7 @@
 
 /* Begin PBXFileReference section */
 		E5C0000400000000000000A1 /* EscrowLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscrowLinkTests.swift; sourceTree = "<group>"; };
+		E5C0000500000000000000A1 /* ProfileFillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFillTests.swift; sourceTree = "<group>"; };
 		E5C0000300000000000000A1 /* EscrowSignSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscrowSignSheet.swift; sourceTree = "<group>"; };
 		E5C0000200000000000000A1 /* EscrowSigningService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscrowSigningService.swift; sourceTree = "<group>"; };
 		E5C0000100000000000000A1 /* EscrowLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscrowLink.swift; sourceTree = "<group>"; };
@@ -774,6 +776,7 @@
 				BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */,
 				BB0000010000000000000A52 /* KeychainServiceTests.swift */,
 				E5C0000400000000000000A1 /* EscrowLinkTests.swift */,
+				E5C0000500000000000000A1 /* ProfileFillTests.swift */,
 				BB0000010000000000000B52 /* ConnectionIdentityTests.swift */,
 				DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
@@ -1215,6 +1218,7 @@
 				BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */,
 				BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */,
 				E5C0000400000000000000B1 /* EscrowLinkTests.swift in Sources */,
+				E5C0000500000000000000B1 /* ProfileFillTests.swift in Sources */,
 				BB0000010000000000000B51 /* ConnectionIdentityTests.swift in Sources */,
 				DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
