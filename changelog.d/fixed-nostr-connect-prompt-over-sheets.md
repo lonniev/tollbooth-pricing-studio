@@ -1,1 +1,0 @@
-- The Approve and Connect prompts for Nostr sign-in appear over any open screen, including an edit sheet.

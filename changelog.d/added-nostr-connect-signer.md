@@ -1,1 +1,0 @@
-- Studio signs in to Nostr sites as one of your identities (NIP-46). Each Patron, Operator and Authority whose key Studio holds has a **Nostr Connect** section in its edit sheet: paste a site's `nostrconnect://` link there (or tap the link and pick the identity), see the apps it is signed in to, and swipe to disconnect. Studio asks before every signature while it is open.
