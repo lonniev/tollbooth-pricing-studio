@@ -2,6 +2,14 @@
 
 Changes not yet released live in `changelog.d/`, one file per change — see the README there for why, and `scripts/changelog.py` for what folds them in at release time.
 
+## [1.23.1] — 2026-11-20
+
+### Fixed
+
+- Signing an escrow payout works: the check takes the NUT-08 blank outputs (amount 0) a Cashu melt carries for its fee change, or none, and still refuses a payout output that carries sats.
+
+- Renaming an Operator or Authority now publishes its Nostr profile. Save used to fill the profile's name only when it was empty, so a rename never left the device.
+
 ## [1.23.0] — 2026-11-18
 
 ### Added
