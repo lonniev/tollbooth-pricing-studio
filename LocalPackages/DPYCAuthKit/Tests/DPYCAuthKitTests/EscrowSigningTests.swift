@@ -96,6 +96,24 @@ final class EscrowSigningTests: XCTestCase {
         XCTAssertEqual(refusal(greedy, "worker"), .paysMoreThanItSpends)
     }
 
+    func testAPayoutTakesBlankOutputsOrNoneButNoneWithSats() throws {
+        let worker = v.items[2].signer
+        let none = try changed(collect) { json in
+            var parts = json["parts"] as! [String: Any]
+            parts["outputs"] = [[String: Any]]()
+            json["parts"] = parts
+        }
+        XCTAssertEqual(refusal(none, worker), .digestMismatch)  // past the output check; only the digest differs
+        let paid = try changed(collect) { json in
+            var parts = json["parts"] as! [String: Any]
+            var outputs = parts["outputs"] as! [[String: Any]]
+            outputs[0]["amount"] = 1
+            parts["outputs"] = outputs
+            json["parts"] = parts
+        }
+        XCTAssertEqual(refusal(paid, worker), .notAnOutput)
+    }
+
     func testRefusesTheWrongKindForTheMove() throws {
         let item = try changed(proposal) { $0["what"] = "collect" }
         XCTAssertEqual(refusal(item, "worker"), .wrongKind)

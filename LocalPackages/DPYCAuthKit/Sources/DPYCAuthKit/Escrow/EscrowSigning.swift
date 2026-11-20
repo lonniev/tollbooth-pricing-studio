@@ -139,7 +139,10 @@ public enum EscrowSigning {
         guard let xonly = try? NostrKeyService.publicKeyHexFromNpub(npub).lowercased() else { throw Refusal.notAnNpub }
         let parts = item.parts
         guard kindOf[item.what] == parts.kind else { throw Refusal.wrongKind }
-        guard !parts.outputs.isEmpty, parts.outputs.allSatisfy({ $0.amount > 0 && isPoint($0.B_) }) else {
+        // A payout's outputs are NUT-08 blanks, amount 0, for the fee reserve's change; there may be none.
+        let blank = parts.kind == .melt
+        guard blank || !parts.outputs.isEmpty,
+              parts.outputs.allSatisfy({ (blank ? $0.amount == 0 : $0.amount > 0) && isPoint($0.B_) }) else {
             throw Refusal.notAnOutput
         }
         let out = parts.outputs.reduce(0) { $0 + $1.amount }

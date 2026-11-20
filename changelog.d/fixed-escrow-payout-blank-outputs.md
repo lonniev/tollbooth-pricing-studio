@@ -1,0 +1,1 @@
+- Signing an escrow payout works: the check takes the NUT-08 blank outputs (amount 0) a Cashu melt carries for its fee change, or none, and still refuses a payout output that carries sats.
