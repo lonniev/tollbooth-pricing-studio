@@ -24,7 +24,7 @@ struct EditOperatorSheet: View {
     @State private var notifPrefChanged = false
     /// The relays' profile does not yet claim the saved NIP-05, so Save
     /// enables to publish it.
-    @State private var profileNip05Stale = false
+    @State private var profileStale = false
 
     init(viewModel: OperatorCollectionViewModel, operator_: Operator, pricingVM: PricingViewModel? = nil) {
         self.viewModel = viewModel
@@ -56,7 +56,7 @@ struct EditOperatorSheet: View {
         let nameChanged = displayName != operator_.displayName
         let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (operator_.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty
-        return nameOK && urlOK && (nameChanged || nip05Changed || nsecChanged || urlChanged || notifPrefChanged || profileNip05Stale)
+        return nameOK && urlOK && (nameChanged || nip05Changed || nsecChanged || urlChanged || notifPrefChanged || profileStale)
     }
 
     var body: some View {
@@ -209,8 +209,8 @@ struct EditOperatorSheet: View {
             .task {
                 hasStoredNsec = KeychainService.loadNsec(forNpub: operator_.npub) != nil
                 if hasStoredNsec {
-                    profileNip05Stale = await !NostrProfileService()
-                        .claims(npub: operator_.npub, nip05: operator_.nip05)
+                    profileStale = await !NostrProfileService()
+                        .matches(npub: operator_.npub, nip05: operator_.nip05, displayName: operator_.displayName)
                 }
             }
             .sheet(isPresented: $showingSwitchSheet) {

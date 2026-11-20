@@ -81,27 +81,37 @@ struct NostrProfileService {
         return await relayService.publish(event)
     }
 
-    /// The profile `npub` would carry once it claims `nip05`: the relays' current
-    /// kind-0 with `nip05` set and, only where the profile has none, the name
-    /// filled from `displayName`. Every other field is kept, because a kind-0
+    /// The profile `npub` would carry once it claims `nip05` under `displayName`:
+    /// the relays' current kind-0 with `nip05` set and `display_name` set to
+    /// Studio's Display Name. `name` follows too where it is empty or still reads
+    /// the old display name; a `name` chosen on its own (a handle such as
+    /// `thebrain-mcp`) is kept. Every other field is kept, because a kind-0
     /// replaces the whole profile.
+    ///
+    /// 2026-11-20: Task Booth was renamed in Studio and nothing published; the
+    /// name was filled only when empty, so the relays kept "TaskQueue MCP".
     static func merged(
         _ current: NostrProfileMetadata?, nip05: String?, displayName: String
     ) -> NostrProfileMetadata {
-        var meta = current ?? NostrProfileMetadata()
+        var meta = current?.normalized() ?? NostrProfileMetadata()
         meta.nip05 = nip05
-        if (meta.name ?? "").isEmpty { meta.name = displayName }
-        if (meta.display_name ?? "").isEmpty { meta.display_name = displayName }
+        let shown = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !shown.isEmpty {
+            let name = meta.name ?? ""
+            if name.isEmpty || name == (meta.display_name ?? "") { meta.name = shown }
+            meta.display_name = shown
+        }
         return meta.normalized()
     }
 
-    /// Whether the relays' profile for `npub` already claims `nip05`.
-    func claims(npub: String, nip05: String?) async -> Bool {
+    /// Whether the relays' profile for `npub` already reads as Studio would
+    /// publish it: claiming `nip05`, under `displayName`.
+    func matches(npub: String, nip05: String?, displayName: String) async -> Bool {
         let current = await fetch(npub: npub)?.normalized()
-        return current?.nip05 == NostrProfileMetadata(nip05: nip05).normalized().nip05
+        return current == Self.merged(current, nip05: nip05, displayName: displayName)
     }
 
-    /// Publish `npub`'s profile claiming `nip05`, signed by its Keychain nsec.
+    /// Publish `npub`'s profile claiming `nip05` under `displayName`, signed by its Keychain nsec.
     /// Does nothing when no nsec is held or the relays already match.
     func publishNip05(npub: String, nip05: String?, displayName: String) async throws {
         guard KeychainService.loadNsec(forNpub: npub) != nil else { return }
