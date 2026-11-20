@@ -16,7 +16,7 @@ struct EditAuthoritySheet: View {
     @State private var notifPrefChanged = false
     /// The relays' profile does not yet claim the saved NIP-05, so Save
     /// enables to publish it.
-    @State private var profileNip05Stale = false
+    @State private var profileStale = false
 
     init(viewModel: AuthorityCollectionViewModel, authority: Authority) {
         self.viewModel = viewModel
@@ -30,7 +30,7 @@ struct EditAuthoritySheet: View {
             && displayName != authority.displayName
         let nip05Changed = nip05.trimmingCharacters(in: .whitespacesAndNewlines) != (authority.nip05 ?? "")
         let nsecChanged = !nsec.isEmpty
-        return nameChanged || nip05Changed || nsecChanged || notifPrefChanged || profileNip05Stale
+        return nameChanged || nip05Changed || nsecChanged || notifPrefChanged || profileStale
     }
 
     var body: some View {
@@ -143,8 +143,8 @@ struct EditAuthoritySheet: View {
             .task {
                 hasStoredNsec = KeychainService.loadNsec(forNpub: authority.npub) != nil
                 if hasStoredNsec {
-                    profileNip05Stale = await !NostrProfileService()
-                        .claims(npub: authority.npub, nip05: authority.nip05)
+                    profileStale = await !NostrProfileService()
+                        .matches(npub: authority.npub, nip05: authority.nip05, displayName: authority.displayName)
                 }
             }
         }

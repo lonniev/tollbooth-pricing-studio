@@ -1,0 +1,1 @@
+- Renaming an Operator or Authority now publishes its Nostr profile. Save used to fill the profile's name only when it was empty, so a rename never left the device.

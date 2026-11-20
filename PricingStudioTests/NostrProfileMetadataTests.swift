@@ -46,7 +46,7 @@ final class NostrProfileMetadataTests: XCTestCase {
             current, nip05: "thebrain@tollbooth-dpyc.org", displayName: "TheBrain MCP"
         )
         XCTAssertEqual(m.nip05, "thebrain@tollbooth-dpyc.org")
-        XCTAssertEqual(m.name, "thebrain-mcp", "an existing name is never overwritten")
+        XCTAssertEqual(m.name, "thebrain-mcp", "a handle chosen on its own is kept")
         XCTAssertEqual(m.display_name, "TheBrain MCP", "an empty display_name is filled")
         XCTAssertEqual(m.about, "graph")
         XCTAssertEqual(m.picture, "https://x/y.svg")
@@ -60,6 +60,45 @@ final class NostrProfileMetadataTests: XCTestCase {
         XCTAssertEqual(m.name, "Cypher MCP")
         XCTAssertEqual(m.display_name, "Cypher MCP")
         XCTAssertEqual(m.nip05, "cypher@tollbooth-dpyc.org")
+    }
+
+    func testARenameReachesTheProfile() {
+        // Task Booth, 2026-11-20: renamed in Studio, the relays kept the old name.
+        let current = NostrProfileMetadata(
+            name: "TaskQueue MCP", display_name: "TaskQueue MCP",
+            about: "tasks", nip05: "taskbooth@tollbooth-dpyc.org"
+        )
+        let m = NostrProfileService.merged(
+            current, nip05: "taskbooth@tollbooth-dpyc.org", displayName: "Task Booth MCP"
+        )
+        XCTAssertNotEqual(m, current, "a rename alone must publish")
+        XCTAssertEqual(m.display_name, "Task Booth MCP")
+        XCTAssertEqual(m.name, "Task Booth MCP", "a name that tracked the display name follows it")
+        XCTAssertEqual(m.about, "tasks")
+    }
+
+    func testARenameKeepsAHandle() {
+        let current = NostrProfileMetadata(name: "thebrain-mcp", display_name: "TheBrain MCP")
+        let m = NostrProfileService.merged(current, nip05: nil, displayName: "Personal Brain")
+        XCTAssertEqual(m.display_name, "Personal Brain")
+        XCTAssertEqual(m.name, "thebrain-mcp")
+    }
+
+    func testAnUnchangedProfileMergesToItself() {
+        let current = NostrProfileMetadata(
+            name: "thebrain-mcp", display_name: "TheBrain MCP", nip05: "thebrain@tollbooth-dpyc.org"
+        )
+        XCTAssertEqual(
+            NostrProfileService.merged(current, nip05: "thebrain@tollbooth-dpyc.org", displayName: "TheBrain MCP"),
+            current, "nothing to publish"
+        )
+    }
+
+    func testABlankDisplayNameLeavesTheNamesAlone() {
+        let current = NostrProfileMetadata(name: "Sat", display_name: "Satoshi")
+        let m = NostrProfileService.merged(current, nip05: nil, displayName: "  ")
+        XCTAssertEqual(m.name, "Sat")
+        XCTAssertEqual(m.display_name, "Satoshi")
     }
 
     func testMergedWithClearedNip05DropsTheClaim() {
