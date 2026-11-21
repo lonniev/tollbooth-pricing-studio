@@ -2,6 +2,12 @@
 
 Changes not yet released live in `changelog.d/`, one file per change — see the README there for why, and `scripts/changelog.py` for what folds them in at release time.
 
+## [1.23.2] — 2026-11-21
+
+### Fixed
+
+- DMs that arrive while Studio is idle now show up when you bring it back. Returning to the foreground rebuilds every relay connection at once, whatever state it was in, instead of waiting for a dead socket to report itself. Each return, and each launch, also fetches missed DMs straight from the relays, so one sent while Studio was away or closed is announced even if a connection is still coming back.
+
 ## [1.23.1] — 2026-11-20
 
 ### Fixed
