@@ -27,6 +27,7 @@ final class DMPollingService {
     private var subscriptionsStartedAt: Date?
     private var lastSeenTimestamps: [String: Int] = [:]
     private var pollingTask: Task<Void, Never>?
+    private var isCatchingUp = false
 
     /// User-configurable poll interval in seconds. Persisted in UserDefaults.
     var pollIntervalSeconds: Double {
@@ -146,6 +147,10 @@ final class DMPollingService {
                 } catch { break }
             }
         }
+        // A launch is a return too: anything that arrived while Studio was
+        // closed reached no socket. The live path treats it as backfill and
+        // stays quiet, so the catch-up is what announces it.
+        Task { await catchUp(modelContext: modelContext) }
     }
 
     func stopPolling() {
@@ -202,6 +207,37 @@ final class DMPollingService {
         // leaving it in Notification Center is pure noise next to the real
         // banner the drain just posted.
         removeWakePushBanners()
+    }
+
+    /// One fetch straight from the relays each time Studio becomes active.
+    ///
+    /// The live subscriptions are the only way DMs arrive while Studio is open,
+    /// and on return from the background their sockets are being rebuilt; a DM
+    /// that landed while Studio was away, or before a relaunch, reached no
+    /// socket at all. This fetch does not depend on them. It applies results the
+    /// way the background drain does: an npub with no watermark yet is baselined
+    /// silently, and the durable event store keeps this path and the live one to
+    /// one banner per DM.
+    func catchUp(modelContext: ModelContext) async {
+        guard pollingTask != nil, !isCatchingUp else { return }
+        isCatchingUp = true
+        defer { isCatchingUp = false }
+
+        let entities = gatherEntities(modelContext: modelContext).filter(\.hasKeys)
+        guard !entities.isEmpty else { return }
+        pollCycle += 1
+        let cycle = pollCycle
+        let timestamps = lastSeenTimestamps
+        TrafficLogger.shared.log(.outbound, label: "Catch-up",
+                                 detail: "\(entities.count) npub\(entities.count == 1 ? "" : "s") on foreground")
+        let results: [DMPollResult] = await Task.detached {
+            await dmPollEntities(entities: entities, timestamps: timestamps, cycle: cycle)
+        }.value
+        applyBackgroundResults(results, priorWatermarks: timestamps)
+        lastPollAt = Date()
+        let fresh = results.reduce(0) { $0 + $1.newCount }
+        TrafficLogger.shared.log(.inbound, label: "Catch-up",
+                                 detail: "\(fresh) message\(fresh == 1 ? "" : "s") past the watermark")
     }
 
     /// Remove delivered CloudKit wake pushes (the 🔒 "Secure Courier message"

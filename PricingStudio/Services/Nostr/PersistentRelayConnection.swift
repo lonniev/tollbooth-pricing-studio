@@ -23,7 +23,16 @@ final class PersistentRelayConnection: @unchecked Sendable {
     private let eventContinuation: AsyncStream<NostrEvent>.Continuation
 
     private var socket: WebSocket?
-    private let delegate = PersistentRelayDelegate()
+    /// The current socket's delegate. Starscream holds its delegate weakly, so
+    /// this is the only strong reference: replacing it on every connect means
+    /// a dropped socket's late callbacks reach nothing.
+    private var delegate: PersistentRelayDelegate?
+
+    /// Bumped on every connect and every restart. Callbacks that could start a
+    /// reconnect carry the generation they belong to and do nothing once it is
+    /// stale, so a dead socket can never tear down its replacement.
+    private var generation = 0
+    private var connectStartedAt: Date?
 
     /// Active subscriptions: subId → filters, for re-subscribe on reconnect.
     private var subscriptions: [String: [[String: Any]]] = [:]
@@ -62,6 +71,9 @@ final class PersistentRelayConnection: @unchecked Sendable {
 
     func connect() async throws {
         state = .connecting
+        generation += 1
+        let gen = generation
+        connectStartedAt = Date()
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
@@ -70,44 +82,56 @@ final class PersistentRelayConnection: @unchecked Sendable {
         request.setValue("PricingStudio/1.0", forHTTPHeaderField: "User-Agent")
 
         let ws = WebSocket(request: request)
+        let delegate = PersistentRelayDelegate()
         ws.delegate = delegate
         self.socket = ws
+        self.delegate = delegate
 
         try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<Void, Error>) in
             let oneShot = OneShotFlag()
 
-            delegate.onConnect = { [weak self] in
+            delegate.onConnect = { [weak self, weak delegate] in
                 if oneShot.claim() {
-                    self?.state = .connected
-                    self?.reconnectAttempt = 0
-                    self?.startPinging()
-                    self?.startListening()
+                    // A restart superseded this connect while it was in
+                    // flight; its replacement owns the connection now.
+                    guard let self, let delegate, gen == self.generation else {
+                        ws.forceDisconnect()
+                        continuation.resume(throwing: PersistentRelayError.superseded)
+                        return
+                    }
+                    self.state = .connected
+                    self.reconnectAttempt = 0
+                    self.startPinging()
+                    self.startListening(delegate, generation: gen)
                     // Replay any subscriptions registered while we were
                     // disconnected. Makes first-connect and reconnect
                     // symmetric so a sub never depends on connect ordering.
-                    self?.resubscribeAll()
+                    self.resubscribeAll()
                     continuation.resume()
                 }
             }
             delegate.onError = { [weak self] error in
                 if oneShot.claim() {
-                    self?.state = .disconnected
                     continuation.resume(throwing: error ?? PersistentRelayError.connectionFailed)
                     // A failed *initial* connect would otherwise die here —
                     // no delegate disconnect ever fires. Enter the backoff
                     // loop so a slow/flaky relay keeps trying.
-                    self?.scheduleReconnect()
+                    guard let self, gen == self.generation else { return }
+                    self.state = .disconnected
+                    self.scheduleReconnect()
                 }
             }
 
             ws.connect()
 
-            DispatchQueue.global().asyncAfter(deadline: .now() + 30) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
                 if oneShot.claim() {
-                    ws.disconnect()
-                    self?.state = .disconnected
+                    ws.forceDisconnect()
                     continuation.resume(throwing: PersistentRelayError.timeout)
-                    self?.scheduleReconnect()
+                    // A connect superseded by a restart just ends here.
+                    guard let self, gen == self.generation else { return }
+                    self.state = .disconnected
+                    self.scheduleReconnect()
                 }
             }
         }
@@ -137,14 +161,43 @@ final class PersistentRelayConnection: @unchecked Sendable {
 
     func disconnect() {
         intentionallyClosed = true
+        generation += 1
         state = .disconnected
         pingTask?.cancel()
         pingTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
-        socket?.disconnect()
+        delegate = nil
+        socket?.forceDisconnect()
         socket = nil
         eventContinuation.finish()
+    }
+
+    /// Drop whatever socket this has and connect afresh now, with the backoff
+    /// reset. It never waits for the old socket to report its own death: iOS
+    /// can kill a socket in the background without Starscream ever delivering
+    /// `.cancelled`, and waiting for that event is how a relay stayed
+    /// "connected" to nothing until Studio was relaunched.
+    func restart(reason: String) {
+        guard !intentionallyClosed else { return }
+        generation += 1
+        pingTask?.cancel()
+        pingTask = nil
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        delegate = nil
+        socket?.forceDisconnect()
+        socket = nil
+        reconnectAttempt = 0
+        state = .disconnected
+        Task { @MainActor in
+            TrafficLogger.shared.log(.outbound, label: "Sub Restart",
+                                     detail: "\(self.url.host ?? "?") — \(reason)")
+        }
+        Task { [weak self] in
+            // A failure re-enters the backoff loop from inside connect().
+            _ = try? await self?.connect()
+        }
     }
 
     // MARK: - Private
@@ -166,12 +219,12 @@ final class PersistentRelayConnection: @unchecked Sendable {
         }
     }
 
-    private func startListening() {
+    private func startListening(_ delegate: PersistentRelayDelegate, generation gen: Int) {
         delegate.onText = { [weak self] text in
             self?.handleMessage(text)
         }
         delegate.onDisconnect = { [weak self] _ in
-            guard let self else { return }
+            guard let self, gen == self.generation else { return }
             Task { @MainActor in
                 TrafficLogger.shared.log(.error, label: "Sub Disconnect",
                                          detail: "\(self.url.host ?? "?") — will reconnect")
@@ -249,7 +302,9 @@ final class PersistentRelayConnection: @unchecked Sendable {
                         TrafficLogger.shared.log(.error, label: "Sub Stale",
                                                  detail: "\(self.url.host ?? "?") — \(self.missedPings) pings unanswered, forcing reconnect")
                     }
-                    self.socket?.disconnect()  // triggers .cancelled → onDisconnect → scheduleReconnect
+                    // Restart outright: a half-open socket may never deliver
+                    // the `.cancelled` that a plain disconnect waits for.
+                    DispatchQueue.main.async { self.restart(reason: "pings unanswered") }
                     break
                 }
                 self.socket?.write(ping: Data())
@@ -259,17 +314,18 @@ final class PersistentRelayConnection: @unchecked Sendable {
 
     // MARK: - Forced revalidation
 
-    /// Force-reconnect this connection if it's not currently healthy.
-    /// Called by RelaySubscriptionManager on UIApplication.didBecomeActive —
-    /// iOS suspends WebSockets within ~30s of backgrounding, so what we think
-    /// is `.connected` may actually be a corpse.
+    /// Reconnect now, whatever state this thinks it is in. Called by
+    /// RelaySubscriptionManager on UIApplication.didBecomeActive: iOS suspends
+    /// WebSockets within ~30s of backgrounding, so `.connected` may be a corpse,
+    /// and a `.reconnecting` connection may be sleeping out a backoff of up to
+    /// a minute that it built up while the app was away. Only a connect begun
+    /// in the last few seconds (the launch itself) is left to finish.
     func revalidate() {
-        guard state == .connected else { return }
-        Task { @MainActor in
-            TrafficLogger.shared.log(.outbound, label: "Sub Revalidate",
-                                     detail: "\(self.url.host ?? "?") — foreground probe; tearing down to reconnect")
+        if state == .connecting, let started = connectStartedAt,
+           Date().timeIntervalSince(started) < 5 {
+            return
         }
-        socket?.disconnect()  // forces .cancelled → onDisconnect → scheduleReconnect
+        restart(reason: "foreground")
     }
 
     // MARK: - Helpers
@@ -349,11 +405,13 @@ private final class OneShotFlag: @unchecked Sendable {
 private enum PersistentRelayError: LocalizedError {
     case connectionFailed
     case timeout
+    case superseded
 
     var errorDescription: String? {
         switch self {
         case .connectionFailed: "Persistent WebSocket connection failed"
         case .timeout: "Persistent WebSocket connection timed out"
+        case .superseded: "Persistent WebSocket connection was replaced by a restart"
         }
     }
 }

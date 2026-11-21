@@ -69,6 +69,9 @@ struct PricingStudioApp: App {
                 EntityDeduplicator.dedupeAll(in: AppModelContainer.shared.mainContext)
                 DMPollingService.shared.removeWakePushBanners()
                 NostrConnectService.shared.startListening()
+                // The relay sockets are rebuilt on this same return; fetch what
+                // arrived while Studio was away without waiting on them.
+                Task { await DMPollingService.shared.catchUp(modelContext: AppModelContainer.shared.mainContext) }
             } else if phase == .background {
                 // NIP-46 signing is foreground only.
                 NostrConnectService.shared.stopListening()
