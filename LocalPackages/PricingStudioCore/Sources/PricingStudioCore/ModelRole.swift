@@ -42,12 +42,13 @@ public enum ModelRole: String, CaseIterable, Sendable, Codable {
     /// Suggested slugs offered in Settings pickers (Claude + Grok).
     public var suggestedSlugs: [String] {
         [
+            "anthropic/claude-sonnet-5.5",
             "anthropic/claude-sonnet-5",
             "anthropic/claude-opus-4.1",
             "anthropic/claude-haiku-4.5",
+            "x-ai/grok-4.7",
+            "x-ai/grok-4.6",
             "x-ai/grok-4.5",
-            "x-ai/grok-4",
-            "x-ai/grok-3",
         ]
     }
 }

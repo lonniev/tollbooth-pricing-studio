@@ -47,9 +47,9 @@ final class OpenRouterModelRoleTests: XCTestCase {
         XCTAssertEqual(ModelRoleSettings.slug(for: .adversary, defaults: defaults),
                        ModelRole.adversary.defaultSlug)
 
-        ModelRoleSettings.setSlug("x-ai/grok-4", for: .adversary, defaults: defaults)
+        ModelRoleSettings.setSlug("x-ai/grok-4.7", for: .adversary, defaults: defaults)
 
-        XCTAssertEqual(ModelRoleSettings.slug(for: .adversary, defaults: defaults), "x-ai/grok-4")
+        XCTAssertEqual(ModelRoleSettings.slug(for: .adversary, defaults: defaults), "x-ai/grok-4.7")
         // Other roles stay at defaults.
         XCTAssertEqual(ModelRoleSettings.slug(for: .owl, defaults: defaults), ModelRole.owl.defaultSlug)
     }
