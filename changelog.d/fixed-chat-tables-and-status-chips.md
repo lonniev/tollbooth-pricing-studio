@@ -1,0 +1,2 @@
+- Chat tables line up as a real grid and wrap long cells, instead of drifting columns cut off at the edge.
+- Tool status lines ("Consulting Operator…", "Summary updated.") collapse into one row of small chips, e.g. "Operator ×2 · Summary".
