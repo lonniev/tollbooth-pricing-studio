@@ -1,1 +1,0 @@
-- Settings → Models suggests Claude Sonnet 5.5 and Grok 4.7 and 4.6 in place of Grok 4 and Grok 3, which OpenRouter no longer offers.
