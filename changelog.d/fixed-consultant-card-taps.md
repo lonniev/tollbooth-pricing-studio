@@ -1,0 +1,2 @@
+- A consultant card's ⓘ opens their bio, and the card itself opens their room; the two no longer compete for the same tap.
+- The large card above "Begin meeting" no longer shows an ⓘ or "Tap to meet" that did nothing.
