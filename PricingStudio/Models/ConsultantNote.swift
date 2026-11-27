@@ -19,6 +19,11 @@ struct ConsultantNote: Codable, Equatable {
     /// and in peer briefings.
     var summary: String
 
+    /// The consultant's full working detail — catalogs, per-tool tables,
+    /// classifications — written for peers rather than the chat. Replaced
+    /// whole via `record_findings`; peers read it through `read_peer_notes`.
+    var findings: String
+
     /// Structured proposed edits to the working pricing model.
     /// Inline chat bubbles render each delta as the consultant proposes it.
     var proposedDeltas: [PricingDelta]
@@ -34,6 +39,7 @@ struct ConsultantNote: Codable, Equatable {
         lastMetAt: Date? = nil,
         lastSawPeerUpdateAt: Date? = nil,
         summary: String = "",
+        findings: String = "",
         proposedDeltas: [PricingDelta] = [],
         openQuestions: [String] = [],
         concernsAboutPeers: [Int: String] = [:]
@@ -41,6 +47,7 @@ struct ConsultantNote: Codable, Equatable {
         self.lastMetAt = lastMetAt
         self.lastSawPeerUpdateAt = lastSawPeerUpdateAt
         self.summary = summary
+        self.findings = findings
         self.proposedDeltas = proposedDeltas
         self.openQuestions = openQuestions
         self.concernsAboutPeers = concernsAboutPeers
@@ -52,6 +59,7 @@ struct ConsultantNote: Codable, Equatable {
         case lastMetAt = "last_met_at"
         case lastSawPeerUpdateAt = "last_saw_peer_update_at"
         case summary
+        case findings
         case proposedDeltas = "proposed_deltas"
         case openQuestions = "open_questions"
         case concernsAboutPeers = "concerns_about_peers"
@@ -62,6 +70,7 @@ struct ConsultantNote: Codable, Equatable {
         lastMetAt = try c.decodeIfPresent(Date.self, forKey: .lastMetAt)
         lastSawPeerUpdateAt = try c.decodeIfPresent(Date.self, forKey: .lastSawPeerUpdateAt)
         summary = try c.decodeIfPresent(String.self, forKey: .summary) ?? ""
+        findings = try c.decodeIfPresent(String.self, forKey: .findings) ?? ""
         proposedDeltas = try c.decodeIfPresent([PricingDelta].self, forKey: .proposedDeltas) ?? []
         openQuestions = try c.decodeIfPresent([String].self, forKey: .openQuestions) ?? []
         // JSON object keys are strings; convert back to Int.
@@ -78,6 +87,7 @@ struct ConsultantNote: Codable, Equatable {
         try c.encodeIfPresent(lastMetAt, forKey: .lastMetAt)
         try c.encodeIfPresent(lastSawPeerUpdateAt, forKey: .lastSawPeerUpdateAt)
         try c.encode(summary, forKey: .summary)
+        try c.encode(findings, forKey: .findings)
         try c.encode(proposedDeltas, forKey: .proposedDeltas)
         try c.encode(openQuestions, forKey: .openQuestions)
         let stringKeyed = Dictionary(uniqueKeysWithValues: concernsAboutPeers.map { (String($0.key), $0.value) })

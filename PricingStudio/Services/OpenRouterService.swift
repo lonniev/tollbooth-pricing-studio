@@ -12,7 +12,17 @@ private let logger = Logger(subsystem: "com.tollbooth.dpyc.PricingStudio", categ
 @preconcurrency
 final class OpenRouterService: @unchecked Sendable {
 
-    private static let maxTokens = 2048
+    /// Reply budget per request. Thinking tokens count against it, and
+    /// OpenRouter bills only the tokens produced, so a roomy cap costs
+    /// nothing until a reply needs it.
+    static let defaultMaxTokens = 8192
+
+    /// Sent when a reply stops at the token budget, so it carries on
+    /// in the same chat bubble.
+    private static let continueNudge = "Your reply stopped at the length limit. Continue from exactly where it stopped, without repeating anything or adding a preamble."
+
+    /// Shown when a reply reaches the token budget a second time.
+    private static let lengthLimitNote = "\n\n_Reply reached its length limit._"
 
     // MARK: - Oracle Tool Definitions
 
@@ -75,6 +85,15 @@ final class OpenRouterService: @unchecked Sendable {
                 "type": "object",
                 "properties": ["summary": ["type": "string", "description": "One paragraph in your own voice — max ~3 sentences."]],
                 "required": ["summary"]
+            ] as [String: Any]
+        ],
+        [
+            "name": "record_findings",
+            "description": "Replace your full working findings — catalogs, per-tool tables, classifications, the detail behind your summary. Your colleagues read them through read_peer_notes; the operator does not see them in the chat. Call whenever your detail changes.",
+            "input_schema": [
+                "type": "object",
+                "properties": ["findings": ["type": "string", "description": "Markdown. Complete and self-contained — it replaces your previous findings."]],
+                "required": ["findings"]
             ] as [String: Any]
         ],
         [
@@ -200,7 +219,7 @@ final class OpenRouterService: @unchecked Sendable {
         apiKey: String,
         model: String,
         role: ModelRole? = nil,
-        maxTokens: Int = 2048,
+        maxTokens: Int = OpenRouterService.defaultMaxTokens,
         includeTools: Bool = true
     ) -> AsyncStream<String> {
         AsyncStream { continuation in
@@ -219,7 +238,7 @@ final class OpenRouterService: @unchecked Sendable {
                     let apiMessages = messages.map { msg in
                         ["role": msg["role"] ?? "user", "content": msg["content"] ?? ""] as [String: Any]
                     }
-                    _ = await self.sendRequest(
+                    let result = await self.sendRequest(
                         messages: apiMessages,
                         systemPrompt: systemPrompt,
                         apiKey: apiKey,
@@ -227,6 +246,16 @@ final class OpenRouterService: @unchecked Sendable {
                         role: role,
                         maxTokens: maxTokens,
                         includeTools: false,
+                        continuation: continuation
+                    )
+                    await self.continueIfTruncated(
+                        result,
+                        messages: apiMessages,
+                        systemPrompt: systemPrompt,
+                        apiKey: apiKey,
+                        model: model,
+                        role: role,
+                        maxTokens: maxTokens,
                         continuation: continuation
                     )
                     continuation.finish()
@@ -278,6 +307,16 @@ final class OpenRouterService: @unchecked Sendable {
             // No tool_use → Claude is done with tools this turn. Whatever
             // text was streamed already appears in the chat. Done.
             guard let toolUse = lastResult.toolUse else {
+                await continueIfTruncated(
+                    lastResult,
+                    messages: snapshot,
+                    systemPrompt: systemPrompt,
+                    apiKey: apiKey,
+                    model: model,
+                    role: role,
+                    maxTokens: maxTokens,
+                    continuation: continuation
+                )
                 continuation.finish()
                 return
             }
@@ -364,7 +403,7 @@ final class OpenRouterService: @unchecked Sendable {
         let nudge = "You've used \(Self.maxToolIterations) tool calls this turn. Stop calling tools and either summarize what you found so far or ask the operator the next focused question."
         apiMessages.append(["role": "user", "content": nudge])
         let snapshot: [[String: Any]] = apiMessages
-        _ = await sendRequest(
+        let finalResult = await sendRequest(
             messages: snapshot,
             systemPrompt: systemPrompt,
             apiKey: apiKey,
@@ -374,7 +413,54 @@ final class OpenRouterService: @unchecked Sendable {
             includeTools: false,
             continuation: continuation
         )
+        await continueIfTruncated(
+            finalResult,
+            messages: snapshot,
+            systemPrompt: systemPrompt,
+            apiKey: apiKey,
+            model: model,
+            role: role,
+            maxTokens: maxTokens,
+            continuation: continuation
+        )
         continuation.finish()
+    }
+
+    /// A reply that stopped at the token budget is asked once to carry on,
+    /// streaming into the same bubble. A reply with no text yet (all
+    /// thinking) or a second stop at the budget ends with a visible note.
+    private nonisolated func continueIfTruncated(
+        _ result: RequestResult,
+        messages: [[String: Any]],
+        systemPrompt: String,
+        apiKey: String,
+        model: String,
+        role: ModelRole?,
+        maxTokens: Int,
+        continuation: AsyncStream<String>.Continuation
+    ) async {
+        guard result.stopReason == "max_tokens" else { return }
+        guard !result.textContent.isEmpty else {
+            continuation.yield(Self.lengthLimitNote)
+            return
+        }
+        let followUp = messages + [
+            ["role": "assistant", "content": result.textContent],
+            ["role": "user", "content": Self.continueNudge],
+        ]
+        let next = await sendRequest(
+            messages: followUp,
+            systemPrompt: systemPrompt,
+            apiKey: apiKey,
+            model: model,
+            role: role,
+            maxTokens: maxTokens,
+            includeTools: false,
+            continuation: continuation
+        )
+        if next.stopReason == "max_tokens" {
+            continuation.yield(Self.lengthLimitNote)
+        }
     }
 
     // MARK: - Tool Use Types

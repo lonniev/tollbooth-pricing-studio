@@ -1,0 +1,3 @@
+- Consultant replies were cut off mid-table at 2048 tokens. They now get 8192, and a reply that still runs out carries on once in the same bubble before ending with a note.
+- Consultants keep the chat to a few lines and record their full catalogs and tables as findings in their notes. Colleagues read those findings.
+- Consultant notes now work before a campaign is saved, and Hayek's merged proposal no longer gets overwritten when the campaign is saved.
