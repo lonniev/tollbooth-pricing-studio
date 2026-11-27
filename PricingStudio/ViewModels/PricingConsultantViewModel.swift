@@ -97,6 +97,11 @@ final class PricingConsultantViewModel {
     /// Structured pricing proposal — per-tool prices+chains and projections.
     var proposal: PricingProposal = PricingProposal()
 
+    /// Each consultant's working note, keyed by stage. Lives here with the
+    /// transcript so an unsaved session keeps its notes; saving copies them
+    /// to the campaign.
+    var consultantNotes: [Int: ConsultantNote] = [:]
+
     private let service = OpenRouterService()
     private var originalPrompt: String = ""
 
@@ -150,6 +155,7 @@ final class PricingConsultantViewModel {
     /// without cluttering the visible chat.
     func startInterview(context: ConsultantContext) {
         stageMessages = [:]
+        consultantNotes = [:]
         currentCampaign = nil
         viewingStageNumber = 1
         revenueProjections = nil
@@ -515,6 +521,7 @@ final class PricingConsultantViewModel {
         extractedCampaignJSON = nil
         analysis = InterviewAnalysis()
         proposal = PricingProposal()
+        consultantNotes = [:]
     }
 
     // MARK: - Campaign Persistence
@@ -529,6 +536,7 @@ final class PricingConsultantViewModel {
             existing.revenueProjections = revenueProjections
             existing.analysis = analysis
             existing.proposal = proposal
+            existing.consultantNotes = consultantNotes
         } else {
             let campaign = Campaign(
                 name: name,
@@ -541,6 +549,7 @@ final class PricingConsultantViewModel {
             campaign.revenueProjections = revenueProjections
             campaign.analysis = analysis
             campaign.proposal = proposal
+            campaign.consultantNotes = consultantNotes
             context.insert(campaign)
             currentCampaign = campaign
         }
@@ -557,6 +566,7 @@ final class PricingConsultantViewModel {
         campaign.revenueProjections = revenueProjections
         campaign.analysis = analysis
         campaign.proposal = proposal
+        campaign.consultantNotes = consultantNotes
         try? context.save()
     }
 
@@ -572,6 +582,7 @@ final class PricingConsultantViewModel {
         // Hydrate value types from campaign persistence
         analysis = campaign.analysis ?? InterviewAnalysis()
         proposal = campaign.proposal ?? PricingProposal()
+        consultantNotes = campaign.consultantNotes
 
         // Load from per-stage storage if available, otherwise migrate
         let loaded = campaign.stageMessages
@@ -916,11 +927,11 @@ final class PricingConsultantViewModel {
         viewingStageNumber ?? interviewProgress.stageNumber
     }
 
-    private func executeLocalConsultantTool(name: String, input: [String: Any]) -> (bubble: String, result: String) {
-        guard let campaign = currentCampaign else {
-            return ("", "{\"error\":\"No active campaign.\"}")
-        }
+    private func consultantNote(forStage stage: Int) -> ConsultantNote {
+        consultantNotes[stage] ?? .empty
+    }
 
+    private func executeLocalConsultantTool(name: String, input: [String: Any]) -> (bubble: String, result: String) {
         switch name {
         case "update_summary":
             let summary = (Self.stringValue(input["summary"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -928,11 +939,23 @@ final class PricingConsultantViewModel {
                 return ("", "{\"error\":\"summary is required\"}")
             }
             let stage = activeStage()
-            var note = campaign.note(forStage: stage)
+            var note = consultantNote(forStage: stage)
             note.summary = summary
             note.lastMetAt = Date()
-            campaign.setNote(note, forStage: stage)
+            consultantNotes[stage] = note
             return ("\n\n_Summary updated._\n\n", "{\"ok\":true,\"stage\":\(stage)}")
+
+        case "record_findings":
+            let findings = (Self.stringValue(input["findings"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !findings.isEmpty else {
+                return ("", "{\"error\":\"findings is required\"}")
+            }
+            let stage = activeStage()
+            var note = consultantNote(forStage: stage)
+            note.findings = findings
+            note.lastMetAt = Date()
+            consultantNotes[stage] = note
+            return ("", "{\"ok\":true,\"stage\":\(stage)}")
 
         case "propose_delta":
             let kindRaw = Self.stringValue(input["kind"]) ?? ""
@@ -952,10 +975,10 @@ final class PricingConsultantViewModel {
                 rationale: rationale,
                 payload: payload
             )
-            var note = campaign.note(forStage: stage)
+            var note = consultantNote(forStage: stage)
             note.proposedDeltas.append(delta)
             note.lastMetAt = Date()
-            campaign.setNote(note, forStage: stage)
+            consultantNotes[stage] = note
 
             let bubble = Self.bubbleForDelta(delta, byConsultant: ConsultantRoster.forStage(stage))
             return (bubble, "{\"ok\":true,\"delta_id\":\"\(delta.id.uuidString)\"}")
@@ -966,9 +989,9 @@ final class PricingConsultantViewModel {
                 return ("", "{\"error\":\"question is required\"}")
             }
             let stage = activeStage()
-            var note = campaign.note(forStage: stage)
+            var note = consultantNote(forStage: stage)
             note.openQuestions.append(question)
-            campaign.setNote(note, forStage: stage)
+            consultantNotes[stage] = note
             return ("\n\n❓ **Open question for the operator:** \(question)\n\n", "{\"ok\":true}")
 
         case "flag_concern":
@@ -981,9 +1004,9 @@ final class PricingConsultantViewModel {
                 return ("", "{\"error\":\"concern is required\"}")
             }
             let stage = activeStage()
-            var note = campaign.note(forStage: stage)
+            var note = consultantNote(forStage: stage)
             note.concernsAboutPeers[peerStage] = concern
-            campaign.setNote(note, forStage: stage)
+            consultantNotes[stage] = note
             let peerName = ConsultantRoster.forStage(peerStage)?.displayName ?? "Stage \(peerStage)"
             return ("\n\n⚠ **Concern about \(peerName):** \(concern)\n\n", "{\"ok\":true}")
 
@@ -992,7 +1015,7 @@ final class PricingConsultantViewModel {
                   peerStage >= 1, peerStage <= 6 else {
                 return ("", "{\"error\":\"stage must be an integer 1–6\"}")
             }
-            let note = campaign.note(forStage: peerStage)
+            let note = consultantNote(forStage: peerStage)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
@@ -1000,7 +1023,7 @@ final class PricingConsultantViewModel {
             return ("", String(data: data, encoding: .utf8) ?? "{}")
 
         case "read_working_model":
-            guard let proposal = campaign.proposal else {
+            guard proposal.generatedAt != nil else {
                 return ("", "{\"status\":\"no_proposal_yet\"}")
             }
             let encoder = JSONEncoder()
@@ -1021,9 +1044,9 @@ final class PricingConsultantViewModel {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             do {
-                var proposal = try decoder.decode(PricingProposal.self, from: data)
-                proposal.generatedAt = Date()
-                campaign.proposal = proposal
+                var merged = try decoder.decode(PricingProposal.self, from: data)
+                merged.generatedAt = Date()
+                proposal = merged
                 let toolCount = proposal.toolPrices?.count ?? 0
                 let chainSteps = proposal.totalChainSteps
                 let chainedTools = proposal.toolsWithChains.count
@@ -1103,24 +1126,38 @@ final class PricingConsultantViewModel {
 
         parts.append(buildBaseSystemPrompt(context: context))
 
+        // Stages 1–5 build context for the team; stage 6 presents the
+        // recommendation's tables in the chat.
+        if stage < 6 {
+            parts.append("""
+
+            ## The Chat and Your Notes
+            The operator reads the chat on a small screen. Each chat reply is a few short \
+            lines: what you concluded and the one question you need answered next. \
+            Your catalogs, per-tool tables and working detail belong in your notes: \
+            record them with record_findings, and keep your one-paragraph conclusion \
+            current with update_summary. Your colleagues read both.
+            """)
+        }
+
         // Stage-specific focus instruction
         let stageFocus: [Int: String] = [
             1: "You are in the INVENTORY phase — a self-contained conversation about ONLY this topic. " +
                 "Focus exclusively on discovering the operator's tools, categories, and current pricing. " +
                 "Do NOT discuss demand, value, costs, or constraints — those are separate conversations. " +
-                "When you have a complete inventory, summarize your findings clearly.",
+                "When you have a complete inventory, record them with record_findings and give the operator a few-line summary.",
             2: "You are in the DEMAND phase — a self-contained conversation about ONLY this topic. " +
                 "Focus exclusively on exploring expected usage patterns, market size, and user segments. " +
                 "Do NOT discuss value, costs, or constraints — those are separate conversations. " +
-                "When you have a clear demand picture, summarize your findings clearly.",
+                "When you have a clear demand picture, record them with record_findings and give the operator a few-line summary.",
             3: "You are in the VALUE phase — a self-contained conversation about ONLY this topic. " +
                 "Focus exclusively on assessing willingness-to-pay, competitive positioning, and perceived value. " +
                 "Do NOT discuss costs or constraints — those are separate conversations. " +
-                "When you have a value assessment, summarize your findings clearly.",
+                "When you have a value assessment, record them with record_findings and give the operator a few-line summary.",
             4: "You are in the COST phase — a self-contained conversation about ONLY this topic. " +
                 "Focus exclusively on understanding serving costs, margin requirements, and infrastructure overhead. " +
                 "Do NOT discuss constraints — that is a separate conversation. " +
-                "When you have a cost picture, summarize your findings clearly.",
+                "When you have a cost picture, record them with record_findings and give the operator a few-line summary.",
             5: "You are in the CONSTRAINTS & DEMURRAGE phase. Cover two topics:\n\n" +
                 "1. Promotional mechanics: fairness rules, rate limits, free-tier policies, discounts.\n\n" +
                 "2. Tranche Lifetime (IMPORTANT — you have everything you need here, do NOT call Oracle tools " +
@@ -1187,10 +1224,19 @@ final class PricingConsultantViewModel {
 
             let stageLabels = InterviewProgress.stageLabels
             for priorStage in 1..<stage {
-                let msgs = stageMessages[priorStage] ?? []
-                guard let lastAssistant = msgs.last(where: { $0.role == .assistant && !$0.content.isEmpty }) else { continue }
-                // Truncate to ~800 chars to keep prompt manageable
-                let summary = String(lastAssistant.content.prefix(800))
+                let note = consultantNote(forStage: priorStage)
+                var summary: String
+                if !note.summary.isEmpty {
+                    summary = note.summary
+                } else {
+                    let msgs = stageMessages[priorStage] ?? []
+                    guard let lastAssistant = msgs.last(where: { $0.role == .assistant && !$0.content.isEmpty }) else { continue }
+                    // Truncate to ~800 chars to keep prompt manageable
+                    summary = String(lastAssistant.content.prefix(800))
+                }
+                if !note.findings.isEmpty {
+                    summary += "\n(Full findings: read_peer_notes(stage: \(priorStage)).)"
+                }
                 if let peer = ConsultantRoster.forStage(priorStage) {
                     priorContext.append("\n### From \(peer.displayName) — \(peer.title)\n\(summary)")
                 } else {

@@ -97,7 +97,6 @@ final class SecondOpinionViewModel {
                 apiKey: apiKey,
                 model: model,
                 role: .adversary,
-                maxTokens: 4096,
                 includeTools: false
             )
             for await token in stream {

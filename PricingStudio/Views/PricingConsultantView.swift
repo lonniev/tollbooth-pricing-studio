@@ -44,7 +44,7 @@ struct PricingConsultantView: View {
             if !consultantVM.messages.isEmpty {
                 ConsultantBench(
                     activeStage: consultantVM.viewingStageNumber ?? consultantVM.interviewProgress.stageNumber,
-                    notes: consultantVM.currentCampaign?.consultantNotes ?? [:],
+                    notes: consultantVM.consultantNotes,
                     latestPeerUpdate: latestPeerUpdate(),
                     compact: true,
                     onSelectStage: { stage in
@@ -839,8 +839,7 @@ struct PricingConsultantView: View {
     /// Most recent `lastMetAt` across all consultants — used by the bench to
     /// decide which cards should show the "new peer input" badge.
     private func latestPeerUpdate() -> Date? {
-        consultantVM.currentCampaign?
-            .consultantNotes
+        consultantVM.consultantNotes
             .values
             .compactMap { $0.lastMetAt }
             .max()
