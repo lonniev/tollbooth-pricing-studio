@@ -1,0 +1,1 @@
+- The network map no longer shows the Oracle. The 🦉 in the toolbar is the one way to ask it.

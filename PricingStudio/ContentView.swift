@@ -120,8 +120,7 @@ struct ContentView: View {
                         NetworkTopologyView(
                             onNodeSelected: { npub, tier in
                                 selectEntity(npub: npub, tier: tier)
-                            },
-                            onAskOracle: { openOracle() }
+                            }
                         )
                     }
                 }
