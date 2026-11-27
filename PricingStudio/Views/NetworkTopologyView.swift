@@ -14,7 +14,6 @@ struct NetworkTopologyView: View {
     private var isCompact: Bool { sizeClass == .compact }
 
     var onNodeSelected: ((String, NetworkTier) -> Void)?
-    var onAskOracle: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,16 +42,8 @@ struct NetworkTopologyView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            // The legend explains the spatial graph; on compact (a list) it's
-            // noise, so the header carries the Oracle entry point instead.
-            if isCompact {
-                Button {
-                    onAskOracle?()
-                } label: {
-                    Text("🦉").font(.title2)
-                }
-                .accessibilityLabel("Ask the Oracle")
-            } else {
+            // The legend explains the spatial graph; on compact it's noise.
+            if !isCompact {
                 legendView
             }
         }
@@ -61,7 +52,6 @@ struct NetworkTopologyView: View {
 
     private var legendView: some View {
         HStack(spacing: 16) {
-            legendItem(tier: .oracle, label: "Oracle")
             legendItem(tier: .primeAuthority, label: "Prime")
             legendItem(tier: .authority, label: "Authority")
             legendItem(tier: .operator, label: "Operator")
@@ -92,16 +82,6 @@ struct NetworkTopologyView: View {
             GeometryReader { geometry in
                 ScrollView([.horizontal, .vertical]) {
                     topologyCanvas(size: geometry.size)
-                }
-            }
-            .overlay(alignment: .topTrailing) {
-                // Regular width floats the Oracle node over the canvas;
-                // compact reaches the Oracle from the header owl instead, so its
-                // canvas stays uncluttered.
-                if !isCompact {
-                    oracleNode
-                        .padding(.top, 8)
-                        .padding(.trailing, 16)
                 }
             }
         }
@@ -237,24 +217,6 @@ struct NetworkTopologyView: View {
         }
         for r in roots { walk(r) }
         return counts
-    }
-
-    private var oracleNode: some View {
-        VStack(spacing: 4) {
-            ZStack {
-                Circle()
-                    .fill(NetworkTier.oracle.color.opacity(0.2))
-                    .frame(width: 44, height: 44)
-
-                Text("🦉")
-                    .font(.system(size: 22))
-            }
-            .onTapGesture { onAskOracle?() }
-
-            Text("Oracle")
-                .font(.caption2.bold())
-                .foregroundStyle(NetworkTier.oracle.color)
-        }
     }
 
     private func nodeView(
