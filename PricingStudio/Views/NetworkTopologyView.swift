@@ -7,7 +7,6 @@ struct NetworkTopologyView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var topologyVM = TopologyViewModel()
     @State private var selectedNpub: String?
-    @State private var showingOracleChat = false
     /// Npubs of nodes whose subtree is currently collapsed in the canvas.
     /// Empty = fully expanded.
     @State private var collapsedNpubs: Set<String> = []
@@ -15,34 +14,13 @@ struct NetworkTopologyView: View {
     private var isCompact: Bool { sizeClass == .compact }
 
     var onNodeSelected: ((String, NetworkTier) -> Void)?
-    var onOraclePrompt: ((String) -> Void)?
+    var onAskOracle: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
             graphContent
-        }
-        // Compact has no room for the floating Oracle panel — present it as a
-        // sheet (opened from the header owl).
-        .sheet(isPresented: Binding(
-            get: { isCompact && showingOracleChat },
-            set: { showingOracleChat = $0 }
-        )) {
-            NavigationStack {
-                OraclePromptPanel { prompt in
-                    showingOracleChat = false
-                    onOraclePrompt?(prompt)
-                }
-                .navigationTitle("Ask the Oracle")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") { showingOracleChat = false }
-                    }
-                }
-            }
-            .presentationDetents([.medium, .large])
         }
         .task {
             await topologyVM.buildTopology(authorities: authorities, operators: operators)
@@ -69,7 +47,7 @@ struct NetworkTopologyView: View {
             // noise, so the header carries the Oracle entry point instead.
             if isCompact {
                 Button {
-                    showingOracleChat = true
+                    onAskOracle?()
                 } label: {
                     Text("🦉").font(.title2)
                 }
@@ -117,25 +95,13 @@ struct NetworkTopologyView: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                // Regular width floats the Oracle node + panel over the canvas;
+                // Regular width floats the Oracle node over the canvas;
                 // compact reaches the Oracle from the header owl instead, so its
                 // canvas stays uncluttered.
                 if !isCompact {
-                    VStack(alignment: .trailing, spacing: 8) {
-                        oracleNode
-
-                        if showingOracleChat {
-                            OraclePromptPanel { prompt in
-                                onOraclePrompt?(prompt)
-                            }
-                            .frame(width: 340, height: 420)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .shadow(radius: 12)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                        }
-                    }
-                    .padding(.top, 8)
-                    .padding(.trailing, 16)
+                    oracleNode
+                        .padding(.top, 8)
+                        .padding(.trailing, 16)
                 }
             }
         }
@@ -277,15 +243,13 @@ struct NetworkTopologyView: View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .fill(NetworkTier.oracle.color.opacity(showingOracleChat ? 1.0 : 0.2))
+                    .fill(NetworkTier.oracle.color.opacity(0.2))
                     .frame(width: 44, height: 44)
 
                 Text("🦉")
                     .font(.system(size: 22))
             }
-            .onTapGesture {
-                withAnimation { showingOracleChat.toggle() }
-            }
+            .onTapGesture { onAskOracle?() }
 
             Text("Oracle")
                 .font(.caption2.bold())

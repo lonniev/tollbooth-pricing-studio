@@ -32,7 +32,7 @@ struct AssistantPanelView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Label("AI Assistant", systemImage: "sparkles")
+                Text("🦉 Oracle")
                     .font(.headline)
                 Text(assistantVM.roleDisplayLabel)
                     .font(.caption2.monospaced())
@@ -126,17 +126,9 @@ struct AssistantPanelView: View {
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
         } else {
-            VStack(spacing: 12) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 36))
-                    .foregroundStyle(.secondary)
-                Text("Ask about tools, pricing, balances, or DPYC architecture")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+            OracleStarterPrompts { prompt in
+                assistantVM.sendUserMessage(prompt, context: context)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 40)
         }
     }
 
@@ -180,7 +172,7 @@ struct AssistantPanelView: View {
     @ViewBuilder
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Ask about this entity...", text: $inputText, axis: .vertical)
+            TextField("Ask the Oracle…", text: $inputText, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...4)
                 .onSubmit { send() }

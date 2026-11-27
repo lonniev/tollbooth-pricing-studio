@@ -1,0 +1,2 @@
+- The Owl is the one place to ask for AI help. The toolbar's sparkle button is now the Owl, and the Oracle on the network map opens the same chat. An empty chat shows starter questions to tap.
+- The Oracle answers DPYC questions from the live Oracle service, not from facts built into the app. It never quotes a fee, credit expiry or version from memory, and it can now list services, resolve an npub to its MCP URL, suggest Lightning wallets and report current versions.
