@@ -121,14 +121,7 @@ struct ContentView: View {
                             onNodeSelected: { npub, tier in
                                 selectEntity(npub: npub, tier: tier)
                             },
-                            onOraclePrompt: { prompt in
-                                // Send Oracle prompt to the AI Assistant panel
-                                showingAssistant = true
-                                assistantVM.sendUserMessage(
-                                    "[Oracle RAG] \(prompt)",
-                                    context: buildAppContext()
-                                )
-                            }
+                            onAskOracle: { openOracle() }
                         )
                     }
                 }
@@ -221,19 +214,15 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        // The inspector is a side pane — there's no room for it
-                        // on a phone, so compact width opens the Assistant as a
-                        // full-screen cover instead.
-                        if horizontalSizeClass == .compact {
-                            assistantFullScreen = true
+                        if showingAssistant {
+                            withAnimation { showingAssistant = false }
                         } else {
-                            withAnimation { showingAssistant.toggle() }
+                            openOracle()
                         }
                     } label: {
-                        Label(
-                            showingAssistant ? "Hide Assistant" : "AI Assistant",
-                            systemImage: "sparkles"
-                        )
+                        Text("🦉")
+                            .font(.title3)
+                            .accessibilityLabel(showingAssistant ? "Hide the Oracle" : "Ask the Oracle")
                     }
                 }
             }
@@ -481,7 +470,8 @@ struct ContentView: View {
                     let oracleURL = try await RegistryService.resolveOracleURL()
                     return try await mcpService.callToolGeneric(
                         endpointURL: oracleURL,
-                        toolName: toolName
+                        toolName: toolName,
+                        arguments: OpenRouterService.oracleArguments(input)
                     )
                 } catch {
                     return "Oracle tool call failed: \(error.localizedDescription)"
@@ -542,6 +532,16 @@ struct ContentView: View {
     }
 
     // MARK: - App Context for AI Assistant
+
+    /// Opens the Oracle chat: a side pane on regular width, full screen on a
+    /// phone, where there is no room for the pane.
+    private func openOracle() {
+        if horizontalSizeClass == .compact {
+            assistantFullScreen = true
+        } else {
+            withAnimation { showingAssistant = true }
+        }
+    }
 
     private func buildAppContext() -> AppContext {
         var ctx = AppContext()

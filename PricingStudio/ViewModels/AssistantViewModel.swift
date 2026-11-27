@@ -29,11 +29,7 @@ final class AssistantViewModel {
     private let service = OpenRouterService()
 
     func sendUserMessage(_ text: String, context: AppContext) {
-        // Strip [Oracle RAG] prefix for display — keep it in the API message for context
-        let displayText = text.hasPrefix("[Oracle RAG] ")
-            ? String(text.dropFirst("[Oracle RAG] ".count))
-            : text
-        let userMessage = AssistantMessage(role: .user, content: displayText)
+        let userMessage = AssistantMessage(role: .user, content: text)
         messages.append(userMessage)
 
         let model = ModelRoleSettings.slug(for: .owl)
@@ -120,35 +116,20 @@ final class AssistantViewModel {
 
         parts.append("""
 
-        DPYC reference:
-        - DPYC = "Don't Pester Your Customer" — API monetization via Bitcoin Lightning micropayments
-        - Identity is a Nostr keypair (npub), not an email
-        - Operators run MCP services monetized by Tollbooth fares (sat micropayments via Lightning)
-        - Authorities certify Operators and collect an ad valorem certification fee on each purchase
-        - Pre-funded satoshi balances eliminate per-request payment ceremonies
-        - The Certification Chain: Prime Authority → Authorities → Operators → Patrons
-        - Bitcoin Notarization: Merkle tree of all balances submitted to Bitcoin via OpenTimestamps
-        - Secure Courier: Nostr DM-based credential delivery (never in chat)
-        - Oracle: free community governance service (🦉 Owl of Athena) — not a tollbooth operator
+        You are the 🦉 Oracle of the DPYC ("Don't Pester Your Customer") network: \
+        Bitcoin Lightning micropayments for MCP services, with Nostr npubs as identity.
 
-        When a message begins with [Oracle RAG], the user asked via the 🦉 Oracle prompt panel.
-        Answer as the Oracle of Athena — wise, authoritative, concise. Use markdown headings,
-        bullet points, and paragraph breaks for readability. Draw on the DPYC ecosystem knowledge above.
+        Answer every question about the DPYC from the Oracle's tools, called this turn. \
+        Never state a fee, tax rate, credit expiry, version, wallet, URL or member from memory: \
+        those change, and each Operator and Authority sets its own prices. \
+        When a figure belongs to one Authority or Operator, say so and name the tool that \
+        reports it (its check_price). If a tool fails, say the Oracle could not be reached \
+        rather than answering from memory.
 
-        Key topics you can explain:
-        - Membership tiers: Citizen, Advocate, Operator, Authority, First Curator
-        - Economics: certification fees (2% ad valorem), Lightning invoices, tranche-based credit expiration (7-day TTL)
-        - Getting started: generate Nostr keypair (Primal, nak), find a sponsoring Authority
-        - Running an Operator: install tollbooth-dpyc, configure BTCPay, deploy on Horizon
-        - Trust stack: LedgerCache → NeonVault → AuditedVault → Bitcoin Notarization (OTS)
-        - Secure Courier: NIP-04/NIP-17 encrypted credential delivery via Nostr DMs
-        - The Oracle itself: free community governance MCP, not tollbooth-monetized (bootstrap independence)
+        Questions about the screen (the selected entity, its pricing model, balances) are \
+        answered from the current state above.
 
-        If a question would benefit from live data (e.g., current member lookup, network advisory,
-        live version info), mention that the 🦉 Oracle MCP can provide real-time answers and
-        suggest the user check via the Oracle's tools in a connected MCP session.
-
-        Answer questions about pricing, balances, tool usage, network membership, and the DPYC Tollbooth architecture. Be concise and specific.
+        Be concise. Use short markdown headings and bullets where they help.
         """)
 
         return parts.joined(separator: "\n")

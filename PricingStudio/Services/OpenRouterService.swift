@@ -1,4 +1,5 @@
 import Foundation
+import MCP
 import OSLog
 import PricingStudioCore
 
@@ -61,6 +62,45 @@ final class OpenRouterService: @unchecked Sendable {
             "description": "Get current network advisories — recent changes, upgrades, and actions operators should take.",
             "input_schema": ["type": "object", "properties": [:] as [String: Any]]
         ],
+        [
+            "name": "oracle_list_services",
+            "description": "List the live DPYC network: every Operator, Authority and Advocate, each with its own self-description.",
+            "input_schema": [
+                "type": "object",
+                "properties": ["kind": ["type": "string", "description": "all, operator, authority, or advocate"]]
+            ] as [String: Any]
+        ],
+        [
+            "name": "oracle_resolve_service",
+            "description": "Resolve a DPYC service by name or npub to its npub, MCP URL, name and role. Supply exactly one of name or npub.",
+            "input_schema": [
+                "type": "object",
+                "properties": [
+                    "name": ["type": "string", "description": "Service name"],
+                    "npub": ["type": "string", "description": "Service npub"],
+                ]
+            ] as [String: Any]
+        ],
+        [
+            "name": "oracle_get_tax_rate",
+            "description": "Explain how Authority certification fees work. Each Authority sets its own rate; this names where to read it.",
+            "input_schema": ["type": "object", "properties": [:] as [String: Any]]
+        ],
+        [
+            "name": "oracle_how_to_add_authority",
+            "description": "The step-by-step guide for starting a new Tollbooth Authority.",
+            "input_schema": ["type": "object", "properties": [:] as [String: Any]]
+        ],
+        [
+            "name": "oracle_lightning_wallets",
+            "description": "Lightning wallets a newcomer can install to pay a Tollbooth invoice, with store links.",
+            "input_schema": ["type": "object", "properties": [:] as [String: Any]]
+        ],
+        [
+            "name": "oracle_network_versions",
+            "description": "Current recommended versions of every Tollbooth component.",
+            "input_schema": ["type": "object", "properties": [:] as [String: Any]]
+        ],
     ]
 
     /// Map Oracle tool names to MCP tool names
@@ -71,7 +111,29 @@ final class OpenRouterService: @unchecked Sendable {
         "oracle_get_rulebook": "get_rulebook",
         "oracle_lookup_member": "lookup_member",
         "oracle_network_advisory": "network_advisory",
+        "oracle_list_services": "list_services",
+        "oracle_resolve_service": "resolve_service",
+        "oracle_get_tax_rate": "get_tax_rate",
+        "oracle_how_to_add_authority": "how_to_add_authority",
+        "oracle_lightning_wallets": "lightning_wallets",
+        "oracle_network_versions": "network_versions",
     ]
+
+    /// The model's tool input as MCP arguments. Only strings, numbers and
+    /// booleans pass; every Oracle tool takes nothing else.
+    static func oracleArguments(_ input: [String: Any]) -> [String: Value] {
+        var args: [String: Value] = [:]
+        for (key, raw) in input {
+            switch raw {
+            case let v as String: args[key] = .string(v)
+            case let v as Bool: args[key] = .bool(v)
+            case let v as Int: args[key] = .int(v)
+            case let v as Double: args[key] = .double(v)
+            default: continue
+            }
+        }
+        return args
+    }
 
     // MARK: - Consultant Local Tools
 
