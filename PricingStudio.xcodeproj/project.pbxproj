@@ -157,6 +157,7 @@
 		BB0000010000000000000A31 /* CloudKitSchemaInitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */; };
 		BB0000010000000000000A41 /* EntityDeduplicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */; };
 		BB0000010000000000000A51 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000A52 /* KeychainServiceTests.swift */; };
+		BB0000010000000000000C61 /* MarkdownSegmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000C62 /* MarkdownSegmentTests.swift */; };
 		BB0000010000000000000B51 /* ConnectionIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000B52 /* ConnectionIdentityTests.swift */; };
 		BB0000010000000000000F01 /* TestTeardown.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E01 /* TestTeardown.swift */; };
 		BB0000010000000000000F02 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000010000000000000E02 /* AppLaunchTests.swift */; };
@@ -388,6 +389,7 @@
 		BB0000010000000000000A32 /* CloudKitSchemaInitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSchemaInitTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A42 /* EntityDeduplicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDeduplicatorTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000A52 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
+		BB0000010000000000000C62 /* MarkdownSegmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSegmentTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000B52 /* ConnectionIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionIdentityTests.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E01 /* TestTeardown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestTeardown.swift; sourceTree = "<group>"; };
 		BB0000010000000000000E02 /* AppLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchTests.swift; sourceTree = "<group>"; };
@@ -781,6 +783,7 @@
 				E5C0000500000000000000A1 /* ProfileFillTests.swift */,
 				E5C0000600000000000000A1 /* IconifyTests.swift */,
 				BB0000010000000000000B52 /* ConnectionIdentityTests.swift */,
+				BB0000010000000000000C62 /* MarkdownSegmentTests.swift */,
 				DD0000010000000000000E01 /* NostrProfileMetadataTests.swift */,
 				DD0000010000000000000E02 /* NostrRelayTests.swift */,
 				DD0000010000000000000E03 /* NostrDMServiceTests.swift */,
@@ -1224,6 +1227,7 @@
 				E5C0000500000000000000B1 /* ProfileFillTests.swift in Sources */,
 				E5C0000600000000000000B1 /* IconifyTests.swift in Sources */,
 				BB0000010000000000000B51 /* ConnectionIdentityTests.swift in Sources */,
+				BB0000010000000000000C61 /* MarkdownSegmentTests.swift in Sources */,
 				DD0000010000000000000F01 /* NostrProfileMetadataTests.swift in Sources */,
 				DD0000010000000000000F02 /* NostrRelayTests.swift in Sources */,
 				DD0000010000000000000F03 /* NostrDMServiceTests.swift in Sources */,

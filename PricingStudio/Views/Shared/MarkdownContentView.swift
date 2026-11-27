@@ -10,7 +10,7 @@ struct MarkdownContentView: View {
 
     var body: some View {
         let segments = Self.parseMarkdownSegments(text)
-        let hasBlocks = segments.contains(where: { $0.isCodeBlock || $0.isTable }) || Self.containsBlockMarkdown(text)
+        let hasBlocks = segments.contains(where: { $0.isCodeBlock || $0.isTable || $0.isStatus }) || Self.containsBlockMarkdown(text)
         if hasBlocks {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
@@ -19,6 +19,8 @@ struct MarkdownContentView: View {
                         codeBlockView(segment.content, language: language)
                     case .table(let header, let rows):
                         tableView(header: header, rows: rows)
+                    case .status(let labels):
+                        statusView(labels)
                     case .text:
                         renderBlockText(segment.content)
                     }
@@ -142,39 +144,80 @@ struct MarkdownContentView: View {
 
     // MARK: - Table
 
+    /// A real grid: every column shares one width, cells wrap instead of
+    /// running off the edge, and the last column takes the slack.
     @ViewBuilder
     private func tableView(header: [String], rows: [[String]]) -> some View {
         let colCount = header.count
-        ScrollView(.horizontal, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 0) {
-                    ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
-                        Text(Self.markdownAttributed(cell))
-                            .font(.system(.caption, design: .monospaced).bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .frame(minWidth: 60, alignment: .leading)
-                    }
-                }
-                Divider()
-                ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, row in
-                    HStack(spacing: 0) {
-                        ForEach(0..<colCount, id: \.self) { colIdx in
-                            Text(Self.markdownAttributed(colIdx < row.count ? row[colIdx] : ""))
-                                .font(.system(.caption, design: .monospaced))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .frame(minWidth: 60, alignment: .leading)
-                        }
-                    }
-                    if rowIdx < rows.count - 1 {
-                        Divider().opacity(0.5)
-                    }
+        Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 6) {
+            GridRow {
+                ForEach(0..<colCount, id: \.self) { col in
+                    Text(Self.markdownAttributed(header[col]))
+                        .font(.subheadline.bold())
+                        .frame(maxWidth: col == colCount - 1 ? .infinity : nil, alignment: .leading)
                 }
             }
-            .textSelection(.enabled)
+            Divider()
+            ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, row in
+                GridRow {
+                    ForEach(0..<colCount, id: \.self) { col in
+                        Text(Self.markdownAttributed(col < row.count ? row[col] : ""))
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: col == colCount - 1 ? .infinity : nil, alignment: .leading)
+                    }
+                }
+                if rowIdx < rows.count - 1 {
+                    Divider().opacity(0.5)
+                }
+            }
         }
+        .padding(10)
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Tool Status
+
+    /// Status lines the tool loop streams into a reply ("*Consulting Operator…*",
+    /// "_Summary updated._"). Adjacent ones collapse into one row of small chips.
+    static func statusLabel(_ line: String) -> String? {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        if t == "_Summary updated._" { return "Summary" }
+        for (open, close) in [("*Consulting ", "…*"), ("*Consulting ", "...*")] {
+            if t.hasPrefix(open), t.hasSuffix(close), t.count > open.count + close.count {
+                return String(t.dropFirst(open.count).dropLast(close.count))
+            }
+        }
+        return nil
+    }
+
+    private static func statusIcon(_ label: String) -> String {
+        switch label {
+        case "Summary": return "note.text"
+        case "Oracle": return "sparkle.magnifyingglass"
+        default: return "server.rack"
+        }
+    }
+
+    @ViewBuilder
+    private func statusView(_ labels: [String]) -> some View {
+        var order: [String] = []
+        var counts: [String: Int] = [:]
+        let _ = labels.forEach { l in
+            if counts[l] == nil { order.append(l) }
+            counts[l, default: 0] += 1
+        }
+        HStack(spacing: 6) {
+            ForEach(order, id: \.self) { label in
+                let n = counts[label] ?? 1
+                Label(n > 1 ? "\(label) ×\(n)" : label, systemImage: Self.statusIcon(label))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.quaternary.opacity(0.5), in: Capsule())
+            }
+        }
     }
 
     // MARK: - Segment Parsing
@@ -183,6 +226,7 @@ struct MarkdownContentView: View {
         case text
         case code(language: String?)
         case table(header: [String], rows: [[String]])
+        case status([String])
     }
 
     struct MarkdownSegment {
@@ -197,6 +241,10 @@ struct MarkdownContentView: View {
             if case .table = kind { return true }
             return false
         }
+        var isStatus: Bool {
+            if case .status = kind { return true }
+            return false
+        }
     }
 
     static func parseMarkdownSegments(_ text: String) -> [MarkdownSegment] {
@@ -207,6 +255,14 @@ struct MarkdownContentView: View {
         var inCodeBlock = false
         var codeLang: String?
         var tableLines: [String] = []
+        var statusLabels: [String] = []
+
+        func flushStatus() {
+            if !statusLabels.isEmpty {
+                segments.append(MarkdownSegment(content: "", kind: .status(statusLabels)))
+                statusLabels = []
+            }
+        }
 
         func flushText() {
             let accumulated = currentText.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -238,6 +294,7 @@ struct MarkdownContentView: View {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             if line.hasPrefix("```") && !inCodeBlock {
+                flushStatus()
                 flushTable()
                 flushText()
                 inCodeBlock = true
@@ -251,12 +308,20 @@ struct MarkdownContentView: View {
                 codeLang = nil
             } else if inCodeBlock {
                 codeLines.append(line)
+            } else if let label = statusLabel(trimmed) {
+                if !tableLines.isEmpty { flushTable() }
+                flushText()
+                statusLabels.append(label)
+            } else if trimmed.isEmpty && !statusLabels.isEmpty && currentText.isEmpty && tableLines.isEmpty {
+                continue
             } else if trimmed.hasPrefix("|") {
+                flushStatus()
                 if tableLines.isEmpty {
                     flushText()
                 }
                 tableLines.append(trimmed)
             } else {
+                flushStatus()
                 if !tableLines.isEmpty {
                     flushTable()
                 }
@@ -268,6 +333,7 @@ struct MarkdownContentView: View {
             let code = codeLines.joined(separator: "\n")
             segments.append(MarkdownSegment(content: code, kind: .code(language: codeLang)))
         } else {
+            flushStatus()
             if !tableLines.isEmpty { flushTable() }
             flushText()
         }
