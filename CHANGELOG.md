@@ -2,6 +2,18 @@
 
 Changes not yet released live in `changelog.d/`, one file per change — see the README there for why, and `scripts/changelog.py` for what folds them in at release time.
 
+## [1.23.3] — 2026-11-27
+
+### Changed
+
+- Settings → Models suggests Claude Sonnet 5.5 and Grok 4.7 and 4.6 in place of Grok 4 and Grok 3, which OpenRouter no longer offers.
+
+### Fixed
+
+- Consultant replies were cut off mid-table at 2048 tokens. They now get 8192, and a reply that still runs out carries on once in the same bubble before ending with a note.
+- Consultants keep the chat to a few lines and record their full catalogs and tables as findings in their notes. Colleagues read those findings.
+- Consultant notes now work before a campaign is saved, and Hayek's merged proposal no longer gets overwritten when the campaign is saved.
+
 ## [1.23.2] — 2026-11-21
 
 ### Fixed
