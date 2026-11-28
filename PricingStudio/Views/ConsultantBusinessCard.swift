@@ -16,6 +16,8 @@ struct ConsultantBusinessCard: View {
     let state: CardState
     var compact: Bool = false
     var onTap: (() -> Void)? = nil
+    /// False for a display-only card: no ⓘ, no "Tap to meet".
+    var interactive: Bool = true
 
     @State private var showingFacts = false
 
@@ -26,36 +28,53 @@ struct ConsultantBusinessCard: View {
     }
 
     var body: some View {
-        cardContent
-            // A visible ⓘ makes the bio discoverable — the long-press alone is
-            // invisible. Tapping it opens the same facts popover.
-            .overlay(alignment: .topTrailing) {
-                Button {
-                    showingFacts = true
-                } label: {
-                    Image(systemName: "info.circle.fill")
-                        .font(.system(size: compact ? 13 : 15))
-                        .foregroundStyle(consultant.accentColor, .background)
-                        .padding(compact ? 3 : 5)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show \(consultant.displayName)'s bio")
+        if interactive {
+            interactiveCard
+        } else {
+            // A display-only card (the intro above "Begin meeting"): no ⓘ and
+            // no "Tap to meet", since nothing on it answers a tap.
+            cardContent
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(consultant.displayName), \(consultant.title)")
+        }
+    }
+
+    /// The card and its ⓘ are sibling buttons, never nested: a tap gesture on
+    /// the card used to compete with the ⓘ inside it, and selecting the stage
+    /// re-rendered the card and dropped the facts popover.
+    private var interactiveCard: some View {
+        ZStack(alignment: .topTrailing) {
+            Button {
+                onTap?()
+            } label: {
+                cardContent
             }
-            .contentShape(.rect)
-            .onTapGesture { onTap?() }
-            .onLongPressGesture(minimumDuration: 0.45) { showingFacts = true }
-            // Regular width: a light popover anchored to the card. Compact
-            // (iPhone): let it adapt to a sheet the reader can drag up from a
-            // peek to full screen — no longer trapped inside the card's span.
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45).onEnded { _ in showingFacts = true }
+            )
+            .accessibilityLabel("\(consultant.displayName), \(consultant.title)")
+            .accessibilityHint(accessibilityHint)
+            .accessibilityAction(named: Text("Show facts")) { showingFacts = true }
+
+            Button {
+                showingFacts = true
+            } label: {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: compact ? 13 : 15))
+                    .foregroundStyle(consultant.accentColor, .background)
+                    .padding(compact ? 6 : 8)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Show \(consultant.displayName)'s bio")
+            // Regular width: a light popover anchored to the ⓘ. Compact
+            // (iPhone): it adapts to a sheet the reader can drag up.
             .popover(isPresented: $showingFacts, arrowEdge: .top) {
                 ConsultantFactsCard(consultant: consultant)
                     .presentationDetents([.medium, .large])
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(consultant.displayName), \(consultant.title)")
-            .accessibilityHint(accessibilityHint)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction(named: Text("Show facts")) { showingFacts = true }
+        }
     }
 
     private var cardContent: some View {
@@ -141,6 +160,8 @@ struct ConsultantBusinessCard: View {
     private var statusFooter: some View {
         HStack(spacing: 4) {
             switch state {
+            case .unvisited where !interactive:
+                EmptyView()
             case .unvisited:
                 Text("Tap to meet")
                     .font(.system(size: 8, weight: .medium))

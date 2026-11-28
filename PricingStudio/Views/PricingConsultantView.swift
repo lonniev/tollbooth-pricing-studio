@@ -703,9 +703,9 @@ struct PricingConsultantView: View {
             ConsultantBusinessCard(
                 consultant: consultant,
                 state: .unvisited,
-                compact: false
+                compact: false,
+                interactive: false
             )
-            .allowsHitTesting(false)
 
             VStack(spacing: 6) {
                 Text("You haven't met with \(consultant.displayName) yet.")
